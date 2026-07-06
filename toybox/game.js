@@ -8,16 +8,17 @@ import * as THREE from 'three';
 import {
   MAP_N, POP_MAX, RES_TYPES, RES_META, UNITS, BUILDINGS, TECHS, MARKET,
   AGES, AGE_UPS, PRODUCTION_BUILDINGS, START, AI, DIFFICULTIES, TEAM_NAMES, STICKER, WONDER, PERSONAS, MAPS, FACTIONS,
-  CRITTERS,
+  CRITTERS, GAME_MODES, START_RES,
 } from './data.js';
 import {
   createUnitView, createBuildingView, createResourceView,
   createGround, createObstacleMesh, createDecorMesh, createStickerView, createRallyFlag,
-  makeRankBadge, createCritterView, createMilkSpill,
+  makeRankBadge, createCritterView, createMilkSpill, createKingCrown, createThroneView,
 } from './models.js';
 
 const N = MAP_N;
 const RELIC_COUNTDOWN = 180; // seconds holding all Lost Stickers = win
+const KOTH_HOLD = 120;       // seconds holding the golden Throne = win
 const idx = (i, j) => j * N + i;
 const inMap = (i, j) => i >= 0 && j >= 0 && i < N && j < N;
 const tileOf = (x) => Math.floor(x + N / 2);
@@ -207,6 +208,8 @@ export class Game {
     this.rng = makeRng(opts.seed || 20260703);
     this.map = MAPS[opts.map] || MAPS.playmat;
     this.tutorial = !!opts.tutorial; // AI sits idle; scripted steps drive play
+    this.gameMode = opts.gameMode && GAME_MODES[opts.gameMode] ? opts.gameMode : 'standard';
+    this.startResKey = opts.startRes && START_RES[opts.startRes] ? opts.startRes : 'standard';
     const base = DIFFICULTIES[opts.difficulty || 'normal'];
     this.entities = [];
     this.selected = [];
@@ -253,6 +256,9 @@ export class Game {
           p.mods[k] *= v;
         }
       }
+      // starting-resource preset scales the opening bank
+      const mult = START_RES[this.startResKey].mult;
+      if (mult !== 1) for (const r of RES_TYPES) p.res[r] = Math.round(p.res[r] * mult);
     }
     // per-AI difficulty persona and manager state (deterministic roll order)
     this.aiState = {};
@@ -467,6 +473,15 @@ export class Game {
         this.spawnUnit('worker', p.id, chest.x + face * (2.8 + w * 0.7), chest.z + faceZ * 2.6);
       }
       this.spawnUnit('scout', p.id, chest.x + face * 3.4, chest.z - faceZ * 1.5);
+      // Regicide: each toybox fields a King to protect
+      if (this.gameMode === 'regicide') {
+        const king = this.spawnUnit('king', p.id, chest.x + face * 2, chest.z + faceZ * 3.5);
+        king.isKing = true;
+        if (king.view) {
+          king.kingCrown = createKingCrown();
+          king.view.group.add(king.kingCrown);
+        }
+      }
       RC('snacks', ci + face * 7, cj + faceZ * 2, 4);
       RC('blocks', ci + 1, cj + faceZ * 7, 4);
       RC('buttons', ci + face * 10, cj + faceZ * 5, 2);
@@ -481,10 +496,15 @@ export class Game {
     RC('marbles', N / 2 - 8, N / 2 + 1, 2);
     RC('marbles', N / 2 + 6, N / 2 - 1, 2);
 
-    // Lost Stickers: hold with military toys for a Buttons trickle (map control)
-    this.addSticker(worldOf(N / 2 - 14), worldOf(N / 2 - 14));
-    this.addSticker(worldOf(N / 2 + 13), worldOf(N / 2 + 13));
-    if (this.map.stickers >= 3) this.addSticker(worldOf(N / 2), worldOf(N / 2));
+    // Lost Stickers: hold with military toys for a Buttons trickle (map control).
+    // King of the Hill replaces them with a single golden Throne at center.
+    if (this.gameMode === 'koth') {
+      this.addThrone(worldOf(N / 2), worldOf(N / 2));
+    } else {
+      this.addSticker(worldOf(N / 2 - 14), worldOf(N / 2 - 14));
+      this.addSticker(worldOf(N / 2 + 13), worldOf(N / 2 + 13));
+      if (this.map.stickers >= 3) this.addSticker(worldOf(N / 2), worldOf(N / 2));
+    }
 
     // ---- terrain features: AoE lakes/mountains/forests, bedroom edition ----
     const feat = this.map.features || {};
@@ -679,9 +699,23 @@ export class Game {
     });
   }
 
+  addThrone(x, z) {
+    const view = createThroneView();
+    view.group.position.set(x, this.heightAtWorld(x, z), z);
+    this.scene.add(view.group);
+    this.entities.push({
+      id: this.nextId++, kind: 'objective', type: 'throne', owner: -1,
+      x, z, radius: 2.2, holder: -1, holdTime: 0, scanT: 0,
+      def: { name: 'Golden Throne', desc: 'Hold it with a military toy to rule the bedroom.' },
+      view, dead: false,
+    });
+  }
+
   updateObjectives(dt) {
     for (const s of this.entities) {
       if (s.kind !== 'objective' || s.dead) continue;
+      // the KotH throne is scored by updateKoth, not the sticker income loop
+      if (s.type === 'throne') { s.view.update(dt); continue; }
       s.view.update(dt);
       // holder is a TEAM; every toybox on it shares the trickle
       if (s.holder >= 0) {
@@ -1169,6 +1203,8 @@ export class Game {
       if (e.stance === 'def') h = (h + 5) | 0;
       else if (e.stance === 'stand') h = (h + 9) | 0;
       if (e.garrisoned) h = (h + 17) | 0;
+      // objectives: who holds them and (throne) for how long drives win state
+      if (e.kind === 'objective') h = (h + (e.holder + 2) * 29 + ((e.holdTime || 0) * 8 | 0) * 3) | 0;
     }
     for (const p of this.players) {
       h = (h + ((p.res.snacks | 0) * 3) + ((p.res.blocks | 0) * 5)
@@ -1214,7 +1250,7 @@ export class Game {
       v: 2,
       opts: {
         seed: this.seedUsed, map: this.mapKey, difficulty: this.diffKey,
-        factions: [...this.factionKeys],
+        factions: [...this.factionKeys], gameMode: this.gameMode, startRes: this.startResKey,
         playerDefs: this.playerDefs.map((d, i) => ({ team: d.team, isAI: !!d.isAI, faction: this.factionKeys[i] })),
       },
       time: this.time, nextId: this.nextId, rng: this.rng.getState(),
@@ -1237,7 +1273,7 @@ export class Game {
             k: 'u', id: e.id, type: e.type, owner: e.owner, x: e.x, z: e.z,
             hp: e.hp, maxHp: e.maxHp, carry: e.carry, carryType: e.carryType,
             stance: e.stance, kills: e.kills || 0, garrisoned: e.garrisoned || null,
-            facing: e.facing,
+            facing: e.facing, isKing: !!e.isKing,
             order: this.encOrder(e.order), oq: e.oq.map((o) => this.encOrder(o)),
             fleeResume: this.encOrder(e.fleeResume), bellResume: this.encOrder(e.bellResume),
           };
@@ -1255,6 +1291,9 @@ export class Game {
         }
         if (e.kind === 'critter') {
           return { k: 'c', id: e.id, x: e.x, z: e.z, captor: e.captor, facing: e.facing };
+        }
+        if (e.type === 'throne') {
+          return { k: 'h', id: e.id, x: e.x, z: e.z, holder: e.holder, holdTime: e.holdTime || 0, holdTeam: e.holdTeam ?? -1 };
         }
         return { k: 'o', id: e.id, x: e.x, z: e.z, holder: e.holder };
       }),
@@ -1295,9 +1334,10 @@ export class Game {
           order: null, oq: [], path: null, pathI: 0, aim: null, losT: 0, stuckT: 0,
           cd: 0, scanT: 0.3, gfxT: 0, swing: null, carry: se.carry, carryType: se.carryType,
           stance: se.stance || 'agg', anchor: null, garrisoned: se.garrisoned || null,
-          facing: se.facing || 0, kills: se.kills || 0,
+          facing: se.facing || 0, kills: se.kills || 0, isKing: !!se.isKing,
           dead: false, wasMoving: false, spawnT: 0,
         };
+        if (e.isKing) { e.kingCrown = createKingCrown(); view.group.add(e.kingCrown); }
         if (e.kills >= 3) { e.rankBadge = makeRankBadge(e.kills >= 10 ? 3 : e.kills >= 6 ? 2 : 1); view.group.add(e.rankBadge); }
         if (this.players[e.owner].techs.has(`elite_${e.type}`)) this.decorateElite(e);
         if (e.garrisoned) view.group.visible = false;
@@ -1339,6 +1379,17 @@ export class Game {
           x: se.x, z: se.z, radius: 0.25, captor: se.captor, facing: se.facing || 0,
           wanderT: 1, scanT: 0.3,
           def: { name: 'Wind-Up Mouse', desc: `Walk a toy up to it — it follows you home for +${CRITTERS.snack} Snacks.` },
+          view, dead: false,
+        };
+      } else if (se.k === 'h') {
+        const view = createThroneView();
+        view.group.position.set(se.x, this.heightAtWorld(se.x, se.z), se.z);
+        this.scene.add(view.group);
+        e = {
+          id: se.id, kind: 'objective', type: 'throne', owner: -1,
+          x: se.x, z: se.z, radius: 2.2, holder: se.holder, holdTime: se.holdTime || 0,
+          holdTeam: se.holdTeam ?? -1, scanT: 0,
+          def: { name: 'Golden Throne', desc: 'Hold it with a military toy to rule the bedroom.' },
           view, dead: false,
         };
       } else {
@@ -1446,6 +1497,7 @@ export class Game {
   canPlace(owner, type, i, j) {
     const def = BUILDINGS[type];
     if (def.faction && this.factionKeys[owner] !== def.faction) return false;
+    if (this.gameMode === 'sudden' && type === 'chest') return false; // no second life
     if ((def.age || 1) > this.players[owner].age) return false;
     const s = def.size;
     if (!inMap(i, j) || !inMap(i + s - 1, j + s - 1)) return false;
@@ -1632,6 +1684,13 @@ export class Game {
     if (e.kind === 'unit') {
       this.players[e.owner].popUsed--;
       this.players[e.owner].stats.lost++;
+      if (e.isKing) {
+        this.fx && this.fx.confetti(e.x, e.z);
+        this.alert(e.owner === this.myId
+          ? '👑 Your King has fallen! Your toybox is defeated.'
+          : (this.teamOf(e.owner) === this.myTeam ? '👑 An allied King has fallen!' : `👑 ${TEAM_NAMES[1]}'s King is down!`),
+          'attack', { x: e.x, z: e.z });
+      }
       e.order = null; e.oq.length = 0; e.swing = null;
       e.removeT = e.view.startDeath();
       this.fx && this.fx.death(e.x, e.z, e.def.debris || { colors: [e.def.color] });
@@ -2179,6 +2238,7 @@ export class Game {
         this.fx.wheelDust(u.x, u.z);
       }
     }
+    if (u.isKing && u.kingCrown) u.kingCrown.rotation.y += dt * 1.5;
     u.view.update(dt);
   }
 
@@ -2855,15 +2915,24 @@ export class Game {
     this.cb.gameOver(win, this.players.map((p) => p.stats), this.timeline);
   }
 
+  // is a player still in the match? depends on the game mode
+  playerAlive(p) {
+    if (this.gameMode === 'regicide') {
+      return this.entities.some((e) => e.kind === 'unit' && e.isKing && e.owner === p.id && !e.dead);
+    }
+    if (this.gameMode === 'sudden') {
+      // one Toy Chest, no rebuilding — lose it and you're out
+      return this.entities.some((e) => e.kind === 'building' && e.type === 'chest' && e.owner === p.id && !e.dead);
+    }
+    // standard/koth: any production building keeps you in
+    return this.entities.some((e) =>
+      e.kind === 'building' && e.owner === p.id && !e.dead && PRODUCTION_BUILDINGS.includes(e.type));
+  }
+
   checkWin() {
     if (this.over || this.tutorial) return; // the tutorial ends on its own
-    // a team stands while ANY of its players still has a production building
     const aliveTeams = new Set();
-    for (const p of this.players) {
-      const alive = this.entities.some((e) =>
-        e.kind === 'building' && e.owner === p.id && !e.dead && PRODUCTION_BUILDINGS.includes(e.type));
-      if (alive) aliveTeams.add(p.team);
-    }
+    for (const p of this.players) if (this.playerAlive(p)) aliveTeams.add(p.team);
     if (aliveTeams.size === 1) this.endGame([...aliveTeams][0]);
     else if (aliveTeams.size === 0) this.endGame(-1);
   }
@@ -2932,6 +3001,36 @@ export class Game {
     if (this.relicState.t <= 0) this.endGame(team);
   }
 
+  // King of the Hill: a team alone on the golden Throne banks hold time
+  updateKoth(dt) {
+    if (this.over || this.gameMode !== 'koth') return;
+    const throne = this.entities.find((e) => e.kind === 'objective' && e.type === 'throne' && !e.dead);
+    if (!throne) return;
+    const teams = new Set();
+    for (const e of this.entities) {
+      if (e.kind !== 'unit' || e.dead || e.def.aggro <= 0 || e.garrisoned) continue;
+      if (dist2(e, throne) <= throne.radius ** 2) teams.add(this.teamOf(e.owner));
+    }
+    const holder = teams.size === 1 ? [...teams][0] : -1;
+    if (holder !== throne.holder) {
+      throne.holder = holder;
+      throne.view.setHolder(holder < 0 ? null : (holder === this.myTeam ? 0x4d9bff : 0xe4572e));
+      if (holder === this.myTeam) this.alert('Your team holds the Golden Throne!', 'info', { x: throne.x, z: throne.z });
+      else if (holder >= 0) this.alert(`${TEAM_NAMES[1]} seized the Throne — push them off!`, 'warn', { x: throne.x, z: throne.z }, 6);
+    }
+    if (holder >= 0) {
+      throne.holdTeam = holder;
+      throne.holdTime = (throne.holdTime || 0) + dt;
+      if (throne.holdTime >= KOTH_HOLD) this.endGame(holder);
+    } else {
+      // slowly bleed progress back when nobody rules
+      throne.holdTime = Math.max(0, (throne.holdTime || 0) - dt * 0.5);
+    }
+    this.kothState = throne.holdTime > 0
+      ? { team: throne.holdTeam, t: Math.max(0, KOTH_HOLD - throne.holdTime), contested: holder < 0 }
+      : null;
+  }
+
   // ---------- main update ----------
   update(dt) {
     this.time += dt;
@@ -2970,6 +3069,7 @@ export class Game {
     this.updateObjectives(dt);
     this.updateWonder(dt);
     this.updateRelics(dt);
+    this.updateKoth(dt);
 
     // market prices ease back toward their base value over time
     this.marketT -= dt;

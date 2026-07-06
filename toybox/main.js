@@ -3,7 +3,7 @@
 // ============================================================
 
 import * as THREE from 'three';
-import { MAP_N, BUILDINGS, MAPS, FACTIONS } from './data.js';
+import { MAP_N, BUILDINGS, MAPS, FACTIONS, GAME_MODES } from './data.js';
 import {
   loadUnitModels, loadBuildingModels, loadMapModels, setBuildingFootprints,
   createGhostMesh, createMoveMarker, createLamp, renderPortraits,
@@ -185,6 +185,8 @@ async function boot() {
     const m = $('menu');
     if (m) m.remove();
     if (params.get('size') === '2v2') chosenSize = '2v2';
+    if (params.get('mode') && GAME_MODES[params.get('mode')]) chosenMode = params.get('mode');
+    if (params.get('sr')) chosenStartRes = params.get('sr');
     startGame(params.get('start') || 'normal', params.get('map') || undefined);
     const ff = parseInt(params.get('ff') || '0', 10);
     if (ff > 0 && game) {
@@ -342,6 +344,22 @@ for (const btn of document.querySelectorAll('#size-row .size-btn')) {
     document.querySelectorAll('#size-row .size-btn').forEach((b) => b.classList.toggle('sel', b === btn));
   });
 }
+let chosenMode = 'standard';
+for (const btn of document.querySelectorAll('#mode-row .mode-btn')) {
+  btn.addEventListener('click', () => {
+    chosenMode = btn.dataset.mode;
+    document.querySelectorAll('#mode-row .mode-btn').forEach((b) => b.classList.toggle('sel', b === btn));
+    const d = $('mode-desc');
+    if (d) d.textContent = GAME_MODES[chosenMode].desc;
+  });
+}
+let chosenStartRes = 'standard';
+for (const btn of document.querySelectorAll('#startres-row .startres-btn')) {
+  btn.addEventListener('click', () => {
+    chosenStartRes = btn.dataset.sr;
+    document.querySelectorAll('#startres-row .startres-btn').forEach((b) => b.classList.toggle('sel', b === btn));
+  });
+}
 let chosenMap = 'playmat';
 for (const btn of document.querySelectorAll('.map-btn')) {
   btn.addEventListener('click', () => {
@@ -411,6 +429,7 @@ const tutorialSteps = [
 
 function startTutorial() {
   localStorage.setItem('tt-seen', '1');
+  chosenMode = 'standard'; chosenStartRes = 'standard'; // basics only
   startGame('easy', 'playmat', null, null, true);
   tutorialActive = true; tutStepI = 0; tutSpawned = false;
   tutStartCam = null;
@@ -451,9 +470,9 @@ $('mp-host').addEventListener('click', async () => {
     const n = new Net();
     // the Battle picker doubles as the online mode: 2v2 hosts a co-op room
     const setup = await n.host(chosenMap, chosenFaction, (msg) => mpStatus(msg),
-      chosenSize === '2v2' ? 'coop' : '1v1', chosenDiff);
+      chosenSize === '2v2' ? 'coop' : '1v1', chosenDiff, chosenMode, chosenStartRes);
     mpStatus('Friend joined! Starting…');
-    startGame(setup.difficulty, null, { net: n, myId: 0, seed: setup.seed, map: setup.map, factions: setup.factions, mode: setup.mode });
+    startGame(setup.difficulty, null, { net: n, myId: 0, seed: setup.seed, map: setup.map, factions: setup.factions, mode: setup.mode, gameMode: setup.gameMode, startRes: setup.startRes });
   } catch (e) {
     mpStatus(`⚠ ${e.message || e.type || 'Hosting failed'}`);
   }
@@ -467,7 +486,7 @@ $('mp-join').addEventListener('click', async () => {
   try {
     const n = new Net();
     const setup = await n.join(code, chosenFaction, (msg) => mpStatus(msg));
-    startGame('normal', null, { net: n, myId: 1, seed: setup.seed, map: setup.map, factions: setup.factions, mode: setup.mode });
+    startGame('normal', null, { net: n, myId: 1, seed: setup.seed, map: setup.map, factions: setup.factions, mode: setup.mode, gameMode: setup.gameMode, startRes: setup.startRes });
   } catch (e) {
     mpStatus(`⚠ ${e.message || e.type || 'Could not join'}`);
   }
@@ -536,6 +555,8 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
     age: () => ui.refreshSelection(),
   }, {
     fx: vfx, sfx, difficulty, map, playerDefs, tutorial,
+    gameMode: mpOpts ? mpOpts.gameMode : (resume ? resume.opts.gameMode : chosenMode),
+    startRes: mpOpts ? mpOpts.startRes : (resume ? resume.opts.startRes : chosenStartRes),
     // resumed games must rebuild the identical map shell before restoring
     seed: mpOpts ? mpOpts.seed : (resume ? resume.opts.seed : (Math.random() * 2 ** 31) | 0),
     mp: !!mpOpts, myId: mpOpts ? mpOpts.myId : 0, net,

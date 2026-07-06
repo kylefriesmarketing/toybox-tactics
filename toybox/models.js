@@ -1823,6 +1823,56 @@ export function createObstacleMesh(kind, w, d, rngSeed) {
 }
 
 // Lost Sticker — capturable neutral objective (gold star that spins slowly)
+// floating golden crown that marks the Regicide King
+export function createKingCrown() {
+  const g = new THREE.Group();
+  const gold = new THREE.MeshStandardMaterial({ color: 0xffd94a, roughness: 0.25, metalness: 0.6, emissive: 0x8a6a00, emissiveIntensity: 0.4 });
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.08, 12, 1, true), gold);
+  g.add(band);
+  for (let i = 0; i < 6; i++) {
+    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.1, 5), gold);
+    const a = (i / 6) * Math.PI * 2;
+    spike.position.set(Math.cos(a) * 0.12, 0.08, Math.sin(a) * 0.12);
+    g.add(spike);
+    const gem = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 5), new THREE.MeshStandardMaterial({ color: 0xe5484d, roughness: 0.2 }));
+    gem.position.set(Math.cos(a) * 0.12, 0.05, Math.sin(a) * 0.12);
+    g.add(gem);
+  }
+  g.position.y = 0.92;
+  g.userData.spin = true;
+  return g;
+}
+
+// golden throne for King of the Hill — the contested center
+export function createThroneView() {
+  const g = new THREE.Group();
+  const gold = new THREE.MeshStandardMaterial({ color: 0xffd94a, roughness: 0.3, metalness: 0.5, emissive: 0x8a6a00, emissiveIntensity: 0.35 });
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.18, 0.7), gold);
+  seat.position.y = 0.5; seat.castShadow = true; g.add(seat);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.14), gold);
+  back.position.set(0, 0.9, -0.28); back.castShadow = true; g.add(back);
+  const cushion = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.12, 0.56), new THREE.MeshStandardMaterial({ color: 0xe5484d, roughness: 0.8 }));
+  cushion.position.y = 0.63; g.add(cushion);
+  for (const [sx, sz] of [[-0.28, -0.28], [0.28, -0.28], [-0.28, 0.28], [0.28, 0.28]]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.5, 8), gold);
+    leg.position.set(sx, 0.25, sz); leg.castShadow = true; g.add(leg);
+  }
+  // three crown finials on the seat back
+  for (const fx of [-0.22, 0, 0.22]) {
+    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.16, 6), gold);
+    spike.position.set(fx, 1.43, -0.28); g.add(spike);
+  }
+  const glow = flatRing(1.6, 2.0, 0xffd94a, 0.5);
+  glow.position.y = 0.04;
+  g.add(glow);
+  let t = 0;
+  return {
+    group: g,
+    setHolder(col) { glow.material.color.setHex(col ?? 0xffd94a); glow.material.opacity = col ? 0.85 : 0.5; },
+    update(dt) { t += dt; g.children[0].position.y = 0.5 + Math.sin(t * 1.5) * 0.02; },
+  };
+}
+
 // spilled milk: the bedroom's lake — an impassable puddle with the guilty glass
 export function createMilkSpill(rx, rz, rngSeed = 1) {
   let seed = rngSeed * 31337 + 7;

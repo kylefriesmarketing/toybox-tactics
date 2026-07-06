@@ -544,11 +544,17 @@ export class UI {
       const t = Math.floor(this.game.time);
       $('clock').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
       // wonder countdown banner
-      // wonder OR relic countdown, whichever is running (relic takes the row if both)
+      // one countdown row: KotH throne > relic stickers > wonder
       const g = this.game;
-      const ws = g.wonderState, rs = g.relicState;
+      const ws = g.wonderState, rs = g.relicState, ks = g.kothState;
       const wt = $('wonder-timer');
-      if (rs) {
+      if (ks) {
+        const s = Math.max(0, Math.ceil(ks.t));
+        const mine = ks.team === g.myTeam;
+        const tag = ks.contested ? ' (contested)' : '';
+        wt.textContent = `👑 ${mine ? 'You rule the Throne' : 'RIVALS rule the Throne'}${tag}: ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+        wt.className = mine ? 'show mine' : 'show theirs';
+      } else if (rs) {
         const s = Math.max(0, Math.ceil(rs.t));
         const mine = rs.team === g.myTeam;
         wt.textContent = `⭐ ${mine ? 'Your team holds all Stickers' : 'RIVALS hold all Stickers'}: ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;

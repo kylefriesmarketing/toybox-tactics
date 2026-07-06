@@ -42,7 +42,7 @@ export class Net {
 
   // host: returns { seed, map, factions, mode } once a guest is connected.
   // mode '1v1' = versus; 'coop' = both humans on one team vs two AI rivals
-  host(mapKey, faction, onStatus, mode = '1v1', difficulty = 'normal') {
+  host(mapKey, faction, onStatus, mode = '1v1', difficulty = 'normal', gameMode = 'standard', startRes = 'standard') {
     return this.loadLib().then(() => new Promise((resolve, reject) => {
       const code = randomCode();
       this.myId = 0;
@@ -63,6 +63,7 @@ export class Net {
               map: mapKey,
               mode,
               difficulty, // both clients must build identical AI opponents
+              gameMode, startRes, // and identical victory conditions / economy
               factions: [faction || 'classic', d.faction || 'classic'],
             };
             conn.send(setup);

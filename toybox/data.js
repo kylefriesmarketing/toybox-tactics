@@ -189,6 +189,15 @@ export const UNITS = {
     debris: { shapes: ['disc', 'stick'], colors: [0x59c9c9, 0x333333], count: 6 },
     desc: 'RC Racer unique: FLIES over walls, cliffs and milk. Fragile, great scout-harasser.',
   },
+  king: {
+    name: 'The King', tags: ['infantry', 'heavy', 'royal'], age: 1, modelKey: 'hero', targetHeight: 0.66, cape: true, crown: true,
+    cost: { snacks: 0 }, trainTime: 1,
+    hp: 150, atk: 9, atkType: 'melee', interval: 1.5, range: 0.8,
+    armor: { melee: 2, pierce: 2 }, speed: 1.5, vision: 7, aggro: 0,
+    impact: 0.45, color: 0xffd94a,
+    debris: { shapes: ['limb', 'cube'], colors: [0xffd94a, 0x4d9bff] },
+    desc: 'Regicide: protect your King at all costs. If he falls, your toybox is out.',
+  },
   cart: {
     name: 'Delivery Cart', tags: ['vehicle', 'trade'], age: 2, targetHeight: 0.5,
     trade: true,
@@ -477,6 +486,21 @@ export const START = {
   resources: { snacks: 200, blocks: 180, buttons: 50, marbles: 0 },
   workers: 4,
   scouts: 1,
+};
+
+// match-setup starting-resource presets (multiplies the base bank)
+export const START_RES = {
+  standard: { label: 'Standard', icon: '🎒', mult: 1 },
+  high:     { label: 'High',     icon: '💰', mult: 3 },
+  marathon: { label: 'Marathon', icon: '🏰', mult: 8 },
+};
+
+// game modes: how a match is won
+export const GAME_MODES = {
+  standard: { label: 'Conquest', icon: '⚔️', desc: 'Destroy every enemy base to win.' },
+  regicide: { label: 'Regicide', icon: '👑', desc: 'Each toybox gets a King. Guard yours; defeat all enemy Kings.' },
+  koth:     { label: 'King of the Hill', icon: '🏔️', desc: 'Hold the golden Throne at the center for 2 minutes.' },
+  sudden:   { label: 'Sudden Death', icon: '💥', desc: 'Lose your Toy Chest and you\'re out. No rebuilding.' },
 };
 
 // ---------------- AI difficulty profiles ----------------
