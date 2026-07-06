@@ -452,12 +452,13 @@ export class Game {
         if (this.flatAt(t + jit, t - jit, 3, 3, 0)) this.addObstacle(rng() < 0.65 ? 'pillow' : 'book', t + jit, t - jit, 3, 3, 200 + t);
       }
     }
-    // non-blocking clutter
-    const kinds = ['crayon', 'die', 'ball'];
-    for (let k = 0; k < 14; k++) {
+    // non-blocking clutter — the theme picks the props (playground swings etc.)
+    const kinds = this.map.decor || ['crayon', 'die', 'ball'];
+    const decorN = this.map.decorCount || 14;
+    for (let k = 0; k < decorN; k++) {
       const i = 6 + (rng() * (N - 12)) | 0, j = 6 + (rng() * (N - 12)) | 0;
       if (this.blocked[idx(i, j)]) continue;
-      const decor = createDecorMesh(kinds[(rng() * 3) | 0], k + 3);
+      const decor = createDecorMesh(kinds[(rng() * kinds.length) | 0], k + 3);
       decor.position.set(worldOf(i), this.tileHeight(i, j), worldOf(j));
       this.scene.add(decor);
     }

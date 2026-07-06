@@ -1607,6 +1607,59 @@ export function createGround(N, style = 'playmat') {
       x.lineWidth = 42;
       x.beginPath(); x.arc(1024, 1024, 330 - r * 44, 0, Math.PI * 2); x.stroke();
     }
+  } else if (style === 'playground') {
+    // sunny backyard: mown grass, a big sandbox arena, a rubber running track,
+    // hopscotch and four-square courts painted on a concrete path.
+    x.fillStyle = '#7cb356'; x.fillRect(0, 0, S, S);
+    for (let i = 0; i < 32; i++) if (i % 2) { x.fillStyle = '#00000009'; x.fillRect(0, i * 64, S, 64); }
+    let seedP = 24680;
+    const rndP = () => (seedP = (seedP * 16807) % 2147483647) / 2147483647;
+    x.fillStyle = '#6ba449';
+    for (let i = 0; i < 2600; i++) x.fillRect(rndP() * S, rndP() * S, 3 + rndP() * 4, 2 + rndP() * 3);
+    x.fillStyle = '#93c96f';
+    for (let i = 0; i < 1600; i++) x.fillRect(rndP() * S, rndP() * S, 3, 2);
+    // rubberized running track: a red-orange oval ring hugging the edge
+    x.save();
+    x.translate(S / 2, S / 2);
+    x.strokeStyle = '#c85a3c'; x.lineWidth = 96; x.lineJoin = 'round';
+    x.beginPath(); x.ellipse(0, 0, 880, 880, 0, 0, Math.PI * 2); x.stroke();
+    x.strokeStyle = '#f6f2e6'; x.lineWidth = 4; x.setLineDash([34, 30]);
+    for (const rr of [832, 928]) { x.beginPath(); x.ellipse(0, 0, rr, rr, 0, 0, Math.PI * 2); x.stroke(); }
+    x.setLineDash([]);
+    x.restore();
+    // central sandbox: rounded tan square with a timber frame + rake lines
+    const sb = 560, sbx = 1024 - sb / 2;
+    x.fillStyle = '#8a5a34';
+    if (x.roundRect) { x.beginPath(); x.roundRect(sbx - 26, sbx - 26, sb + 52, sb + 52, 40); x.fill(); }
+    else x.fillRect(sbx - 26, sbx - 26, sb + 52, sb + 52);
+    x.fillStyle = '#e8cf94';
+    if (x.roundRect) { x.beginPath(); x.roundRect(sbx, sbx, sb, sb, 28); x.fill(); }
+    else x.fillRect(sbx, sbx, sb, sb);
+    x.fillStyle = '#d9bd80';
+    for (let i = 0; i < 900; i++) x.fillRect(sbx + rndP() * sb, sbx + rndP() * sb, 3, 3);
+    x.strokeStyle = '#d0b273'; x.lineWidth = 3;
+    for (let r = 0; r < 9; r++) { x.beginPath(); x.moveTo(sbx + 20, sbx + 40 + r * 60); x.bezierCurveTo(sbx + sb * 0.4, sbx + 20 + r * 60, sbx + sb * 0.6, sbx + 60 + r * 60, sbx + sb - 20, sbx + 40 + r * 60); x.stroke(); }
+    // hopscotch court painted on grass (top-left path)
+    x.save(); x.translate(430, 470);
+    const cell = 92; const hop = [[0, 0, 1], [0, 1, 1], [-0.5, 2, 1], [0.5, 2, 1], [0, 3, 1], [-0.5, 4, 1], [0.5, 4, 1]];
+    x.fillStyle = '#eef0f2'; x.strokeStyle = '#c85a3c'; x.lineWidth = 6;
+    for (const [cx, cy] of hop) { x.beginPath(); x.rect(cx * cell - cell / 2, -cy * cell, cell - 8, cell - 8); x.fill(); x.stroke(); }
+    x.restore();
+    // four-square court (bottom-right)
+    x.save(); x.translate(1560, 1560);
+    x.fillStyle = '#cfe3ef'; x.fillRect(-150, -150, 300, 300);
+    x.strokeStyle = '#3a6ea5'; x.lineWidth = 8;
+    x.strokeRect(-150, -150, 300, 300); x.beginPath();
+    x.moveTo(0, -150); x.lineTo(0, 150); x.moveTo(-150, 0); x.lineTo(150, 0); x.stroke();
+    x.restore();
+    // splash-pad puddles (kidney blues)
+    for (const [px, py] of [[1600, 470], [470, 1600]]) {
+      x.fillStyle = '#7fd0e8'; x.beginPath(); x.ellipse(px, py, 120, 82, rndP() * 3, 0, Math.PI * 2); x.fill();
+      x.strokeStyle = '#f6f2e6'; x.lineWidth = 7; x.beginPath(); x.ellipse(px, py, 120, 82, rndP() * 3, 0, Math.PI * 2); x.stroke();
+    }
+    // stitched mat border
+    x.strokeStyle = '#f6f2e6'; x.lineWidth = 14; x.setLineDash([40, 24]);
+    x.strokeRect(26, 26, S - 52, S - 52); x.setLineDash([]);
   } else {
     // classic bedroom playmat
     x.fillStyle = '#79b45a'; x.fillRect(0, 0, S, S);
@@ -1757,6 +1810,69 @@ export function createDecorMesh(kind, rngSeed = 1) {
       pip.position.set(px, py, pz);
       g.add(pip);
     }
+  } else if (kind === 'swingset') {
+    // A-frame swing set: two splayed leg pairs, a top bar, two hanging seats
+    const frameM = toyMat(0x5a8fb0, 0.45);
+    const W = 1.7, H = 1.5;
+    for (const sx of [-W / 2, W / 2]) for (const lean of [-1, 1]) {
+      const leg = add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, H, 8), frameM));
+      leg.position.set(sx, H / 2, lean * 0.35);
+      leg.rotation.x = lean * 0.42;
+    }
+    const bar = add(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, W + 0.2, 8), frameM));
+    bar.rotation.z = Math.PI / 2; bar.position.y = H;
+    for (const sx of [-0.42, 0.42]) {
+      const seatCol = PASTELS[(rng() * PASTELS.length) | 0];
+      for (const cx of [sx - 0.13, sx + 0.13]) {
+        const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.72, 5), toyMat(0x9aa0a6, 0.4));
+        chain.position.set(cx, H - 0.37, 0); g.add(chain);
+      }
+      const seat = add(new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.05, 0.17), toyMat(seatCol, 0.5)));
+      seat.position.set(sx, H - 0.73, 0);
+    }
+    g.rotation.y = rng() * Math.PI * 2;
+  } else if (kind === 'slide') {
+    // platform on posts with a ladder and a bright inclined chute
+    const postM = toyMat(0xc0603a, 0.5);
+    for (const [px, pz] of [[-0.24, -0.74], [0.24, -0.74], [-0.24, -0.26], [0.24, -0.26]]) {
+      const p = add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.0, 6), postM));
+      p.position.set(px, 0.5, pz);
+    }
+    const plat = add(new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.08, 0.62), toyMat(0xe8b84a, 0.5)));
+    plat.position.set(0, 1.0, -0.5);
+    const chute = add(new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 1.25), toyMat(0x4aa5d8, 0.35)));
+    chute.position.set(0, 0.55, 0.3); chute.rotation.x = -0.62;
+    for (const rx of [-0.22, 0.22]) {
+      const rail = add(new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.12, 1.25), toyMat(0x3a8fc0, 0.35)));
+      rail.position.set(rx, 0.6, 0.3); rail.rotation.x = -0.62;
+    }
+    for (const ry of [0, 0.3, 0.6]) {
+      const rung = add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.5, 6), postM));
+      rung.rotation.z = Math.PI / 2; rung.position.set(0, 0.25 + ry, -0.78);
+    }
+    g.rotation.y = rng() * Math.PI * 2;
+  } else if (kind === 'seesaw') {
+    const fulc = add(new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.2, 0.5, 10), toyMat(0x6a6f78, 0.5)));
+    fulc.position.y = 0.25;
+    const tilt = 0.17;
+    const plank = add(new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.09, 0.28), toyMat(PASTELS[(rng() * PASTELS.length) | 0], 0.5)));
+    plank.position.y = 0.52; plank.rotation.z = tilt;
+    for (const ex of [-0.82, 0.82]) {
+      const grip = add(new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.022, 6, 10), toyMat(0xf0c419, 0.5)));
+      grip.position.set(ex, 0.52 + Math.sin(tilt) * (ex < 0 ? 0.82 : -0.82), 0);
+      grip.rotation.x = Math.PI / 2;
+    }
+    g.rotation.y = rng() * Math.PI * 2;
+  } else if (kind === 'sandbucket') {
+    const pail = add(new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.12, 0.27, 12), toyMat(PASTELS[(rng() * PASTELS.length) | 0], 0.4)));
+    pail.position.set(0, 0.14, 0);
+    const mound = add(new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.22, 12), toyMat(0xe8cf94, 0.95)));
+    mound.position.set(0.4, 0.11, 0.1);
+    const pole = add(new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.24, 5), toyMat(0x8a5a34, 0.5)));
+    pole.position.set(0.4, 0.33, 0.1);
+    const flag = add(new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.08, 0.01), toyMat(0xe5484d, 0.4)));
+    flag.position.set(0.47, 0.37, 0.1);
+    g.rotation.y = rng() * Math.PI * 2;
   } else { // ball
     const b = add(new THREE.Mesh(new THREE.SphereGeometry(0.35, 14, 10), toyMat(PASTELS[(rng() * PASTELS.length) | 0], 0.4)));
     b.position.y = 0.35;

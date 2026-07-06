@@ -459,6 +459,16 @@ export const MAPS = {
     features: { milk: 1, ranges: 2, forests: 1 },
     desc: 'Wide open and rich — boom or be boomed.',
   },
+  playground: {
+    label: 'Backyard Playground', icon: '🛝', ground: 'playground', light: 'warm',
+    obstacles: 2, canyon: false, resourceMul: 1.25, stickers: 3, plateaus: 2,
+    features: { milk: 1, ranges: 1, forests: 3 },
+    // swing sets, slides and seesaws stud the field; a splash-pad puddle and
+    // hedge thickets carve the lanes. Rich sandbox center — grab and hold it.
+    decor: ['swingset', 'slide', 'seesaw', 'sandbucket', 'ball'],
+    decorCount: 18,
+    desc: 'Sunny backyard: sandbox center, swings and slides everywhere.',
+  },
 };
 
 // which building types count as "production" for the conquest win condition
