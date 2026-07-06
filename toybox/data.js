@@ -345,13 +345,13 @@ export const MAPS = {
   playmat: {
     label: 'Bedroom Playmat', icon: '🧸', ground: 'playmat', light: 'normal',
     obstacles: 5, canyon: false, resourceMul: 1, stickers: 2,
-    features: { milk: 1, ranges: 1, forests: 2 },
+    features: { milk: 1, ranges: 2, forests: 2 },
     desc: 'Open center, safe corners — the classic.',
   },
   canyon: {
     label: 'Toy Chest Canyon', icon: '🏔️', ground: 'playmat', light: 'normal',
     obstacles: 3, canyon: true, resourceMul: 1, stickers: 2,
-    features: { milk: 1, forests: 1 },
+    features: { milk: 1, ranges: 1, forests: 1 },
     desc: 'A pillow barricade splits the room — fight for the gaps.',
   },
   underbed: {

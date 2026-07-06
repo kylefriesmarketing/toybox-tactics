@@ -1615,6 +1615,20 @@ export function createObstacleMesh(kind, w, d, rngSeed) {
     m.scale.set(sx, (sx + sz) / 2 * 0.8, sz);
     m.rotation.y = rng() < 0.5 ? 0 : Math.PI; // some variation without breaking footprint
     g2.add(m);
+    // big pillow footprints read as mountains: pile a second and third
+    // pillow on top, each smaller and askew
+    if (kind === 'pillow' && Math.min(w, d) >= 3) {
+      const mid = mapRegistry[kind].clone(true);
+      mid.scale.set(sx * 0.72, (sx + sz) / 2 * 0.62, sz * 0.72);
+      mid.position.y = (sx + sz) / 2 * 0.52;
+      mid.rotation.y = 0.5 + rng() * 0.8;
+      g2.add(mid);
+      const top = mapRegistry[kind].clone(true);
+      top.scale.set(sx * 0.45, (sx + sz) / 2 * 0.45, sz * 0.45);
+      top.position.y = (sx + sz) / 2 * 0.95;
+      top.rotation.y = rng() * Math.PI;
+      g2.add(top);
+    }
     return g2;
   }
   const g = new THREE.Group();

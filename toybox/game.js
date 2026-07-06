@@ -343,6 +343,21 @@ export class Game {
     const clearOfHomes = (i, j, r) =>
       this.homes.every((h) => (worldOf(i) - h.x) ** 2 + (worldOf(j) - h.z) ** 2 > r * r);
 
+    // scattered mid-map resources: contested pockets between the bases so
+    // expanding outward pays (playtest: "everything was in the center")
+    const scatterTypes = ['snacks', 'blocks', 'buttons', 'marbles', 'blocks', 'snacks', 'buttons', 'marbles'];
+    for (let k = 0; k < 8; k++) {
+      for (let tries = 0; tries < 24; tries++) {
+        const ang = rng() * Math.PI * 2;
+        const rad = N * (0.16 + rng() * 0.19);
+        const i = Math.round(N / 2 + Math.cos(ang) * rad);
+        const j = Math.round(N / 2 + Math.sin(ang) * rad);
+        if (!inMap(i, j) || !clearOfHomes(i, j, 13)) continue;
+        RC(scatterTypes[k], i, j, 2 + (rng() * 2 | 0));
+        break;
+      }
+    }
+
     // spilled milk: an impassable lake with the guilty glass at its edge
     for (let k = 0; k < (feat.milk || 0); k++) {
       for (let tries = 0; tries < 40; tries++) {
@@ -365,25 +380,26 @@ export class Game {
       }
     }
 
-    // fallen-book ranges: winding impassable ridges with a pass in the middle
+    // pillow mountain ranges: long winding impassable ridges of stacked
+    // pillows (with the odd book outcrop) and a defendable pass in the middle
     for (let k = 0; k < (feat.ranges || 0); k++) {
       for (let tries = 0; tries < 25; tries++) {
         let ci = 15 + (rng() * (N - 30)) | 0, cj = 15 + (rng() * (N - 30)) | 0;
         if (!clearOfHomes(ci, cj, 20)) continue;
         let dir = rng() * Math.PI * 2;
-        const segs = 5 + (rng() * 3 | 0);
+        const segs = 8 + (rng() * 5 | 0);
         const gapAt = (segs / 2) | 0;
         for (let s = 0; s < segs; s++) {
-          const w = 2 + (rng() * 2 | 0), d = 2;
+          const w = 3, d = 3;
           if (s !== gapAt) {
-            // only stack books on genuinely free floor
-            let free = inMap(ci, cj) && inMap(ci + w - 1, cj + d - 1) && clearOfHomes(ci, cj, 16);
+            // only raise mountains on genuinely free floor
+            let free = inMap(ci, cj) && inMap(ci + w - 1, cj + d - 1) && clearOfHomes(ci, cj, 15);
             for (let b = cj; b < cj + d && free; b++) for (let a = ci; a < ci + w; a++) {
               if (this.blocked[idx(a, b)]) { free = false; break; }
             }
-            if (free) this.addObstacle(rng() < 0.75 ? 'book' : 'pillow', ci, cj, w, d, k * 100 + s + 7);
+            if (free) this.addObstacle(rng() < 0.8 ? 'pillow' : 'book', ci, cj, w, d, k * 100 + s + 7);
           }
-          dir += (rng() - 0.5) * 0.9;
+          dir += (rng() - 0.5) * 0.8;
           ci += Math.round(Math.cos(dir) * 3);
           cj += Math.round(Math.sin(dir) * 3);
           if (!inMap(ci, cj)) break;
@@ -586,7 +602,25 @@ export class Game {
     view.setProgress(e.built);
     this.entities.push(e);
     if (instant) this.recalcPop(owner);
+    if (def.wall || def.gate) this.orientWalls(i, j, s);
     return e;
+  }
+
+  // walls and gates rotate to follow their run, so lines read as one wall
+  // (visual only — footprints are square, the sim doesn't care)
+  orientWalls(i, j, s = 1) {
+    for (let b = j - 1; b <= j + s; b++) for (let a = i - 1; a <= i + s; a++) {
+      const w = this.entities.find((e) => e.kind === 'building'
+        && (e.type === 'wall' || e.type === 'gate') && !e.dead
+        && a >= e.ti && a < e.ti + e.def.size && b >= e.tj && b < e.tj + e.def.size);
+      if (!w) continue;
+      const link = (ti, tj) => this.entities.some((e) => e !== w && e.kind === 'building'
+        && (e.type === 'wall' || e.type === 'gate') && !e.dead
+        && ti >= e.ti && ti < e.ti + e.def.size && tj >= e.tj && tj < e.tj + e.def.size);
+      const ew = link(w.ti - 1, w.tj) || link(w.ti + w.def.size, w.tj);
+      const ns = link(w.ti, w.tj - 1) || link(w.ti, w.tj + w.def.size);
+      w.view.group.rotation.y = (ns && !ew) ? Math.PI / 2 : 0;
+    }
   }
 
   spawnUnit(type, owner, x, z, fromBuilding = false) {
@@ -883,6 +917,11 @@ export class Game {
         break;
       }
       case 'bell': this.townBell(pid); break;
+      case 'demolish': {
+        const b = ent(c.id);
+        if (b && b.kind === 'building' && b.owner === pid && !b.dead) this.kill(b, null, true);
+        break;
+      }
       case 'flare': {
         // pure signal — no sim state, but delivered to both clients in MP
         this.flarePing = { x: c.x, z: c.z, t: 5, owner: pid };
@@ -1130,6 +1169,12 @@ export class Game {
       u.fleeResume = this.decOrder(se.fleeResume, byId);
       u.bellResume = this.decOrder(se.bellResume, byId);
     }
+    // restored wall lines pick their run direction back up
+    for (const e of this.entities) {
+      if (e.kind === 'building' && (e.def.wall || e.def.gate) && !e.dead) {
+        this.orientWalls(e.ti, e.tj, e.def.size);
+      }
+    }
     this.nextId = snap.nextId;
     this.time = snap.time;
     this.tlT = 10;
@@ -1194,16 +1239,24 @@ export class Game {
   }
 
   // ---------- building placement ----------
+  // is this tile inside one of `owner`'s standing walls?
+  ownWallAt(owner, i, j) {
+    return this.entities.some((e) => e.kind === 'building' && e.type === 'wall'
+      && e.owner === owner && !e.dead
+      && i >= e.ti && i < e.ti + e.def.size && j >= e.tj && j < e.tj + e.def.size);
+  }
+
   canPlace(owner, type, i, j) {
     const def = BUILDINGS[type];
     if ((def.age || 1) > this.players[owner].age) return false;
     const s = def.size;
     if (!inMap(i, j) || !inMap(i + s - 1, j + s - 1)) return false;
     for (let b = j; b < j + s; b++) for (let a = i; a < i + s; a++) {
-      if (this.blocked[idx(a, b)]) return false;
+      // gates may replace your own wall segments (AoE gate-over-wall)
+      if (this.blocked[idx(a, b)] && !(def.gate && this.ownWallAt(owner, a, b))) return false;
     }
     for (const e of this.entities) {
-      if (e.kind !== 'unit' || e.dead) continue;
+      if (e.kind !== 'unit' || e.dead || e.garrisoned) continue;
       const ti = tileOf(e.x), tj = tileOf(e.z);
       if (ti >= i && ti < i + s && tj >= j && tj < j + s) return false;
     }
@@ -1217,6 +1270,15 @@ export class Game {
       return null;
     }
     this.pay(owner, def.cost);
+    // a gate placed on a wall line quietly swallows the covered segments
+    if (def.gate) {
+      for (const e of [...this.entities]) {
+        if (e.kind === 'building' && e.type === 'wall' && e.owner === owner && !e.dead
+            && e.ti >= i && e.ti < i + def.size && e.tj >= j && e.tj < j + def.size) {
+          this.kill(e, null, true);
+        }
+      }
+    }
     if (owner === this.myId) this.sfx && this.sfx.play('place');
     return this.addBuilding(type, owner, i, j, false);
   }
@@ -1336,7 +1398,7 @@ export class Game {
     if (target.hp <= 0) this.kill(target, attacker);
   }
 
-  kill(e, killer) {
+  kill(e, killer, quiet = false) {
     if (e.dead) return;
     e.dead = true;
     if (this.selected.includes(e)) this.setSelection(this.selected.filter((s) => s !== e));
@@ -1393,7 +1455,7 @@ export class Game {
         this.recalcPop(e.owner);
         this.fx && this.fx.buildingDeath(e.x, e.z, s, e.def.debris);
         this.sfx && this.sfx.play('crash', 300);
-        if (e.owner === this.myId) this.alert(`${e.def.name} destroyed!`, 'attack', { x: e.x, z: e.z }, 4);
+        if (!quiet && e.owner === this.myId) this.alert(`${e.def.name} destroyed!`, 'attack', { x: e.x, z: e.z }, 4);
       } else {
         this.blocked[idx(e.ti, e.tj)] = 0;
       }

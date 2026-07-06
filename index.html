@@ -237,6 +237,20 @@
   .menu-help { margin-top: 8px; color: #b8ab8d; font-size: 11px; text-align: center;
     line-height: 1.6; text-shadow: 0 1px 2px #000; max-width: 760px; }
 
+  /* ---------- in-game menu (ESC) ---------- */
+  #gamemenu { position: absolute; inset: 0; z-index: 44; display: none;
+    align-items: center; justify-content: center; background: #0d0a1cb8; }
+  #gamemenu.show { display: flex; }
+  #gm-card { display: flex; flex-direction: column; align-items: center; gap: 12px;
+    padding: 22px 40px 26px; border-radius: 24px; border: 3px solid #7a5432;
+    background:
+      linear-gradient(180deg, #140e2888 0%, #140e28b0 100%),
+      url('assets/ui/panel-wood.png') center / cover;
+    box-shadow: 0 18px 50px #000c, inset 0 2px 0 #ffffff22; }
+  #gm-card .diff-btn { min-width: 240px; }
+  #gm-volrow { color: #f4eede; display: flex; align-items: center; gap: 8px; }
+  #gm-vol { width: 180px; accent-color: #f9c74f; cursor: pointer; }
+
   #sound-chip { gap: 8px; }
   #mute-btn { cursor: pointer; background: none; border: none; font-size: 14px; padding: 0; }
   #vol { width: 74px; accent-color: #f9c74f; cursor: pointer; }
@@ -340,12 +354,23 @@
     <div class="menu-help">
       Left click / drag: select · double-click: select all of a type · Right click: move, gather, attack, build<br>
       Right-click a friendly toy: bodyguard it · right-click chest/tower/fort: garrison inside · B: town bell<br>
-      Shift: queue orders · A: attack-move · Z: patrol · G: catapult attack-ground · stances + formations on the card<br>
-      H: Toy Chest · . : idle worker · S: stop · M: sound · Ctrl+1-9: control groups · drag Block Walls in lines<br>
+      WASD / arrows / edges: camera · Shift: queue orders · F: attack-move · Z: patrol · G: attack-ground<br>
+      H: Toy Chest · . : idle worker · X: stop · Delete: demolish · ESC: game menu · M: sound · Ctrl+1-9: groups<br>
       F6: save game · F7: load save · Delivery Carts: right-click a Market to run trade routes for Buttons<br>
       Wind-up mice roam mid-map — walk any toy up to one and it follows you home for Snacks · Alt+minimap: flare<br>
       Each faction trains a unique toy at the Fort: 🧸 Bear Hug · 🧱 Brick Golem · 🏎️ Nitro Dragster · 🎁 Bazooka Man<br>
       2v2: pick 🤝 in Battle — solo you get an AI ally; hosting online makes it co-op (you + friend vs two rivals)
+    </div>
+  </div>
+
+  <div id="gamemenu">
+    <div id="gm-card">
+      <div class="menu-label">Paused — Toybox Tactics</div>
+      <div id="gm-note" class="menu-help" style="margin-top:2px"></div>
+      <button id="gm-resume" class="diff-btn">▶ Resume</button>
+      <button id="gm-save" class="diff-btn">💾 Save game</button>
+      <div id="gm-volrow">🔊 <input id="gm-vol" type="range" min="0" max="100" value="50"></div>
+      <button id="gm-quit" class="diff-btn">🚪 Quit to main menu</button>
     </div>
   </div>
 

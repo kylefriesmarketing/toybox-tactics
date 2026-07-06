@@ -184,6 +184,22 @@ async function boot() {
   }
 }
 
+// ---------------- in-game menu (ESC) ----------------
+let gamePaused = false;
+
+function toggleGameMenu(force) {
+  const el = $('gamemenu');
+  if (!el || !game) return;
+  const show = force !== undefined ? force : !el.classList.contains('show');
+  el.classList.toggle('show', show);
+  // pausing is a solo luxury — lockstep keeps ticking in multiplayer
+  gamePaused = show && !net;
+  const note = $('gm-note');
+  if (note) note.textContent = net ? 'Multiplayer keeps running while this is open!' : 'Game paused.';
+  const saveBtn = $('gm-save');
+  if (saveBtn) saveBtn.style.display = net ? 'none' : '';
+}
+
 // ---------------- save / load (single-player) ----------------
 const SAVE_KEY = 'tt-save';
 
@@ -222,6 +238,16 @@ function offerResume() {
   b.addEventListener('click', () => resumeSavedGame());
   startBtn.insertAdjacentElement('afterend', b);
 }
+
+// in-game menu buttons
+$('gm-resume').addEventListener('click', () => toggleGameMenu(false));
+$('gm-save').addEventListener('click', () => { saveGame(); toggleGameMenu(false); });
+$('gm-quit').addEventListener('click', () => { location.href = location.pathname; });
+$('gm-vol').addEventListener('input', (e) => {
+  sfx.setVolume(e.target.value / 100);
+  const topVol = $('vol');
+  if (topVol) topVol.value = e.target.value;
+});
 
 // sound controls live outside the game so they work from the menu onward
 $('mute-btn').addEventListener('click', () => {
@@ -436,7 +462,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null) {
   const fMine = FACTIONS[game.factionKeys[game.myId]] || FACTIONS.classic;
   const fFoe = FACTIONS[game.factionKeys[1 - game.myId]] || FACTIONS.classic;
   ui.alert(`${fMine.icon} Your ${fMine.label} take the field against the ${fFoe.icon} ${fFoe.label}!`, 'age');
-  ui.alert('Night falls. Queue Worker Buddies and find the Snacks. (H = Toy Chest, . = idle worker, A = attack-move)', 'info');
+  ui.alert('Night falls. Queue Worker Buddies and find the Snacks. (H = Toy Chest, WASD = camera, ESC = menu)', 'info');
   clock.start();
 }
 
@@ -735,7 +761,13 @@ addEventListener('keydown', (e) => {
   keys[e.key.toLowerCase()] = true;
   if (!game) return;
   const k = e.key.toLowerCase();
-  if (e.key === 'Escape') { setClickMode(null); cancelPlacement(); game.setSelection([]); }
+  if (e.key === 'Escape') {
+    // ESC peels back one layer at a time: mode → placement → selection → menu
+    if (clickMode) setClickMode(null);
+    else if (placing) cancelPlacement();
+    else if (game.selected.length) game.setSelection([]);
+    else toggleGameMenu();
+  }
   if (e.key === '.') selectIdle();
   if (k === 'h') {
     const chest = game.entities.find((x) => x.type === 'chest' && x.owner === game.myId && !x.dead);
@@ -745,12 +777,17 @@ addEventListener('keydown', (e) => {
       clampCam();
     }
   }
-  if (k === 'a' && !e.ctrlKey && game.selected.some((s) => s.kind === 'unit' && s.owner === game.myId)) {
+  // WASD pans the camera, so combat hotkeys moved: F = attack-move, X = stop
+  if (k === 'f' && !e.ctrlKey && game.selected.some((s) => s.kind === 'unit' && s.owner === game.myId)) {
     setAttackMove(true);
   }
-  if (k === 's' && !e.ctrlKey) {
+  if (k === 'x' && !e.ctrlKey) {
     const ids = game.selected.filter((s) => s.owner === game.myId && s.kind === 'unit').map((s) => s.id);
     if (ids.length) game.issue({ t: 'stop', ids });
+  }
+  if (e.key === 'Delete') {
+    const b = game.selected.find((s) => s.kind === 'building' && s.owner === game.myId && !s.dead);
+    if (b) { game.issue({ t: 'demolish', id: b.id }); game.setSelection([]); }
   }
   if (k === 'b' && !e.ctrlKey) game.issue({ t: 'bell' });
   if (e.key === 'F6') { e.preventDefault(); saveGame(); }
@@ -789,7 +826,8 @@ addEventListener('keydown', (e) => {
     }
   }
 });
-const CARD_KEYS = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'];
+// mirrors KEYS in ui.js buildCard — W/A/S/D are camera pan now
+const CARD_KEYS = ['q', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', 'k'];
 addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 
 // ---------------- main loop ----------------
@@ -1170,10 +1208,10 @@ function loop() {
   const dt = Math.min(0.05, clock.getDelta());
 
   const panSpeed = cam.dist * 0.9 * dt;
-  if (keys.arrowup) cam.tz -= panSpeed;
-  if (keys.arrowdown) cam.tz += panSpeed;
-  if (keys.arrowleft) cam.tx -= panSpeed;
-  if (keys.arrowright) cam.tx += panSpeed;
+  if (keys.arrowup || keys.w) cam.tz -= panSpeed;
+  if (keys.arrowdown || keys.s) cam.tz += panSpeed;
+  if (keys.arrowleft || keys.a) cam.tx -= panSpeed;
+  if (keys.arrowright || keys.d) cam.tx += panSpeed;
   // edge scrolling
   if (mouseInside && !down) {
     const m = 14;
@@ -1192,7 +1230,7 @@ function loop() {
       marker.update(dt);
       ui.update(dt);
     } catch (err) { console.error('[toybox] mp tick error', err); }
-  } else {
+  } else if (!gamePaused) {
     tick(dt * gameSpeed);
   }
   vfx.ambient(cam.x, cam.z, dt); // dust motes drifting in the lamp light
@@ -1213,7 +1251,7 @@ setInterval(() => {
     const elapsed = Math.min(2, clock.getDelta());
     if (net) {
       stepMP(elapsed);
-    } else {
+    } else if (!gamePaused) {
       const steps = Math.max(1, Math.ceil(elapsed / 0.1));
       const dt = elapsed / steps;
       for (let i = 0; i < steps; i++) game.update(dt);

@@ -295,7 +295,7 @@ export class UI {
     }
     if (units.length) {
       cmds.push({
-        icon: '✋', label: 'Stop', sub: '', title: 'Halt all orders (S)', enabled: () => true,
+        icon: '✋', label: 'Stop', sub: '', title: 'Halt all orders (X)', enabled: () => true,
         onClick: () => g.issue({ t: 'stop', ids: units.map((u) => u.id) }),
       });
       const mil = units.filter((u) => u.def.aggro > 0);
@@ -351,6 +351,12 @@ export class UI {
           onClick: () => g.issue({ t: 'bell' }),
         });
       }
+      cmds.push({
+        icon: '🗑️', label: 'Demolish', sub: '',
+        title: 'Tear this building down (Delete). No refunds in the toybox.',
+        enabled: () => true,
+        onClick: () => { g.issue({ t: 'demolish', id: first.id }); g.setSelection([]); },
+      });
       if (first.def.trains) {
         for (const t of first.def.trains) {
           const def = UNITS[t];
@@ -424,7 +430,8 @@ export class UI {
   }
 
   buildCard(cmds) {
-    const KEYS = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'];
+    // no W/A/S/D here — those pan the camera now
+    const KEYS = ['Q', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'K'];
     const card = $('card');
     card.innerHTML = '';
     this.cardButtons = [];
