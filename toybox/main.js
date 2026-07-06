@@ -502,6 +502,40 @@ window.__ttShot = (w = 960) => {
   return c.toDataURL('image/jpeg', 0.75);
 };
 window.__ttMP = { Net, TICK, INPUT_DELAY, Game, VFX }; // e2e test handle
+// headless AI-vs-AI soak: runs a full match on a throwaway scene, no UI/render.
+// returns { winnerTeam, ticks, simSec, err, armies, ages, res } for balance checks.
+window.__ttSoak = (opts = {}, maxTicks = 9000) => {
+  const s = new THREE.Scene();
+  const fx = new VFX(s);
+  const facs = opts.factions || ['classic', 'classic'];
+  const defs = opts.playerDefs || [
+    { team: 0, isAI: true, faction: facs[0] },
+    { team: 1, isAI: true, faction: facs[1] },
+  ];
+  const seed = opts.seed ?? ((Math.random() * 2 ** 31) | 0);
+  const g = new Game(s, registryCache, {
+    alert() {}, selection() {}, age() {}, gameOver() {},
+  }, {
+    fx, sfx: null, difficulty: opts.difficulty || 'normal',
+    map: opts.map || 'playmat', playerDefs: defs,
+    gameMode: opts.gameMode || 'standard', startRes: opts.startRes || 'standard',
+    seed, mp: false, myId: 0,
+  });
+  // capture the true victor: endGame knows the winning team for every mode,
+  // whereas "last team with a building" only holds for standard/sudden.
+  let winnerTeam = null;
+  const _end = g.endGame.bind(g);
+  g.endGame = (team) => { winnerTeam = team; _end(team); };
+  g.setup();
+  let err = null, t = 0;
+  try { for (; t < maxTicks && !g.over; t++) g.update(0.1); }
+  catch (e) { err = (e && e.message) + ' | ' + ((e && e.stack) || '').split('\n')[1]; }
+  const armies = g.players.map((p) =>
+    g.entities.filter((e) => e.kind === 'unit' && !e.dead && e.owner === p.id && e.def.aggro > 0).length);
+  const ages = g.players.map((p) => p.age);
+  const res = g.players.map((p) => Object.fromEntries(Object.entries(p.res).map(([k, v]) => [k, Math.round(v)])));
+  return { seed, winnerTeam, over: g.over, ticks: t, simSec: Math.round(t * 0.1), err, armies, ages, res, facs };
+};
 window.__ttGL = () => ({ renderer, scene, camera }); // perf probes
 window.__ttAmbient = () => ambient; // ambience debug handle
 window.__ttCam = (x, z, dist = 24) => {

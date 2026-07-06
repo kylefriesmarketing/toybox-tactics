@@ -2821,6 +2821,20 @@ export class Game {
       for (const m of military) this.setOrder(m, { type: 'amove', x: playerWonder.x, z: playerWonder.z }, false);
     }
 
+    // regicide: once a healthy army exists, hunt the enemy King directly instead
+    // of trading raids around the escalating wave threshold. Killing the King
+    // wins outright, so this both plays to the mode and stops turtle stalemates.
+    const enemyKing = this.gameMode === 'regicide'
+      ? this.nearestEnemyOf(owner, home ? home.x : 0, home ? home.z : 0, 999,
+        (e) => e.kind === 'unit' && e.isKing)
+      : null;
+    if (enemyKing && military.length >= Math.min(10, ai.wave)
+        && (!ai.attacking || ai.attackTarget !== enemyKing)) {
+      ai.attacking = true;
+      ai.attackTarget = enemyKing;
+      for (const m of military) this.setOrder(m, { type: 'amove', x: enemyKing.x, z: enemyKing.z }, false);
+    }
+
     if (ai.attacking) {
       // keep a live target; retire the assault if the army gets wiped
       if (!ai.attackTarget || ai.attackTarget.dead) {
