@@ -17,6 +17,7 @@ import {
 } from './models.js';
 
 const N = MAP_N;
+const RELIC_COUNTDOWN = 180; // seconds holding all Lost Stickers = win
 const idx = (i, j) => j * N + i;
 const inMap = (i, j) => i >= 0 && j >= 0 && i < N && j < N;
 const tileOf = (x) => Math.floor(x + N / 2);
@@ -282,6 +283,10 @@ export class Game {
     this.diffKey = opts.difficulty || 'normal';
     this.seedUsed = opts.seed || 20260703;
     this.wonderState = null; // { owner, t } while a completed wonder stands
+    this.relicState = null;  // { team, t } while one team holds every sticker
+    // living commodity market: price factors drift back toward 1.0
+    this.market = { snacks: 1, blocks: 1, marbles: 1 };
+    this.marketT = 0;
     this.fogT = 0; this.winT = 0; this.sepT = 0;
     this.alertThrottle = {};
     this.over = false;
@@ -925,18 +930,40 @@ export class Game {
     const r = this.players[owner].res;
     for (const [k, v] of Object.entries(cost)) r[k] -= v * sign;
   }
+  // live rates: what a lot sells for / costs right now, at market price
+  sellRate(res) { return Math.max(4, Math.round(MARKET.sellGain * (this.market[res] || 1))); }
+  buyRate(res) { return Math.round(MARKET.buyCost * (this.market[res] || 1)); }
+
   trade(owner, res, dir) {
     const p = this.players[owner];
     if (dir === 'sell') {
       if (p.res[res] < MARKET.lot) return false;
       p.res[res] -= MARKET.lot;
-      p.res.buttons += MARKET.sellGain;
+      p.res.buttons += this.sellRate(res);
+      // flooding the market with a good drives its price down
+      this.market[res] = Math.max(0.4, (this.market[res] || 1) * 0.97);
     } else {
-      if (p.res.buttons < MARKET.buyCost) return false;
-      p.res.buttons -= MARKET.buyCost;
+      if (p.res.buttons < this.buyRate(res)) return false;
+      p.res.buttons -= this.buyRate(res);
       p.res[res] += MARKET.lot;
+      // demand pushes the price up
+      this.market[res] = Math.min(2.2, (this.market[res] || 1) * 1.04);
     }
-    if (owner === 0) this.sfx && this.sfx.play('trade');
+    if (owner === this.myId) this.sfx && this.sfx.play('trade');
+    return true;
+  }
+
+  // ally tribute (team games): send a lot of a resource, minus a 30% tax
+  tribute(fromId, res, toId) {
+    const a = this.players[fromId], b = this.players[toId];
+    if (!a || !b || fromId === toId) return false;
+    if (this.teamOf(fromId) !== this.teamOf(toId)) return false; // allies only
+    const amt = 100;
+    if ((a.res[res] || 0) < amt) return false;
+    a.res[res] -= amt;
+    b.res[res] += Math.round(amt * 0.7);
+    if (fromId === this.myId) { this.alert(`Sent ${amt} ${RES_META[res].name} to your ally.`, 'info'); this.sfx && this.sfx.play('trade'); }
+    else if (toId === this.myId) this.alert(`Your ally sent you ${Math.round(amt * 0.7)} ${RES_META[res].name}!`, 'info');
     return true;
   }
 
@@ -1127,6 +1154,7 @@ export class Game {
       case 'cancel': { const b = ent(c.id); if (b && b.owner === pid) this.cancelQueue(b, c.i); break; }
       case 'age': { const b = ent(c.id); if (b && b.owner === pid) this.startAgeUp(b); break; }
       case 'trade': this.trade(pid, c.res, c.dir); break;
+      case 'tribute': this.tribute(pid, c.res, c.toId); break;
     }
   }
 
@@ -1146,6 +1174,9 @@ export class Game {
       h = (h + ((p.res.snacks | 0) * 3) + ((p.res.blocks | 0) * 5)
         + ((p.res.buttons | 0) * 7) + ((p.res.marbles | 0) * 11) + p.popUsed * 13) | 0;
     }
+    // commodity prices are shared sim state — fold them in
+    h = (h + (this.market.snacks * 100 | 0) * 17 + (this.market.blocks * 100 | 0) * 19
+      + (this.market.marbles * 100 | 0) * 23) | 0;
     return h;
   }
 
@@ -1193,6 +1224,8 @@ export class Game {
         return [k, { ...rest, attackTarget: null }];
       })),
       wonder: this.wonderState ? { ...this.wonderState } : null,
+      relic: this.relicState ? { ...this.relicState } : null,
+      market: { ...this.market },
       timeline: this.timeline,
       players: this.players.map((p) => ({
         res: { ...p.res }, age: p.age, aging: p.aging, popUsed: p.popUsed, popCap: p.popCap,
@@ -1349,6 +1382,8 @@ export class Game {
       Object.assign(this.aiState[1], snap.ai); // v1 saves: single AI
     }
     this.wonderState = snap.wonder ? { ...snap.wonder } : null;
+    this.relicState = snap.relic ? { ...snap.relic } : null;
+    if (snap.market) this.market = { ...snap.market };
     this.timeline = snap.timeline || [];
     this.taunted = true;
     this.fog.update(this.entities, this.teamOwners(this.myTeam));
@@ -2865,6 +2900,38 @@ export class Game {
     }
   }
 
+  // relic victory: hold EVERY Lost Sticker at once → a countdown to the win
+  updateRelics(dt) {
+    if (this.over) return;
+    const stickers = this.entities.filter((e) => e.kind === 'objective' && !e.dead);
+    if (stickers.length < 2) return; // need a real set to make it a race
+    const holders = new Set(stickers.map((s) => s.holder));
+    // one team must hold every sticker (holders is a single team id ≥ 0)
+    const team = (holders.size === 1 && [...holders][0] >= 0) ? [...holders][0] : -1;
+    if (team < 0) {
+      if (this.relicState) {
+        this.alert(this.relicState.team === this.myTeam
+          ? 'You lost a Lost Sticker — the countdown stops.'
+          : 'A Lost Sticker was contested — the rival countdown stops.', 'age');
+        this.relicState = null;
+      }
+      return;
+    }
+    if (!this.relicState || this.relicState.team !== team) {
+      this.relicState = { team, t: RELIC_COUNTDOWN };
+      this.alert(team === this.myTeam
+        ? 'Your team holds every Lost Sticker! Keep them all to win.'
+        : `${TEAM_NAMES[1]} hold all the Lost Stickers — take one back before the countdown ends!`,
+        'age');
+    }
+    this.relicState.t -= dt;
+    if (this.relicState.t <= 20 && !this.relicState.warned) {
+      this.relicState.warned = true;
+      this.alert('20 seconds left on the Lost Sticker countdown!', 'attack');
+    }
+    if (this.relicState.t <= 0) this.endGame(team);
+  }
+
   // ---------- main update ----------
   update(dt) {
     this.time += dt;
@@ -2902,6 +2969,16 @@ export class Game {
     this.updateProjectiles(dt);
     this.updateObjectives(dt);
     this.updateWonder(dt);
+    this.updateRelics(dt);
+
+    // market prices ease back toward their base value over time
+    this.marketT -= dt;
+    if (this.marketT <= 0) {
+      this.marketT = 3;
+      for (const r of ['snacks', 'blocks', 'marbles']) {
+        this.market[r] += (1 - this.market[r]) * 0.06;
+      }
+    }
 
     // sample the timeline every 10s of sim time for post-game charts
     this.tlT -= dt;

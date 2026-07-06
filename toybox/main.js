@@ -692,6 +692,17 @@ function selectIdle() {
   cam.tx = w.x; cam.tz = w.z;
   clampCam();
 }
+// cycle through military toys standing around with no orders
+function selectIdleMilitary() {
+  const idle = game.entities.filter((e) => e.kind === 'unit' && e.owner === game.myId
+    && !e.dead && e.def.aggro > 0 && !e.order && !e.oq.length && !e.garrisoned);
+  if (!idle.length) { ui.alert('No idle military toys.', 'info'); return; }
+  selectIdleMilitary.i = ((selectIdleMilitary.i || 0) + 1) % idle.length;
+  const u = idle[selectIdleMilitary.i];
+  game.setSelection([u]);
+  cam.tx = u.x; cam.tz = u.z;
+  clampCam();
+}
 
 // ---------------- control groups ----------------
 const groups = {};
@@ -893,6 +904,7 @@ addEventListener('keydown', (e) => {
     else toggleGameMenu();
   }
   if (e.key === '.') selectIdle();
+  if (e.key === ',') selectIdleMilitary();
   if (k === 'h') {
     const chest = game.entities.find((x) => x.type === 'chest' && x.owner === game.myId && !x.dead);
     if (chest) {

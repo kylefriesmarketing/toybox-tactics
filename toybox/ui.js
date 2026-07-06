@@ -83,16 +83,25 @@ export class UI {
     });
     let rivalN = 0;
     const label = (p) => (p.id === me ? 'You' : p.team === g.myTeam ? 'Ally' : `Rival ${g.players.length > 2 ? ++rivalN : ''}`.trim());
+    // AoE-style final score: economy + military + tech + surviving army
+    const scoreOf = (p) => {
+      const s = stats[p.id];
+      const alive = g.entities.filter((e) => e.kind === 'unit' && e.owner === p.id && !e.dead).length;
+      return Math.round(s.gathered / 10 + s.kills * 12 + s.razed * 25
+        + p.techs.size * 40 + (p.age - 1) * 60 + alive * 6);
+    };
     const rows = [
       ['', ...order.map(label)],
+      ['Final score', ...order.map((p) => scoreOf(p))],
       ['Resources gathered', ...order.map((p) => Math.floor(stats[p.id].gathered))],
       ['Toys trained', ...order.map((p) => stats[p.id].trained)],
       ['Toys lost', ...order.map((p) => stats[p.id].lost)],
       ['Enemy toys defeated', ...order.map((p) => stats[p.id].kills)],
       ['Buildings razed', ...order.map((p) => stats[p.id].razed)],
+      ['Upgrades researched', ...order.map((p) => g.players[p.id].techs.size)],
     ];
     $('go-stats').innerHTML =
-      `<div class="statline">Match time ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}</div>` +
+      `<div class="statline">Match time ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')} · Your score: <b style="color:#ffd94a">${scoreOf(g.players[me])}</b></div>` +
       '<table>' + rows.map((r, i) =>
         `<tr>${r.map((c, j) => i === 0 ? `<th>${c}</th>` : `<td class="${j === 0 ? 'label' : ''}">${c}</td>`).join('')}</tr>`
       ).join('') + '</table>' +
@@ -453,17 +462,30 @@ export class UI {
         for (const r of ['blocks', 'snacks', 'marbles']) {
           cmds.push({
             icon: '💰', label: `Sell ${RES_META[r].icon}`,
-            sub: `${MARKET.lot}${RES_META[r].icon}→${MARKET.sellGain}🔘`,
-            title: `Sell ${MARKET.lot} ${RES_META[r].name} for ${MARKET.sellGain} Buttons`,
+            sub: () => `${MARKET.lot}${RES_META[r].icon}→${g.sellRate(r)}🔘`,
+            title: `Sell ${MARKET.lot} ${RES_META[r].name} — price shifts with the market`,
             enabled: () => g.players[me].res[r] >= MARKET.lot,
-            onClick: () => { g.issue({ t: 'trade', res: r, dir: 'sell' }); },
+            onClick: () => { g.issue({ t: 'trade', res: r, dir: 'sell' }); this.refreshSelection(); },
           });
           cmds.push({
             icon: '🛒', label: `Buy ${RES_META[r].icon}`,
-            sub: `${MARKET.buyCost}🔘→${MARKET.lot}${RES_META[r].icon}`,
-            title: `Buy ${MARKET.lot} ${RES_META[r].name} for ${MARKET.buyCost} Buttons`,
-            enabled: () => g.players[me].res.buttons >= MARKET.buyCost,
-            onClick: () => { g.issue({ t: 'trade', res: r, dir: 'buy' }); },
+            sub: () => `${g.buyRate(r)}🔘→${MARKET.lot}${RES_META[r].icon}`,
+            title: `Buy ${MARKET.lot} ${RES_META[r].name} — price shifts with the market`,
+            enabled: () => g.players[me].res.buttons >= g.buyRate(r),
+            onClick: () => { g.issue({ t: 'trade', res: r, dir: 'buy' }); this.refreshSelection(); },
+          });
+        }
+      }
+      // ally tribute (team games): share a lot of a resource, minus tax
+      const ally = g.players.find((pl) => pl.id !== me && pl.team === g.myTeam);
+      if (ally && first.def.dropoff) {
+        for (const r of RES_TYPES) {
+          cmds.push({
+            icon: '🎁', label: `Give ${RES_META[r].icon}`,
+            sub: `100${RES_META[r].icon}→70`,
+            title: `Send 100 ${RES_META[r].name} to your ally (30% delivery tax)`,
+            enabled: () => g.players[me].res[r] >= 100,
+            onClick: () => { g.issue({ t: 'tribute', res: r, toId: ally.id }); this.refreshSelection(); },
           });
         }
       }
@@ -498,7 +520,7 @@ export class UI {
       b.innerHTML = (key ? `<kbd>${key}</kbd>` : '')
         + (c.img ? `<img class="icoimg" src="${c.img}" alt="">` : `<span class="ico">${c.icon || '❔'}</span>`)
         + `<span class="lbl">${c.label}</span>`
-        + (c.sub ? `<small>${c.sub}</small>` : '')
+        + (c.sub ? `<small>${typeof c.sub === 'function' ? c.sub() : c.sub}</small>` : '')
         + (c.lock ? `<span class="lock">🔒</span>` : '');
       if (c.title) b.title = c.title;
       b.disabled = c.isHint || !c.enabled();
@@ -522,11 +544,18 @@ export class UI {
       const t = Math.floor(this.game.time);
       $('clock').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
       // wonder countdown banner
-      const ws = this.game.wonderState;
+      // wonder OR relic countdown, whichever is running (relic takes the row if both)
+      const g = this.game;
+      const ws = g.wonderState, rs = g.relicState;
       const wt = $('wonder-timer');
-      if (ws) {
+      if (rs) {
+        const s = Math.max(0, Math.ceil(rs.t));
+        const mine = rs.team === g.myTeam;
+        wt.textContent = `⭐ ${mine ? 'Your team holds all Stickers' : 'RIVALS hold all Stickers'}: ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+        wt.className = mine ? 'show mine' : 'show theirs';
+      } else if (ws) {
         const s = Math.max(0, Math.ceil(ws.t));
-        const mine = ws.owner === this.game.myId;
+        const mine = g.teamOf(ws.owner) === g.myTeam;
         wt.textContent = `⭐ ${mine ? 'Your' : 'RIVAL'} Wonder: ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
         wt.className = mine ? 'show mine' : 'show theirs';
       } else if (wt.className) {
