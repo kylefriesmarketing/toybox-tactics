@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toybox Tactics — After Bedtime</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #14102a;
+    font-family: 'Segoe UI', system-ui, sans-serif; color: #f0ecff; user-select: none; }
+  #view, #view canvas { position: absolute; inset: 0; }
+
+  /* ---------- loading ---------- */
+  #loading { position: absolute; inset: 0; z-index: 50;
+    background:
+      radial-gradient(ellipse at 50% 30%, #241a44e8 0%, #14102af5 70%),
+      url('assets/ui/title.png') center / cover no-repeat #14102a;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; transition: opacity .6s; }
+  #loading.hide { opacity: 0; pointer-events: none; }
+  img.logo { width: min(520px, 72vw); max-height: 24vh; object-fit: contain;
+    filter: drop-shadow(0 6px 18px #000d); }
+  #loading .sub, #menu .sub { color: #cbb98a; font-size: 14px; letter-spacing: 2px;
+    text-transform: uppercase; text-shadow: 0 2px 4px #000; }
+  #loadbar { width: 380px; height: 18px; border-radius: 10px; overflow: hidden;
+    background: url('assets/ui/panel-wood.png') center / cover;
+    border: 2px solid #6a4a2e; box-shadow: 0 4px 12px #000a, inset 0 2px 6px #0009; }
+  #loadbar-fill { height: 100%; width: 0%; border-radius: 8px;
+    background: linear-gradient(180deg, #ffd97a, #f3722c); transition: width .2s;
+    box-shadow: inset 0 2px 0 #ffffff66; }
+  #loadtext { color: #cbb98a; font-size: 12px; min-height: 16px; text-shadow: 0 1px 3px #000; }
+
+  /* ---------- top bar ---------- */
+  #topbar { position: absolute; top: 0; left: 0; right: 0; z-index: 10; display: flex;
+    align-items: center; gap: 10px; padding: 8px 12px;
+    background: linear-gradient(180deg, rgba(14,10,32,.95), rgba(14,10,32,.7) 75%, transparent);
+    font-size: 14px; pointer-events: none; }
+  #topbar .chip { pointer-events: auto; display: flex; align-items: center; gap: 6px;
+    background:
+      linear-gradient(180deg, #1a112eb8, #1a112ed8),
+      url('assets/ui/panel-wood.png') center / 300px auto;
+    border: 2px solid #6a4a2e; border-radius: 12px; padding: 5px 12px;
+    color: #f4eede; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .3px;
+    text-shadow: 0 1px 2px #000;
+    box-shadow: 0 3px 0 #120c22, 0 5px 10px #0008, inset 0 1px 0 #ffffff22; }
+  #topbar .chip:nth-child(1) { border-bottom: 2px solid #d8a24a; }
+  #topbar .chip:nth-child(2) { border-bottom: 2px solid #e05555; }
+  #topbar .chip:nth-child(3) { border-bottom: 2px solid #f0d060; }
+  #topbar .chip:nth-child(4) { border-bottom: 2px solid #7fd0e8; }
+  #topbar .chip:nth-child(5) { border-bottom: 2px solid #9a92c4; }
+  #topbar .chip.capped { border-color: #e5484d; color: #ff9a9a; animation: capblink 1s infinite; }
+  @keyframes capblink { 50% { box-shadow: 0 0 10px #e5484d66; } }
+  #topbar .spring { flex: 1; }
+  #idle-btn { pointer-events: auto; cursor: pointer; color: #d8cba8; font-weight: 700;
+    background:
+      linear-gradient(180deg, #1a112eb8, #1a112ed8),
+      url('assets/ui/panel-wood.png') center / 300px auto;
+    border: 2px solid #6a4a2e; border-radius: 12px; padding: 5px 12px; font-size: 14px;
+    text-shadow: 0 1px 2px #000;
+    box-shadow: 0 3px 0 #120c22, 0 5px 10px #0008, inset 0 1px 0 #ffffff22; }
+  #idle-btn.has-idle { color: #f9c74f; border-color: #f9c74f; animation: capblink 1.4s infinite; }
+  #age-chip { color: #cbb6ff; }
+  #clock { color: #9a92c4; }
+
+  /* ---------- alerts ---------- */
+  #alerts { position: absolute; left: 12px; top: 52px; z-index: 10; display: flex;
+    flex-direction: column; gap: 5px; pointer-events: none; max-width: 360px; }
+  .alert { background: #221c44d8; border-left: 3px solid #4d9bff; padding: 6px 10px;
+    border-radius: 0 8px 8px 0; font-size: 13px; transition: opacity .8s; }
+  .alert.warn { border-left-color: #f9c74f; }
+  .alert.attack { border-left-color: #e5484d; background: #44202bd8; }
+  .alert.age { border-left-color: #9b5de5; }
+  .alert.fade { opacity: 0; }
+
+  #banner { position: absolute; top: 22%; left: 50%; transform: translate(-50%,-50%) scale(.9);
+    z-index: 20; font-size: 40px; font-weight: bold; letter-spacing: 2px; color: #e8d8ff;
+    text-shadow: 0 0 30px #9b5de5, 0 2px 6px #000; opacity: 0; pointer-events: none;
+    transition: all .5s; }
+  #banner.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+
+  #wonder-timer { position: absolute; top: 44px; left: 50%; transform: translateX(-50%);
+    z-index: 11; font-size: 16px; font-weight: bold; padding: 5px 16px; border-radius: 10px;
+    display: none; pointer-events: none; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
+  #wonder-timer.show { display: block; }
+  #wonder-timer.mine { background: #1d3a6ede; color: #9ec7ff; border: 1px solid #4d9bff; }
+  #wonder-timer.theirs { background: #5e1d1dde; color: #ffb09b; border: 1px solid #ff6a4d;
+    animation: wonderpulse 1.2s infinite; }
+  @keyframes wonderpulse { 50% { box-shadow: 0 0 18px #ff6a4d88; } }
+
+  #speed-chip { position: absolute; top: 44px; right: 12px; z-index: 11; background: #221c44cc;
+    border: 1px solid #f9c74f; color: #f9c74f; border-radius: 8px; padding: 3px 10px;
+    font-size: 13px; pointer-events: none; }
+
+  /* ---------- bottom HUD ---------- */
+  #hud { position: absolute; left: 0; right: 0; bottom: 0; z-index: 10; display: flex;
+    align-items: flex-end; gap: 12px; padding: 12px; pointer-events: none; }
+  #hud > * { pointer-events: auto; }
+  #minimap { width: 186px; height: 186px; border-radius: 16px; border: 5px solid #6a4a2e;
+    outline: 2px solid #120c22; background: #10132c; cursor: crosshair;
+    box-shadow: 0 8px 20px #000b, inset 0 0 22px #0008; }
+  #sel-panel { flex: 0 0 320px; min-height: 128px;
+    background:
+      linear-gradient(180deg, #17102eb0, #17102ed4),
+      url('assets/ui/panel-wood.png') center / cover;
+    border: 3px solid #7a5432; border-radius: 18px; padding: 12px; display: flex; gap: 12px;
+    font-size: 13px; color: #f4eede;
+    box-shadow: 0 8px 20px #000b, inset 0 2px 0 #ffffff22, inset 0 -3px 10px #0007; }
+  #sel-portrait { font-size: 42px; width: 68px; height: 68px; display: flex; align-items: center;
+    justify-content: center; background: radial-gradient(circle at 35% 30%, #3a2a52, #180f2c);
+    border: 2px solid #7a5432; border-radius: 14px; flex: none;
+    box-shadow: inset 0 2px 10px #000a, 0 2px 0 #ffffff14; }
+  #sel-portrait.mine { border-color: #4d9bff; box-shadow: inset 0 2px 8px #0007, 0 0 10px #4d9bff44; }
+  #sel-portrait.theirs { border-color: #ff6a4d; box-shadow: inset 0 2px 8px #0007, 0 0 10px #ff6a4d44; }
+  #sel-portrait.ally { border-color: #59c96a; box-shadow: inset 0 2px 8px #0007, 0 0 10px #59c96a44; }
+  #sel-body { flex: 1; min-width: 0; }
+  #sel-info { line-height: 1.5; }
+  .sel-name { font-weight: 700; font-size: 15px; letter-spacing: .3px; margin-bottom: 4px; }
+  .hpbar { position: relative; height: 14px; background: #14102a; border-radius: 8px;
+    overflow: hidden; border: 1px solid #3a3468; margin-bottom: 5px; }
+  .hpbar .fill { height: 100%; border-radius: 8px 0 0 8px; transition: width .2s; }
+  .hpbar .fill.ok { background: linear-gradient(180deg, #6ee07c, #3fae52); }
+  .hpbar .fill.hurt { background: linear-gradient(180deg, #ffd166, #e0a52f); }
+  .hpbar .fill.critical { background: linear-gradient(180deg, #ff7a6e, #d63a35); }
+  .hpbar .hpnum { position: absolute; inset: 0; text-align: center; font-size: 10px;
+    font-weight: 700; line-height: 14px; color: #fff; text-shadow: 0 1px 2px #000; }
+  .statrow { display: flex; gap: 10px; font-size: 12px; color: #cbc4ea; margin-bottom: 3px; }
+  #sel-info .dim { color: #9a92c4; font-size: 11.5px; }
+  #sel-queue { display: flex; gap: 5px; margin-top: 7px; flex-wrap: wrap; }
+  .qitem { position: relative; background: #262045; border: 1px solid #3a3468; border-radius: 8px;
+    padding: 4px 9px 6px; font-size: 11px; font-weight: 600; cursor: pointer; overflow: hidden;
+    box-shadow: 0 2px 0 #14102a; }
+  .qitem:hover { border-color: #e5484d; }
+  .qbar { position: absolute; left: 0; bottom: 0; height: 3px; background: #f9c74f; }
+
+  /* AoE-style icon command card */
+  #card { flex: 1; display: grid; grid-template-columns: repeat(auto-fill, 74px);
+    gap: 8px; max-width: 590px; justify-content: start; }
+  button.cmd { position: relative; width: 74px; height: 82px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    color: #f4eede; border-radius: 15px; padding: 4px 2px;
+    background: linear-gradient(180deg, #514486 0%, #382e64 55%, #2c2452 100%);
+    border: 2px solid #241a3e;
+    box-shadow: 0 4px 0 #170f30, 0 6px 10px #0007, inset 0 2px 0 #ffffff28; }
+  button.cmd .ico { font-size: 25px; line-height: 1.15; filter: drop-shadow(0 2px 2px #0008); }
+  button.cmd img.icoimg { width: 40px; height: 40px; object-fit: contain;
+    filter: drop-shadow(0 2px 2px #0008); pointer-events: none; }
+  #sel-portrait img { width: 60px; height: 60px; object-fit: contain;
+    filter: drop-shadow(0 2px 3px #0009); pointer-events: none; }
+  button.cmd .lbl { font-size: 8.5px; font-weight: 700; color: #cbc4ea; text-align: center;
+    line-height: 1.15; max-height: 20px; overflow: hidden; letter-spacing: .2px; }
+  button.cmd small { color: #cbb87a; font-size: 8px; line-height: 1.1; text-align: center; }
+  button.cmd:hover:not(:disabled) { border-color: #f9c74f; transform: translateY(-2px);
+    box-shadow: 0 6px 0 #170f30, 0 0 16px #f9c74f44, inset 0 2px 0 #ffffff28; }
+  button.cmd:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #170f30; }
+  button.cmd:disabled { filter: grayscale(.75); opacity: .45; cursor: default; }
+  button.cmd .lock { position: absolute; bottom: 4px; right: 5px; font-size: 10px; display: none; }
+  button.cmd.locked .lock { display: block; }
+  button.cmd.hint { background: transparent; border-style: dashed; box-shadow: none; color: #9a92c4; }
+  button.cmd.active { border-color: #f9c74f;
+    background: linear-gradient(180deg, #6a5a2e 0%, #4a3e20 55%, #3a3018 100%);
+    box-shadow: 0 4px 0 #170f30, 0 0 12px #f9c74f44, inset 0 2px 0 #ffffff28; }
+
+  #dragbox { position: absolute; z-index: 9; display: none; border: 1px solid #7fd0ff;
+    background: #7fd0ff22; pointer-events: none; }
+
+  /* ---------- game over ---------- */
+  #gameover { position: absolute; inset: 0; z-index: 40; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; background: #14102acc;
+    opacity: 0; pointer-events: none; transition: opacity .8s; }
+  #gameover.show { opacity: 1; pointer-events: auto; }
+  #go-title { font-size: 64px; letter-spacing: 4px; }
+  #go-title.win { color: #f9c74f; text-shadow: 0 0 40px #f9c74f66; }
+  #go-title.lose { color: #e5484d; text-shadow: 0 0 40px #e5484d66; }
+  #go-sub { color: #cbc4ea; font-size: 15px; max-width: 460px; text-align: center; }
+  #go-restart { margin-top: 8px; font-size: 17px; font-weight: 800; letter-spacing: .5px;
+    padding: 12px 32px; border-radius: 14px; cursor: pointer; color: #2c1a04;
+    border: 2px solid #b8862e; text-transform: uppercase;
+    background: linear-gradient(180deg, #ffe49a 0%, #f9c74f 55%, #e8a93a 100%);
+    box-shadow: 0 5px 0 #8a5e1a, 0 8px 18px #000a, inset 0 2px 0 #ffffff88;
+    transition: transform .08s, box-shadow .08s; }
+  #go-restart:hover { transform: translateY(-2px);
+    box-shadow: 0 7px 0 #8a5e1a, 0 11px 20px #000a, inset 0 2px 0 #ffffff88; }
+  #go-restart:active { transform: translateY(2px); box-shadow: 0 1px 0 #8a5e1a; }
+  #go-stats { color: #cbc4ea; font-size: 13px; }
+  #go-stats .statline { text-align: center; color: #9a92c4; margin-bottom: 8px; }
+  #go-stats table { border-collapse: collapse; }
+  #go-stats th, #go-stats td { padding: 4px 16px; text-align: right; }
+  #go-stats td.label { text-align: left; color: #9a92c4; }
+  #go-stats th { color: #f0ecff; border-bottom: 1px solid #3a3468; }
+
+  /* ---------- start menu: midnight toybox ---------- */
+  #menu { position: absolute; inset: 0; z-index: 45; display: none; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px;
+    background:
+      linear-gradient(180deg, #14102a55 0%, #14102ab8 45%, #14102af0 100%),
+      url('assets/ui/title.png') center / cover no-repeat #14102a;
+    transition: opacity .5s; overflow-y: auto; }
+  #menu.show { display: flex; }
+  #menu-card { display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 12px 30px 16px; border-radius: 24px; border: 3px solid #7a5432;
+    background:
+      linear-gradient(180deg, #140e2888 0%, #140e28b0 100%),
+      url('assets/ui/panel-wood.png') center / cover;
+    box-shadow: 0 18px 50px #000c, inset 0 2px 0 #ffffff22, inset 0 -3px 12px #0008; }
+  .menu-label { margin-top: 6px; color: #ffd97a; font-size: 12px; letter-spacing: 2.5px;
+    text-transform: uppercase; font-weight: 700; text-shadow: 0 2px 3px #000; }
+  #diff-row, #map-row, #mp-row, #fac-row { display: flex; gap: 10px; align-items: center; }
+  #map-desc, #fac-desc { color: #d8cba8; font-size: 12px; min-height: 16px; text-shadow: 0 1px 2px #000; }
+  #mp-code { width: 92px; text-align: center; font-size: 17px; letter-spacing: 3px;
+    text-transform: uppercase; background: #180f2cd8; color: #ffd97a; font-weight: 700;
+    border: 2px solid #7a5432; border-radius: 12px; padding: 9px 6px;
+    box-shadow: inset 0 2px 8px #000a; }
+  #mp-status { color: #ffd97a; font-size: 13px; min-height: 18px; text-shadow: 0 1px 2px #000; }
+  /* chunky toy-plastic buttons */
+  .diff-btn { font-size: 14px; font-weight: 700; padding: 9px 17px; border-radius: 13px;
+    cursor: pointer; color: #f4eede; letter-spacing: .3px;
+    border: 2px solid #241a3e;
+    background: linear-gradient(180deg, #574a8e 0%, #3d3268 55%, #322858 100%);
+    box-shadow: 0 4px 0 #1c1436, 0 6px 12px #0008, inset 0 2px 0 #ffffff2e;
+    text-shadow: 0 1px 2px #0009; transition: transform .08s, box-shadow .08s; }
+  .diff-btn:hover { transform: translateY(-2px);
+    box-shadow: 0 6px 0 #1c1436, 0 9px 16px #0008, inset 0 2px 0 #ffffff2e; }
+  .diff-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #1c1436; }
+  .diff-btn.sel { color: #2c1a04; border-color: #b8862e;
+    background: linear-gradient(180deg, #ffe49a 0%, #f9c74f 55%, #e8a93a 100%);
+    box-shadow: 0 4px 0 #8a5e1a, 0 0 18px #f9c74f55, inset 0 2px 0 #ffffff88;
+    text-shadow: 0 1px 0 #ffffff66; }
+  #start-btn { margin-top: 8px; font-size: 19px; font-weight: 800; letter-spacing: 1px;
+    padding: 12px 40px; border-radius: 16px; cursor: pointer; color: #fff;
+    text-transform: uppercase; border: 2px solid #7e1e14;
+    background: linear-gradient(180deg, #ff8a5c 0%, #f3552c 55%, #d63a1e 100%);
+    box-shadow: 0 6px 0 #7e1e14, 0 10px 24px #000a, inset 0 2px 0 #ffffff55;
+    text-shadow: 0 2px 3px #0008; transition: transform .08s, box-shadow .08s; }
+  #start-btn:hover { transform: translateY(-2px);
+    box-shadow: 0 8px 0 #7e1e14, 0 14px 28px #000a, inset 0 2px 0 #ffffff55; }
+  #start-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #7e1e14; }
+  .menu-help { margin-top: 8px; color: #b8ab8d; font-size: 11px; text-align: center;
+    line-height: 1.6; text-shadow: 0 1px 2px #000; max-width: 760px; }
+
+  #sound-chip { gap: 8px; }
+  #mute-btn { cursor: pointer; background: none; border: none; font-size: 14px; padding: 0; }
+  #vol { width: 74px; accent-color: #f9c74f; cursor: pointer; }
+  body.amove, body.amove canvas { cursor: crosshair; }
+  button.cmd em { font-style: normal; color: #b48fd8; font-size: 10px; }
+  button.cmd.locked { border-style: dashed; }
+  button.cmd { position: relative; }
+  button.cmd kbd { position: absolute; top: 3px; right: 5px; font-size: 9px; color: #8f87b8;
+    background: #14102a; border: 1px solid #3a3468; border-radius: 4px; padding: 0 4px;
+    font-family: inherit; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./assets/lib/three.module.js" } }
+</script>
+</head>
+<body>
+  <div id="view"></div>
+
+  <div id="topbar">
+    <div class="chip">🍪 <span id="res-snacks">0</span></div>
+    <div class="chip">🧱 <span id="res-blocks">0</span></div>
+    <div class="chip">🔘 <span id="res-buttons">0</span></div>
+    <div class="chip">🔮 <span id="res-marbles">0</span></div>
+    <div class="chip">👥 <span id="pop">0/0</span></div>
+    <button id="idle-btn" title="Select idle worker ( . )">🔧 0</button>
+    <div class="spring"></div>
+    <div class="chip" id="age-chip"><span id="age">Bedtime Age</span></div>
+    <div class="chip"><span id="clock">0:00</span></div>
+    <div class="chip" id="sound-chip" title="Volume (M mutes)">
+      <button id="mute-btn">🔊</button>
+      <input id="vol" type="range" min="0" max="100" value="50">
+    </div>
+  </div>
+
+  <div id="alerts"></div>
+  <div id="banner"></div>
+  <div id="wonder-timer"></div>
+  <div id="speed-chip" style="display:none"></div>
+  <div id="dragbox"></div>
+
+  <div id="hud">
+    <canvas id="minimap" width="176" height="176"></canvas>
+    <div id="sel-panel">
+      <div id="sel-portrait"></div>
+      <div id="sel-body">
+        <div id="sel-info"></div>
+        <div id="sel-queue"></div>
+      </div>
+    </div>
+    <div id="card"></div>
+  </div>
+
+  <div id="gameover">
+    <div id="go-title"></div>
+    <div id="go-sub"></div>
+    <div id="go-stats"></div>
+    <button id="go-restart">Play Again</button>
+  </div>
+
+  <div id="menu">
+    <img class="logo" src="assets/ui/logo.png" alt="TOYBOX TACTICS"
+      onerror="this.outerHTML='<h1 style=&quot;font-size:52px&quot;>TOYBOX TACTICS</h1>'">
+    <div class="sub">After Bedtime — the toys wake up and go to war</div>
+    <div id="menu-card">
+    <div class="menu-label">Rival difficulty</div>
+    <div id="diff-row">
+      <button class="diff-btn" data-diff="easy">😴 Sleepy</button>
+      <button class="diff-btn sel" data-diff="normal">🙂 Playful</button>
+      <button class="diff-btn" data-diff="hard">😾 Cranky</button>
+    </div>
+    <div class="menu-label">Battle</div>
+    <div id="size-row">
+      <button class="size-btn diff-btn sel" data-size="1v1">🤺 1v1</button>
+      <button class="size-btn diff-btn" data-size="2v2">🤝 2v2 — AI ally</button>
+    </div>
+    <div class="menu-label">Your faction</div>
+    <div id="fac-row">
+      <button class="fac-btn diff-btn sel" data-fac="classic">🎁 Classic</button>
+      <button class="fac-btn diff-btn" data-fac="bricks">🧱 Snap-Bricks</button>
+      <button class="fac-btn diff-btn" data-fac="plush">🧸 Plushies</button>
+      <button class="fac-btn diff-btn" data-fac="racers">🏎️ RC Racers</button>
+    </div>
+    <div id="fac-desc">The all-rounders. No bonuses, no weaknesses.</div>
+    <div class="menu-label">Battlefield</div>
+    <div id="map-row">
+      <button class="map-btn diff-btn sel" data-map="playmat">🧸 Playmat</button>
+      <button class="map-btn diff-btn" data-map="canyon">🏔️ Canyon</button>
+      <button class="map-btn diff-btn" data-map="underbed">🌑 Under-Bed</button>
+      <button class="map-btn diff-btn" data-map="attic">📦 Attic</button>
+    </div>
+    <div id="map-desc">Open center, safe corners — the classic.</div>
+    <button id="start-btn">▶ Wake the Toys</button>
+    <div class="menu-label">Multiplayer (1v1, needs internet)</div>
+    <div id="mp-row">
+      <button id="mp-host" class="diff-btn">🌐 Host game</button>
+      <input id="mp-code" maxlength="4" placeholder="CODE" autocomplete="off">
+      <button id="mp-join" class="diff-btn">Join</button>
+    </div>
+    <div id="mp-status"></div>
+    </div>
+    <div class="menu-help">
+      Left click / drag: select · double-click: select all of a type · Right click: move, gather, attack, build<br>
+      Right-click a friendly toy: bodyguard it · right-click chest/tower/fort: garrison inside · B: town bell<br>
+      Shift: queue orders · A: attack-move · Z: patrol · G: catapult attack-ground · stances + formations on the card<br>
+      H: Toy Chest · . : idle worker · S: stop · M: sound · Ctrl+1-9: control groups · drag Block Walls in lines<br>
+      F6: save game · F7: load save · Delivery Carts: right-click a Market to run trade routes for Buttons<br>
+      Wind-up mice roam mid-map — walk any toy up to one and it follows you home for Snacks · Alt+minimap: flare<br>
+      Each faction trains a unique toy at the Fort: 🧸 Bear Hug · 🧱 Brick Golem · 🏎️ Nitro Dragster · 🎁 Bazooka Man<br>
+      2v2: pick 🤝 in Battle — solo you get an AI ally; hosting online makes it co-op (you + friend vs two rivals)
+    </div>
+  </div>
+
+  <div id="loading">
+    <img class="logo" src="assets/ui/logo.png" alt="TOYBOX TACTICS"
+      onerror="this.outerHTML='<h1 style=&quot;font-size:44px&quot;>TOYBOX TACTICS</h1>'">
+    <div class="sub">After Bedtime — the toys wake up and go to war</div>
+    <div id="loadbar"><div id="loadbar-fill"></div></div>
+    <div id="loadtext">Waking up the toys…</div>
+  </div>
+
+  <script type="module" src="toybox/main.js"></script>
+</body>
+</html>
