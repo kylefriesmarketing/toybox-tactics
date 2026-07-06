@@ -504,6 +504,15 @@ export class UI {
     const ctx = this.miniCtx, S = this.mini.width, k = S / N;
     ctx.fillStyle = '#5c8f46';
     ctx.fillRect(0, 0, S, S);
+    // elevation shading: higher ground reads brighter
+    const H = g.height, E = g.ELEV || 0.85;
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const h = H[j * N + i];
+      if (h > 0.01) {
+        ctx.fillStyle = h > E * 1.5 ? '#a4d383' : h >= E - 0.01 ? '#84b56a' : '#70a258';
+        ctx.fillRect(i * k, j * k, k, k);
+      }
+    }
     ctx.fillStyle = '#3c5c30';
     const bl = g.blocked;
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {

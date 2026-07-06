@@ -1506,8 +1506,9 @@ export function createGround(N, style = 'playmat') {
   const tex = new THREE.CanvasTexture(c);
   tex.anisotropy = 8;
   const groundMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 });
-  // segmented so the ambient breeze can ripple the fabric (main.js)
-  const mat = new THREE.Mesh(new THREE.PlaneGeometry(N, N, 44, 44), groundMat);
+  // one segment per tile: the game displaces vertices for real elevation,
+  // and the ambient breeze ripples on top of that base
+  const mat = new THREE.Mesh(new THREE.PlaneGeometry(N, N, N, N), groundMat);
   mat.name = 'playmat-ground';
   mat.rotation.x = -Math.PI / 2;
   mat.receiveShadow = true;

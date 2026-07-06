@@ -116,6 +116,13 @@ function groundPoint(clientX, clientY) {
   if (!innerWidth || !innerHeight) return null;
   ndc.set((clientX / innerWidth) * 2 - 1, -(clientY / innerHeight) * 2 + 1);
   raycaster.setFromCamera(ndc, camera);
+  // hilly terrain: intersect the real displaced mat first, so clicking a
+  // plateau selects the point ON the plateau instead of behind it
+  const mat = scene.getObjectByName('playmat-ground');
+  if (mat) {
+    const hits = raycaster.intersectObject(mat, false);
+    if (hits.length) return { x: hits[0].point.x, z: hits[0].point.z };
+  }
   const o = raycaster.ray.origin, d = raycaster.ray.direction;
   if (Math.abs(d.y) < 1e-6) return null;
   const t = -o.y / d.y;
@@ -546,7 +553,10 @@ function updatePlacement(clientX, clientY) {
   placing.j = Math.round(p.z + N / 2 - s / 2);
   placing.valid = game.canPlace(game.myId, placing.type, placing.i, placing.j);
   placing.ghost.visible = true;
-  placing.ghost.position.set(placing.i - N / 2 + s / 2, 0, placing.j - N / 2 + s / 2);
+  placing.ghost.position.set(
+    placing.i - N / 2 + s / 2,
+    game.tileHeight(placing.i, placing.j),
+    placing.j - N / 2 + s / 2);
   placing.ghost.setValid(placing.valid);
 }
 function confirmPlacement(shift) {
@@ -1134,11 +1144,12 @@ function updateAmbient(dt) {
       else amp += Math.sin(ambient.gustPhase * Math.PI) * 0.042;
     }
     const pos = ambient.mat.geometry.attributes.position;
+    const baseH = ambient.mat.userData.baseH; // terrain elevation underneath
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i), y = pos.getY(i);
-      // always-positive billow: dipping below y=0 lets the wood floor
-      // plane show through the fabric
-      pos.setZ(i, amp * (0.55 + 0.45 * Math.sin(x * 0.35 + t * 1.6) * Math.sin(y * 0.3 + t * 1.1)));
+      // always-positive billow riding on top of the terrain heightfield
+      pos.setZ(i, (baseH ? baseH[i] : 0)
+        + amp * (0.55 + 0.45 * Math.sin(x * 0.35 + t * 1.6) * Math.sin(y * 0.3 + t * 1.1)));
     }
     pos.needsUpdate = true;
     ambient.matNormalT -= dt;

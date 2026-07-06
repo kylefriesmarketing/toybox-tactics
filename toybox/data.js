@@ -344,25 +344,25 @@ export const MAPS = {
   // forests = dense chop-through Blocks thickets (the AoE treeline)
   playmat: {
     label: 'Bedroom Playmat', icon: '🧸', ground: 'playmat', light: 'normal',
-    obstacles: 5, canyon: false, resourceMul: 1, stickers: 2,
+    obstacles: 5, canyon: false, resourceMul: 1, stickers: 2, plateaus: 3,
     features: { milk: 1, ranges: 2, forests: 2 },
     desc: 'Open center, safe corners — the classic.',
   },
   canyon: {
     label: 'Toy Chest Canyon', icon: '🏔️', ground: 'playmat', light: 'normal',
-    obstacles: 3, canyon: true, resourceMul: 1, stickers: 2,
+    obstacles: 3, canyon: true, resourceMul: 1, stickers: 2, plateaus: 2,
     features: { milk: 1, ranges: 1, forests: 1 },
     desc: 'A pillow barricade splits the room — fight for the gaps.',
   },
   underbed: {
     label: 'Under the Bed', icon: '🌑', ground: 'underbed', light: 'dark',
-    obstacles: 11, canyon: false, resourceMul: 0.95, stickers: 3,
+    obstacles: 11, canyon: false, resourceMul: 0.95, stickers: 3, plateaus: 2,
     features: { ranges: 2, forests: 2 },
     desc: 'Dark, cluttered, dangerous. Bring a scout.',
   },
   attic: {
     label: 'Attic War Table', icon: '📦', ground: 'attic', light: 'warm',
-    obstacles: 4, canyon: false, resourceMul: 1.4, stickers: 2,
+    obstacles: 4, canyon: false, resourceMul: 1.4, stickers: 2, plateaus: 3,
     features: { milk: 1, ranges: 2, forests: 1 },
     desc: 'Wide open and rich — boom or be boomed.',
   },

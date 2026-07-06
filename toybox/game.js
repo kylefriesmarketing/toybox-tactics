@@ -34,10 +34,15 @@ function makeRng(seed) {
 
 // ---------------- A* pathfinding ----------------
 
+// elevation: the biggest step a toy can climb — ramps are gentle (≤ELEV/3),
+// cliff edges are a full level and therefore impassable
+const CLIMB = 0.3;
+
 class PathFinder {
-  constructor(blocked, gates) {
+  constructor(blocked, gates, heights) {
     this.blocked = blocked;
     this.gates = gates; // gateOwner per tile (-1 none); own gates are passable
+    this.h = heights;   // per-tile terrain height (cliffs block movement)
     this.g = new Float32Array(N * N);
     this.visit = new Int32Array(N * N).fill(-1);
     this.from = new Int32Array(N * N);
@@ -45,6 +50,9 @@ class PathFinder {
   }
   isBlockedFor(m, owner) {
     return this.blocked[m] && this.gates[m] !== owner;
+  }
+  climbable(m, n) {
+    return Math.abs(this.h[m] - this.h[n]) <= CLIMB;
   }
   nearestFree(i, j, maxR = 8) {
     if (inMap(i, j) && !this.blocked[idx(i, j)]) return [i, j];
@@ -106,6 +114,7 @@ class PathFinder {
         if (!inMap(a, b)) continue;
         const m = idx(a, b);
         if (this.isBlockedFor(m, forOwner)) continue;
+        if (!this.climbable(m, n)) continue; // no scaling cliffs
         if (di && dj && (this.isBlockedFor(idx(ni + di, nj), forOwner) || this.isBlockedFor(idx(ni, nj + dj), forOwner))) continue;
         const cost = g[n] + (di && dj ? 1.414 : 1);
         if (visit[m] === stamp && g[m] <= cost) continue;
@@ -203,7 +212,10 @@ export class Game {
     this.projectiles = [];
     this.blocked = new Uint8Array(N * N);
     this.gateOwner = new Int8Array(N * N).fill(-1);
-    this.pf = new PathFinder(this.blocked, this.gateOwner);
+    this.ELEV = 0.85; // world height of one terrain level
+    this.height = new Float32Array(N * N);            // per-tile terrain
+    this.cornerH = new Float32Array((N + 1) * (N + 1)); // bilinear corners
+    this.pf = new PathFinder(this.blocked, this.gateOwner, this.height);
     this.fog = new FogOfWar(scene);
     this.rallyFlag = createRallyFlag();
     scene.add(this.rallyFlag.group);
@@ -221,10 +233,15 @@ export class Game {
               buildingHp: 1, buildRate: 1, unitHp: 1, healRate: 1, atkVehicle: 0 },
       stats: { gathered: 0, trained: 0, lost: 0, kills: 0, razed: 0 },
     }));
-    // factions: humans bring their pick; AIs roll their own (deterministic)
+    // factions: humans bring their pick; AIs roll their own. The roll is
+    // consumed for EVERY seat so the rng stream is identical whether a
+    // faction was provided or not — resumed saves must regenerate the very
+    // same terrain/obstacle shell as the original match.
     const pool = Object.keys(FACTIONS);
-    this.factionKeys = this.playerDefs.map((d) =>
-      d.faction || pool[(this.rng() * pool.length) | 0]);
+    this.factionKeys = this.playerDefs.map((d) => {
+      const rolled = pool[(this.rng() * pool.length) | 0];
+      return d.faction || rolled;
+    });
     for (const p of this.players) {
       const f = FACTIONS[this.factionKeys[p.id]] || FACTIONS.classic;
       for (const [k, v] of Object.entries(f.mods)) {
@@ -269,35 +286,64 @@ export class Game {
     this.over = false;
   }
 
+  // ---------- terrain ----------
+  tileHeight(i, j) { return inMap(i, j) ? this.height[idx(i, j)] : 0; }
+
+  // is the w×d footprint all at one height (level, if given)?
+  flatAt(i, j, w, d, level = null) {
+    if (!inMap(i, j) || !inMap(i + w - 1, j + d - 1)) return false;
+    const h0 = level !== null ? level : this.height[idx(i, j)];
+    for (let b = j; b < j + d; b++) for (let a = i; a < i + w; a++) {
+      if (Math.abs(this.height[idx(a, b)] - h0) > 0.01) return false;
+    }
+    return true;
+  }
+
+  // corner grid = average of the 4 touching tiles; drives mesh + unit heights
+  computeCorners() {
+    const W = N + 1;
+    for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {
+      let sum = 0, n = 0;
+      for (const [a, b] of [[i - 1, j - 1], [i, j - 1], [i - 1, j], [i, j]]) {
+        if (inMap(a, b)) { sum += this.height[idx(a, b)]; n++; }
+      }
+      this.cornerH[j * W + i] = n ? sum / n : 0;
+    }
+  }
+
+  // smooth world-space terrain height (matches the displaced ground mesh)
+  heightAtWorld(x, z) {
+    const W = N + 1;
+    const fx = Math.max(0, Math.min(N - 1e-4, x + N / 2));
+    const fz = Math.max(0, Math.min(N - 1e-4, z + N / 2));
+    const i0 = Math.floor(fx), j0 = Math.floor(fz);
+    const tx = fx - i0, tz = fz - j0;
+    const C = this.cornerH;
+    const h00 = C[j0 * W + i0], h10 = C[j0 * W + i0 + 1];
+    const h01 = C[(j0 + 1) * W + i0], h11 = C[(j0 + 1) * W + i0 + 1];
+    return (h00 * (1 - tx) + h10 * tx) * (1 - tz) + (h01 * (1 - tx) + h11 * tx) * tz;
+  }
+
+  // push the heightfield into the playmat mesh; the breeze ripples on top
+  applyTerrainToGround() {
+    const mesh = this.scene.getObjectByName('playmat-ground');
+    if (!mesh) return;
+    const pos = mesh.geometry.attributes.position;
+    const base = new Float32Array(pos.count);
+    for (let k = 0; k < pos.count; k++) {
+      // plane is rotated -90° about x: local (x, y) sits at world (x, -y)
+      base[k] = this.heightAtWorld(pos.getX(k), -pos.getY(k));
+      pos.setZ(k, base[k]);
+    }
+    pos.needsUpdate = true;
+    mesh.geometry.computeVertexNormals();
+    mesh.userData.baseH = base;
+  }
+
   // ---------- setup ----------
   setup() {
     this.scene.add(createGround(N, this.map.ground));
     const rng = this.rng;
-
-    for (let k = 0; k < this.map.obstacles; k++) {
-      const i = 14 + (rng() * (N - 28)) | 0, j = 14 + (rng() * (N - 28)) | 0;
-      const w = 2 + (rng() * 2 | 0), d = 2 + (rng() * 2 | 0);
-      this.addObstacle(rng() < 0.5 ? 'book' : 'pillow', i, j, w, d, k + 1);
-      this.addObstacle(rng() < 0.5 ? 'book' : 'pillow', N - i - w, N - j - d, w, d, k + 40);
-    }
-    // Toy Chest Canyon: a diagonal barricade with three contested gaps
-    if (this.map.canyon) {
-      const gaps = [N / 2, N / 2 - 17, N / 2 + 17];
-      for (let t = 6; t < N - 8; t += 3) {
-        if (gaps.some((gp) => Math.abs(t - gp) < 4)) continue;
-        const jit = ((rng() * 3) | 0) - 1;
-        this.addObstacle(rng() < 0.65 ? 'pillow' : 'book', t + jit, t - jit, 3, 3, 200 + t);
-      }
-    }
-    // non-blocking clutter
-    const kinds = ['crayon', 'die', 'ball'];
-    for (let k = 0; k < 14; k++) {
-      const i = 6 + (rng() * (N - 12)) | 0, j = 6 + (rng() * (N - 12)) | 0;
-      if (this.blocked[idx(i, j)]) continue;
-      const decor = createDecorMesh(kinds[(rng() * 3) | 0], k + 3);
-      decor.position.set(worldOf(i), 0, worldOf(j));
-      this.scene.add(decor);
-    }
 
     // start corners by team: west column vs east column (1v1 keeps SW vs NE)
     const westCorners = [[10, N - 15], [10, 11]];
@@ -307,6 +353,102 @@ export class Game {
     const starts = this.players.map((p) => (cornerPools[p.team] || eastCorners).shift());
     this.homes = starts.map(([ci, cj]) => ({ x: worldOf(ci + 2), z: worldOf(cj + 2) }));
     this.homePos = this.homes[this.myId];
+    const clearHomes = (i, j, r) =>
+      this.homes.every((h) => (worldOf(i) - h.x) ** 2 + (worldOf(j) - h.z) ** 2 > r * r);
+
+    // ---- elevation: plateaus hiding under the mat, ramps as choke points ----
+    const E = this.ELEV;
+    for (let k = 0; k < (this.map.plateaus ?? 3); k++) {
+      let ci = 0, cj = 0, placed = false;
+      for (let tries = 0; tries < 30 && !placed; tries++) {
+        ci = 15 + (rng() * (N - 30)) | 0; cj = 15 + (rng() * (N - 30)) | 0;
+        if (clearHomes(ci, cj, 17)) placed = true;
+      }
+      if (!placed) continue;
+      const rx = 4 + (rng() * 3 | 0), rz = 4 + (rng() * 3 | 0), wob = rng() * 9;
+      for (let b = -rz - 1; b <= rz + 1; b++) for (let a = -rx - 1; a <= rx + 1; a++) {
+        const i = ci + a, j = cj + b;
+        if (!inMap(i, j)) continue;
+        const w = 0.85 + 0.15 * Math.sin(Math.atan2(b, a) * 3 + wob);
+        if ((a * a) / (rx * rx * w) + (b * b) / (rz * rz * w) <= 1) {
+          this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], E);
+        }
+      }
+      // two ramps at rough opposites — the only ways up
+      const baseAng = rng() * Math.PI * 2;
+      for (const ang of [baseAng, baseAng + Math.PI * (0.8 + rng() * 0.4)]) {
+        const dx = Math.cos(ang), dz = Math.sin(ang);
+        let d = 1;
+        while (d < 14) {
+          const i = Math.round(ci + dx * d), j = Math.round(cj + dz * d);
+          if (!inMap(i, j) || this.height[idx(i, j)] < E) break;
+          d++;
+        }
+        for (let s = 0; s < 3; s++) {
+          const hVal = E * (2 - s) / 3; // 0.57 → 0.28 → 0: gentle enough to climb
+          for (let wOff = -1; wOff <= 1; wOff++) {
+            const i = Math.round(ci + dx * (d + s) - dz * wOff);
+            const j = Math.round(cj + dz * (d + s) + dx * wOff);
+            if (inMap(i, j)) this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], hVal);
+          }
+        }
+      }
+      // the first plateau gets a level-2 crown — the map's vantage throne
+      if (k === 0 && Math.min(rx, rz) >= 5) {
+        for (let b = -rz + 3; b <= rz - 3; b++) for (let a = -rx + 3; a <= rx - 3; a++) {
+          const i = ci + a, j = cj + b;
+          if (!inMap(i, j)) continue;
+          if ((a * a) / ((rx - 3) ** 2) + (b * b) / ((rz - 3) ** 2) <= 1) {
+            this.height[idx(i, j)] = E * 2;
+          }
+        }
+        const cAng = rng() * Math.PI * 2;
+        const dx = Math.cos(cAng), dz = Math.sin(cAng);
+        let d = 1;
+        while (d < 10) {
+          const i = Math.round(ci + dx * d), j = Math.round(cj + dz * d);
+          if (!inMap(i, j) || this.height[idx(i, j)] < E * 2) break;
+          d++;
+        }
+        for (let s = 0; s < 3; s++) {
+          const hVal = E + E * (2 - s) / 3;
+          for (let wOff = -1; wOff <= 1; wOff++) {
+            const i = Math.round(ci + dx * (d + s) - dz * wOff);
+            const j = Math.round(cj + dz * (d + s) + dx * wOff);
+            if (inMap(i, j) && this.height[idx(i, j)] <= E + 0.01) {
+              this.height[idx(i, j)] = hVal;
+            }
+          }
+        }
+      }
+    }
+    this.computeCorners();
+    this.applyTerrainToGround();
+
+    for (let k = 0; k < this.map.obstacles; k++) {
+      const i = 14 + (rng() * (N - 28)) | 0, j = 14 + (rng() * (N - 28)) | 0;
+      const w = 2 + (rng() * 2 | 0), d = 2 + (rng() * 2 | 0);
+      if (this.flatAt(i, j, w, d, 0)) this.addObstacle(rng() < 0.5 ? 'book' : 'pillow', i, j, w, d, k + 1);
+      if (this.flatAt(N - i - w, N - j - d, w, d, 0)) this.addObstacle(rng() < 0.5 ? 'book' : 'pillow', N - i - w, N - j - d, w, d, k + 40);
+    }
+    // Toy Chest Canyon: a diagonal barricade with three contested gaps
+    if (this.map.canyon) {
+      const gaps = [N / 2, N / 2 - 17, N / 2 + 17];
+      for (let t = 6; t < N - 8; t += 3) {
+        if (gaps.some((gp) => Math.abs(t - gp) < 4)) continue;
+        const jit = ((rng() * 3) | 0) - 1;
+        if (this.flatAt(t + jit, t - jit, 3, 3, 0)) this.addObstacle(rng() < 0.65 ? 'pillow' : 'book', t + jit, t - jit, 3, 3, 200 + t);
+      }
+    }
+    // non-blocking clutter
+    const kinds = ['crayon', 'die', 'ball'];
+    for (let k = 0; k < 14; k++) {
+      const i = 6 + (rng() * (N - 12)) | 0, j = 6 + (rng() * (N - 12)) | 0;
+      if (this.blocked[idx(i, j)]) continue;
+      const decor = createDecorMesh(kinds[(rng() * 3) | 0], k + 3);
+      decor.position.set(worldOf(i), this.tileHeight(i, j), worldOf(j));
+      this.scene.add(decor);
+    }
     // resource abundance scales with the map theme
     const RC = (type, i, j, count) =>
       this.addResourceCluster(type, i, j, Math.max(1, Math.round(count * this.map.resourceMul)));
@@ -367,7 +509,8 @@ export class Game {
         let free = true;
         for (let b = -rz; b <= rz && free; b++) for (let a = -rx; a <= rx; a++) {
           const inside = (a * a) / (rx * rx) + (b * b) / (rz * rz) <= 1;
-          if (inside && (!inMap(i + a, j + b) || this.blocked[idx(i + a, j + b)])) { free = false; break; }
+          if (inside && (!inMap(i + a, j + b) || this.blocked[idx(i + a, j + b)]
+              || this.height[idx(i + a, j + b)] > 0.01)) { free = false; break; } // milk pools on flat floor
         }
         if (!free) continue;
         for (let b = -rz; b <= rz; b++) for (let a = -rx; a <= rx; a++) {
@@ -392,8 +535,9 @@ export class Game {
         for (let s = 0; s < segs; s++) {
           const w = 3, d = 3;
           if (s !== gapAt) {
-            // only raise mountains on genuinely free floor
-            let free = inMap(ci, cj) && inMap(ci + w - 1, cj + d - 1) && clearOfHomes(ci, cj, 15);
+            // only raise mountains on genuinely free, flat floor
+            let free = inMap(ci, cj) && inMap(ci + w - 1, cj + d - 1) && clearOfHomes(ci, cj, 15)
+              && this.flatAt(ci, cj, w, d, 0);
             for (let b = cj; b < cj + d && free; b++) for (let a = ci; a < ci + w; a++) {
               if (this.blocked[idx(a, b)]) { free = false; break; }
             }
@@ -435,7 +579,7 @@ export class Game {
 
   addCritter(x, z) {
     const view = createCritterView();
-    view.group.position.set(x, 0, z);
+    view.group.position.set(x, this.heightAtWorld(x, z), z);
     this.scene.add(view.group);
     this.entities.push({
       id: this.nextId++, kind: 'critter', type: 'mouse', owner: -1,
@@ -495,17 +639,19 @@ export class Game {
       if (d > 0.3) {
         const sp = (c.captor >= 0 ? 1.8 : 1.0) * dt;
         const nx = c.x + (dx / d) * sp, nz = c.z + (dz / d) * sp;
-        if (this.tileOpenFor(nx, nz, -1)) { c.x = nx; c.z = nz; c.facing = Math.atan2(dx, dz); }
+        const cliff = Math.abs(this.tileHeight(tileOf(nx), tileOf(nz))
+          - this.tileHeight(tileOf(c.x), tileOf(c.z))) > CLIMB;
+        if (this.tileOpenFor(nx, nz, -1) && !cliff) { c.x = nx; c.z = nz; c.facing = Math.atan2(dx, dz); }
         else c.tgt = null;
       } else c.tgt = null;
     }
-    c.view.group.position.set(c.x, 0, c.z);
+    c.view.group.position.set(c.x, this.heightAtWorld(c.x, c.z), c.z);
     c.view.group.rotation.y = c.facing;
   }
 
   addSticker(x, z) {
     const view = createStickerView();
-    view.group.position.set(x, 0, z);
+    view.group.position.set(x, this.heightAtWorld(x, z), z);
     this.scene.add(view.group);
     this.entities.push({
       id: this.nextId++, kind: 'objective', type: 'sticker', owner: -1,
@@ -549,15 +695,18 @@ export class Game {
     if (!inMap(i, j) || !inMap(i + w - 1, j + d - 1)) return;
     for (let b = j; b < j + d; b++) for (let a = i; a < i + w; a++) this.blocked[idx(a, b)] = 1;
     const mesh = createObstacleMesh(kind, w, d, seed);
-    mesh.position.set(worldOf(i) + (w - 1) / 2, 0, worldOf(j) + (d - 1) / 2);
+    mesh.position.set(worldOf(i) + (w - 1) / 2, this.tileHeight(i, j), worldOf(j) + (d - 1) / 2);
     this.scene.add(mesh);
   }
 
   addResourceNode(resType, i, j) {
     if (!inMap(i, j) || this.blocked[idx(i, j)]) return null;
+    // resources sit on flat levels, never on ramps (they'd block the only way up)
+    const h = this.height[idx(i, j)];
+    if (h > 0.01 && Math.abs(h - this.ELEV) > 0.01 && Math.abs(h - this.ELEV * 2) > 0.01) return null;
     this.blocked[idx(i, j)] = 1;
     const view = createResourceView(resType, i * 131 + j);
-    view.group.position.set(worldOf(i), 0, worldOf(j));
+    view.group.position.set(worldOf(i), h, worldOf(j));
     this.scene.add(view.group);
     const e = {
       id: this.nextId++, kind: 'resource', resType, owner: -1,
@@ -587,7 +736,7 @@ export class Game {
     }
     const view = createBuildingView(type, def, owner, i * 977 + j);
     const x = worldOf(i) + (s - 1) / 2, z = worldOf(j) + (s - 1) / 2;
-    view.group.position.set(x, 0, z);
+    view.group.position.set(x, this.tileHeight(i, j), z);
     this.scene.add(view.group);
     const hpMult = (this.players[owner].techs.has('plating') ? 1.2 : 1) * this.players[owner].mods.buildingHp;
     const e = {
@@ -629,7 +778,7 @@ export class Game {
     const free = this.pf.nearestFree(tileOf(x), tileOf(z), 6);
     if (free) { x = worldOf(free[0]); z = worldOf(free[1]); }
     const view = createUnitView(this.registry, type, def, owner);
-    view.group.position.set(x, 0, z);
+    view.group.position.set(x, this.heightAtWorld(x, z), z);
     this.scene.add(view.group);
     const hpMult = ((def.aggro > 0 && p.techs.has('training')) ? 1.15 : 1) * p.mods.unitHp
       * (p.techs.has(`elite_${type}`) ? 1.25 : 1);
@@ -1091,7 +1240,7 @@ export class Game {
       if (se.k === 'u') {
         const def = UNITS[se.type];
         const view = createUnitView(this.registry, se.type, def, se.owner);
-        view.group.position.set(se.x, 0, se.z);
+        view.group.position.set(se.x, this.heightAtWorld(se.x, se.z), se.z);
         view.group.rotation.y = se.facing || 0;
         this.scene.add(view.group);
         e = {
@@ -1112,7 +1261,7 @@ export class Game {
         const s = def.size;
         const view = createBuildingView(se.type, def, se.owner, se.ti * 977 + se.tj);
         const x = worldOf(se.ti) + (s - 1) / 2, z = worldOf(se.tj) + (s - 1) / 2;
-        view.group.position.set(x, 0, z);
+        view.group.position.set(x, this.tileHeight(se.ti, se.tj), z);
         this.scene.add(view.group);
         if (def.gate) for (let b = se.tj; b < se.tj + s; b++) for (let a = se.ti; a < se.ti + s; a++) this.gateOwner[idx(a, b)] = se.owner;
         e = {
@@ -1127,7 +1276,7 @@ export class Game {
         view.hpBar.set(e.hp / e.maxHp);
       } else if (se.k === 'r') {
         const view = createResourceView(se.resType, se.ti * 131 + se.tj);
-        view.group.position.set(worldOf(se.ti), 0, worldOf(se.tj));
+        view.group.position.set(worldOf(se.ti), this.tileHeight(se.ti, se.tj), worldOf(se.tj));
         this.scene.add(view.group);
         e = {
           id: se.id, kind: 'resource', resType: se.resType, owner: -1,
@@ -1137,7 +1286,7 @@ export class Game {
         };
       } else if (se.k === 'c') {
         const view = createCritterView();
-        view.group.position.set(se.x, 0, se.z);
+        view.group.position.set(se.x, this.heightAtWorld(se.x, se.z), se.z);
         this.scene.add(view.group);
         e = {
           id: se.id, kind: 'critter', type: 'mouse', owner: -1,
@@ -1148,7 +1297,7 @@ export class Game {
         };
       } else {
         const view = createStickerView();
-        view.group.position.set(se.x, 0, se.z);
+        view.group.position.set(se.x, this.heightAtWorld(se.x, se.z), se.z);
         this.scene.add(view.group);
         e = {
           id: se.id, kind: 'objective', type: 'sticker', owner: -1,
@@ -1255,6 +1404,8 @@ export class Game {
       // gates may replace your own wall segments (AoE gate-over-wall)
       if (this.blocked[idx(a, b)] && !(def.gate && this.ownWallAt(owner, a, b))) return false;
     }
+    // buildings need flat ground; 1-tile walls may perch anywhere (ramp forts!)
+    if (s > 1 && !this.flatAt(i, j, s, s)) return false;
     for (const e of this.entities) {
       if (e.kind !== 'unit' || e.dead || e.garrisoned) continue;
       const ti = tileOf(e.x), tj = tileOf(e.z);
@@ -1359,13 +1510,19 @@ export class Game {
     if (spec.bonus && target.def.tags) {
       for (const t of target.def.tags) if (spec.bonus[t]) dmg += spec.bonus[t];
     }
+    // high ground matters: raining blows from above hits harder,
+    // swinging uphill is exhausting (AoE elevation rule)
+    const hA = this.heightAtWorld(attacker.x, attacker.z);
+    const hT = this.heightAtWorld(target.x, target.z);
+    if (hA > hT + 0.4) dmg = Math.round(dmg * 1.25);
+    else if (hA < hT - 0.4) dmg = Math.max(1, Math.round(dmg * 0.75));
     dmg = Math.max(1, dmg - this.armorOf(target, spec.atkType));
     target.hp -= dmg;
     target.view.markDamaged();
     target.view.hpBar.set(target.hp / target.maxHp);
     if (this.fx) {
       const c = spec.atkType === 'siege' ? 0xff8f5a : spec.atkType === 'pierce' ? 0xffd166 : 0xfff0c8;
-      const hy = target.kind === 'building' ? target.def.height * 0.5 : 0.35;
+      const hy = (target.kind === 'building' ? target.def.height * 0.5 : 0.35) + hT;
       this.fx.hit(target.x, hy, target.z, c, spec.atkType === 'siege' ? 10 : 5);
       // hard hits chip a matching toy piece off the target
       if (Math.random() < (spec.atkType === 'siege' ? 0.8 : 0.25)) {
@@ -1478,7 +1635,8 @@ export class Game {
         new THREE.MeshBasicMaterial({ color: p.color })
       );
     }
-    const y0 = attacker.kind === 'building' ? attacker.def.height * 0.8 : 0.45;
+    const y0 = (attacker.kind === 'building' ? attacker.def.height * 0.8 : 0.45)
+      + this.heightAtWorld(attacker.x, attacker.z);
     mesh.position.set(attacker.x, y0, attacker.z);
     this.scene.add(mesh);
     if (this.fx && this.fog.state(attacker.x, attacker.z) === 2) {
@@ -1489,6 +1647,7 @@ export class Game {
       mesh, target, attacker, spec,
       from: { x: attacker.x, y: y0, z: attacker.z },
       to: { x: target.x, z: target.z },
+      toY: 0.4 + this.heightAtWorld(target.x, target.z),
       t: 0, dur: Math.max(0.12, d / p.speed),
       arc: p.arc ? Math.min(1.6, d * 0.18) : 0,
       spin: !!p.spin, trail: p.trail || null,
@@ -1499,11 +1658,14 @@ export class Game {
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const pr = this.projectiles[i];
       pr.t += dt;
-      if (!pr.target.dead) { pr.to.x = pr.target.x; pr.to.z = pr.target.z; }
+      if (!pr.target.dead) {
+        pr.to.x = pr.target.x; pr.to.z = pr.target.z;
+        pr.toY = 0.4 + this.heightAtWorld(pr.target.x, pr.target.z);
+      }
       const f = Math.min(1, pr.t / pr.dur);
       pr.mesh.position.set(
         pr.from.x + (pr.to.x - pr.from.x) * f,
-        pr.from.y + (0.4 - pr.from.y) * f + pr.arc * 4 * f * (1 - f),
+        pr.from.y + (pr.toY - pr.from.y) * f + pr.arc * 4 * f * (1 - f),
         pr.from.z + (pr.to.z - pr.from.z) * f
       );
       if (pr.spin) pr.mesh.rotation.x += dt * 9;
@@ -1552,12 +1714,16 @@ export class Game {
     const dx = x1 - x0, dz = z1 - z0;
     const d = Math.sqrt(dx * dx + dz * dz);
     const steps = Math.ceil(d / 0.35);
+    let prevH = this.tileHeight(tileOf(x0), tileOf(z0));
     for (let s = 1; s <= steps; s++) {
       const f = s / steps;
       const i = tileOf(x0 + dx * f), j = tileOf(z0 + dz * f);
       if (!inMap(i, j)) return false;
       const m = idx(i, j);
       if (this.blocked[m] && this.gateOwner[m] !== owner) return false;
+      const h = this.height[m];
+      if (Math.abs(h - prevH) > CLIMB) return false; // cliff in the way
+      prevH = h;
     }
     return true;
   }
@@ -1625,11 +1791,14 @@ export class Game {
     const sp2 = u.vx * u.vx + u.vz * u.vz;
     if (sp2 < 0.0004) { u.vx = 0; u.vz = 0; return 0; }
     let nx = u.x + u.vx * dt, nz = u.z + u.vz * dt;
-    if (this.tileOpenFor(nx, nz, u.owner)) {
+    // toys can't be shoved off cliffs — steps beyond CLIMB are walls
+    const hCur = this.tileHeight(tileOf(u.x), tileOf(u.z));
+    const stepOk = (x, z) => Math.abs(this.tileHeight(tileOf(x), tileOf(z)) - hCur) <= CLIMB;
+    if (this.tileOpenFor(nx, nz, u.owner) && stepOk(nx, nz)) {
       u.x = nx; u.z = nz; u.stuckT = 0;
-    } else if (this.tileOpenFor(nx, u.z, u.owner)) {
+    } else if (this.tileOpenFor(nx, u.z, u.owner) && stepOk(nx, u.z)) {
       u.x = nx; u.vz *= 0.4; u.stuckT += dt; // slide along the wall
-    } else if (this.tileOpenFor(u.x, nz, u.owner)) {
+    } else if (this.tileOpenFor(u.x, nz, u.owner) && stepOk(u.x, nz)) {
       u.z = nz; u.vx *= 0.4; u.stuckT += dt;
     } else {
       u.vx *= 0.2; u.vz *= 0.2;
@@ -1923,7 +2092,7 @@ export class Game {
     } else if (faceTarget) {
       u.facing = Math.atan2(faceTarget.x - u.x, faceTarget.z - u.z);
     }
-    u.view.group.position.set(u.x, 0, u.z);
+    u.view.group.position.set(u.x, this.heightAtWorld(u.x, u.z), u.z);
     let dr = u.facing - u.view.group.rotation.y;
     while (dr > Math.PI) dr -= Math.PI * 2;
     while (dr < -Math.PI) dr += Math.PI * 2;
@@ -2071,7 +2240,7 @@ export class Game {
     if (this.selected.includes(t)) this.setSelection(this.selected.filter((s) => s !== t));
     this.scene.remove(t.view.group);
     t.view = createUnitView(this.registry, t.type, t.def, newOwner);
-    t.view.group.position.set(t.x, 0, t.z);
+    t.view.group.position.set(t.x, this.heightAtWorld(t.x, t.z), t.z);
     t.view.group.rotation.y = t.facing;
     this.scene.add(t.view.group);
     t.eliteRing = null;
@@ -2107,7 +2276,7 @@ export class Game {
       else { u.x = b.x; u.z = b.z + b.radius + 1; }
       u.garrisoned = null;
       u.view.group.visible = true;
-      u.view.group.position.set(u.x, 0, u.z);
+      u.view.group.position.set(u.x, this.heightAtWorld(u.x, u.z), u.z);
       u.spawnT = 0.2;
       if (u.bellResume) { u.order = u.bellResume; u.bellResume = null; }
     }
@@ -2266,8 +2435,11 @@ export class Game {
           const nx = dx / d, nz = dz / d;
           const ux = u.x - nx * push, uz = u.z - nz * push;
           const vx = v.x + nx * push, vz = v.z + nz * push;
-          if (inMap(tileOf(ux), tileOf(uz)) && !this.blocked[idx(tileOf(ux), tileOf(uz))]) { u.x = ux; u.z = uz; }
-          if (inMap(tileOf(vx), tileOf(vz)) && !this.blocked[idx(tileOf(vx), tileOf(vz))]) { v.x = vx; v.z = vz; }
+          const okShove = (e, x, z) => inMap(tileOf(x), tileOf(z))
+            && !this.blocked[idx(tileOf(x), tileOf(z))]
+            && Math.abs(this.tileHeight(tileOf(x), tileOf(z)) - this.tileHeight(tileOf(e.x), tileOf(e.z))) <= CLIMB;
+          if (okShove(u, ux, uz)) { u.x = ux; u.z = uz; }
+          if (okShove(v, vx, vz)) { v.x = vx; v.z = vz; }
         }
       }
     }
@@ -2692,8 +2864,10 @@ export class Game {
     // rally flag follows the selected production building's gather point
     const rb = this.selected.length === 1 && this.selected[0].kind === 'building'
       && this.selected[0].owner === this.myId && this.selected[0].rally ? this.selected[0] : null;
-    if (rb) this.rallyFlag.show(rb.rally.x, rb.rally.z);
-    else this.rallyFlag.hide();
+    if (rb) {
+      this.rallyFlag.show(rb.rally.x, rb.rally.z);
+      this.rallyFlag.group.position.y = this.heightAtWorld(rb.rally.x, rb.rally.z);
+    } else this.rallyFlag.hide();
     this.rallyFlag.update(dt);
 
     this.fogT -= dt;
