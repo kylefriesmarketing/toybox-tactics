@@ -746,6 +746,79 @@ function makeProcView(def, owner, kind) {
     muzzleRing.position.set(0.11, 0.605, -0.31);
     rig.add(muzzleRing);
     parts.tube = tube;
+  } else if (kind === 'grenadier') {
+    // army man mid-lob: satchel, helmet, grenade hand raised
+    const g2 = 0x4a7a44;
+    add(cyl(0.15, 0.19, 0.06, g2, 10), 0, 0.03, 0);
+    add(box(0.09, 0.2, 0.09, g2, 0.5), -0.05, 0.16, 0);
+    add(box(0.09, 0.2, 0.09, g2, 0.5), 0.06, 0.16, 0.02);
+    add(box(0.17, 0.2, 0.12, g2, 0.5), 0, 0.36, 0);
+    add(box(0.12, 0.1, 0.06, 0x394d36, 0.6), -0.1, 0.34, -0.09); // satchel
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), toyMat(g2, 0.5)), 0, 0.52, 0).position.set(0, 0.52, 0);
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), toyMat(0x2e5a2a, 0.5)), 0, 0.54, 0);
+    const arm = box(0.05, 0.22, 0.05, g2, 0.5);
+    arm.rotation.z = -0.7;
+    add(arm, 0.14, 0.5, 0);
+    const nade = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), toyMat(0x394d36, 0.6));
+    add(nade, 0.23, 0.6, 0);
+    parts.tube = arm; // reuse the recoil channel for a throw jerk
+  } else if (kind === 'lancer') {
+    // minifig knight on a pogo spring — bounces as it moves
+    const rider = new THREE.Group();
+    rig.add(rider);
+    const addR = (m, x, y, z) => { m.position.set(x, y, z); m.castShadow = true; rider.add(m); return m; };
+    // spring coil
+    for (let i = 0; i < 4; i++) {
+      const coil = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.02, 6, 12), toyMat(0x999999, 0.4));
+      coil.rotation.x = Math.PI / 2;
+      addR(coil, 0, 0.06 + i * 0.05, 0);
+    }
+    addR(box(0.2, 0.06, 0.3, 0xf94144, 0.4), 0, 0.28, 0); // footboard
+    addR(box(0.16, 0.22, 0.12, 0xf9c74f, 0.4), 0, 0.44, 0); // torso
+    addR(new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), toyMat(0xf9c74f, 0.4)), 0, 0.6, 0);
+    const helm = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.12, 8), toyMat(0xf94144, 0.4));
+    addR(helm, 0, 0.7, 0);
+    const lance = cyl(0.02, 0.02, 0.5, 0xd9b38c, 6);
+    lance.rotation.x = Math.PI / 2 - 0.15;
+    addR(lance, 0.12, 0.5, -0.2);
+    parts.body = rider;
+    parts.pogo = rider;
+  } else if (kind === 'sock') {
+    // floppy sock puppet: tube body, button eyes, yarn hair
+    const sockC = 0xd88aa8;
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 0.42, 10), toyMat(sockC, 0.95));
+    add(body, 0, 0.21, 0);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), toyMat(sockC, 0.95));
+    head.scale.z = 1.25;
+    add(head, 0, 0.46, 0.03);
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 5), toyMat(0x222222, 0.3)), -0.05, 0.5, 0.13);
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 5), toyMat(0x222222, 0.3)), 0.05, 0.5, 0.13);
+    const mouth = new THREE.Mesh(new THREE.CircleGeometry(0.05, 8), toyMat(0x8a3a52, 0.8));
+    mouth.position.set(0, 0.42, 0.145);
+    rig.add(mouth);
+    for (let i = 0; i < 4; i++) {
+      const yarn = cyl(0.012, 0.012, 0.1, 0xe5484d, 4);
+      yarn.rotation.z = (i - 1.5) * 0.5;
+      yarn.position.set((i - 1.5) * 0.04, 0.6, 0);
+      yarn.castShadow = true;
+      rig.add(yarn);
+    }
+    parts.body = body;
+  } else if (kind === 'drone') {
+    // quad-rotor toy drone (rendered hovering by the game)
+    const hub = add(box(0.2, 0.08, 0.2, 0x59c9c9, 0.35), 0, 0.1, 0);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), toyMat(0x223344, 0.2));
+    add(eye, 0, 0.08, 0.12);
+    parts.rotors = [];
+    for (const [sx, sz] of [[-0.16, -0.16], [0.16, -0.16], [-0.16, 0.16], [0.16, 0.16]]) {
+      add(cyl(0.02, 0.02, 0.06, 0x333333, 6), sx, 0.16, sz);
+      const rotor = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.012, 0.03), toyMat(0xaef0f0, 0.3));
+      rotor.position.set(sx, 0.2, sz);
+      rotor.castShadow = true;
+      rig.add(rotor);
+      parts.rotors.push(rotor);
+    }
+    parts.body = hub;
   } else if (kind === 'hypno') {
     // spinning top with a hypnotic dome — the whole spinner twirls
     const spinner = new THREE.Group();
@@ -812,10 +885,13 @@ function makeProcView(def, owner, kind) {
       return;
     }
     if (parts.spinner) parts.spinner.rotation.y += dt * (view._channel ? 16 : 4);
+    if (parts.rotors) for (const r of parts.rotors) r.rotation.y += dt * 25; // drone blades
     if (moving) {
       if (parts.wheels) for (const w of parts.wheels) w.rotation.x += dt * 7 * view._ratio;
-      rig.position.y = Math.abs(Math.sin(t * (kind === 'ram' ? 7 : 10))) * (kind === 'catapult' ? 0.015 : 0.04);
+      if (parts.pogo) rig.position.y = Math.abs(Math.sin(t * 9)) * 0.22; // pogo bounce
+      else rig.position.y = Math.abs(Math.sin(t * (kind === 'ram' ? 7 : 10))) * (kind === 'catapult' ? 0.015 : 0.04);
       if (kind === 'ram') rig.rotation.z = Math.sin(t * 7) * 0.05;
+      if (kind === 'sock') rig.rotation.z = Math.sin(t * 8) * 0.14; // floppy wobble
     } else {
       rig.position.y *= 0.85;
       rig.rotation.z *= 0.85;
@@ -1049,6 +1125,85 @@ function buildingGeometry(key, def, owner, rng) {
     add(cyl(0.04, 1.0, 0xddd6c0, 6), 0, 2.5, 0);
     const flag = add(box(0.5, 0.3, 0.04, teamCol), 0.27, 2.8, 0);
     flag.castShadow = false;
+  } else if (key === 'basket') {
+    // woven storage basket with a rolled rim and goods peeking out
+    const weave = toyMat(0xc9a06a, 0.9);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.62, 0.75, 12), weave);
+    add(body, 0, 0.38, 0);
+    for (let i = 0; i < 3; i++) {
+      const band = new THREE.Mesh(new THREE.TorusGeometry(0.64 + i * 0.06, 0.035, 6, 16), toyMat(0xb08050, 0.85));
+      band.rotation.x = Math.PI / 2;
+      add(band, 0, 0.18 + i * 0.26, 0);
+    }
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.07, 8, 18), toyMat(0x8a5a33, 0.8));
+    rim.rotation.x = Math.PI / 2;
+    add(rim, 0, 0.78, 0);
+    add(box(0.3, 0.2, 0.3, PASTELS[rng() * PASTELS.length | 0]), -0.2, 0.85, 0.1);
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), toyMat(0xf9c74f, 0.5)), 0.25, 0.86, -0.1);
+    const flagB = add(box(0.34, 0.2, 0.03, teamCol), 0.7, 1.05, 0);
+    add(cyl(0.03, 0.7, 0xddd6c0, 6), 0.7, 0.8, 0);
+    flagB.castShadow = false;
+  } else if (key === 'tent') {
+    // canvas command tent with an open flap and a radio antenna
+    const canvas = toyMat(0x5d7a4a, 0.95);
+    const tentBody = new THREE.Mesh(new THREE.ConeGeometry(1.5, 1.3, 4), canvas);
+    tentBody.rotation.y = Math.PI / 4;
+    add(tentBody, 0, 0.65, 0);
+    const flap = add(box(0.5, 0.7, 0.06, 0x4a6139), 0, 0.35, 1.02);
+    flap.rotation.x = 0.35;
+    add(box(2.4, 0.12, 2.2, 0x8a915a), 0, 0.06, 0);       // groundsheet
+    add(cyl(0.03, 1.4, 0x888888, 6), 0.9, 1.2, -0.7);     // antenna
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 5), toyMat(0xe5484d, 0.4)), 0.9, 1.95, -0.7);
+    const flagT = add(box(0.5, 0.3, 0.04, teamCol), 0.28, 1.75, 0);
+    add(cyl(0.04, 1.2, 0xddd6c0, 6), 0, 1.35, 0);
+    flagT.castShadow = false;
+  } else if (key === 'brickshop') {
+    // stacked-brick foundry with a chimney puffing molded studs
+    const cols = [0xf94144, 0xf9c74f, 0x4d9bff, 0x90be6d];
+    for (let i = 0; i < 4; i++) {
+      add(box(2.2 - i * 0.25, 0.42, 1.9 - i * 0.2, cols[i % 4]), 0, 0.22 + i * 0.42, 0);
+    }
+    for (let sx = -1; sx <= 1; sx += 2) {
+      const stud = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.1, 10), toyMat(cols[0], 0.4));
+      add(stud, sx * 0.5, 1.95, 0);
+    }
+    add(cyl(0.18, 1.0, 0x577590, 8), 0.8, 1.9, -0.55);    // chimney
+    const flagBS = add(box(0.5, 0.3, 0.04, teamCol), 0.28, 2.5, 0.4);
+    add(cyl(0.04, 1.1, 0xddd6c0, 6), 0, 2.1, 0.4);
+    flagBS.castShadow = false;
+  } else if (key === 'nest') {
+    // ring of cushions around a soft bed — the plush nursery
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2;
+      const p = new THREE.Mesh(new THREE.SphereGeometry(0.55, 10, 8), toyMat(i % 2 ? 0xe8e0f4 : 0xd88aa8, 0.95));
+      p.scale.y = 0.6;
+      add(p, Math.cos(a) * 1.1, 0.32, Math.sin(a) * 1.1);
+    }
+    const bed = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.95, 0.35, 14), toyMat(0xf2e2ea, 0.95));
+    add(bed, 0, 0.3, 0);
+    const heart = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), toyMat(0xe5484d, 0.6));
+    heart.scale.set(1, 0.8, 0.7);
+    add(heart, 0, 0.62, 0);
+    const flagN = add(box(0.5, 0.3, 0.04, teamCol), 0.28, 1.7, 0);
+    add(cyl(0.04, 1.2, 0xddd6c0, 6), 0, 1.3, 0);
+    flagN.castShadow = false;
+  } else if (key === 'pitstop') {
+    // open pit garage: canopy on posts, tool wall, stacked tires
+    add(box(2.4, 0.1, 2.2, 0x666f7a), 0, 0.05, 0);        // pit floor
+    for (const [sx, sz] of [[-1.05, -0.95], [1.05, -0.95], [-1.05, 0.95], [1.05, 0.95]]) {
+      add(cyl(0.06, 1.1, 0xd8d2c0, 6), sx, 0.55, sz);
+    }
+    const canopy = add(box(2.6, 0.1, 2.4, 0xe5484d), 0, 1.15, 0);
+    canopy.rotation.z = 0.04;
+    add(box(0.14, 0.5, 1.8, 0x8a5a33), -1.1, 0.35, 0);    // tool wall
+    for (let i = 0; i < 3; i++) {
+      const tire = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.1, 8, 14), toyMat(0x222222, 0.8));
+      tire.rotation.x = Math.PI / 2;
+      add(tire, 0.85, 0.12 + i * 0.2, 0.75);
+    }
+    const flagP = add(box(0.5, 0.3, 0.04, teamCol), 0.28, 1.85, -0.6);
+    add(cyl(0.04, 1.3, 0xddd6c0, 6), 0, 1.45, -0.6);
+    flagP.castShadow = false;
   }
   return g;
 }

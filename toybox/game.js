@@ -485,17 +485,29 @@ export class Game {
     const clearOfHomes = (i, j, r) =>
       this.homes.every((h) => (worldOf(i) - h.x) ** 2 + (worldOf(j) - h.z) ** 2 > r * r);
 
-    // scattered mid-map resources: contested pockets between the bases so
-    // expanding outward pays (playtest: "everything was in the center")
-    const scatterTypes = ['snacks', 'blocks', 'buttons', 'marbles', 'blocks', 'snacks', 'buttons', 'marbles'];
-    for (let k = 0; k < 8; k++) {
-      for (let tries = 0; tries < 24; tries++) {
-        const ang = rng() * Math.PI * 2;
-        const rad = N * (0.16 + rng() * 0.19);
-        const i = Math.round(N / 2 + Math.cos(ang) * rad);
-        const j = Math.round(N / 2 + Math.sin(ang) * rad);
-        if (!inMap(i, j) || !clearOfHomes(i, j, 13)) continue;
-        RC(scatterTypes[k], i, j, 2 + (rng() * 2 | 0));
+    // even resource coverage: a 4×4 zone lattice — every sector of the room
+    // gets its own pocket, so any expansion direction pays off
+    const zone = N / 4;
+    const latticeTypes = ['snacks', 'blocks', 'buttons', 'marbles'];
+    let zi = 0;
+    for (let zy = 0; zy < 4; zy++) for (let zx = 0; zx < 4; zx++) {
+      const x0 = zx * zone, y0 = zy * zone;
+      const hasHome = this.homes.some((h) =>
+        h.x + N / 2 >= x0 && h.x + N / 2 < x0 + zone && h.z + N / 2 >= y0 && h.z + N / 2 < y0 + zone);
+      if (hasHome) continue; // base zones are already stocked
+      const t = latticeTypes[zi++ % 4];
+      for (let tries = 0; tries < 18; tries++) {
+        const i = Math.round(x0 + 3 + rng() * (zone - 6));
+        const j = Math.round(y0 + 3 + rng() * (zone - 6));
+        if (!clearOfHomes(i, j, 12)) continue;
+        RC(t, i, j, 2 + (rng() * 3 | 0));
+        // half the zones get a second, different pocket
+        if (zi % 2 === 0) {
+          const t2 = latticeTypes[(zi + 2) % 4];
+          const i2 = Math.round(x0 + 3 + rng() * (zone - 6));
+          const j2 = Math.round(y0 + 3 + rng() * (zone - 6));
+          if (clearOfHomes(i2, j2, 12)) RC(t2, i2, j2, 2 + (rng() * 2 | 0));
+        }
         break;
       }
     }
@@ -1056,7 +1068,7 @@ export class Game {
       case 'garrison': {
         const b = ent(c.tid);
         if (b && b.kind === 'building' && b.owner === pid && b.built >= 1 && b.def.garrison) {
-          for (const u of units()) if (!u.garrisoned) this.setOrder(u, { type: 'garrison', b }, c.q);
+          for (const u of units()) if (!u.garrisoned && !u.def.fly) this.setOrder(u, { type: 'garrison', b }, c.q);
         }
         break;
       }
@@ -1397,6 +1409,7 @@ export class Game {
 
   canPlace(owner, type, i, j) {
     const def = BUILDINGS[type];
+    if (def.faction && this.factionKeys[owner] !== def.faction) return false;
     if ((def.age || 1) > this.players[owner].age) return false;
     const s = def.size;
     if (!inMap(i, j) || !inMap(i + s - 1, j + s - 1)) return false;
@@ -1740,6 +1753,14 @@ export class Game {
     const d = Math.sqrt(dx * dx + dz * dz);
     if (d <= arrive) { u.path = null; u.aim = null; return true; }
 
+    // fliers ignore the ground entirely: beeline over walls, cliffs, milk
+    if (u.def.fly) {
+      const sp = this.speedOf(u);
+      u.dvx = (dx / d) * sp;
+      u.dvz = (dz / d) * sp;
+      return false;
+    }
+
     u.losT -= dt;
     const goalMoved = u.goal && ((u.goal.x - tx) ** 2 + (u.goal.z - tz) ** 2 > 2.25);
     if (!u.aim || u.losT <= 0 || goalMoved) {
@@ -1791,6 +1812,11 @@ export class Game {
     const sp2 = u.vx * u.vx + u.vz * u.vz;
     if (sp2 < 0.0004) { u.vx = 0; u.vz = 0; return 0; }
     let nx = u.x + u.vx * dt, nz = u.z + u.vz * dt;
+    // fliers cross anything as long as they stay over the mat
+    if (u.def.fly) {
+      if (inMap(tileOf(nx), tileOf(nz))) { u.x = nx; u.z = nz; u.stuckT = 0; }
+      return Math.sqrt(u.vx * u.vx + u.vz * u.vz);
+    }
     // toys can't be shoved off cliffs — steps beyond CLIMB are walls
     const hCur = this.tileHeight(tileOf(u.x), tileOf(u.z));
     const stepOk = (x, z) => Math.abs(this.tileHeight(tileOf(x), tileOf(z)) - hCur) <= CLIMB;
@@ -1931,7 +1957,13 @@ export class Game {
           if (dist2(u, m) <= reach * reach) { o.phase = 'back'; u.path = null; }
           else this.steer(u, m.x, m.z, dt, reach * 0.95);
         } else {
-          const home = this.nearestDropoff(u.owner, u.x, u.z);
+          // trade pays out at the Toy Chest only — forward baskets don't count
+          let home = null, hd = Infinity;
+          for (const e of this.entities) {
+            if (e.kind !== 'building' || e.type !== 'chest' || e.owner !== u.owner || e.dead || e.built < 1) continue;
+            const d = dist2(u, e);
+            if (d < hd) { hd = d; home = e; }
+          }
           if (!home) { u.order = null; }
           else {
             const reach = home.radius + u.radius + 0.5;
@@ -2092,7 +2124,8 @@ export class Game {
     } else if (faceTarget) {
       u.facing = Math.atan2(faceTarget.x - u.x, faceTarget.z - u.z);
     }
-    u.view.group.position.set(u.x, this.heightAtWorld(u.x, u.z), u.z);
+    u.view.group.position.set(u.x,
+      this.heightAtWorld(u.x, u.z) + (u.def.fly ? 1.25 : 0), u.z);
     let dr = u.facing - u.view.group.rotation.y;
     while (dr > Math.PI) dr -= Math.PI * 2;
     while (dr < -Math.PI) dr += Math.PI * 2;
@@ -2518,6 +2551,23 @@ export class Game {
         else if (has('bench', true) && !has('garage') && p.res.buttons > 140 && this.canAfford(owner, BUILDINGS.garage.cost)) {
           this.aiPlace('garage', chest, workers);
         }
+        // every tribe raises its own faction workshop
+        const fbKey = Object.keys(BUILDINGS).find((k) => BUILDINGS[k].faction === this.factionKeys[owner]);
+        if (fbKey && has('bench', true) && !has(fbKey) && this.canAfford(owner, BUILDINGS[fbKey].cost)) {
+          this.aiPlace(fbKey, chest, workers);
+        }
+      }
+      // forward baskets when the economy strays far from home
+      if (!mine.some((e) => e.type === 'basket' && e.built < 1)) {
+        for (const w of workers) {
+          if (!w.order || w.order.type !== 'gather' || !w.order.node || w.order.node.dead) continue;
+          const node = w.order.node;
+          const drop = this.nearestDropoff(owner, node.x, node.z);
+          if (drop && dist2(node, drop) > 15 * 15 && this.canAfford(owner, BUILDINGS.basket.cost)) {
+            this.aiPlace('basket', { ti: node.ti, tj: node.tj, owner }, workers);
+            break;
+          }
+        }
       }
       if (p.age === 3 && diff.usesSiege) {
         if (!has('workshop') && this.canAfford(owner, BUILDINGS.workshop.cost)) this.aiPlace('workshop', chest, workers);
@@ -2598,6 +2648,17 @@ export class Game {
         } else if (b.type === 'workshop') {
           const type = this.rng() < 0.55 ? 'ram' : 'catapult';
           if (affordAboveReserve(UNITS[type].cost)) this.trainUnit(b, type);
+        } else if (b.def.trains) {
+          // faction workshops: train whatever the tribe can field
+          const opts = b.def.trains.filter((t) => {
+            const d = UNITS[t];
+            return d && t !== 'cart' && (d.age || 1) <= p.age
+              && (!d.faction || d.faction === this.factionKeys[owner]);
+          });
+          if (opts.length) {
+            const type = opts[(this.rng() * opts.length) | 0];
+            if (affordAboveReserve(UNITS[type].cost)) this.trainUnit(b, type);
+          }
         }
       }
     }
