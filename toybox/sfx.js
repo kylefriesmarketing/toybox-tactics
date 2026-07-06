@@ -143,6 +143,14 @@ export class SFX {
     }
   }
 
+  setMusicEnabled(on) {
+    this.musicOn = on;
+    if (this.musicBus) this.musicBus.gain.value = on ? 0.14 : 0;
+  }
+  setSfxEnabled(on) {
+    this.sfxOn = on;
+    if (this.sfxBus) this.sfxBus.gain.value = on ? 0.9 : 0;
+  }
   setMuted(m) {
     this.muted = m;
     if (this.master) this.master.gain.value = m ? 0 : this.volume;

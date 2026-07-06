@@ -378,7 +378,8 @@ export function makeRankBadge(tier = 1) {
   ctx.font = '40px serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(tier >= 2 ? '⭐⭐' : '⭐', 48, 26);
+  // ⭐ veteran, ⭐⭐ elite, 👑 legend
+  ctx.fillText(tier >= 3 ? '👑' : tier >= 2 ? '⭐⭐' : '⭐', 48, 26);
   const tex = new THREE.CanvasTexture(canvas);
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
   sprite.scale.set(tier >= 2 ? 0.5 : 0.3, tier >= 2 ? 0.25 : 0.15, 1);
@@ -508,12 +509,20 @@ function makeModelView(entry, def, owner) {
         if (deathT > 1.0) setOpacity(model, Math.max(0, 1 - (deathT - 1.0)));
         return;
       }
+      // per-unit idle flavor: drones hover-bob, socks sway constantly
+      if (def.hover) model.position.y = 0.05 + Math.sin(t * 4) * 0.05;
+      else if (def.sway) model.rotation.z = Math.sin(t * (moving ? 8 : 3)) * (moving ? 0.16 : 0.07);
       if (moving) {
         for (const w of wheels) w.rotation.x += dt * 9 * view._ratio;
-        model.position.y = Math.abs(Math.sin(t * 14)) * 0.03;
-        model.rotation.z = Math.sin(t * 14) * 0.02;
-      } else {
-        model.position.y *= 0.8; model.rotation.z *= 0.8;
+        if (def.hop) {                       // pogo bounce
+          model.position.y = Math.abs(Math.sin(t * 9)) * 0.22;
+        } else if (!def.hover) {
+          model.position.y = Math.abs(Math.sin(t * 14)) * 0.03;
+          model.rotation.z = def.sway ? model.rotation.z : Math.sin(t * 14) * 0.02;
+        }
+      } else if (!def.hover) {
+        if (def.hop) model.position.y *= 0.85;
+        else { model.position.y *= 0.8; if (!def.sway) model.rotation.z *= 0.8; }
       }
       if (view._lunge !== undefined) {
         view._lunge -= dt;

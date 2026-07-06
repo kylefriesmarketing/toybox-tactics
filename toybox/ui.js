@@ -144,6 +144,53 @@ export class UI {
     draw('go-chart-mil', (p) => p.mil);
   }
 
+  // ---------- tech tree overlay ----------
+  buildTechTree() {
+    const g = this.game, me = g.myId, p = g.players[me];
+    const fac = g.factionKeys[me];
+    const body = $('tt-body');
+    const iconHTML = (kind, key) => {
+      const img = PORTRAITS[key];
+      if (img) return `<span class="tt-ic"><img src="${img}" alt=""></span>`;
+      const ic = kind === 'b' ? (B_ICONS[key] || '🏠') : kind === 'u' ? (U_ICONS[key] || '🧸') : '🔬';
+      return `<span class="tt-ic">${ic}</span>`;
+    };
+    const visible = (def) => !def.faction || def.faction === fac;
+    let html = '';
+    for (let age = 1; age <= 3; age++) {
+      html += `<div class="tt-age"><h3>${AGES[age - 1]}</h3>`;
+      // buildings
+      const bs = Object.entries(BUILDINGS).filter(([, d]) => (d.age || 1) === age && visible(d) && d.type !== 'wall');
+      if (bs.length) {
+        html += '<div class="tt-group">Buildings</div>';
+        for (const [key, def] of bs) {
+          const owned = g.entities.some((e) => e.kind === 'building' && e.type === key && e.owner === me && !e.dead);
+          html += `<div class="tt-item ${owned ? 'owned' : ''}">${iconHTML('b', key)}<span><span class="tt-nm">${def.name}</span></span>${owned ? '<span class="tt-ck">✓</span>' : ''}</div>`;
+        }
+      }
+      // units
+      const us = Object.entries(UNITS).filter(([, d]) => (d.age || 1) === age && visible(d));
+      if (us.length) {
+        html += '<div class="tt-group">Toys</div>';
+        for (const [key, def] of us) {
+          const built = g.entities.some((e) => e.kind === 'unit' && e.type === key && e.owner === me && !e.dead);
+          html += `<div class="tt-item ${built ? 'owned' : ''}">${iconHTML('u', key)}<span><span class="tt-nm">${def.name}</span></span>${built ? '<span class="tt-ck">✓</span>' : ''}</div>`;
+        }
+      }
+      // techs
+      const ts = Object.entries(TECHS).filter(([, d]) => (d.age || 1) === age);
+      if (ts.length) {
+        html += '<div class="tt-group">Upgrades</div>';
+        for (const [key, def] of ts) {
+          const done = p.techs.has(key);
+          html += `<div class="tt-item ${done ? 'owned' : ''}">${iconHTML('t', key)}<span><span class="tt-nm">${def.name}</span><br><span class="tt-ds">${def.desc}</span></span>${done ? '<span class="tt-ck">✓</span>' : ''}</div>`;
+        }
+      }
+      html += '</div>';
+    }
+    body.innerHTML = html;
+  }
+
   // ---------- selection / command card ----------
   // Full rebuild: only on selection/age/tech changes. The 5x/sec ticker calls
   // refreshInfo() instead — rebuilding buttons under the cursor eats clicks.
@@ -198,8 +245,14 @@ export class UI {
       if (first.kind === 'unit') {
         const g = this.game;
         const stats = [`⚔️ ${g.atkOf(first)}`, `🛡️ ${g.armorOf(first, 'melee')}/${g.armorOf(first, 'pierce')}`, `👟 ${g.speedOf(first).toFixed(1)}`];
-        if (first.kills) stats.push(`🏆 ${first.kills}`);
         lines.push(`<div class="statrow">${stats.map((s) => `<span>${s}</span>`).join('')}</div>`);
+        // veterancy readout: rank, kills, and the road to the next promotion
+        if (first.def.aggro > 0) {
+          const k = first.kills || 0;
+          const rank = k >= 10 ? '👑 Legend' : k >= 6 ? '⭐⭐ Elite' : k >= 3 ? '⭐ Veteran' : 'Recruit';
+          const next = k >= 10 ? null : k >= 6 ? 10 : k >= 3 ? 6 : 3;
+          lines.push(`<div class="statrow"><span>${rank}</span><span>🏆 ${k}${next ? ` · next rank at ${next}` : ' · max rank'}</span></div>`);
+        }
         if (first.type === 'worker' && first.carry > 0.5) {
           lines.push(`<div class="dim">Carrying ${Math.floor(first.carry)} ${RES_META[first.carryType].icon}</div>`);
         }
@@ -432,8 +485,8 @@ export class UI {
   }
 
   buildCard(cmds) {
-    // no W/A/S/D here — those pan the camera now
-    const KEYS = ['Q', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'K'];
+    // no W/A/S/D (camera pan) and no T (tech tree)
+    const KEYS = ['Q', 'E', 'R', 'Y', 'U', 'I', 'O', 'P', 'K', 'J'];
     const card = $('card');
     card.innerHTML = '';
     this.cardButtons = [];

@@ -159,7 +159,7 @@ export const UNITS = {
     desc: 'Classic unique: army man lobbing toy grenades in an arc. Small splash.',
   },
   lancer: {
-    name: 'Pogo Lancer', tags: ['infantry', 'heavy'], age: 2, proc: 'lancer', faction: 'bricks',
+    name: 'Pogo Lancer', tags: ['infantry', 'heavy'], age: 2, proc: 'lancer', faction: 'bricks', hop: true,
     cost: { snacks: 60, blocks: 50 }, trainTime: 13,
     hp: 80, atk: 8, atkType: 'melee', interval: 1.1, range: 0.85,
     bonus: { ranged: 6 },
@@ -169,7 +169,7 @@ export const UNITS = {
     desc: 'Snap-Brick unique: a minifig on a pogo spring. Bounces down archers fast.',
   },
   sockpuppet: {
-    name: 'Sock Puppet', tags: ['infantry', 'plush'], age: 2, proc: 'sock', faction: 'plush',
+    name: 'Sock Puppet', tags: ['infantry', 'plush'], age: 2, proc: 'sock', faction: 'plush', sway: true,
     cost: { snacks: 30 }, trainTime: 6,
     hp: 45, atk: 4, atkType: 'melee', interval: 0.9, range: 0.7,
     armor: { melee: 0, pierce: 0 }, speed: 1.7, vision: 5, aggro: 6,
@@ -179,7 +179,7 @@ export const UNITS = {
   },
   drone: {
     name: 'Whirly Drone', tags: ['vehicle', 'ranged'], age: 2, proc: 'drone', faction: 'racers',
-    fly: true,
+    fly: true, hover: true,
     cost: { snacks: 50, buttons: 60 }, trainTime: 14,
     hp: 40, atk: 3, atkType: 'pierce', interval: 1.2, range: 3,
     bonus: { worker: 2 },
@@ -267,6 +267,11 @@ export const MODEL_MANIFEST = {
   // the brick golem defeated the auto-rigger — static mesh, code-anim stomp
   golem:   { dir: 'assets/units/golem',   model: 'model.glb', targetHeight: 0.7 },
   bazooka: { dir: 'assets/units/bazooka', clips: ['idle', 'walk', 'attack', 'death'], targetHeight: 0.55 },
+  grenadier: { dir: 'assets/units/grenadier', clips: ['idle', 'walk', 'attack', 'death'], targetHeight: 0.55 },
+  // static uniques with code-driven idle flavor (hop/sway/hover)
+  lancer:  { dir: 'assets/units/lancer',  model: 'model.glb', targetHeight: 0.62 },
+  sockpuppet: { dir: 'assets/units/sockpuppet', model: 'model.glb', targetHeight: 0.5 },
+  drone:   { dir: 'assets/units/drone',   model: 'model.glb', targetHeight: 0.35 },
   // static vehicle, no rig — animated by code (wheel spin + bounce)
   raider:  { dir: 'assets/units/raider',  model: 'model.glb', targetHeight: 0.5 },
   // static siege — code-animated (bounce + lunge); proc fallback if missing

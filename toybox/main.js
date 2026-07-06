@@ -157,8 +157,24 @@ async function boot() {
   setTimeout(() => $('loading').remove(), 700);
   $('menu').classList.add('show');
   offerResume();
+  applySettings();
+  // first-timers get a gentle nudge toward the tutorial
+  if (!localStorage.getItem('tt-seen')) {
+    const hint = document.createElement('div');
+    hint.className = 'menu-help';
+    hint.style.cssText = 'color:#ffd97a;margin-top:2px';
+    hint.textContent = '👋 New here? Try “How to Play” below for a quick 60-second tutorial.';
+    const card = $('menu-card');
+    if (card) card.insertBefore(hint, card.firstChild);
+  }
   // ?start=easy|normal|hard skips the menu; &ff=SECONDS fast-forwards the sim
   const params = new URLSearchParams(location.search);
+  if (params.has('tutorial')) {
+    const l = $('loading'); if (l) l.remove();
+    const m = $('menu'); if (m) m.remove();
+    startTutorial();
+    return;
+  }
   if (params.has('load')) {
     const ok = resumeSavedGame();
     if (ok) return;
@@ -189,6 +205,15 @@ async function boot() {
       for (let i = 0; i < ff * 10; i++) game.update(0.1);
     }
   }
+}
+
+// ---------------- tech tree (T) ----------------
+function toggleTechTree(force) {
+  const el = $('techtree');
+  if (!el || !game || !ui) return;
+  const show = force !== undefined ? force : !el.classList.contains('show');
+  if (show) ui.buildTechTree();
+  el.classList.toggle('show', show);
 }
 
 // ---------------- in-game menu (ESC) ----------------
@@ -246,14 +271,43 @@ function offerResume() {
   startBtn.insertAdjacentElement('afterend', b);
 }
 
+// tech tree buttons
+$('tech-btn').addEventListener('click', () => toggleTechTree());
+$('tt-close').addEventListener('click', () => toggleTechTree(false));
+
+// ---------------- settings (persisted) ----------------
+const settings = Object.assign(
+  { vol: 50, music: true, sfx: true, edge: true },
+  JSON.parse(localStorage.getItem('tt-settings') || '{}')
+);
+function saveSettings() { localStorage.setItem('tt-settings', JSON.stringify(settings)); }
+function applySettings() {
+  sfx.setVolume(settings.vol / 100);
+  sfx.setMusicEnabled(settings.music);
+  sfx.setSfxEnabled(settings.sfx);
+  const gv = $('gm-vol'); if (gv) gv.value = settings.vol;
+  const tv = $('vol'); if (tv) tv.value = settings.vol;
+  const setTog = (id, on) => { const b = $(id); if (b) { b.textContent = on ? 'On' : 'Off'; b.classList.toggle('off', !on); } };
+  setTog('gm-music', settings.music);
+  setTog('gm-sfx', settings.sfx);
+  setTog('gm-edge', settings.edge);
+}
+
 // in-game menu buttons
 $('gm-resume').addEventListener('click', () => toggleGameMenu(false));
 $('gm-save').addEventListener('click', () => { saveGame(); toggleGameMenu(false); });
 $('gm-quit').addEventListener('click', () => { location.href = location.pathname; });
+$('gm-help').addEventListener('click', () => { location.href = location.pathname + '?tutorial=1'; });
 $('gm-vol').addEventListener('input', (e) => {
-  sfx.setVolume(e.target.value / 100);
-  const topVol = $('vol');
-  if (topVol) topVol.value = e.target.value;
+  settings.vol = +e.target.value; sfx.setVolume(settings.vol / 100);
+  const tv = $('vol'); if (tv) tv.value = settings.vol; saveSettings();
+});
+$('gm-music').addEventListener('click', () => { settings.music = !settings.music; sfx.setMusicEnabled(settings.music); applySettings(); saveSettings(); });
+$('gm-sfx').addEventListener('click', () => { settings.sfx = !settings.sfx; sfx.setSfxEnabled(settings.sfx); applySettings(); saveSettings(); });
+$('gm-edge').addEventListener('click', () => { settings.edge = !settings.edge; applySettings(); saveSettings(); });
+$('gm-speed').addEventListener('input', (e) => {
+  const s = +e.target.value / 100; setSpeed(s);
+  $('gm-speedval').textContent = s.toFixed(1) + '×';
 });
 
 // sound controls live outside the game so they work from the menu onward
@@ -327,7 +381,65 @@ function applyMapLighting(mode) {
   }
 }
 $('start-btn').addEventListener('click', () => startGame(chosenDiff));
+$('tutorial-btn').addEventListener('click', () => startTutorial());
 window.__ttStart = (d, m) => startGame(d || 'normal', m); // headless test hook
+
+// ---------------- tutorial ----------------
+let tutorialActive = false, tutStepI = 0, tutStartCam = null, tutSpawned = false;
+const tutorialSteps = [
+  { hd: 'Camera', tx: 'Move the camera with <b>W A S D</b> or the arrow keys. Try it now!',
+    check: () => tutStartCam && (Math.abs(cam.tx - tutStartCam.x) + Math.abs(cam.tz - tutStartCam.z) > 5) },
+  { hd: 'Select', tx: 'Left-click and <b>drag a box</b> around your Worker Buddies to select them.',
+    check: () => game.selected.filter((e) => e.type === 'worker').length >= 2 },
+  { hd: 'Gather', tx: '<b>Right-click</b> a 🍪 cookie pile to send your workers to gather Snacks.',
+    check: () => game.entities.some((e) => e.type === 'worker' && e.owner === game.myId && e.order && e.order.type === 'gather') },
+  { hd: 'Build', tx: 'Select one worker, click the 🏠 <b>Block House</b> on the command card, then click a flat spot to place it.',
+    check: () => game.entities.some((e) => e.kind === 'building' && e.type === 'house' && e.owner === game.myId) },
+  { hd: 'Train', tx: 'Click your 🧰 <b>Toy Chest</b>, then press <b>Q</b> to queue a new Worker Buddy.',
+    check: () => { const c = game.entities.find((e) => e.type === 'chest' && e.owner === game.myId && !e.dead); return c && c.queue.length > 0; } },
+  { hd: 'Fight!', tx: 'A rogue toy wandered in! Select a toy, press <b>F</b> for attack-move, and click the intruder.',
+    setup: () => {
+      const chest = game.entities.find((e) => e.type === 'chest' && e.owner === game.myId);
+      const foe = game.spawnUnit('soldier', 1 - game.myId, chest.x + 6, chest.z + 3);
+      foe.maxHp = 30; foe.hp = 30; foe.stance = 'stand';
+      ui.alert('An enemy soldier appeared near your base!', 'attack', { x: foe.x, z: foe.z });
+    },
+    check: () => !game.entities.some((e) => e.type === 'soldier' && e.owner === (1 - game.myId) && !e.dead) },
+  { hd: 'You did it!', tx: 'That\'s the basics — gather, build, train, fight. Press <b>T</b> anytime to see the tech tree, <b>ESC</b> for settings. Ready for a real battle?',
+    final: true, check: () => false },
+];
+
+function startTutorial() {
+  localStorage.setItem('tt-seen', '1');
+  startGame('easy', 'playmat', null, null, true);
+  tutorialActive = true; tutStepI = 0; tutSpawned = false;
+  tutStartCam = null;
+  showTutorialStep();
+}
+function showTutorialStep() {
+  const s = tutorialSteps[tutStepI];
+  $('tutorial').classList.add('show');
+  $('tut-step').textContent = `Step ${tutStepI + 1} / ${tutorialSteps.length} · ${s.hd}`;
+  $('tut-text').innerHTML = s.tx + (s.final ? '<br><button id="tut-done" class="diff-btn" style="margin-top:10px">▶ Play a real match</button>' : '');
+  if (s.final) { const b = $('tut-done'); if (b) b.addEventListener('click', () => { location.href = location.pathname; }); }
+  if (s.setup) s.setup();
+  if (tutStepI === 0 && game) tutStartCam = { x: cam.tx, z: cam.tz };
+}
+function updateTutorial() {
+  const s = tutorialSteps[tutStepI];
+  if (s.final) return;
+  if (s.check()) {
+    sfx.play('research');
+    tutStepI++;
+    if (tutStepI >= tutorialSteps.length) { endTutorial(); return; }
+    showTutorialStep();
+  }
+}
+function endTutorial() {
+  tutorialActive = false;
+  $('tutorial').classList.remove('show');
+}
+$('tut-skip').addEventListener('click', () => endTutorial());
 
 // ---------------- multiplayer menu ----------------
 const mpStatus = (msg) => { const el = $('mp-status'); if (el) el.textContent = msg; };
@@ -386,9 +498,10 @@ window.__ttDebug = () => ({
 let net = null;      // set for multiplayer matches
 let mpAccum = 0;
 
-function startGame(difficulty, mapKey, mpOpts = null, resume = null) {
+function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = false) {
   if (game) return;
   sfx.init(); // user gesture unlocks audio
+  applySettings();
   const menuEl = $('menu');
   if (menuEl) {
     menuEl.classList.remove('show');
@@ -422,7 +535,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null) {
     gameOver: (win, stats, timeline) => ui.gameOver(win, stats, timeline),
     age: () => ui.refreshSelection(),
   }, {
-    fx: vfx, sfx, difficulty, map, playerDefs,
+    fx: vfx, sfx, difficulty, map, playerDefs, tutorial,
     // resumed games must rebuild the identical map shell before restoring
     seed: mpOpts ? mpOpts.seed : (resume ? resume.opts.seed : (Math.random() * 2 ** 31) | 0),
     mp: !!mpOpts, myId: mpOpts ? mpOpts.myId : 0, net,
@@ -772,8 +885,9 @@ addEventListener('keydown', (e) => {
   if (!game) return;
   const k = e.key.toLowerCase();
   if (e.key === 'Escape') {
-    // ESC peels back one layer at a time: mode → placement → selection → menu
-    if (clickMode) setClickMode(null);
+    // ESC peels back one layer at a time: overlay → mode → placement → selection → menu
+    if ($('techtree').classList.contains('show')) toggleTechTree(false);
+    else if (clickMode) setClickMode(null);
     else if (placing) cancelPlacement();
     else if (game.selected.length) game.setSelection([]);
     else toggleGameMenu();
@@ -800,6 +914,7 @@ addEventListener('keydown', (e) => {
     if (b) { game.issue({ t: 'demolish', id: b.id }); game.setSelection([]); }
   }
   if (k === 'b' && !e.ctrlKey) game.issue({ t: 'bell' });
+  if (k === 't' && !e.ctrlKey) toggleTechTree();
   if (e.key === 'F6') { e.preventDefault(); saveGame(); }
   if (e.key === 'F7') {
     e.preventDefault();
@@ -836,8 +951,8 @@ addEventListener('keydown', (e) => {
     }
   }
 });
-// mirrors KEYS in ui.js buildCard — W/A/S/D are camera pan now
-const CARD_KEYS = ['q', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', 'k'];
+// mirrors KEYS in ui.js buildCard — W/A/S/D pan, T opens the tech tree
+const CARD_KEYS = ['q', 'e', 'r', 'y', 'u', 'i', 'o', 'p', 'k', 'j'];
 addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 
 // ---------------- main loop ----------------
@@ -1224,7 +1339,7 @@ function loop() {
   if (keys.arrowleft || keys.a) cam.tx -= panSpeed;
   if (keys.arrowright || keys.d) cam.tx += panSpeed;
   // edge scrolling
-  if (mouseInside && !down) {
+  if (mouseInside && !down && settings.edge) {
     const m = 14;
     if (mouseX < m) cam.tx -= panSpeed;
     else if (mouseX > innerWidth - m) cam.tx += panSpeed;
@@ -1233,6 +1348,7 @@ function loop() {
   }
   clampCam();
   applyCamera(dt);
+  if (tutorialActive) updateTutorial(dt);
 
   if (net) {
     try {

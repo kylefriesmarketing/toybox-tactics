@@ -205,6 +205,7 @@ export class Game {
     this.net = opts.net || null;
     this.rng = makeRng(opts.seed || 20260703);
     this.map = MAPS[opts.map] || MAPS.playmat;
+    this.tutorial = !!opts.tutorial; // AI sits idle; scripted steps drive play
     const base = DIFFICULTIES[opts.difficulty || 'normal'];
     this.entities = [];
     this.selected = [];
@@ -838,8 +839,8 @@ export class Game {
     if (e.def.tags.includes('ranged') || e.def.tags.includes('skirmisher')) a += m.atkPierce;
     if (e.def.tags.includes('vehicle')) a += m.atkVehicle;
     if (e.kind === 'unit' && this.players[e.owner].techs.has(`elite_${e.type}`)) a += 2;
-    // veteran stars
-    if (e.kills >= 6) a += 2; else if (e.kills >= 3) a += 1;
+    // veterancy: ⭐ 3 kills, ⭐⭐ 6 kills, 👑 legend at 10
+    if (e.kills >= 10) a += 3; else if (e.kills >= 6) a += 2; else if (e.kills >= 3) a += 1;
     return a;
   }
   armorOf(e, type) {
@@ -1264,7 +1265,7 @@ export class Game {
           facing: se.facing || 0, kills: se.kills || 0,
           dead: false, wasMoving: false, spawnT: 0,
         };
-        if (e.kills >= 3) { e.rankBadge = makeRankBadge(e.kills >= 6 ? 2 : 1); view.group.add(e.rankBadge); }
+        if (e.kills >= 3) { e.rankBadge = makeRankBadge(e.kills >= 10 ? 3 : e.kills >= 6 ? 2 : 1); view.group.add(e.rankBadge); }
         if (this.players[e.owner].techs.has(`elite_${e.type}`)) this.decorateElite(e);
         if (e.garrisoned) view.group.visible = false;
         view.hpBar.set(e.hp / e.maxHp);
@@ -1577,15 +1578,18 @@ export class Game {
       if (e.kind === 'unit') ks.kills++; else ks.razed++;
       if (killer.kind === 'unit') {
         killer.kills = (killer.kills || 0) + 1;
-        // veteran promotions: 3 kills = ⭐ (+1 atk), 6 kills = ⭐⭐ (+2 atk)
-        if (killer.kills === 3 || killer.kills === 6) {
-          const tier = killer.kills === 6 ? 2 : 1;
+        // veteran promotions: ⭐ at 3 (+1), ⭐⭐ at 6 (+2), 👑 Legend at 10 (+3)
+        if (killer.kills === 3 || killer.kills === 6 || killer.kills === 10) {
+          const tier = killer.kills === 10 ? 3 : killer.kills === 6 ? 2 : 1;
           if (killer.rankBadge) killer.view.group.remove(killer.rankBadge);
           killer.rankBadge = makeRankBadge(tier);
           killer.view.group.add(killer.rankBadge);
           this.fx && this.fx.spawnPop(killer.x, killer.z, 0xffd94a);
           if (killer.owner === this.myId) {
-            this.alert(`Your ${killer.def.name} earned ${tier === 2 ? 'a second star' : 'a star'}! (+1 attack)`, 'info', { x: killer.x, z: killer.z });
+            this.alert(tier === 3
+              ? `👑 Your ${killer.def.name} is a LEGEND! (+3 attack)`
+              : `Your ${killer.def.name} earned ${tier === 2 ? 'a second star' : 'a star'}! (+${tier} attack)`,
+              'info', { x: killer.x, z: killer.z });
           }
         }
       }
@@ -2278,7 +2282,7 @@ export class Game {
     this.scene.add(t.view.group);
     t.eliteRing = null;
     if ((t.kills || 0) >= 3) {
-      t.rankBadge = makeRankBadge(t.kills >= 6 ? 2 : 1);
+      t.rankBadge = makeRankBadge(t.kills >= 10 ? 3 : t.kills >= 6 ? 2 : 1);
       t.view.group.add(t.rankBadge);
     }
     if (this.players[newOwner].techs.has(`elite_${t.type}`)) this.decorateElite(t);
@@ -2817,7 +2821,7 @@ export class Game {
   }
 
   checkWin() {
-    if (this.over) return;
+    if (this.over || this.tutorial) return; // the tutorial ends on its own
     // a team stands while ANY of its players still has a production building
     const aliveTeams = new Set();
     for (const p of this.players) {
@@ -2953,8 +2957,9 @@ export class Game {
 
     if (!this.over) {
       // deterministic AIs run in every mode — lockstep clients tick them alike
+      // (tutorial keeps them idle so the coach controls the pace)
       for (const p of this.players) {
-        if (!p.isAI) continue;
+        if (!p.isAI || this.tutorial) continue;
         const st = this.aiState[p.id];
         st.t -= dt;
         if (st.t <= 0) { st.t = AI.tick; this.aiUpdate(p.id); }
