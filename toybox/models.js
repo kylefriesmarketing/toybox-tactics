@@ -2221,6 +2221,33 @@ function addBedroom(g, N, style) {
   put(box(24, 1.6, 1, 0xf0ead8), 0, 18.6, wz);   // frame bottom
   put(box(1.6, 18, 1, 0xf0ead8), 0, 27, wz);     // vertical mullion
   put(box(24, 1.6, 1, 0xf0ead8), 0, 27, wz);     // horizontal mullion
+
+  // --- wall decor so the empty walls feel lived-in ---
+  const WI = half + 29.4;                          // just inside the ±(half+30) walls
+  // a framed picture, thin against a given wall; wall: 'e'|'w'|'s'
+  const framed = (wall, along, py, w, h, col) => {
+    const thin = 0.5, artC = new THREE.MeshStandardMaterial({ color: col, roughness: 0.7, emissive: col, emissiveIntensity: 0.06 });
+    let fx, fz, ry, art;
+    if (wall === 'e') { fx = WI; fz = along; ry = -Math.PI / 2; put(box(thin, h, w, 0x6a4526), fx, py, fz); art = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.82, h * 0.82), artC); art.position.set(fx - 0.35, py, fz); }
+    else if (wall === 'w') { fx = -WI; fz = along; ry = Math.PI / 2; put(box(thin, h, w, 0x6a4526), fx, py, fz); art = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.82, h * 0.82), artC); art.position.set(fx + 0.35, py, fz); }
+    else { fx = along; fz = half + 29.4; ry = Math.PI; put(box(w, h, thin, 0x6a4526), fx, py, fz); art = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.82, h * 0.82), artC); art.position.set(fx, py, fz - 0.35); }
+    art.rotation.y = ry; g.add(art);
+  };
+  framed('e', 8, 31, 10, 8, 0x6fa8e0);             // east: sky/scribble art above dresser
+  framed('e', -22, 30, 8, 10, 0xe08a6a);           // east: portrait
+  framed('w', 6, 31, 11, 8, 0x6fbf78);             // west: landscape above toy chest
+  // a round wall clock on the south wall above the bookshelf
+  const clock = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 0.5, 20), M(0xf3ede0, 0.6));
+  clock.rotation.x = Math.PI / 2; clock.position.set(-16, 33, half + 29.4); g.add(clock);
+  put(box(0.4, 3.2, 0.3, 0x333333), -16, 33.6, half + 29.0);   // hour hand
+  put(box(0.3, 4.4, 0.3, 0x333333), -16, 33, half + 29.0).rotation.z = 1.1; // minute hand
+  // pennant bunting strung across the north wall beside the window
+  const pennC = [0xe05555, 0xf0a44a, 0xf0d24a, 0x6fb86f, 0x59a0e0];
+  for (let i = 0; i < 10; i++) {
+    const px = -30 + i * 6.6, dip = Math.sin(i / 9 * Math.PI) * 2.4;
+    const tri = new THREE.Mesh(new THREE.ConeGeometry(1.3, 2.6, 3), M(pennC[i % pennC.length], 0.7));
+    tri.position.set(px, 39 - dip, -half - 28.6); tri.rotation.x = Math.PI / 2; tri.rotation.y = Math.PI; g.add(tri);
+  }
 }
 
 // bedside lamp looming over the playmat corner — warm pool of real light
