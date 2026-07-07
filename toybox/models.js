@@ -919,6 +919,41 @@ function makeProcView(def, owner, kind) {
     const gun = cyl(0.022, 0.028, 0.24, 0x8a5a34, 8);
     gun.rotation.x = Math.PI / 2; gun.position.set(0, 0.2, 0.34); gun.castShadow = true; rig.add(gun);
     parts.tube = gun; parts.body = hull;
+  } else if (kind === 'zapbot') {
+    // Tin Bots skirmisher: a wind-up tin robot with a spark blaster
+    const tin = 0xb9c4d0, trim = TEAM_COLORS[owner];
+    add(box(0.12, 0.09, 0.11, 0x8a95a2), -0.07, 0.06, 0);      // legs
+    add(box(0.12, 0.09, 0.11, 0x8a95a2), 0.07, 0.06, 0);
+    add(box(0.26, 0.24, 0.2, tin, 0.35), 0, 0.24, 0);          // body
+    add(box(0.28, 0.05, 0.22, trim, 0.4), 0, 0.16, 0);         // team belt
+    add(box(0.18, 0.14, 0.16, tin, 0.35), 0, 0.44, 0);         // head
+    const eyeZ = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.04, 0.02),
+      new THREE.MeshStandardMaterial({ color: 0x9ff0ff, emissive: 0x40c0e0, emissiveIntensity: 0.9 }));
+    eyeZ.position.set(0, 0.45, 0.09); rig.add(eyeZ);
+    add(cyl(0.012, 0.012, 0.12, 0x6a7480, 6), 0, 0.58, 0);     // antenna
+    const spark = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6),
+      new THREE.MeshStandardMaterial({ color: 0xffe07a, emissive: 0xffb020, emissiveIntensity: 1.0 }));
+    spark.position.set(0, 0.65, 0); rig.add(spark); parts.spinner = spark;
+    parts.tube = add(cyl(0.035, 0.05, 0.22, 0x6a7480, 8), 0.17, 0.26, -0.06); // blaster
+    parts.tube.rotation.x = Math.PI / 2;
+    add(cyl(0.04, 0.04, 0.16, 0x8a95a2, 6), -0.17, 0.26, 0);   // other arm
+  } else if (kind === 'titanbot') {
+    // Tin Bots champion: a hulking battle robot
+    const steel = 0x7a828f, dark = 0x565d68, trim = TEAM_COLORS[owner];
+    add(box(0.2, 0.2, 0.18, dark, 0.4), -0.16, 0.11, 0);       // legs
+    add(box(0.2, 0.2, 0.18, dark, 0.4), 0.16, 0.11, 0);
+    const tbody = add(box(0.5, 0.42, 0.34, steel, 0.35), 0, 0.44, 0);
+    add(box(0.54, 0.08, 0.36, trim, 0.4), 0, 0.3, 0);          // team chest band
+    for (let i = -1; i <= 1; i++) add(box(0.4, 0.025, 0.36, dark, 0.4), 0, 0.52 + i * 0.06, 0.005); // grille
+    add(box(0.26, 0.2, 0.22, steel, 0.35), 0, 0.76, 0);        // head
+    const eyeT = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.05, 0.02),
+      new THREE.MeshStandardMaterial({ color: 0xff9a6a, emissive: 0xe0552a, emissiveIntensity: 1.0 }));
+    eyeT.position.set(0, 0.78, 0.12); rig.add(eyeT);
+    for (const sx of [-1, 1]) {
+      add(box(0.14, 0.4, 0.16, dark, 0.4), sx * 0.34, 0.46, 0);    // upper arm
+      add(box(0.2, 0.18, 0.2, steel, 0.35), sx * 0.36, 0.24, 0.02); // fist
+    }
+    parts.body = tbody;
   } else { // catapult
     add(box(0.16, 0.06, 0.8, 0xc9a86a), -0.2, 0.1, 0);
     add(box(0.16, 0.06, 0.8, 0xc9a86a), 0.2, 0.1, 0);
@@ -1415,6 +1450,25 @@ function buildingGeometry(key, def, owner, rng, up = false, age = 1) {
     const flagP = add(box(0.5, 0.3, 0.04, teamCol), 0.28, 1.85, -0.6);
     add(cyl(0.04, 1.3, 0xddd6c0, 6), 0, 1.45, -0.6);
     flagP.castShadow = false;
+  } else if (key === 'robolab') {
+    // robotics bay: steel bench, a rack of charging batteries, a robot arm
+    add(box(2.6, 0.3, 2.4, 0x565d68), 0, 0.15, 0);            // steel base plate
+    add(box(2.4, 0.5, 0.5, 0x7a828f), 0, 0.55, -0.8);         // workbench
+    for (let i = 0; i < 4; i++) {                             // battery charging rack
+      add(cyl(0.16, 0.7, i % 2 ? 0x40c0e0 : 0xffc94d, 10), -0.9 + i * 0.4, 0.9, -0.9);
+      add(box(0.1, 0.08, 0.1, 0xb8c0cc), -0.9 + i * 0.4, 1.29, -0.9); // terminal cap
+    }
+    add(cyl(0.22, 0.4, 0x8a95a2, 10), 0.7, 0.45, 0.5);        // robot-arm base
+    const seg = add(box(0.16, 0.9, 0.16, 0xb9c4d0), 0.7, 0.95, 0.5);
+    seg.rotation.z = -0.4;                                     // angled arm segment
+    add(box(0.28, 0.14, 0.14, 0x565d68), 0.42, 1.35, 0.5);   // claw head
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6),
+      new THREE.MeshStandardMaterial({ color: 0x9ff0ff, emissive: 0x40c0e0, emissiveIntensity: 1.0 }));
+    add(bulb, -1.0, 0.5, 0.7);                                // glowing status light
+    add(box(0.14, 0.7, 1.6, 0x6a7480), 1.2, 0.55, -0.4);     // tool wall
+    const flagR = add(box(0.5, 0.3, 0.04, teamCol), 0.28, 1.95, -0.4);
+    add(cyl(0.04, 1.4, 0xddd6c0, 6), 0, 1.55, -0.4);
+    flagR.castShadow = false;
   }
   return g;
 }

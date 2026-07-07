@@ -11,7 +11,7 @@ import { PORTRAITS } from './models.js';
 
 const $ = (id) => document.getElementById(id);
 
-export const B_ICONS = { chest: '🧰', house: '🏠', farm: '🍽️', mat: '🥋', bench: '🎯', garage: '🏁', market: '🏪', tower: '✏️', workshop: '🛠️', fort: '🏰', wall: '🧱', gate: '🚪', wonder: '⭐', basket: '🧺', tent: '⛺', brickshop: '🏭', nest: '🪺', pitstop: '🛞', dock: '⚓', tinker: '⚙️' };
+export const B_ICONS = { chest: '🧰', house: '🏠', farm: '🍽️', mat: '🥋', bench: '🎯', garage: '🏁', market: '🏪', tower: '✏️', workshop: '🛠️', fort: '🏰', wall: '🧱', gate: '🚪', wonder: '⭐', basket: '🧺', tent: '⛺', brickshop: '🏭', nest: '🪺', pitstop: '🛞', robolab: '🤖', dock: '⚓', tinker: '⚙️' };
 export const U_ICONS = { worker: '🔧', scout: '🔭', soldier: '🪖', spear: '📌', archer: '🎯', flinger: '🪀', raider: '🏎️', hero: '🦸', ram: '🛏️', catapult: '🪃', medic: '🧸', cart: '🚚', hypno: '🌀', bear: '🐻', golem: '🧱', dragster: '🏎️', bazooka: '🎁', grenadier: '💣', lancer: '🎠', sockpuppet: '🧦', drone: '🚁', tugboat: '🚢', duckboat: '🦆' };
 const ALERT_ICONS = { info: '💬', warn: '⚠️', attack: '⚔️', age: '✨' };
 

@@ -189,6 +189,27 @@ export const UNITS = {
     debris: { shapes: ['disc', 'stick'], colors: [0x59c9c9, 0x333333], count: 6 },
     desc: 'RC Racer unique: FLIES over walls, cliffs and milk. Fragile, great scout-harasser.',
   },
+  zapbot: {
+    name: 'Zap Bot', tags: ['infantry', 'ranged', 'bot'], age: 2, proc: 'zapbot', faction: 'bots',
+    cost: { snacks: 45, buttons: 35 }, trainTime: 12,
+    hp: 55, atk: 6, atkType: 'pierce', interval: 1.3, range: 4.2,
+    bonus: { infantry: 2 },
+    armor: { melee: 0, pierce: 1 }, speed: 1.6, vision: 8, aggro: 6,
+    impact: 0.5, color: 0xb9c4d0,
+    projectile: { speed: 16, arc: false, color: 0x9ff0ff, size: 0.07, trail: 0x40c0e0 },
+    debris: { shapes: ['cube', 'peg'], colors: [0xb9c4d0, 0x40c0e0], count: 6 },
+    desc: 'Tin Bots unique: wind-up robot with a spark blaster. Outranges most toys, +2 vs infantry.',
+  },
+  titanbot: {
+    name: 'Titan Bot', tags: ['infantry', 'heavy', 'bot'], age: 3, proc: 'titanbot', faction: 'bots',
+    cost: { snacks: 120, marbles: 70 }, trainTime: 26,
+    hp: 240, atk: 20, atkType: 'melee', interval: 1.5, range: 0.95,
+    bonus: { building: 12 },
+    armor: { melee: 4, pierce: 5 }, speed: 1.35, vision: 6, aggro: 6,
+    impact: 0.5, color: 0x7a828f,
+    debris: { shapes: ['cube', 'disc', 'peg'], colors: [0x7a828f, 0xe0552a], count: 9 },
+    desc: 'Tin Bots unique: a hulking battle robot. Armored, cracks buildings, shrugs off arrows.',
+  },
   king: {
     name: 'The King', tags: ['infantry', 'heavy', 'royal'], age: 1, modelKey: 'hero', targetHeight: 0.66, cape: true, crown: true,
     cost: { snacks: 0 }, trainTime: 1,
@@ -391,6 +412,13 @@ export const BUILDINGS = {
     trains: ['raider', 'dragster', 'drone', 'cart'], techs: ['springs', 'nitro'],
     debris: { shapes: ['disc', 'stick'], colors: [0x666f7a, 0xe5484d] },
     desc: 'RC Racer unique: fuels every wheeled and winged toy in the garage.',
+  },
+  robolab: {
+    name: 'Robotics Bay', tags: ['building'], size: 3, hp: 600, cost: { blocks: 140, buttons: 30 }, buildTime: 21,
+    armor: { melee: 1, pierce: 6 }, vision: 4, age: 2, height: 1.1, faction: 'bots',
+    trains: ['zapbot', 'titanbot'], techs: ['overclock'],
+    debris: { shapes: ['cube', 'disc'], colors: [0x8a95a2, 0x40c0e0] },
+    desc: 'Tin Bots unique: assembles Zap Bots and Titan Bots, researches Overclock.',
   },
   wall: {
     name: 'Block Wall', tags: ['building', 'wall'], size: 1, hp: 250, cost: { blocks: 5 }, buildTime: 4,
@@ -634,7 +662,7 @@ export function generateRandomMap(seed, opts = {}) {
 // Dock, which all TRAIN units (omitting them wrongly eliminated players that
 // still had an army-producing building standing).
 export const PRODUCTION_BUILDINGS = ['chest', 'mat', 'bench', 'garage', 'workshop', 'fort',
-  'tent', 'brickshop', 'nest', 'pitstop', 'dock'];
+  'tent', 'brickshop', 'nest', 'pitstop', 'robolab', 'dock'];
 
 // ---------------- techs (researched at buildings, apply stat modifiers) ----------------
 export const TECHS = {
@@ -671,6 +699,7 @@ export const TECHS = {
   interlock:  { name: 'Interlocking Studs', age: 3, faction: 'bricks', cost: { blocks: 220, marbles: 120 }, time: 45, building: true, desc: 'Double-studded construction: every building +30% HP (stacks with Plating).' },
   grouphug:   { name: 'Group Hug',        age: 3, faction: 'plush',   cost: { snacks: 220, buttons: 150 }, time: 40, desc: 'Plushies squeeze tighter: Medics heal 60% more and every toy +10% HP.' },
   nitro:      { name: 'Nitro Injection',  age: 3, faction: 'racers',  cost: { snacks: 170, buttons: 180 }, time: 38, desc: 'Redline everything: wheeled toys +20% speed and +2 attack.' },
+  overclock:  { name: 'Overclock',        age: 3, faction: 'bots',    cost: { buttons: 200, marbles: 120 }, time: 40, desc: 'Redline the servos: every toy attacks 12% faster AND +1 ranged attack.' },
 };
 
 export const START = {
@@ -784,6 +813,11 @@ export const FACTIONS = {
     label: 'RC Racers', icon: '🏎️',
     desc: 'Wheeled toys +15% speed and +1 attack — but workers gather 8% slower.',
     mods: { speedWheels: 1.15, atkVehicle: 1, gather: 0.92 },
+  },
+  bots: {
+    label: 'Tin Bots', icon: '🤖',
+    desc: 'Ranged toys +1 attack and every toy attacks 10% faster — but they trundle 8% slower on foot.',
+    mods: { atkPierce: 1, atkSpeed: 0.9, speedInfantry: 0.92 },
   },
 };
 
