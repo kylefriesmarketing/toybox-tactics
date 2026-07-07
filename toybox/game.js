@@ -2891,28 +2891,42 @@ export class Game {
       if (diff.usesTechs) {
         ai.techT -= AI.tick;
         if (ai.techT <= 0) {
-          ai.techT = 18;
+          ai.techT = 12; // check research a little more often (was 18)
           const priority = ['sorting', 'pockets',
             enemyRanged > 3 ? 'bands' : 'pencils', 'scissors', 'shoes', 'pencils', 'bands',
             // civ signature techs first — the loop below only researches the one
             // this AI's own faction building offers, so listing all is safe, and
             // fronting them makes each AI civ actually express its identity
             'liveammo', 'interlock', 'grouphug', 'nitro',
+            // core army line upgrades (these were missing → the AI never elited!)
+            'elite_soldier', 'elite_archer', 'elite_spear',
             'whetstone', 'springs', 'tape', 'quilting', 'training', 'reinforced', 'plating',
             'sugarrush', 'overwound',
             ...(mine.some((e) => e.type === 'tower') ? ['pentower'] : []),
             ...(mine.some((e) => e.type === 'wall' || e.type === 'gate') ? ['steelwork'] : [])];
-          outer:
+          // research up to 2 techs per pass, and tolerate a busier queue (4 not 2)
+          // so upgrades aren't permanently starved by buildings busy training —
+          // that stall meant the AI barely teched past the Playmat Age.
+          // skip techs already mid-research so a pass advances to NEW ones instead
+          // of burning its budget re-attempting queued techs (the old stall).
+          const inProgress = new Set();
+          for (const b of mine) {
+            if (b.kind === 'building' && b.queue) for (const q of b.queue) if (q.kind === 'tech') inProgress.add(q.tech);
+          }
+          let started = 0;
           for (const techId of priority) {
-            if (p.techs.has(techId)) continue;
+            if (started >= 2) break;
+            if (p.techs.has(techId) || inProgress.has(techId)) continue;
             const tech = TECHS[techId];
             if (tech.age > p.age || !this.canAfford(owner, tech.cost)) continue;
+            // slot it on the least-busy building that offers the tech
+            let best = null;
             for (const b of mine) {
               if (b.kind !== 'building' || b.built < 1 || !b.def.techs || !b.def.techs.includes(techId)) continue;
-              if (b.queue.length >= 2) continue;
-              this.researchTech(b, techId);
-              break outer;
+              if (b.queue.length >= 4) continue;
+              if (!best || b.queue.length < best.queue.length) best = b;
             }
+            if (best && this.researchTech(best, techId)) started++;
           }
         }
       }
