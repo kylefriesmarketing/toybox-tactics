@@ -1147,6 +1147,24 @@ function buildingGeometry(key, def, owner, rng) {
     add(box(0.5, 0.05, 0.08, 0xf94144), 0.35, 0.72, 0.2).rotation.y = -0.5;
     for (let i = 0; i < 4; i++) add(box(0.9, 0.05, 0.08, 0xd9b38c), -0.1 + rng() * 0.3, 0.72 + i * 0.05, -0.35).rotation.y = rng() * 0.4;
     add(box(0.5, 0.3, 0.05, teamCol), 0, 1.1, -0.68); // banner
+  } else if (key === 'tinker') {
+    // upgrade workbench: benchtop on legs, a red vise, gears, tools, batteries
+    add(box(1.7, 0.16, 1.1, 0xb08050), 0, 0.6, 0);
+    for (const [sx, sz] of [[-0.7, -0.45], [0.7, -0.45], [-0.7, 0.45], [0.7, 0.45]]) add(box(0.12, 0.58, 0.12, 0x8a5a33), sx, 0.29, sz);
+    add(box(0.28, 0.2, 0.32, 0xc23a3a), 0.55, 0.78, 0.2);           // red vise body
+    const screw = add(cyl(0.03, 0.32, 0x999999, 8), 0.55, 0.78, 0.42); screw.rotation.x = Math.PI / 2;
+    // a couple of gears
+    for (const [gr, gc, gx, gz] of [[0.2, 0x8a8f98, -0.45, -0.15], [0.14, 0xd9a066, -0.22, 0.12]]) {
+      add(cyl(gr, 0.08, gc, 12), gx, 0.72, gz);
+      for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; add(box(0.05, 0.08, 0.05, gc), gx + Math.cos(a) * gr, 0.72, gz + Math.sin(a) * gr); }
+    }
+    add(box(0.5, 0.05, 0.1, 0xf0c419), -0.05, 0.7, 0.38).rotation.y = 0.5;  // wrench
+    add(box(0.34, 0.05, 0.05, 0xe5484d), 0.12, 0.7, -0.32).rotation.y = -0.4; // screwdriver
+    add(cyl(0.08, 0.22, 0x4d9bff, 10), 0.32, 0.81, 0.38);          // battery
+    add(cyl(0.05, 0.05, 0xd0d0d0, 10), 0.32, 0.94, 0.38);          // battery nub
+    const flagT = add(box(0.46, 0.28, 0.04, teamCol), -0.1, 1.12, -0.55);
+    add(cyl(0.03, 1.0, 0xddd6c0, 6), -0.34, 0.88, -0.55);
+    flagT.castShadow = false;
   } else if (key === 'wall') {
     // staggered toy bricks
     const cols = [0xd95b5b, 0xd96a5b, 0xc95555];

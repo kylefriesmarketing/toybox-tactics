@@ -238,8 +238,8 @@ export class Game {
       id: i, team: d.team, res: { ...START.resources }, age: 1, aging: 0,
       popUsed: 0, popCap: 0, isAI: !!d.isAI,
       techs: new Set(),
-      mods: { carry: 0, gather: 1, gatherSnacks: 1, speedInfantry: 1, speedWheels: 1,
-              atkMelee: 0, atkPierce: 0, armorInfantry: 0,
+      mods: { carry: 0, gather: 1, gatherSnacks: 1, speedInfantry: 1, speedWheels: 1, speedAll: 1,
+              atkMelee: 0, atkPierce: 0, armorInfantry: 0, armorOther: 0, atkSpeed: 1,
               buildingHp: 1, buildRate: 1, unitHp: 1, healRate: 1, atkVehicle: 0 },
       stats: { gathered: 0, trained: 0, lost: 0, kills: 0, razed: 0 },
     }));
@@ -911,7 +911,7 @@ export class Game {
     let s = u.def.speed;
     if (u.def.tags.includes('infantry') || u.def.tags.includes('worker')) s *= m.speedInfantry;
     if (u.def.tags.includes('vehicle') || u.def.tags.includes('raider')) s *= m.speedWheels;
-    return s;
+    return s * m.speedAll; // Sugar Rush: a blanket boost every toy feels
   }
   atkOf(e) {
     const m = this.players[e.owner].mods;
@@ -926,7 +926,10 @@ export class Game {
   }
   armorOf(e, type) {
     let a = (e.def.armor && e.def.armor[type]) || 0;
-    if (e.kind === 'unit' && e.def.tags.includes('infantry')) a += this.players[e.owner].mods.armorInfantry;
+    if (e.kind === 'unit') {
+      const m = this.players[e.owner].mods;
+      a += e.def.tags.includes('infantry') ? m.armorInfantry : m.armorOther; // Quilted Padding
+    }
     if (e.kind === 'unit' && this.players[e.owner].techs.has(`elite_${e.type}`)) a += 1;
     return a;
   }
@@ -971,6 +974,19 @@ export class Game {
         }
         break;
       case 'training':
+        for (const e of this.entities) {
+          if (e.kind === 'unit' && e.owner === owner && !e.dead && e.def.aggro > 0) {
+            const f = e.hp / e.maxHp;
+            e.maxHp *= 1.15; e.hp = e.maxHp * f;
+          }
+        }
+        break;
+      // ---- Tinker Bench upgrades ----
+      case 'whetstone': m.atkMelee += 1; m.atkPierce += 1; m.atkVehicle += 1; break;
+      case 'quilting': m.armorOther += 1; break;
+      case 'sugarrush': m.speedAll *= 1.08; break;
+      case 'overwound': m.atkSpeed *= 0.88; break; // 12% quicker swings
+      case 'reinforced':
         for (const e of this.entities) {
           if (e.kind === 'unit' && e.owner === owner && !e.dead && e.def.aggro > 0) {
             const f = e.hp / e.maxHp;
@@ -2007,10 +2023,11 @@ export class Game {
   }
 
   startSwing(u, target) {
-    const swingDur = Math.min(u.def.interval * 0.85, 1.15);
+    const interval = u.def.interval * this.players[u.owner].mods.atkSpeed; // Overwound Springs
+    const swingDur = Math.min(interval * 0.85, 1.15);
     const impactDelay = u.view.startAttack(swingDur);
     u.swing = { t: 0, impactAt: impactDelay, dur: swingDur, target, dealt: false };
-    u.cd = u.def.interval;
+    u.cd = interval;
     u.facing = Math.atan2(target.x - u.x, target.z - u.z);
   }
 
@@ -2740,6 +2757,11 @@ export class Game {
           && this.canAfford(owner, BUILDINGS.dock.cost)) {
         this.aiPlace('dock', chest, workers);
       }
+      // a Tinker Bench once the army's rolling, to research blanket upgrades
+      if (diff.usesTechs && p.age >= 2 && !has('tinker') && has('mat', true) && military.length >= 3
+          && this.canAfford(owner, BUILDINGS.tinker.cost)) {
+        this.aiPlace('tinker', chest, workers);
+      }
       // forward baskets when the economy strays far from home
       if (!mine.some((e) => e.type === 'basket' && e.built < 1)) {
         for (const w of workers) {
@@ -2772,7 +2794,8 @@ export class Game {
           ai.techT = 18;
           const priority = ['sorting', 'pockets',
             enemyRanged > 3 ? 'bands' : 'pencils', 'scissors', 'shoes', 'pencils', 'bands',
-            'springs', 'tape', 'training', 'plating'];
+            'whetstone', 'springs', 'tape', 'quilting', 'training', 'reinforced', 'plating',
+            'sugarrush', 'overwound'];
           outer:
           for (const techId of priority) {
             if (p.techs.has(techId)) continue;

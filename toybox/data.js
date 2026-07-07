@@ -356,6 +356,13 @@ export const BUILDINGS = {
     debris: WOOD_DEBRIS,
     desc: 'Shipyard — build it at the water\'s edge to launch boats onto the basin.',
   },
+  tinker: {
+    name: 'Tinker Bench', tags: ['building'], size: 2, hp: 520, cost: { blocks: 110, snacks: 40 }, buildTime: 20,
+    armor: { melee: 1, pierce: 6 }, vision: 4, age: 2, height: 0.9,
+    techs: ['whetstone', 'quilting', 'reinforced', 'sugarrush', 'overwound'],
+    debris: WOOD_DEBRIS,
+    desc: 'Upgrade shop: research blanket boosts — sharper weapons, tougher plastic, faster springs.',
+  },
   // ---- faction buildings (each tribe's own workshop, Playmat Age) ----
   tent: {
     name: 'Command Tent', tags: ['building'], size: 3, hp: 550, cost: { blocks: 140 }, buildTime: 20,
@@ -562,6 +569,12 @@ export const TECHS = {
   elite_soldier: { name: 'Elite Soldiers', age: 3, cost: { snacks: 175, buttons: 125 }, time: 35, desc: 'Block Soldiers +25% HP, +2 attack, +1/+1 armor — upgrades the living too.' },
   elite_spear:   { name: 'Elite Spears',   age: 3, cost: { snacks: 175, buttons: 125 }, time: 35, desc: 'Push-Pin Spears +25% HP, +2 attack, +1/+1 armor — upgrades the living too.' },
   elite_archer:  { name: 'Elite Archers',  age: 3, cost: { snacks: 175, buttons: 150 }, time: 35, desc: 'Button Archers +25% HP, +2 attack, +1/+1 armor — upgrades the living too.' },
+  // ---- Tinker Bench unit upgrades (blanket boosts to your whole army) ----
+  whetstone:  { name: 'Whetstone',        age: 2, cost: { snacks: 120, blocks: 60 },   time: 30, desc: 'All military toys +1 attack (melee, ranged and wheeled).' },
+  quilting:   { name: 'Quilted Padding',  age: 2, cost: { blocks: 100, buttons: 60 },  time: 30, desc: 'Ranged and wheeled toys +1/+1 armor (tape already covers infantry).' },
+  reinforced: { name: 'Reinforced Cores', age: 3, cost: { snacks: 200, marbles: 100 }, time: 40, desc: 'All military toys +15% HP — upgrades the living, stacks with Training.' },
+  sugarrush:  { name: 'Sugar Rush',       age: 3, cost: { snacks: 150, buttons: 150 }, time: 35, desc: 'Every toy scoots 8% faster — infantry and wheels alike.' },
+  overwound:  { name: 'Overwound Springs',age: 3, cost: { buttons: 200, marbles: 120 }, time: 40, desc: 'Military toys attack 12% faster.' },
 };
 
 export const START = {
