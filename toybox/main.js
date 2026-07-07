@@ -79,7 +79,7 @@ const cam = { x: 0, z: 0, dist: 24, tx: 0, tz: 0, tdist: 24, shake: 0 };
 const shakeCam = (amt) => { cam.shake = Math.min(0.9, cam.shake + amt); };
 const fogBase = { near: 60, far: 140 };
 function clampCam() {
-  cam.tdist = Math.max(4, Math.min(90, cam.tdist));
+  cam.tdist = Math.max(4, Math.min(84, cam.tdist)); // cap so the camera stays inside the room walls
   const half = N / 2 + 6;
   cam.tx = Math.max(-half, Math.min(half, cam.tx));
   cam.tz = Math.max(-half, Math.min(half, cam.tz));

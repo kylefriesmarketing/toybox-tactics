@@ -1807,15 +1807,18 @@ export function createGround(N, style = 'playmat') {
   // room walls with baseboards frame the max zoom-out (skip under the bed —
   // there is no wall down there, just darkness)
   if (style !== 'underbed') {
-    const WALL = N / 2 + 30, WH = 42, WT = 1.6;
+    const WALL = N / 2 + 30, WH = 88, WT = 1.6;  // tall enough the camera never rises over them
     const wallColor = style === 'attic' ? 0x6a5a48 : 0x5a688f;
     const wallM = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.95 });
     const baseM = new THREE.MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.8 });
     for (let i = 0; i < 4; i++) {
       const horiz = i < 2;
       const sign = i % 2 === 0 ? -1 : 1;
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(horiz ? WALL * 2 + WT * 2 : WT, WH, horiz ? WT : WALL * 2 + WT * 2), wallM);
-      wall.position.set(horiz ? 0 : sign * WALL, WH / 2 - 0.02, horiz ? sign * WALL : 0);
+      // the camera always looks north from the south, so the south wall (i===1)
+      // is the "fourth wall" — keep it low or it flies outside / blocks the view
+      const wh = (i === 1) ? 11 : WH;
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(horiz ? WALL * 2 + WT * 2 : WT, wh, horiz ? WT : WALL * 2 + WT * 2), wallM);
+      wall.position.set(horiz ? 0 : sign * WALL, wh / 2 - 0.02, horiz ? sign * WALL : 0);
       wall.receiveShadow = true;
       g.add(wall);
       const base = new THREE.Mesh(new THREE.BoxGeometry(horiz ? WALL * 2 + WT * 2 : WT + 0.5, 1.7, horiz ? WT + 0.5 : WALL * 2 + WT * 2), baseM);
