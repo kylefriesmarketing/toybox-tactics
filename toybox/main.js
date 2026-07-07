@@ -819,6 +819,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
     },
   });
   ui.refreshSelection();
+  window.__ui = ui; // debug/verification hook (harmless, like window.game)
 
   marker = createMoveMarker();
   scene.add(marker.mesh);

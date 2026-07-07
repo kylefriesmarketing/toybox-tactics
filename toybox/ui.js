@@ -330,6 +330,16 @@ export class UI {
   costText(cost) {
     return Object.entries(cost).map(([k, v]) => `${v}${RES_META[k].icon}`).join(' ');
   }
+  // compact stat line for a unit def, used in command-card tooltips
+  unitStatLine(def) {
+    const a = def.armor || {};
+    const bits = [`❤️ ${def.hp}`];
+    if (def.atk) bits.push(`⚔️ ${def.atk}${def.atkType && def.atkType !== 'melee' ? ' ' + def.atkType : ''}`);
+    bits.push(`🛡️ ${a.melee || 0}/${a.pierce || 0}`);
+    if (def.speed) bits.push(`👟 ${def.speed}`);
+    if (def.range && def.range > 1.2) bits.push(`🎯 ${def.range}`);
+    return bits.join('  ');
+  }
 
   buildCommandsFor(sel) {
     const g = this.game;
@@ -432,6 +442,8 @@ export class UI {
             icon: U_ICONS[t], img: PORTRAITS[t] || null, label: def.name,
             sub: this.costText(def.cost),
             lock: ageReq > 1 ? AGES[ageReq - 1] : null,
+            tipName: `Train ${def.name}`, tipDesc: def.desc, tipCost: def.cost,
+            tipStats: this.unitStatLine(def), tipHint: 'Shift-click trains 5',
             title: `Train ${def.name} — ${def.desc} (Shift-click trains 5)`,
             enabled: () => g.canAfford(me, def.cost) && ageReq <= g.players[me].age && first.queue.length < 5,
             lockText: () => (ageReq > g.players[me].age ? AGES[ageReq - 1] : null),
@@ -452,6 +464,7 @@ export class UI {
             icon: '🔬', label: tech.name,
             sub: this.costText(tech.cost),
             lock: tech.age > 1 ? AGES[tech.age - 1] : null,
+            tipName: `Research ${tech.name}`, tipDesc: tech.desc, tipCost: tech.cost,
             title: `Research ${tech.name} — ${tech.desc}`,
             enabled: () => g.canAfford(me, tech.cost) && tech.age <= g.players[me].age && first.queue.length < 5,
             lockText: () => (tech.age > g.players[me].age ? AGES[tech.age - 1] : null),
@@ -523,14 +536,43 @@ export class UI {
         + `<span class="lbl">${c.label}</span>`
         + (c.sub ? `<small>${typeof c.sub === 'function' ? c.sub() : c.sub}</small>` : '')
         + (c.lock ? `<span class="lock">🔒</span>` : '');
-      if (c.title) b.title = c.title;
       b.disabled = c.isHint || !c.enabled();
       if (c.lockText && c.lockText()) b.classList.add('locked');
       b.addEventListener('click', (e) => { e.stopPropagation(); if (c.enabled()) c.onClick(!!e.shiftKey); });
+      // rich hover tooltip (replaces the browser's slow native title)
+      if (!c.isHint) {
+        b.addEventListener('mouseenter', () => this.showTip(b, c, key));
+        b.addEventListener('mousemove', (e) => this.moveTip(e));
+        b.addEventListener('mouseleave', () => this.hideTip());
+      }
       card.appendChild(b);
       this.cardButtons.push({ el: b, def: c });
     }
   }
+
+  // ---------- command-card tooltip ----------
+  showTip(btn, c, key) {
+    const tip = $('tooltip');
+    if (!tip) return;
+    const cost = c.tipCost ? this.costText(c.tipCost) : (typeof c.sub === 'string' ? c.sub : (typeof c.sub === 'function' ? c.sub() : ''));
+    const name = c.tipName || c.label;
+    // fall back to the old title string (minus its "Verb Name — " prefix) for desc
+    const desc = c.tipDesc || (c.title && c.title.includes(' — ') ? c.title.split(' — ').slice(1).join(' — ').replace(/\s*\([^)]*\)\s*$/, '') : c.title) || '';
+    const lockReq = c.lockText && c.lockText();
+    tip.innerHTML =
+      `<div class="tt-name">${name}${key ? ` <kbd>${key}</kbd>` : ''}</div>` +
+      (cost ? `<div class="tt-cost">${cost}</div>` : '') +
+      (c.tipStats ? `<div class="tt-stats">${c.tipStats}</div>` : '') +
+      (desc ? `<div class="tt-desc">${desc}</div>` : '') +
+      (c.tipHint ? `<div class="tt-hint">${c.tipHint}</div>` : '') +
+      (lockReq ? `<div class="tt-lock">🔒 Requires the ${lockReq}</div>` : '');
+    tip.style.display = 'block';
+    const r = btn.getBoundingClientRect();
+    tip.style.left = Math.max(8, Math.min(r.left, window.innerWidth - tip.offsetWidth - 8)) + 'px';
+    tip.style.top = (r.top - tip.offsetHeight - 10) + 'px';
+  }
+  moveTip() { /* anchored to the button; nothing to follow */ }
+  hideTip() { const tip = $('tooltip'); if (tip) tip.style.display = 'none'; }
 
   // ---------- per-frame ----------
   update(dt) {
@@ -538,7 +580,23 @@ export class UI {
     if (this.tickT <= 0) {
       this.tickT = 0.2;
       const p = this.game.players[this.game.myId];
-      for (const r of RES_TYPES) $(`res-${r}`).textContent = Math.floor(p.res[r]);
+      // resource totals + a net income/min shown over a rolling window (view-only).
+      // window differencing captures the bursty deposits far better than an EMA.
+      const now = this.game.time;
+      if (!this.rateHist) this.rateHist = [];
+      this.rateHist.push({ t: now, snacks: p.res.snacks, blocks: p.res.blocks, buttons: p.res.buttons, marbles: p.res.marbles });
+      const WIN = 6;
+      while (this.rateHist.length > 1 && this.rateHist[0].t < now - WIN) this.rateHist.shift();
+      const old = this.rateHist[0], span = now - old.t;
+      for (const r of RES_TYPES) {
+        $(`res-${r}`).textContent = Math.floor(p.res[r]);
+        const el = $(`rate-${r}`);
+        if (el) {
+          let txt = '';
+          if (span > 1.5) { const rr = Math.round((p.res[r] - old[r]) / span * 12) * 5; if (rr > 0) txt = `+${rr}`; }
+          el.textContent = txt;
+        }
+      }
       $('pop').textContent = `${p.popUsed}/${p.popCap}`;
       $('pop').parentElement.classList.toggle('capped', p.popUsed >= p.popCap);
       $('age').textContent = p.aging > 0 ? `${AGES[p.age - 1]} → ${AGES[p.age]}…` : AGES[p.age - 1];
