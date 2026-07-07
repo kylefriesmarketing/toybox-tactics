@@ -1053,51 +1053,21 @@ export function createUnitView(registry, key, def, owner) {
   return view;
 }
 
-// ---------------- AoE-style visual upgrade tiers ----------------
-// Re-skin a unit view for its upgrade tier: tier 1 (steel gear) and tier 2
-// (gold champion gear + crest + ring). Idempotent — strips prior gear first, so
-// the same view can move base → steel → champion as the tech is researched.
+// ---------------- unit upgrade tiers (visual) ----------------
+// INTERIM: the procedural gear-over-mesh look didn't read well, so upgraded
+// units are getting whole new models instead (swapped like building tiers).
+// Until those land, tier 2 (champion) just gets a clean gold floor ring — no
+// floating gear. Idempotent: strips any prior tier decoration first.
 export function applyUnitTier(view, def, owner, tier) {
   if (!view || !view.group) return;
   if (view.tierGear) for (const g of view.tierGear) g.parent && g.parent.remove(g);
   view.tierGear = [];
   view._tier = tier || 0;
-  if (!tier) return;
-  // find the model's CROWN in the group's LOCAL frame (gear is a group child, so
-  // it must be positioned in local space — the group itself sits at terrain height).
-  // measure the MODEL child only (children[0]) so floating rank badges/rings don't
-  // inflate the box and shove the helmet up into the air.
-  const model = view.group.children[0] || view.group;
-  const box = new THREE.Box3().setFromObject(model);
-  const gy = view.group.position.y, gs = view.group.scale.y || 1;
-  const top = (box.max.y - gy) / gs; // local y of the head crown
-  const gold = tier >= 2;
-  const gear = gold
-    ? new THREE.MeshStandardMaterial({ color: 0xffd94a, roughness: 0.25, metalness: 0.85, emissive: 0x5a4300, emissiveIntensity: 0.25 })
-    : new THREE.MeshStandardMaterial({ color: 0x9aa4b0, roughness: 0.35, metalness: 0.75 });
-  const add = (m) => { m.castShadow = true; view.group.add(m); view.tierGear.push(m); };
-  const R = 0.7; // gear scale relative to a ~1u model head; toy proportions
-  // helmet: half-dome + brim ring, sits ON the crown
-  const helmet = new THREE.Group();
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.1 * R, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), gear);
-  dome.scale.y = 1.2; helmet.add(dome);
-  const brim = new THREE.Mesh(new THREE.TorusGeometry(0.1 * R, 0.02 * R, 6, 16), gear);
-  brim.rotation.x = Math.PI / 2; helmet.add(brim);
-  helmet.position.set(0, top - 0.02, 0.01);
-  add(helmet);
-  if (gold) { // red plume/crest down the champion's helmet
-    const crest = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.07, 0.11),
-      new THREE.MeshStandardMaterial({ color: 0xe5484d, roughness: 0.55 }));
-    crest.position.set(0, top + 0.04, -0.02); add(crest);
-  }
-  // shoulder pauldrons, a little below the head
-  for (const sx of [-1, 1]) {
-    const p = new THREE.Mesh(new THREE.SphereGeometry(0.06 * R, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.62), gear);
-    p.scale.set(1.1, 0.6, 1.1); p.position.set(sx * 0.09, top - 0.14, 0); add(p);
-  }
-  if (gold) { // champion floor ring at the unit's feet
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.028, 6, 22), new THREE.MeshBasicMaterial({ color: 0xffd94a }));
-    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.02; add(ring);
+  if (tier >= 2) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.028, 6, 22),
+      new THREE.MeshBasicMaterial({ color: 0xffd94a }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.02;
+    view.group.add(ring); view.tierGear.push(ring);
   }
 }
 
