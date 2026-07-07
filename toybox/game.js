@@ -1746,20 +1746,26 @@ export class Game {
     target.hp -= dmg;
     target.view.markDamaged();
     target.view.hpBar.set(target.hp / target.maxHp);
-    if (this.fx && showImpact) {
+    target.hitT = 0.14; // struck toys flinch (applied in the view frame)
+    const seen = !this.fog || this.fog.state(target.x, target.z) === 2;
+    if (this.fx && seen) {
       const c = spec.atkType === 'siege' ? 0xff8f5a : spec.atkType === 'pierce' ? 0xffd166 : 0xfff0c8;
       const hy = (target.kind === 'building' ? target.def.height * 0.5 : 0.35) + hT;
-      const ang = Math.atan2(target.x - attacker.x, target.z - attacker.z);
-      if (spec.projectile) {
-        this.fx.rangedImpact(target.x, hy, target.z, c, ang); // arrow/bullet spray
-      } else {
-        this.fx.slash(target.x, hy, target.z, ang, spec.atkType === 'siege' ? 0xffcaa0 : 0xffffff);
-        this.fx.hit(target.x, hy, target.z, c, spec.atkType === 'siege' ? 12 : 6);
+      this.fx.damageNumber(target.x, hy, target.z, dmg, c); // floating -N
+      if (showImpact) {
+        const ang = Math.atan2(target.x - attacker.x, target.z - attacker.z);
+        if (spec.projectile) {
+          this.fx.rangedImpact(target.x, hy, target.z, c, ang); // arrow/bullet spray
+        } else {
+          this.fx.slash(target.x, hy, target.z, ang, spec.atkType === 'siege' ? 0xffcaa0 : 0xffffff);
+          this.fx.hit(target.x, hy, target.z, c, spec.atkType === 'siege' ? 12 : 6);
+        }
+        if (Math.random() < (spec.atkType === 'siege' ? 0.85 : 0.3)) {
+          this.fx.chip(target.x, hy, target.z, target.def.debris); // hard hits chip a piece
+        }
       }
-      // hard hits chip a matching toy piece off the target
-      if (Math.random() < (spec.atkType === 'siege' ? 0.85 : 0.3)) {
-        this.fx.chip(target.x, hy, target.z, target.def.debris);
-      }
+      // big siege blows rattle the camera
+      if (spec.atkType === 'siege' && this.cb.shake) this.cb.shake(target.kind === 'building' ? 0.32 : 0.2);
     }
     if (this.sfx && this.fog.state(target.x, target.z) === 2) {
       this.sfx.play(spec.atkType === 'siege' ? 'thud' : spec.atkType === 'pierce' ? 'twang' : 'bonk', 90);
@@ -1853,6 +1859,7 @@ export class Game {
         }
         this.recalcPop(e.owner);
         this.fx && this.fx.buildingDeath(e.x, e.z, s, e.def.debris);
+        this.cb.shake && this.fog.state(e.x, e.z) === 2 && this.cb.shake(0.3 + s * 0.12);
         this.sfx && this.sfx.play('crash', 300);
         if (!quiet && e.owner === this.myId) this.alert(`${e.def.name} destroyed!`, 'attack', { x: e.x, z: e.z }, 4);
       } else {
@@ -1926,6 +1933,7 @@ export class Game {
         if (spec.projectile && spec.projectile.splash) {
           const r = spec.projectile.splash;
           this.fx && this.fx.explosion(pr.to.x, pr.to.z, r);
+          this.cb.shake && this.fog.state(pr.to.x, pr.to.z) === 2 && this.cb.shake(0.38);
           this.sfx && this.sfx.play('thud', 120);
           for (const e of this.entities) {
             if (e.dead || e.owner === pr.attacker.owner || e.owner === -1) continue;
@@ -2368,6 +2376,14 @@ export class Game {
     }
     u.view.group.position.set(u.x,
       this.heightAtWorld(u.x, u.z) + (u.def.fly ? 1.25 : u.def.naval ? 0.12 : 0), u.z);
+    // hit flinch: a quick squash-and-pop when the toy just took a blow
+    if (u.hitT > 0) {
+      u.hitT -= dt;
+      const k = Math.sin(Math.max(0, 1 - u.hitT / 0.14) * Math.PI); // 0→1→0
+      u.view.group.scale.set(1 + k * 0.16, 1 - k * 0.12, 1 + k * 0.16);
+    } else if (u.view.group.scale.x !== 1) {
+      u.view.group.scale.set(1, 1, 1);
+    }
     let dr = u.facing - u.view.group.rotation.y;
     while (dr > Math.PI) dr -= Math.PI * 2;
     while (dr < -Math.PI) dr += Math.PI * 2;
@@ -3231,6 +3247,7 @@ export class Game {
           this.reageBuildings(p.id); // buildings dress up for the new age
           if (p.id === this.myId) {
             this.alert(`The ${AGES[p.age - 1]} has arrived!`, 'age');
+            this.sfx && this.sfx.setAge(p.age);
             this.sfx && this.sfx.play('age');
           } else if (p.team === this.myTeam) {
             this.alert(`Your ally reached the ${AGES[p.age - 1]}!`, 'info');

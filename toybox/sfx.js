@@ -9,7 +9,9 @@ export class SFX {
     this.muted = false;
     this.volume = 0.5;
     this.lastPlay = {};
+    this.musicAge = 1; // the soundtrack thickens as the ages advance
   }
+  setAge(age) { this.musicAge = age; }
   setVolume(v) {
     this.volume = Math.max(0, Math.min(1, v));
     if (this.master && !this.muted) this.master.gain.value = this.volume;
@@ -202,6 +204,11 @@ export class SFX {
   }
   _select()  { this.tone(880, 0.05, { type: 'square', gain: 0.06 }); }
   _command() { this.tone(320, 0.08, { type: 'sine', gain: 0.12, slide: 170 }); }
+  _charge()  { // little toy-bugle battle cry: a rising triad
+    const notes = [392, 523, 659, 784];
+    notes.forEach((f, i) => this.tone(f, 0.14, { type: 'square', gain: 0.07, when: i * 0.055, slide: 12 }));
+    this.tone(784, 0.22, { type: 'sawtooth', gain: 0.05, when: 0.19, slide: 40 });
+  }
   _place()   { this.tone(180, 0.1, { type: 'sine', gain: 0.16, slide: 120 }); this.noise(0.06, { freq: 600, gain: 0.08 }); }
   _error()   { this.tone(110, 0.14, { type: 'square', gain: 0.08 }); }
   _bonk()    { this.tone(190, 0.09, { type: 'sine', gain: 0.15, slide: 90 }); this.noise(0.05, { freq: 420, gain: 0.1 }); }
@@ -243,10 +250,19 @@ export class SFX {
   _trade()   { this.tone(1568, 0.07, { type: 'triangle', gain: 0.1 }); this.tone(2093, 0.12, { type: 'triangle', gain: 0.1, when: 0.07 }); }
   _pop()     { this.tone(400, 0.07, { type: 'sine', gain: 0.13, slide: 700 }); }
   _victory() {
-    [523, 659, 784, 1047, 784, 1047].forEach((f, i) => this.tone(f, 0.22, { type: 'triangle', gain: 0.14, when: i * 0.15 }));
-    setTimeout(() => { if (!this.muted && this.ctx) [1319, 1568].forEach((f, i) => this.pluck(f, { gain: 0.2, when: i * 0.2, dur: 2 })); }, 900);
+    // triumphant fanfare: a rising run into a big major chord + sparkles
+    [523, 659, 784, 1047, 1319].forEach((f, i) => this.tone(f, 0.18, { type: 'triangle', gain: 0.14, when: i * 0.12 }));
+    setTimeout(() => {
+      if (this.muted || !this.ctx) return;
+      [523, 659, 784, 1047].forEach((f) => this.tone(f, 0.9, { type: 'triangle', gain: 0.1 }));
+      this.tone(1568, 0.9, { type: 'sine', gain: 0.08 });
+      [1319, 1568, 2093].forEach((f, i) => this.pluck(f, { gain: 0.16, when: 0.12 + i * 0.14, dur: 1.8 }));
+    }, 720);
   }
-  _defeat()  { [392, 349, 311, 262].forEach((f, i) => this.tone(f, 0.4, { type: 'triangle', gain: 0.12, when: i * 0.3 })); }
+  _defeat()  {
+    [392, 349, 311, 262].forEach((f, i) => this.tone(f, 0.45, { type: 'triangle', gain: 0.12, when: i * 0.32 }));
+    setTimeout(() => { if (!this.muted && this.ctx) { this.tone(196, 0.9, { type: 'sine', gain: 0.14, slide: 150 }); this.noise(0.5, { freq: 200, gain: 0.12 }); } }, 1150);
+  }
 
   // ---------- generative music box ----------
   _startMusic() {
@@ -263,9 +279,18 @@ export class SFX {
         step += (Math.random() < 0.7 ? (Math.random() < 0.5 ? -1 : 1) : (Math.random() < 0.5 ? -3 : 3));
         step = Math.max(0, Math.min(scale.length - 1, step));
         const rest = Math.random() < 0.18;
-        if (!rest) this.pluck(scale[step], { gain: 0.10 + Math.random() * 0.05, when: nextAt - now });
-        // low root every 4th beat
-        if (phrase % 4 === 0) this.pluck(261.63, { gain: 0.07, when: nextAt - now, dur: 1.8 });
+        if (!rest) {
+          this.pluck(scale[step], { gain: 0.10 + Math.random() * 0.05, when: nextAt - now });
+          // a harmony third joins in from the Playmat Age onward
+          if (this.musicAge >= 2 && Math.random() < 0.4) {
+            this.pluck(scale[Math.min(scale.length - 1, step + 2)], { gain: 0.05, when: nextAt - now, dur: 0.9 });
+          }
+        }
+        // roots every 4th beat — every 2nd (plus a low drone) at the Fort Age
+        if (phrase % (this.musicAge >= 3 ? 2 : 4) === 0) {
+          this.pluck(261.63, { gain: 0.07, when: nextAt - now, dur: 1.8 });
+          if (this.musicAge >= 3) this.pluck(196.0, { gain: 0.05, when: nextAt - now, dur: 2.2 });
+        }
         phrase++;
         nextAt += [0.42, 0.42, 0.42, 0.63, 0.84][(Math.random() * 5) | 0];
       }

@@ -75,7 +75,8 @@ scene.add(lampProp.group);
 
 // RTS camera rig with smoothing
 const camera = new THREE.PerspectiveCamera(46, innerWidth / innerHeight, 0.5, 500);
-const cam = { x: 0, z: 0, dist: 24, tx: 0, tz: 0, tdist: 24 };
+const cam = { x: 0, z: 0, dist: 24, tx: 0, tz: 0, tdist: 24, shake: 0 };
+const shakeCam = (amt) => { cam.shake = Math.min(0.9, cam.shake + amt); };
 const fogBase = { near: 60, far: 140 };
 function clampCam() {
   cam.tdist = Math.max(4, Math.min(90, cam.tdist));
@@ -92,8 +93,12 @@ function applyCamera(dt = 1) {
   const t = Math.min(1, Math.max(0, (cam.dist - 4) / 26));
   const hf = 0.52 + (0.92 - 0.52) * t;
   const zf = 0.88 + (0.62 - 0.88) * t;
-  camera.position.set(cam.x, cam.dist * hf, cam.z + cam.dist * zf);
-  camera.lookAt(cam.x, 0, cam.z);
+  const sh = cam.shake;
+  const jx = sh ? (Math.random() - 0.5) * sh * 2.4 : 0;
+  const jz = sh ? (Math.random() - 0.5) * sh * 2.4 : 0;
+  camera.position.set(cam.x + jx, cam.dist * hf, cam.z + cam.dist * zf + jz);
+  camera.lookAt(cam.x + jx * 0.4, 0, cam.z + jz * 0.4);
+  if (sh) { cam.shake *= Math.max(0, 1 - dt * 7); if (cam.shake < 0.01) cam.shake = 0; }
   // fog backs off as the camera rises so max zoom stays clear
   const extra = Math.max(0, cam.dist - 24);
   scene.fog.near = fogBase.near + extra * 2.2;
@@ -587,6 +592,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
     selection: () => ui.refreshSelection(),
     gameOver: (win, stats, timeline) => ui.gameOver(win, stats, timeline),
     age: () => ui.refreshSelection(),
+    shake: (amt) => shakeCam(amt),
   }, {
     fx: vfx, sfx, difficulty, map, playerDefs, tutorial,
     gameMode: mpOpts ? mpOpts.gameMode : (resume ? resume.opts.gameMode : chosenMode),
@@ -803,6 +809,7 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
         if (clickMode === 'amove') {
           game.issue({ t: 'move', ids, x: p.x, z: p.z, q: e.shiftKey, am: true, f: game.formation });
           marker.ping(p.x, p.z, 0xff8844);
+          if (ids.length) sfx.play('charge'); // charge!
         } else if (clickMode === 'patrol') {
           game.issue({ t: 'patrol', ids, x: p.x, z: p.z, q: e.shiftKey });
           marker.ping(p.x, p.z, 0x7fd0ff);
@@ -931,6 +938,7 @@ renderer.domElement.addEventListener('contextmenu', (e) => {
     sfx.play('command');
     const first = game.selected.find((s) => s.kind === 'unit' && s.owner === game.myId);
     if (first) sfx.voice(first.type);
+    if (result === 'attack') sfx.play('charge'); // a little battle cry
   }
   if (result === 'move' || result === 'rally') marker.ping(p.x, p.z, result === 'rally' ? 0x66aaff : 0x66ff88);
   else if (result === 'attack') marker.ping(p.x, p.z, 0xff5544);

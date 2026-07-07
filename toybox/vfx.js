@@ -323,6 +323,63 @@ const CONFETTI = [0xf94144, 0xf3722c, 0xf9c74f, 0x90be6d, 0x4d9bff, 0x9b5de5, 0x
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[(Math.random() * arr.length) | 0];
 
+// billboarded floating combat numbers that rise and fade off a struck toy
+class DamageNumberPool {
+  constructor(scene, cap = 30) {
+    this.cache = new Map();
+    this.slots = [];
+    for (let i = 0; i < cap; i++) {
+      const mat = new THREE.SpriteMaterial({ transparent: true, depthTest: false, depthWrite: false });
+      const sp = new THREE.Sprite(mat);
+      sp.visible = false; sp.renderOrder = 999;
+      scene.add(sp);
+      this.slots.push({ sp, life: 0, life0: 1, vy: 0, born: 0 });
+    }
+    this.tick = 0;
+  }
+  texFor(text, color) {
+    const key = text + '|' + color;
+    let t = this.cache.get(key);
+    if (t) return t;
+    const c = document.createElement('canvas'); c.width = 128; c.height = 72;
+    const x = c.getContext('2d');
+    x.font = 'bold 48px system-ui, sans-serif';
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.lineWidth = 8; x.strokeStyle = 'rgba(25,12,0,0.9)';
+    x.strokeText(text, 64, 38);
+    x.fillStyle = '#' + color.toString(16).padStart(6, '0');
+    x.fillText(text, 64, 38);
+    t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    this.cache.set(key, t);
+    return t;
+  }
+  pop(x, y, z, text, color) {
+    // reuse a free slot, else steal the oldest live one
+    let slot = this.slots.find((s) => !s.sp.visible);
+    if (!slot) { let old = this.slots[0]; for (const s of this.slots) if (s.born < old.born) old = s; slot = old; }
+    slot.sp.material.map = this.texFor(text, color);
+    slot.sp.material.needsUpdate = true;
+    slot.sp.material.opacity = 1;
+    slot.sp.position.set(x + rand(-0.25, 0.25), y, z);
+    slot.sp.scale.set(0.95, 0.53, 1);
+    slot.sp.visible = true;
+    slot.life = slot.life0 = 0.85; slot.vy = 1.7; slot.born = ++this.tick;
+  }
+  update(dt) {
+    for (const s of this.slots) {
+      if (!s.sp.visible) continue;
+      s.life -= dt;
+      if (s.life <= 0) { s.sp.visible = false; continue; }
+      s.sp.position.y += s.vy * dt; s.vy *= (1 - dt * 1.4);
+      const f = s.life / s.life0;
+      s.sp.material.opacity = Math.min(1, f * 2.4);
+      const grow = 1.28 - f * 0.28; // little pop-in, then settle
+      s.sp.scale.set(0.95 * grow, 0.53 * grow, 1);
+    }
+  }
+}
+
 export class VFX {
   constructor(scene) {
     this.sparks = new ParticlePool(scene, 2600, THREE.AdditiveBlending);
@@ -330,6 +387,7 @@ export class VFX {
     this.pieces = new PiecePool(scene, 72);
     this.litter = new LitterPool(scene, 96);
     this.splats = new SplatPool(scene, 14);
+    this.dmgNums = new DamageNumberPool(scene, 30);
     this.moteT = 0;
   }
   update(dt) {
@@ -338,6 +396,12 @@ export class VFX {
     this.pieces.update(dt);
     this.litter.update(dt);
     this.splats.update(dt);
+    this.dmgNums.update(dt);
+  }
+
+  // floating combat number off a struck toy (color hints the attack type)
+  damageNumber(x, y, z, amount, color = 0xfff0c8) {
+    this.dmgNums.pop(x, y + 0.35, z, '-' + amount, color);
   }
 
   // combat hit at a point (color hints attack type) + the odd chipped piece
