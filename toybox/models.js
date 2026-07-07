@@ -1060,7 +1060,7 @@ function toyMat(color, rough = 0.55) {
 }
 const PASTELS = [0xf94144, 0xf3722c, 0xf9c74f, 0x90be6d, 0x577590, 0x9b5de5];
 
-function buildingGeometry(key, def, owner, rng, up = false) {
+function buildingGeometry(key, def, owner, rng, up = false, age = 1) {
   const g = new THREE.Group();
   const s = def.size;
   const teamCol = TEAM_COLORS[owner];
@@ -1069,10 +1069,22 @@ function buildingGeometry(key, def, owner, rng, up = false) {
   const cyl = (r, h, c, seg = 16) => new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg), toyMat(c));
 
   if (key === 'chest') {
-    add(box(s * 0.85, 1.0, s * 0.6, 0x8a5a33), 0, 0.5, 0);
-    const lid = add(box(s * 0.9, 0.22, s * 0.64, 0x6f4425), 0, 1.15, -s * 0.18);
+    // the toy box grows richer with the ages: worn wood → painted → golden hoard
+    const bodyC = age >= 3 ? 0xe0b020 : 0x8a5a33;
+    const lidC = age >= 3 ? 0xc8961a : 0x6f4425;
+    add(box(s * 0.85, 1.0, s * 0.6, bodyC), 0, 0.5, 0);
+    const lid = add(box(s * 0.9, 0.22, s * 0.64, lidC), 0, 1.15, -s * 0.18);
     lid.rotation.x = -0.9;
-    add(box(s * 0.86, 0.1, s * 0.55, 0xd9a066), 0, 1.02, 0.05); // toys inside
+    add(box(s * 0.86, 0.1, s * 0.55, age >= 2 ? 0xf9c74f : 0xd9a066), 0, 1.02, 0.05); // toys inside
+    if (age >= 2) { // fuller toybox: bright blocks spill over the rim
+      for (const [bx, bc] of [[-0.28, 0xf94144], [0.0, 0x4d9bff], [0.3, 0x90be6d]]) {
+        add(box(0.22, 0.22, 0.22, bc), bx, 1.12, 0.12).rotation.y = rng();
+      }
+    }
+    if (age >= 3) { // jeweled gold trim + a red gem clasp
+      add(box(s * 0.88, 0.08, s * 0.64, 0x8a6a00), 0, 0.98, 0); // gold band
+      add(new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), toyMat(0xe5484d, 0.25)), 0, 0.9, s * 0.31); // gem clasp
+    }
     const pole = add(cyl(0.05, 1.6, 0xddd6c0, 8), s * 0.38, 1.4, s * 0.26);
     const flag = add(box(0.5, 0.3, 0.04, teamCol), s * 0.38 + 0.28, 2.0, s * 0.26);
     flag.castShadow = false; pole.castShadow = false;
@@ -1178,14 +1190,19 @@ function buildingGeometry(key, def, owner, rng, up = false) {
     add(cyl(0.03, 1.0, 0xddd6c0, 6), -0.34, 0.88, -0.55);
     flagT.castShadow = false;
   } else if (key === 'wall') {
-    // staggered toy bricks — steel plating once Steelworks is researched
+    // staggered toy bricks — steel plating with Steelworks, taller each age
     const cols = up ? [0x9aa3ad, 0x868e98, 0xb2bac2] : [0xd95b5b, 0xd96a5b, 0xc95555];
-    for (let layer = 0; layer < 3; layer++) {
+    const layers = 2 + age; // ramparts rise from 3 → 4 → 5 courses
+    for (let layer = 0; layer < layers; layer++) {
       const off = (layer % 2) * 0.22 - 0.11;
       for (let k = -1; k <= 1; k++) {
         const b = add(box(0.42, 0.26, 0.34, cols[(layer + k + 3) % 3]), k * 0.3 + off, 0.14 + layer * 0.27, 0);
         b.rotation.y = (rng() - 0.5) * 0.06;
       }
+    }
+    if (age >= 3) { // battlement crenellations along the top
+      const topY = 0.14 + layers * 0.27;
+      for (const bx of [-0.36, 0, 0.36]) add(box(0.24, 0.22, 0.34, cols[0]), bx, topY, 0);
     }
   } else if (key === 'gate') {
     // single-tile doorway: two slim posts flanking a lifting bar (opening runs in Z)
@@ -1447,7 +1464,7 @@ export function renderPortraits(unitRegistry) {
   return PORTRAITS;
 }
 
-export function createBuildingView(key, def, owner, rngSeed = 1, up = false) {
+export function createBuildingView(key, def, owner, rngSeed = 1, up = false, age = 1) {
   let seed = rngSeed;
   const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const group = new THREE.Group();
@@ -1466,10 +1483,38 @@ export function createBuildingView(key, def, owner, rngSeed = 1, up = false) {
     flag.position.set(def.size * 0.4 + 0.22, def.height + 0.9, def.size * 0.4);
     meshes.add(pole, flag);
   } else {
-    meshes = buildingGeometry(key, def, owner, rng, up);
+    meshes = buildingGeometry(key, def, owner, rng, up, age);
   }
   group.add(meshes);
   const s = def.size;
+
+  // age flourishes: buildings dress up as the toybox climbs the ages
+  // (walls/gates get their own per-age treatment in buildingGeometry)
+  if (key !== 'wall' && key !== 'gate') {
+    if (age >= 2) {
+      // festive pennant bunting strung across the front
+      const buntCols = [0xf94144, 0xf9c74f, 0x4d9bff, 0x90be6d];
+      const by = def.height + 0.24, bz = s * 0.42, span = s * 0.82;
+      const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, span, 5), toyMat(0x8a5a33));
+      cord.rotation.z = Math.PI / 2; cord.position.set(0, by, bz); group.add(cord);
+      const n = Math.max(3, Math.round(s * 2));
+      for (let i = 0; i < n; i++) {
+        const tri = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.16, 3), toyMat(buntCols[i % 4]));
+        tri.rotation.x = Math.PI; tri.position.set(-span / 2 + (i + 0.5) * (span / n), by - 0.1, bz);
+        group.add(tri);
+      }
+    }
+    if (age >= 3) {
+      // a gold star finial and base trim — the Fort Age of plenty
+      const gold = new THREE.MeshStandardMaterial({ color: 0xffd94a, roughness: 0.3, metalness: 0.6, emissive: 0x6a5200, emissiveIntensity: 0.3 });
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.5, 6), gold);
+      pole.position.set(0, def.height + 0.55, 0); group.add(pole);
+      const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.17), gold);
+      star.position.set(0, def.height + 0.9, 0); star.scale.y = 1.5; group.add(star);
+      const trim = new THREE.Mesh(new THREE.TorusGeometry(s * 0.5, 0.045, 6, 22), gold);
+      trim.rotation.x = Math.PI / 2; trim.position.y = 0.07; group.add(trim);
+    }
+  }
 
   const hpBar = makeHealthBar(Math.min(1.6, s * 0.5));
   hpBar.sprite.position.y = def.height + 0.4;

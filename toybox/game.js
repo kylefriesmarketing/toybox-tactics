@@ -835,7 +835,7 @@ export class Game {
       if (def.gate) this.gateOwner[idx(a, b)] = owner;
     }
     const upTech = this.buildingUpTech(type, owner); // already-researched tier upgrade?
-    const view = createBuildingView(type, def, owner, i * 977 + j, !!upTech);
+    const view = createBuildingView(type, def, owner, i * 977 + j, !!upTech, this.players[owner].age);
     const x = worldOf(i) + (s - 1) / 2, z = worldOf(j) + (s - 1) / 2;
     view.group.position.set(x, this.tileHeight(i, j), z);
     this.scene.add(view.group);
@@ -1043,20 +1043,29 @@ export class Game {
       const f = b.hp / b.maxHp;
       b.maxHp = Math.round(b.maxHp * u.hpMul);
       b.hp = b.maxHp * f;
-      this.rebuildBuildingView(b, true);
+      this.rebuildBuildingView(b);
       b.view.hpBar.set(b.hp / b.maxHp);
     }
   }
-  // replace a building's mesh with its upgraded (or base) model, keeping state
-  rebuildBuildingView(b, up) {
+  // rebuild a building's mesh for its current tier + age, keeping its state
+  rebuildBuildingView(b) {
+    const up = !!this.buildingUpTech(b.type, b.owner);
+    const age = this.players[b.owner].age;
     const wasSel = this.selected.includes(b);
     this.scene.remove(b.view.group);
-    b.view = createBuildingView(b.type, b.def, b.owner, b.ti * 977 + b.tj, up);
+    b.view = createBuildingView(b.type, b.def, b.owner, b.ti * 977 + b.tj, up, age);
     b.view.group.position.set(b.x, this.tileHeight(b.ti, b.tj), b.z);
     b.view.setProgress(b.built);
+    b.view.hpBar.set(b.hp / b.maxHp);
     this.scene.add(b.view.group);
     if (wasSel) b.view.setSelected(true);
     if (b.type === 'gate') this.orientWalls(b.ti, b.tj, b.def.size);
+  }
+  // re-dress every one of an owner's buildings to their current age (on age-up)
+  reageBuildings(owner) {
+    for (const b of this.entities) {
+      if (b.kind === 'building' && b.owner === owner && !b.dead) this.rebuildBuildingView(b);
+    }
   }
 
   // ---------- economy helpers ----------
@@ -1451,7 +1460,7 @@ export class Game {
       } else if (se.k === 'b') {
         const def = BUILDINGS[se.type];
         const s = def.size;
-        const view = createBuildingView(se.type, def, se.owner, se.ti * 977 + se.tj, !!this.buildingUpTech(se.type, se.owner));
+        const view = createBuildingView(se.type, def, se.owner, se.ti * 977 + se.tj, !!this.buildingUpTech(se.type, se.owner), this.players[se.owner].age);
         const x = worldOf(se.ti) + (s - 1) / 2, z = worldOf(se.tj) + (s - 1) / 2;
         view.group.position.set(x, this.tileHeight(se.ti, se.tj), z);
         this.scene.add(view.group);
@@ -3219,6 +3228,7 @@ export class Game {
         if (p.aging <= 0) {
           p.aging = 0;
           p.age++;
+          this.reageBuildings(p.id); // buildings dress up for the new age
           if (p.id === this.myId) {
             this.alert(`The ${AGES[p.age - 1]} has arrived!`, 'age');
             this.sfx && this.sfx.play('age');
