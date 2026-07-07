@@ -3,7 +3,7 @@
 // ============================================================
 
 import * as THREE from 'three';
-import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, generateRandomMap } from './data.js';
+import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, CAMPAIGN, generateRandomMap } from './data.js';
 import {
   loadUnitModels, loadBuildingModels, loadMapModels, setBuildingFootprints,
   createGhostMesh, createMoveMarker, createLamp, renderPortraits,
@@ -466,6 +466,116 @@ $('tutorial-btn').addEventListener('click', () => startTutorial());
 window.__ttStart = (d, m) => startGame(d || 'normal', m); // headless test hook
 window.__ttRandom = generateRandomMap; // headless: build a random-map config to soak
 
+// ---------------- campaign: "The Bedroom Wars" ----------------
+let campaignMission = null; // the active mission during a campaign game (null = skirmish)
+function loadCampaignProgress() {
+  try { return JSON.parse(localStorage.getItem('tt-campaign') || '{}'); } catch { return {}; }
+}
+function campaignDone(id) { return !!loadCampaignProgress()[id]; }
+function markCampaignDone(id) {
+  const p = loadCampaignProgress(); p[id] = true;
+  localStorage.setItem('tt-campaign', JSON.stringify(p));
+}
+function missionUnlocked(i) { return i === 0 || campaignDone(CAMPAIGN[i - 1].id); }
+function openCampaign() {
+  renderCampaignList();
+  $('campaign').classList.add('show');
+}
+function renderCampaignList() {
+  const doneCount = CAMPAIGN.filter((m) => campaignDone(m.id)).length;
+  $('cm-progress').textContent = doneCount >= CAMPAIGN.length
+    ? '🏆 Campaign complete — the bedroom is united! Replay any mission below.'
+    : `${doneCount} / ${CAMPAIGN.length} missions cleared`;
+  const dm = { easy: 'Sleepy', normal: 'Playful', hard: 'Cranky' };
+  $('cm-list').innerHTML = CAMPAIGN.map((m, i) => {
+    const unlocked = missionUnlocked(i), done = campaignDone(m.id);
+    const cls = 'cm-mission' + (unlocked ? '' : ' locked') + (done ? ' done' : '');
+    const mapName = (MAPS[m.map] && MAPS[m.map].label) || m.map;
+    const badge = done ? '🏅' : (unlocked ? '' : '🔒');
+    const meta = unlocked
+      ? `${mapName} · ${GAME_MODES[m.gameMode].label} · ${FACTIONS[m.faction].label} vs ${FACTIONS[m.enemy].label} · ${dm[m.difficulty]}`
+      : 'Clear the previous mission to unlock.';
+    return `<button class="${cls}" data-i="${i}" ${unlocked ? '' : 'disabled'}>
+      <span class="cm-ic">${m.icon}</span>
+      <span class="cm-body"><span class="cm-nm">${i + 1}. ${m.name}</span><span class="cm-meta">${meta}</span></span>
+      <span class="cm-badge">${badge}</span></button>`;
+  }).join('');
+  for (const btn of $('cm-list').querySelectorAll('.cm-mission:not(.locked)')) {
+    btn.addEventListener('click', () => showBriefing(CAMPAIGN[+btn.dataset.i]));
+  }
+}
+function showBriefing(mission) {
+  const dm = { easy: 'Sleepy', normal: 'Playful', hard: 'Cranky' };
+  const mapName = (MAPS[mission.map] && MAPS[mission.map].label) || mission.map;
+  $('bf-title').textContent = `${mission.icon} ${mission.name}`;
+  $('bf-tags').textContent = `${mapName} · ${GAME_MODES[mission.gameMode].label} · You: ${FACTIONS[mission.faction].label} · Foe: ${FACTIONS[mission.enemy].label} · ${dm[mission.difficulty]}`;
+  $('bf-brief').textContent = mission.brief;
+  $('bf-obj').textContent = '🎯 ' + mission.objective;
+  $('briefing').classList.add('show');
+  $('bf-begin').onclick = () => startCampaignMission(mission);
+  $('bf-back').onclick = () => { $('briefing').classList.remove('show'); };
+}
+function startCampaignMission(mission) {
+  campaignMission = mission;
+  // drive the normal launch path through the mission's curated config
+  chosenFaction = mission.faction;
+  chosenMode = mission.gameMode;
+  chosenStartRes = mission.startRes;
+  chosenSize = '1v1';
+  $('campaign').classList.remove('show');
+  $('briefing').classList.remove('show');
+  startGame(mission.difficulty, mission.map);
+}
+// light per-mission flavor applied once after setup (SP only, deterministic-safe
+// enough — it runs before the sim loop and mirrors the same seed each launch)
+function applyMissionMods(g, mission) {
+  if (mission.bonus && g.homes && g.homes[0]) {
+    const h = g.homes[0]; let k = 0;
+    for (const [type, n] of Object.entries(mission.bonus)) {
+      for (let c = 0; c < n; c++) { g.spawnUnit(type, 0, h.x + 2.5 + (k % 3) * 0.9, h.z + 2.6 + Math.floor(k / 3) * 0.9); k++; }
+    }
+  }
+  if (mission.enemyBoost) {
+    for (const p of g.players) {
+      if (p.id !== 0) for (const key in p.res) p.res[key] = Math.round(p.res[key] * mission.enemyBoost);
+    }
+  }
+}
+function campaignGameOver(win) {
+  const m = campaignMission;
+  if (win) markCampaignDone(m.id);
+  $('go-story').textContent = win ? m.victory : m.defeat;
+  const idx = CAMPAIGN.findIndex((x) => x.id === m.id);
+  const next = win && idx >= 0 && idx + 1 < CAMPAIGN.length ? CAMPAIGN[idx + 1] : null;
+  $('go-restart').style.display = 'none'; // replaced by campaign-flow buttons
+  const goNext = $('go-next'), goCamp = $('go-campaign');
+  goCamp.style.display = '';
+  goCamp.onclick = () => { location.href = location.pathname + '?campaign=1'; };
+  if (win && next) {
+    goNext.style.display = ''; goNext.textContent = 'Next Mission ▶';
+    goNext.onclick = () => { localStorage.setItem('tt-campaign-launch', next.id); location.href = location.pathname; };
+  } else if (!win) {
+    goNext.style.display = ''; goNext.textContent = '↻ Retry';
+    goNext.onclick = () => { localStorage.setItem('tt-campaign-launch', m.id); location.href = location.pathname; };
+  } else {
+    goNext.style.display = 'none'; // final mission won
+  }
+}
+$('campaign-btn').addEventListener('click', openCampaign);
+$('cm-close').addEventListener('click', () => $('campaign').classList.remove('show'));
+// deep-links from the campaign game-over flow (full reload = clean teardown)
+{
+  const params = new URLSearchParams(location.search);
+  const launch = localStorage.getItem('tt-campaign-launch');
+  if (launch) {
+    localStorage.removeItem('tt-campaign-launch');
+    const m = CAMPAIGN.find((x) => x.id === launch);
+    if (m) setTimeout(() => showBriefing(m), 60);
+  } else if (params.get('campaign') === '1') {
+    setTimeout(() => openCampaign(), 60);
+  }
+}
+
 // ---------------- tutorial ----------------
 let tutorialActive = false, tutStepI = 0, tutStartCam = null, tutSpawned = false;
 const tutorialSteps = [
@@ -654,10 +764,12 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
       { team: 1, isAI: true },
     ];
   }
+  // campaign missions fix the matchup (you vs a scripted enemy tribe)
+  const campFactions = campaignMission ? [campaignMission.faction, campaignMission.enemy] : null;
   game = new Game(scene, registryCache, {
     alert: (msg, kind, pos) => ui.alert(msg, kind, pos),
     selection: () => ui.refreshSelection(),
-    gameOver: (win, stats, timeline) => ui.gameOver(win, stats, timeline),
+    gameOver: (win, stats, timeline) => { ui.gameOver(win, stats, timeline); if (campaignMission) campaignGameOver(win); },
     age: () => ui.refreshSelection(),
     shake: (amt) => shakeCam(amt),
   }, {
@@ -668,7 +780,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
     seed: seedVal,
     mp: !!mpOpts, myId: mpOpts ? mpOpts.myId : 0, net,
     faction: chosenFaction,
-    factions: mpOpts ? mpOpts.factions : (resume ? resume.opts.factions : null),
+    factions: mpOpts ? mpOpts.factions : (resume ? resume.opts.factions : campFactions),
   });
   if (net) {
     net.onDrop = () => { ui.alert('Connection lost — the other player left.', 'attack'); };
@@ -676,6 +788,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   }
   game.setup();
   if (resume) game.restore(resume);
+  if (campaignMission && !resume) applyMissionMods(game, campaignMission);
   window.game = game;
 
   ui = new UI(game, {

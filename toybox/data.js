@@ -684,6 +684,61 @@ export const GAME_MODES = {
   sudden:   { label: 'Sudden Death', icon: '💥', desc: 'Lose your Toy Chest and you\'re out. No rebuilding.' },
 };
 
+// ---------------- campaign: "The Bedroom Wars" ----------------
+// A 5-mission story arc. Each mission is just a curated match config fed to the
+// normal engine (map, faction, mode, difficulty, resources) plus story text and
+// optional light modifiers (player bonus units / enemy resource boost). No new
+// engine mechanics — missions escalate via map, mode, difficulty and matchups.
+export const CAMPAIGN = [
+  {
+    id: 'naptime', name: 'Naptime Uprising', icon: '😴',
+    map: 'playmat', faction: 'classic', enemy: 'plush',
+    gameMode: 'standard', difficulty: 'easy', startRes: 'standard',
+    brief: "It's naptime — but the toys are wide awake. A rogue Plushie Horde has claimed the far corner of the playmat. Rally your Army Men and tuck them back in the toy box.",
+    objective: 'Destroy every enemy production building.',
+    victory: 'The playmat is yours. But across the room, more toys are stirring…',
+    defeat: 'The Army Men are back in the box. Regroup and try again.',
+    bonus: { soldier: 2 }, // a small friendly head start to ease newcomers in
+  },
+  {
+    id: 'sandbox', name: 'Sandbox Skirmish', icon: '🛝',
+    map: 'playground', faction: 'racers', enemy: 'bricks',
+    gameMode: 'standard', difficulty: 'normal', startRes: 'high',
+    brief: 'Out in the backyard, the Snap-Bricks are fortifying the sandbox. You have the fastest wheels in the yard — out-boom them and overrun the swings before they dig in.',
+    objective: 'Destroy every enemy production building.',
+    victory: 'The sandbox is a racetrack now. On to the bathroom…',
+    defeat: 'The Bricks walled you out. Come back faster.',
+  },
+  {
+    id: 'bathtub', name: 'Bathtub Blockade', icon: '🛁',
+    map: 'bathtub', faction: 'classic', enemy: 'racers',
+    gameMode: 'standard', difficulty: 'normal', startRes: 'standard',
+    brief: 'A whole lake in the middle of the battlefield! Build a Dock, launch your boats, and rule the bath. The RC Racers are already paddling rubber ducks — sink them.',
+    objective: 'Build a navy and destroy every enemy production building.',
+    victory: 'The armada is scrap. The bedroom\'s toughest toys await…',
+    defeat: 'Sunk. Bail out and try again.',
+  },
+  {
+    id: 'hill', name: 'Hold the Hill', icon: '🏔️',
+    map: 'playground', faction: 'bricks', enemy: 'plush',
+    gameMode: 'koth', difficulty: 'hard', startRes: 'standard',
+    brief: 'One golden Throne sits at the heart of the yard, and the Plushie Horde wants it. You are the Snap-Bricks — throw up a wall, seize the hill, and do not let go.',
+    objective: 'Hold the golden Throne at the center for 2 minutes.',
+    victory: 'The hill is held. Only the final bedtime remains…',
+    defeat: 'The Throne slipped away. Hold firmer.',
+  },
+  {
+    id: 'finale', name: 'The Final Bedtime', icon: '👑',
+    map: 'attic', faction: 'plush', enemy: 'classic',
+    gameMode: 'regicide', difficulty: 'hard', startRes: 'marathon',
+    brief: 'Lights out. The whole toy box marches on the attic war table for one last battle. Each side crowns a King. Guard yours to the last stitch — and topple theirs.',
+    objective: 'Protect your King. Defeat the enemy King.',
+    victory: 'The bedroom is united under one toy box at last. Sweet dreams, commander.',
+    defeat: 'Your King has fallen. But the war is not over…',
+    enemyBoost: 1.5, // the finale enemy starts richer for a proper boss fight
+  },
+];
+
 // ---------------- AI difficulty profiles ----------------
 export const DIFFICULTIES = {
   easy:   { label: 'Sleepy',   workerTarget: 9,  firstWave: 6,  waveGrowth: 3, handicap: 0.75, usesTechs: false, usesSiege: false },
