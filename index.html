@@ -264,6 +264,19 @@
   .setup-col { display: flex; flex-direction: column; align-items: center; gap: 3px;
     background: #140c2680; border: 1px solid #2f2450; border-radius: 14px; padding: 8px 12px 12px; }
   @media (max-width: 720px) { .setup-grid { grid-template-columns: 1fr; } }
+  /* skirmish lobby */
+  #pcount-row, #teams-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  #lobby-seats { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 640px; margin: 2px auto 4px; }
+  .seat { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 12px;
+    background: #140c2688; border: 1px solid #2f2450; }
+  .seat .seat-ic { font-size: 19px; width: 24px; text-align: center; flex: none; }
+  .seat .seat-name { font-weight: 700; color: #f0ecff; font-size: 13px; min-width: 52px; }
+  .seat .team-badge { font-weight: 800; border-radius: 6px; padding: 1px 8px; font-size: 12px;
+    color: #201206; flex: none; }
+  .seat .seat-spring { flex: 1; }
+  .seat select { background: #1a112e; color: #f4eede; border: 1px solid #4a3d78; border-radius: 8px;
+    padding: 3px 7px; font-size: 12px; font-family: inherit; cursor: pointer; }
+  .seat select:hover { border-color: #7a5432; }
   .menu-label { margin-top: 3px; color: #ffd97a; font-size: 11px; letter-spacing: 2px;
     text-transform: uppercase; font-weight: 700; text-shadow: 0 2px 3px #000; }
   #diff-row, #mp-row, #fac-row, #size-row, #mode-row, #startres-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
@@ -541,11 +554,14 @@
               <button class="mode-btn diff-btn" data-mode="sudden">💥 Sudden</button>
             </div>
             <div id="mode-desc">Destroy every enemy base to win.</div>
-            <div class="menu-label">Battle</div>
-            <div id="size-row">
-              <button class="size-btn diff-btn sel" data-size="1v1">🤺 1v1</button>
-              <button class="size-btn diff-btn" data-size="2v2">🤝 2v2 — AI ally</button>
+            <div class="menu-label">Players</div>
+            <div id="pcount-row">
+              <button class="pcount-btn diff-btn sel" data-pc="2">2</button>
+              <button class="pcount-btn diff-btn" data-pc="3">3</button>
+              <button class="pcount-btn diff-btn" data-pc="4">4</button>
             </div>
+            <div class="menu-label">Teams</div>
+            <div id="teams-row"></div>
             <div class="menu-label">Starting resources</div>
             <div id="startres-row">
               <button class="startres-btn diff-btn sel" data-sr="standard">🎒 Standard</button>
@@ -564,6 +580,8 @@
             <div id="civ-panel"></div>
           </div>
         </div>
+        <div class="menu-label" id="opp-label">Opponents &amp; allies</div>
+        <div id="lobby-seats"></div>
         <div class="menu-label">Battlefield</div>
         <div id="map-row">
           <button class="map-btn diff-btn sel" data-map="playmat">🧸 Playmat</button>

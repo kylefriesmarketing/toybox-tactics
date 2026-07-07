@@ -3,7 +3,7 @@
 // ============================================================
 
 import * as THREE from 'three';
-import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, CAMPAIGN, generateRandomMap } from './data.js';
+import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, DIFFICULTIES, CAMPAIGN, generateRandomMap } from './data.js';
 import {
   loadUnitModels, loadBuildingModels, loadMapModels, setBuildingFootprints,
   createGhostMesh, createMoveMarker, createLamp, renderPortraits,
@@ -438,9 +438,82 @@ for (const btn of document.querySelectorAll('.fac-btn')) {
     chosenFaction = btn.dataset.fac;
     document.querySelectorAll('.fac-btn').forEach((b) => b.classList.toggle('sel', b === btn));
     renderCivPanel(chosenFaction);
+    renderLobby(); // your seat shows your civ
   });
 }
 renderCivPanel(chosenFaction); // initial fill
+
+// ---------------- skirmish lobby (2–4 players, FFA / teams) ----------------
+const TEAM_PRESETS = {
+  2: { ffa: [0, 1] },
+  3: { ffa: [0, 1, 2], '2v1': [0, 0, 1] },
+  4: { ffa: [0, 1, 2, 3], '2v2': [0, 1, 0, 1], '3v1': [0, 0, 0, 1] },
+};
+const PRESET_LABEL = { ffa: '🎲 FFA', '2v1': '🤝 2v1', '2v2': '🤝 2v2', '3v1': '🤝 3v1' };
+const TEAM_COLOR = ['#f9c74f', '#5aa9ff', '#7fd06a', '#e5726a'];
+const TEAM_LETTER = ['A', 'B', 'C', 'D'];
+const lobby = {
+  count: 2, preset: 'ffa',
+  civ: ['', 'random', 'random', 'random'],       // seat civ (seat0 = your civ)
+  diff: ['', 'default', 'default', 'default'],    // per-AI difficulty ('default' = the AI-difficulty selector)
+};
+function renderLobby() {
+  const teams = TEAM_PRESETS[lobby.count][lobby.preset] || TEAM_PRESETS[lobby.count].ffa;
+  // team preset buttons for the current player count
+  const tr = document.getElementById('teams-row');
+  if (tr) {
+    const presets = Object.keys(TEAM_PRESETS[lobby.count]);
+    tr.innerHTML = presets.map((k) =>
+      `<button class="team-preset diff-btn ${k === lobby.preset ? 'sel' : ''}" data-preset="${k}">${PRESET_LABEL[k]}</button>`).join('');
+    for (const b of tr.querySelectorAll('.team-preset')) {
+      b.addEventListener('click', () => { lobby.preset = b.dataset.preset; renderLobby(); });
+    }
+  }
+  // seat rows
+  const seats = document.getElementById('lobby-seats');
+  if (!seats) return;
+  const facOpts = (sel) => ['random', ...Object.keys(FACTIONS)].map((f) =>
+    `<option value="${f}" ${f === sel ? 'selected' : ''}>${f === 'random' ? '🎲 Random civ' : FACTIONS[f].icon + ' ' + FACTIONS[f].label}</option>`).join('');
+  const diffOpts = (sel) => `<option value="default" ${sel === 'default' ? 'selected' : ''}>Default</option>` +
+    Object.keys(DIFFICULTIES).map((d) => `<option value="${d}" ${d === sel ? 'selected' : ''}>${DIFFICULTIES[d].label}</option>`).join('');
+  let html = '';
+  for (let i = 0; i < lobby.count; i++) {
+    const badge = `<span class="team-badge" style="background:${TEAM_COLOR[teams[i]]}">${TEAM_LETTER[teams[i]]}</span>`;
+    if (i === 0) {
+      const f = FACTIONS[chosenFaction] || FACTIONS.classic;
+      html += `<div class="seat"><span class="seat-ic">🎖️</span><span class="seat-name">You</span>${badge}<span class="seat-spring"></span><span style="color:#d7cff2;font-size:12px">${f.icon} ${f.label}</span></div>`;
+    } else {
+      html += `<div class="seat" data-seat="${i}"><span class="seat-ic">🤖</span><span class="seat-name">AI ${i + 1}</span>${badge}<span class="seat-spring"></span>` +
+        `<select class="seat-civ" data-seat="${i}">${facOpts(lobby.civ[i])}</select>` +
+        `<select class="seat-diff" data-seat="${i}">${diffOpts(lobby.diff[i])}</select></div>`;
+    }
+  }
+  seats.innerHTML = html;
+  for (const s of seats.querySelectorAll('.seat-civ')) s.addEventListener('change', () => { lobby.civ[+s.dataset.seat] = s.value; });
+  for (const s of seats.querySelectorAll('.seat-diff')) s.addEventListener('change', () => { lobby.diff[+s.dataset.seat] = s.value; });
+}
+function buildLobbyDefs() {
+  const teams = TEAM_PRESETS[lobby.count][lobby.preset] || TEAM_PRESETS[lobby.count].ffa;
+  const defs = [];
+  for (let i = 0; i < lobby.count; i++) {
+    if (i === 0) defs.push({ team: teams[0], isAI: false, faction: chosenFaction });
+    else defs.push({
+      team: teams[i], isAI: true,
+      faction: lobby.civ[i] === 'random' ? null : lobby.civ[i],
+      difficulty: lobby.diff[i] === 'default' ? chosenDiff : lobby.diff[i],
+    });
+  }
+  return defs;
+}
+for (const btn of document.querySelectorAll('.pcount-btn')) {
+  btn.addEventListener('click', () => {
+    lobby.count = +btn.dataset.pc;
+    if (!TEAM_PRESETS[lobby.count][lobby.preset]) lobby.preset = 'ffa';
+    document.querySelectorAll('.pcount-btn').forEach((b) => b.classList.toggle('sel', b === btn));
+    renderLobby();
+  });
+}
+renderLobby(); // initial
 
 // per-theme room lighting (fog near/far go through fogBase so zoom can scale them)
 function applyMapLighting(mode) {
@@ -758,15 +831,11 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   applyMapLighting((typeof map === 'object' ? map : (MAPS[map] || MAPS.playmat)).light);
   vfx = new VFX(scene);
   net = mpOpts ? mpOpts.net : null;
-  // team roster: 1v1 stays implicit; 2v2 spells out the four seats
+  // team roster: single-player skirmish comes from the lobby (2–4 seats, teams);
+  // campaign fixes its own 1v1 matchup; MP co-op spells out four seats
   let playerDefs = resume ? resume.opts.playerDefs || null : null;
-  if (!playerDefs && !mpOpts && chosenSize === '2v2') {
-    playerDefs = [
-      { team: 0, isAI: false, faction: chosenFaction }, // you, SW
-      { team: 1, isAI: true },                          // rival, NE
-      { team: 0, isAI: true },                          // your AI ally, NW
-      { team: 1, isAI: true },                          // second rival, SE
-    ];
+  if (!playerDefs && !mpOpts && !campaignMission) {
+    playerDefs = buildLobbyDefs();
   } else if (!playerDefs && mpOpts && mpOpts.mode === 'coop') {
     playerDefs = [
       { team: 0, isAI: false, faction: mpOpts.factions[0] }, // host

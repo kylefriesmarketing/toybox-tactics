@@ -280,10 +280,12 @@ export class Game {
       if (!p.isAI) continue;
       const personaKey = ['rusher', 'balanced', 'boomer'][(this.rng() * 3) | 0];
       const persona = PERSONAS[personaKey];
+      // each AI seat may carry its own difficulty (skirmish lobby); else the match default
+      const pBase = DIFFICULTIES[this.playerDefs[p.id].difficulty] || base;
       const diff = {
-        ...base,
-        workerTarget: Math.max(6, base.workerTarget + persona.workerTarget),
-        firstWave: Math.max(4, base.firstWave + persona.firstWave),
+        ...pBase,
+        workerTarget: Math.max(6, pBase.workerTarget + persona.workerTarget),
+        firstWave: Math.max(4, pBase.firstWave + persona.firstWave),
       };
       this.aiState[p.id] = {
         wave: diff.firstWave, attacking: false, scoutT: 0, t: this.rng() * 0.7,
@@ -371,12 +373,22 @@ export class Game {
     this.scene.add(createGround(N, this.map.ground));
     const rng = this.rng;
 
-    // start corners by team: west column vs east column (1v1 keeps SW vs NE)
-    const westCorners = [[10, N - 15], [10, 11]];
-    const eastCorners = [[N - 14, 11], [N - 14, N - 15]];
-    const teams = [...new Set(this.players.map((p) => p.team))];
-    const cornerPools = { [teams[0]]: westCorners.slice(), [teams[1] ?? -1]: eastCorners.slice() };
-    const starts = this.players.map((p) => (cornerPools[p.team] || eastCorners).shift());
+    // N-player start positions around the map perimeter, grouped by team so
+    // teammates sit adjacent and rivals spread apart. The 135° offset keeps the
+    // classic layouts intact: 1v1 → SW vs NE, 2v2 → west side vs east side.
+    const seatOrder = this.players.map((p) => p.id)
+      .sort((a, b) => this.players[a].team - this.players[b].team || a - b);
+    const cx = N / 2, cz = N / 2, R = N / 2 - 15;
+    const startById = {};
+    seatOrder.forEach((pid, k) => {
+      const ang = (k / seatOrder.length) * Math.PI * 2 + Math.PI * 0.75;
+      let ci = Math.round(cx + Math.cos(ang) * R);
+      let cj = Math.round(cz + Math.sin(ang) * R);
+      ci = Math.max(11, Math.min(N - 16, ci));
+      cj = Math.max(11, Math.min(N - 16, cj));
+      startById[pid] = [ci, cj];
+    });
+    const starts = this.players.map((p) => startById[p.id]);
     this.homes = starts.map(([ci, cj]) => ({ x: worldOf(ci + 2), z: worldOf(cj + 2) }));
     this.homePos = this.homes[this.myId];
     const clearHomes = (i, j, r) =>
