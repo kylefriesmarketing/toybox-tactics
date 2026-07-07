@@ -1659,7 +1659,7 @@ export class Game {
   }
 
   // ---------- combat ----------
-  applyDamage(attacker, target, spec) {
+  applyDamage(attacker, target, spec, showImpact = true) {
     if (target.dead) return;
     let dmg = spec.atk;
     if (spec.bonus && target.def.tags) {
@@ -1675,12 +1675,18 @@ export class Game {
     target.hp -= dmg;
     target.view.markDamaged();
     target.view.hpBar.set(target.hp / target.maxHp);
-    if (this.fx) {
+    if (this.fx && showImpact) {
       const c = spec.atkType === 'siege' ? 0xff8f5a : spec.atkType === 'pierce' ? 0xffd166 : 0xfff0c8;
       const hy = (target.kind === 'building' ? target.def.height * 0.5 : 0.35) + hT;
-      this.fx.hit(target.x, hy, target.z, c, spec.atkType === 'siege' ? 10 : 5);
+      const ang = Math.atan2(target.x - attacker.x, target.z - attacker.z);
+      if (spec.projectile) {
+        this.fx.rangedImpact(target.x, hy, target.z, c, ang); // arrow/bullet spray
+      } else {
+        this.fx.slash(target.x, hy, target.z, ang, spec.atkType === 'siege' ? 0xffcaa0 : 0xffffff);
+        this.fx.hit(target.x, hy, target.z, c, spec.atkType === 'siege' ? 12 : 6);
+      }
       // hard hits chip a matching toy piece off the target
-      if (Math.random() < (spec.atkType === 'siege' ? 0.8 : 0.25)) {
+      if (Math.random() < (spec.atkType === 'siege' ? 0.85 : 0.3)) {
         this.fx.chip(target.x, hy, target.z, target.def.debris);
       }
     }
@@ -1803,9 +1809,16 @@ export class Game {
     const y0 = (attacker.kind === 'building' ? attacker.def.height * 0.8 : 0.45)
       + this.heightAtWorld(attacker.x, attacker.z);
     mesh.position.set(attacker.x, y0, attacker.z);
+    // additive glow halo so shots read as bright tracers streaking across the mat
+    const glow = new THREE.Mesh(
+      new THREE.SphereGeometry((p.size || 0.09) * 2.2, 8, 6),
+      new THREE.MeshBasicMaterial({ color: p.trail || p.color, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    mesh.add(glow);
     this.scene.add(mesh);
+    const ang = Math.atan2(target.x - attacker.x, target.z - attacker.z);
     if (this.fx && this.fog.state(attacker.x, attacker.z) === 2) {
-      this.fx.muzzle(attacker.x, y0, attacker.z, p.color);
+      this.fx.muzzle(attacker.x, y0, attacker.z, p.color, ang);
     }
     const d = Math.sqrt(dist2(attacker, target));
     this.projectiles.push({
@@ -1834,7 +1847,7 @@ export class Game {
         pr.from.z + (pr.to.z - pr.from.z) * f
       );
       if (pr.spin) pr.mesh.rotation.x += dt * 9;
-      if (pr.trail && this.fx && ((pr.t * 30) | 0) % 2 === 0) {
+      if (pr.trail && this.fx) { // every frame → a continuous streak
         this.fx.trail(pr.mesh.position.x, pr.mesh.position.y, pr.mesh.position.z, pr.trail);
       }
       if (f >= 1) {
@@ -1850,7 +1863,7 @@ export class Game {
             const rr = (r + e.radius) ** 2;
             if (d2 <= rr) {
               const full = e === pr.target || d2 <= (r * 0.4) ** 2;
-              this.applyDamage(pr.attacker, e, { ...spec, atk: full ? spec.atk : Math.round(spec.atk * 0.6) });
+              this.applyDamage(pr.attacker, e, { ...spec, atk: full ? spec.atk : Math.round(spec.atk * 0.6) }, false);
             }
           }
         } else if (!pr.target.dead) {

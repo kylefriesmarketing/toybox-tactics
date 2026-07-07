@@ -325,7 +325,7 @@ const pick = (arr) => arr[(Math.random() * arr.length) | 0];
 
 export class VFX {
   constructor(scene) {
-    this.sparks = new ParticlePool(scene, 1600, THREE.AdditiveBlending);
+    this.sparks = new ParticlePool(scene, 2600, THREE.AdditiveBlending);
     this.dust = new ParticlePool(scene, 900, THREE.NormalBlending);
     this.pieces = new PiecePool(scene, 72);
     this.litter = new LitterPool(scene, 96);
@@ -342,12 +342,44 @@ export class VFX {
 
   // combat hit at a point (color hints attack type) + the odd chipped piece
   hit(x, y, z, color = 0xffe28a, count = 6) {
+    // bright core flash — the punch you feel
+    this.sparks.spawn(x, y, z, 0, 0, 0, 0.12, rand(0.5, 0.66), 0xffffff, 0, 0);
+    this.sparks.spawn(x, y, z, 0, 0, 0, 0.19, rand(0.34, 0.46), color, 0, 0);
+    // radial sparks (faster + punchier than before)
     for (let i = 0; i < count; i++) {
-      const a = Math.random() * Math.PI * 2;
+      const a = Math.random() * Math.PI * 2, sp = rand(1.4, 3.6);
       this.sparks.spawn(x, y + rand(0, 0.2), z,
-        Math.cos(a) * rand(0.6, 2.2), rand(0.6, 2.4), Math.sin(a) * rand(0.6, 2.2),
-        rand(0.2, 0.45), rand(0.1, 0.2), color, 5, 2);
+        Math.cos(a) * sp, rand(1.0, 3.2), Math.sin(a) * sp,
+        rand(0.16, 0.4), rand(0.07, 0.15), color, 7, 3);
     }
+    // low shock ring skimming the ground
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      this.sparks.spawn(x, 0.07, z, Math.cos(a) * 2.8, 0.15, Math.sin(a) * 2.8, 0.2, 0.09, 0xfff2cc, 0, 5);
+    }
+  }
+  // melee swing streak: a bright crescent swept in the strike direction
+  slash(x, y, z, facing, color = 0xffffff) {
+    const n = 10, spread = 1.5, r = 0.55;
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1) - 0.5;
+      const a = facing + t * spread;
+      this.sparks.spawn(
+        x + Math.sin(a) * r, y + 0.1 + (0.25 - t * t) * 0.4, z + Math.cos(a) * r,
+        Math.sin(a) * 1.1, 0.3, Math.cos(a) * 1.1,
+        rand(0.11, 0.19), rand(0.09, 0.14), color, 0, 3.5);
+    }
+  }
+  // arrow / bullet impact: a flash + a spray of sparks kicked back along flight
+  rangedImpact(x, y, z, color, dir) {
+    this.sparks.spawn(x, y, z, 0, 0, 0, 0.1, 0.42, 0xffffff, 0, 0);
+    const back = dir + Math.PI;
+    for (let i = 0; i < 9; i++) {
+      const a = back + rand(-0.7, 0.7), sp = rand(1.4, 3.6);
+      this.sparks.spawn(x, y, z, Math.sin(a) * sp, rand(0.4, 2.2), Math.cos(a) * sp,
+        rand(0.14, 0.34), rand(0.06, 0.12), color, 6, 3);
+    }
+    this.dust.spawn(x, y, z, 0, 0.4, 0, 0.4, 0.16, 0xd8d0c0, -0.2, 2);
   }
   // chip a piece off whatever got hit (throttled by caller)
   chip(x, y, z, debris) {
@@ -403,6 +435,9 @@ export class VFX {
 
   // catapult splash impact: bang + a sticker left on the playmat
   explosion(x, z, radius) {
+    // big fireball flash core
+    this.sparks.spawn(x, 0.3, z, 0, 0, 0, 0.16, radius * 1.2, 0xffffff, 0, 0);
+    this.sparks.spawn(x, 0.3, z, 0, 0, 0, 0.26, radius * 0.85, 0xffcf6a, 0, 0);
     this.hit(x, 0.25, z, 0xffb14d, 16);
     this.puff(x, 0.3, z, 0xd8c8a8, 10, radius * 0.4);
     for (let i = 0; i < 5; i++) this.pieces.spawn('stick', x, 0.2, z, 0xf3722c, { speed: 2.4, life: 1.2 });
@@ -414,12 +449,19 @@ export class VFX {
     this.splats.splat(x, z, radius * 0.8, pick([0xf3722c, 0xf94144, 0xf9c74f]));
   }
 
-  // muzzle flash when a ranged toy or tower fires
-  muzzle(x, y, z, color) {
-    for (let i = 0; i < 3; i++) {
-      this.sparks.spawn(x, y, z, rand(-0.6, 0.6), rand(0.4, 1.0), rand(-0.6, 0.6),
-        0.16, 0.14, color, 0, 4);
+  // muzzle flash when a ranged toy or tower fires (dir = firing angle, optional)
+  muzzle(x, y, z, color, dir = null) {
+    this.sparks.spawn(x, y, z, 0, 0, 0, 0.09, 0.54, 0xffffff, 0, 0); // white core
+    this.sparks.spawn(x, y, z, 0, 0, 0, 0.13, 0.36, color, 0, 0);
+    const base = dir === null ? Math.random() * Math.PI * 2 : dir;
+    for (let i = 0; i < 5; i++) {
+      const a = base + rand(-0.5, 0.5), sp = rand(1.6, 3.6);
+      this.sparks.spawn(x, y, z, Math.sin(a) * sp, rand(0.2, 0.9), Math.cos(a) * sp,
+        rand(0.1, 0.22), rand(0.07, 0.13), color, 3, 3);
     }
+    // a wisp of smoke drifting off the barrel
+    this.dust.spawn(x, y, z, dir === null ? 0 : Math.sin(base) * 0.5, 0.5, dir === null ? 0 : Math.cos(base) * 0.5,
+      0.45, 0.18, 0xc0b8c8, -0.2, 2);
   }
 
   puff(x, y, z, color = 0xcfc8e8, count = 5, spread = 0.25) {
