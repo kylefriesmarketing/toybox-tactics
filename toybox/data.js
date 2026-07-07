@@ -413,14 +413,14 @@ export const BUILDINGS = {
   mat: {
     name: 'Training Mat', tags: ['building'], size: 3, hp: 650, cost: { blocks: 150 }, buildTime: 22,
     armor: { melee: 1, pierce: 6 }, vision: 4, trains: ['soldier', 'spear', 'medic'],
-    techs: ['pencils', 'tape', 'elite_soldier', 'elite_spear'], height: 0.9,
+    techs: ['pencils', 'tape', 'steel_soldier', 'steel_spear', 'elite_soldier', 'elite_spear'], height: 0.9,
     debris: WOOD_DEBRIS,
     desc: 'Trains Block Soldiers, Push-Pin Spears and Plush Medics.',
   },
   bench: {
     name: 'Ranged Bench', tags: ['building'], size: 3, hp: 700, cost: { blocks: 175 }, buildTime: 22,
     armor: { melee: 1, pierce: 6 }, vision: 4, trains: ['archer', 'flinger'],
-    techs: ['bands', 'elite_archer'], age: 2, height: 1.0,
+    techs: ['bands', 'steel_archer', 'elite_archer'], age: 2, height: 1.0,
     debris: WOOD_DEBRIS,
     desc: 'Trains Button Archers and Rubber-Band Flingers.',
   },
@@ -648,10 +648,15 @@ export const TECHS = {
   tape:     { name: 'Tape Reinforcement', age: 3, cost: { blocks: 150, marbles: 125 }, time: 35, desc: 'Infantry armor +1/+1.' },
   plating:  { name: 'Cardboard Plating', age: 3, cost: { blocks: 200, marbles: 150 }, time: 40, desc: 'Buildings +20% HP.' },
   training: { name: 'Elite Toy Training', age: 3, cost: { snacks: 300, buttons: 300 }, time: 45, desc: 'Military toys +15% HP.' },
-  // unit-line upgrades: instantly promote every living toy of the line too
-  elite_soldier: { name: 'Elite Soldiers', age: 3, cost: { snacks: 175, buttons: 125 }, time: 35, desc: 'Block Soldiers +25% HP, +2 attack, +1/+1 armor — upgrades the living too.' },
-  elite_spear:   { name: 'Elite Spears',   age: 3, cost: { snacks: 175, buttons: 125 }, time: 35, desc: 'Push-Pin Spears +25% HP, +2 attack, +1/+1 armor — upgrades the living too.' },
-  elite_archer:  { name: 'Elite Archers',  age: 3, cost: { snacks: 175, buttons: 150 }, time: 35, desc: 'Button Archers +25% HP, +2 attack, +1/+1 armor — upgrades the living too.' },
+  // ---- unit-line VISUAL upgrade tiers (AoE-style: the toys re-gear as they upgrade) ----
+  // tier 1: steel armor (helmet + pauldrons) at the Playmat Age
+  steel_soldier: { name: 'Armored Soldiers', age: 2, cost: { snacks: 90, blocks: 70 },  time: 28, desc: 'Block Soldiers strap on a steel helmet & pauldrons: +1/+1 armor — upgrades the living too.' },
+  steel_spear:   { name: 'Armored Spears',   age: 2, cost: { snacks: 90, blocks: 70 },  time: 28, desc: 'Push-Pin Spears don steel gear: +1/+1 armor — upgrades the living too.' },
+  steel_archer:  { name: 'Armored Archers',  age: 2, cost: { snacks: 90, buttons: 70 }, time: 28, desc: 'Button Archers get a steel helm: +1/+1 armor — upgrades the living too.' },
+  // tier 2: gold champion gear (crest + ring). instantly promote every living toy of the line too
+  elite_soldier: { name: 'Champion Soldiers', age: 3, cost: { snacks: 175, buttons: 125 }, time: 35, desc: 'Block Soldiers become gold Champions: +25% HP, +2 attack, +1/+1 armor — upgrades the living too.' },
+  elite_spear:   { name: 'Champion Spears',   age: 3, cost: { snacks: 175, buttons: 125 }, time: 35, desc: 'Push-Pin Spears become gold Champions: +25% HP, +2 attack, +1/+1 armor — upgrades the living too.' },
+  elite_archer:  { name: 'Champion Archers',  age: 3, cost: { snacks: 175, buttons: 150 }, time: 35, desc: 'Button Archers become gold Champions: +25% HP, +2 attack, +1/+1 armor — upgrades the living too.' },
   // ---- Tinker Bench unit upgrades (blanket boosts to your whole army) ----
   whetstone:  { name: 'Whetstone',        age: 2, cost: { snacks: 120, blocks: 60 },   time: 30, desc: 'All military toys +1 attack (melee, ranged and wheeled).' },
   quilting:   { name: 'Quilted Padding',  age: 2, cost: { blocks: 100, buttons: 60 },  time: 30, desc: 'Ranged and wheeled toys +1/+1 armor (tape already covers infantry).' },

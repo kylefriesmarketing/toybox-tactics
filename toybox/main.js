@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, DIFFICULTIES, CAMPAIGN, generateRandomMap } from './data.js';
 import {
   loadUnitModels, loadBuildingModels, loadMapModels, setBuildingFootprints,
-  createGhostMesh, createMoveMarker, createLamp, renderPortraits,
+  createGhostMesh, createMoveMarker, createLamp, renderPortraits, applyUnitTier,
 } from './models.js';
 import { Game } from './game.js';
 import { UI } from './ui.js';
@@ -612,6 +612,7 @@ $('home-mp').addEventListener('click', () => { showMenuScreen('mp'); renderMpLob
 for (const b of document.querySelectorAll('.setup-back')) b.addEventListener('click', () => showMenuScreen('home'));
 window.__ttStart = (d, m) => startGame(d || 'normal', m); // headless test hook
 window.__ttRandom = generateRandomMap; // headless: build a random-map config to soak
+window.__ttTier = (u, t) => applyUnitTier(u.view, u.def, u.owner, t); // preview: unit upgrade tier
 
 // ---------------- campaign: "The Bedroom Wars" ----------------
 let campaignMission = null; // the active mission during a campaign game (null = skirmish)

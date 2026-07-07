@@ -14,7 +14,7 @@ import {
   createUnitView, createBuildingView, createResourceView,
   createGround, createObstacleMesh, createDecorMesh, createStickerView, createRallyFlag,
   makeRankBadge, createCritterView, createMilkSpill, createKingCrown, createThroneView,
-  createWaterSurface,
+  createWaterSurface, applyUnitTier,
 } from './models.js';
 
 const N = MAP_N;
@@ -910,7 +910,8 @@ export class Game {
     };
     this.entities.push(e);
     p.popUsed++;
-    if (p.techs.has(`elite_${type}`)) this.decorateElite(e);
+    const _tier = this.lineTierOf(owner, type);
+    if (_tier && e.view) applyUnitTier(e.view, e.def, owner, _tier);
     if (fromBuilding) {
       p.stats.trained++;
       this.fx && this.fx.spawnPop(x, z, def.color);
@@ -953,8 +954,14 @@ export class Game {
       a += e.def.tags.includes('infantry') ? m.armorInfantry : m.armorOther; // Quilted Padding
     }
     if (e.kind === 'unit' && this.players[e.owner].techs.has(`elite_${e.type}`)) a += 1;
+    if (e.kind === 'unit' && this.players[e.owner].techs.has(`steel_${e.type}`)) a += 1; // Steel armor tier
     if (e.kind === 'building') { const u = this.buildingUpTech(e.type, e.owner); if (u && u.armor) a += u.armor; } // Steelworks
     return a;
+  }
+  // visual/stat upgrade tier for a unit line: 2 = elite (champion), 1 = steel, 0 = base
+  lineTierOf(owner, type) {
+    const p = this.players[owner];
+    return p.techs.has(`elite_${type}`) ? 2 : p.techs.has(`steel_${type}`) ? 1 : 0;
   }
   // gold halo marks a line-upgraded elite toy
   decorateElite(u) {
@@ -1045,15 +1052,15 @@ export class Game {
         this.upgradeBuildingsOfType(owner, 'gate');
         break;
     }
-    // unit-line upgrades: promote every living toy of the line on the spot
-    if (techId.startsWith('elite_')) {
-      const line = techId.slice(6);
+    // unit-line upgrades: re-skin + promote every living toy of the line on the spot
+    if (techId.startsWith('elite_') || techId.startsWith('steel_')) {
+      const elite = techId.startsWith('elite_');
+      const line = techId.slice(elite ? 6 : 6);
+      const tier = this.lineTierOf(owner, line);
       for (const e of this.entities) {
         if (e.kind === 'unit' && e.owner === owner && !e.dead && e.type === line) {
-          const f = e.hp / e.maxHp;
-          e.maxHp = Math.round(e.maxHp * 1.25);
-          e.hp = e.maxHp * f;
-          this.decorateElite(e);
+          if (elite) { const f = e.hp / e.maxHp; e.maxHp = Math.round(e.maxHp * 1.25); e.hp = e.maxHp * f; }
+          if (e.view) applyUnitTier(e.view, e.def, owner, tier);
         }
       }
     }
@@ -1488,7 +1495,7 @@ export class Game {
         };
         if (e.isKing) { e.kingCrown = createKingCrown(); view.group.add(e.kingCrown); }
         if (e.kills >= 3) { e.rankBadge = makeRankBadge(e.kills >= 10 ? 3 : e.kills >= 6 ? 2 : 1); view.group.add(e.rankBadge); }
-        if (this.players[e.owner].techs.has(`elite_${e.type}`)) this.decorateElite(e);
+        { const _t = this.lineTierOf(e.owner, e.type); if (_t) applyUnitTier(e.view, e.def, e.owner, _t); }
         if (e.garrisoned) view.group.visible = false;
         view.hpBar.set(e.hp / e.maxHp);
       } else if (se.k === 'b') {
@@ -2574,7 +2581,7 @@ export class Game {
       t.rankBadge = makeRankBadge(t.kills >= 10 ? 3 : t.kills >= 6 ? 2 : 1);
       t.view.group.add(t.rankBadge);
     }
-    if (this.players[newOwner].techs.has(`elite_${t.type}`)) this.decorateElite(t);
+    { const _t = this.lineTierOf(newOwner, t.type); if (_t && t.view) applyUnitTier(t.view, t.def, newOwner, _t); }
     this.fx && this.fx.spawnPop(t.x, t.z, 0xb14fe0);
     if (oldOwner === this.myId) this.alert(`Your ${t.def.name} was hypnotized!`, 'warn', { x: t.x, z: t.z }, 3);
     else if (newOwner === this.myId) this.alert(`Enemy ${t.def.name} joins your toybox!`, 'info', { x: t.x, z: t.z }, 3);
@@ -2910,7 +2917,8 @@ export class Game {
             // this AI's own faction building offers, so listing all is safe, and
             // fronting them makes each AI civ actually express its identity
             'liveammo', 'interlock', 'grouphug', 'nitro',
-            // core army line upgrades (these were missing → the AI never elited!)
+            // core army line upgrades: steel (Age 2) then champion (Age 3)
+            'steel_soldier', 'steel_archer', 'steel_spear',
             'elite_soldier', 'elite_archer', 'elite_spear',
             'whetstone', 'springs', 'tape', 'quilting', 'training', 'reinforced', 'plating',
             'sugarrush', 'overwound',
