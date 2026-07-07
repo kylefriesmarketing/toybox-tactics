@@ -41,6 +41,13 @@ function makeRng(seed) {
 // cliff edges are a full level and therefore impassable
 const CLIMB = 0.3;
 
+// researched building-tier upgrades: which tech levels up which building type
+const BUILDING_UP = {
+  tower: { tech: 'pentower', hpMul: 1.8, atk: 8, range: 1.5 },
+  wall: { tech: 'steelwork', hpMul: 2.5, armor: 2 },
+  gate: { tech: 'steelwork', hpMul: 2.5, armor: 2 },
+};
+
 class PathFinder {
   constructor(blocked, gates, heights, water) {
     this.blocked = blocked;
@@ -827,11 +834,13 @@ export class Game {
       this.blocked[idx(a, b)] = 1;
       if (def.gate) this.gateOwner[idx(a, b)] = owner;
     }
-    const view = createBuildingView(type, def, owner, i * 977 + j);
+    const upTech = this.buildingUpTech(type, owner); // already-researched tier upgrade?
+    const view = createBuildingView(type, def, owner, i * 977 + j, !!upTech);
     const x = worldOf(i) + (s - 1) / 2, z = worldOf(j) + (s - 1) / 2;
     view.group.position.set(x, this.tileHeight(i, j), z);
     this.scene.add(view.group);
-    const hpMult = (this.players[owner].techs.has('plating') ? 1.2 : 1) * this.players[owner].mods.buildingHp;
+    const hpMult = (this.players[owner].techs.has('plating') ? 1.2 : 1) * this.players[owner].mods.buildingHp
+      * (upTech ? upTech.hpMul : 1);
     const e = {
       id: this.nextId++, kind: 'building', type, owner, def, view,
       x, z, ti: i, tj: j, radius: s * 0.55,
@@ -931,6 +940,7 @@ export class Game {
       a += e.def.tags.includes('infantry') ? m.armorInfantry : m.armorOther; // Quilted Padding
     }
     if (e.kind === 'unit' && this.players[e.owner].techs.has(`elite_${e.type}`)) a += 1;
+    if (e.kind === 'building') { const u = this.buildingUpTech(e.type, e.owner); if (u && u.armor) a += u.armor; } // Steelworks
     return a;
   }
   // gold halo marks a line-upgraded elite toy
@@ -994,6 +1004,12 @@ export class Game {
           }
         }
         break;
+      // ---- building tier upgrades ----
+      case 'pentower': this.upgradeBuildingsOfType(owner, 'tower'); break;
+      case 'steelwork':
+        this.upgradeBuildingsOfType(owner, 'wall');
+        this.upgradeBuildingsOfType(owner, 'gate');
+        break;
     }
     // unit-line upgrades: promote every living toy of the line on the spot
     if (techId.startsWith('elite_')) {
@@ -1011,6 +1027,36 @@ export class Game {
       this.alert(`${TECHS[techId].name} researched!`, 'info');
       this.sfx && this.sfx.play('research');
     }
+  }
+
+  // the building-tier upgrade this owner has unlocked for a type (or null)
+  buildingUpTech(type, owner) {
+    const u = BUILDING_UP[type];
+    return (u && this.players[owner].techs.has(u.tech)) ? u : null;
+  }
+  // level up every standing building of a type: boost HP + swap to the upgraded model
+  upgradeBuildingsOfType(owner, type) {
+    const u = BUILDING_UP[type];
+    if (!u) return;
+    for (const b of this.entities) {
+      if (b.kind !== 'building' || b.owner !== owner || b.dead || b.type !== type) continue;
+      const f = b.hp / b.maxHp;
+      b.maxHp = Math.round(b.maxHp * u.hpMul);
+      b.hp = b.maxHp * f;
+      this.rebuildBuildingView(b, true);
+      b.view.hpBar.set(b.hp / b.maxHp);
+    }
+  }
+  // replace a building's mesh with its upgraded (or base) model, keeping state
+  rebuildBuildingView(b, up) {
+    const wasSel = this.selected.includes(b);
+    this.scene.remove(b.view.group);
+    b.view = createBuildingView(b.type, b.def, b.owner, b.ti * 977 + b.tj, up);
+    b.view.group.position.set(b.x, this.tileHeight(b.ti, b.tj), b.z);
+    b.view.setProgress(b.built);
+    this.scene.add(b.view.group);
+    if (wasSel) b.view.setSelected(true);
+    if (b.type === 'gate') this.orientWalls(b.ti, b.tj, b.def.size);
   }
 
   // ---------- economy helpers ----------
@@ -1405,7 +1451,7 @@ export class Game {
       } else if (se.k === 'b') {
         const def = BUILDINGS[se.type];
         const s = def.size;
-        const view = createBuildingView(se.type, def, se.owner, se.ti * 977 + se.tj);
+        const view = createBuildingView(se.type, def, se.owner, se.ti * 977 + se.tj, !!this.buildingUpTech(se.type, se.owner));
         const x = worldOf(se.ti) + (s - 1) / 2, z = worldOf(se.tj) + (s - 1) / 2;
         view.group.position.set(x, this.tileHeight(se.ti, se.tj), z);
         this.scene.add(view.group);
@@ -2594,7 +2640,11 @@ export class Game {
     }
     // towers/forts always shoot; the chest only shoots while garrisoned.
     // every toy hiding inside adds punch to each arrow.
-    const spec = b.def.attack || (b.def.garrisonAttack && b.garrisonIds.length ? b.def.garrisonAttack : null);
+    let spec = b.def.attack || (b.def.garrisonAttack && b.garrisonIds.length ? b.def.garrisonAttack : null);
+    if (spec && b.type === 'tower') { // Pen Tower upgrade: harder-hitting, longer-reaching
+      const u = this.buildingUpTech('tower', b.owner);
+      if (u) spec = { ...spec, atk: spec.atk + u.atk, range: spec.range + u.range };
+    }
     if (spec) {
       b.cd = Math.max(0, b.cd - dt);
       b.scanT -= dt;
@@ -2795,7 +2845,9 @@ export class Game {
           const priority = ['sorting', 'pockets',
             enemyRanged > 3 ? 'bands' : 'pencils', 'scissors', 'shoes', 'pencils', 'bands',
             'whetstone', 'springs', 'tape', 'quilting', 'training', 'reinforced', 'plating',
-            'sugarrush', 'overwound'];
+            'sugarrush', 'overwound',
+            ...(mine.some((e) => e.type === 'tower') ? ['pentower'] : []),
+            ...(mine.some((e) => e.type === 'wall' || e.type === 'gate') ? ['steelwork'] : [])];
           outer:
           for (const techId of priority) {
             if (p.techs.has(techId)) continue;

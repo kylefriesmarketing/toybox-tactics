@@ -1060,7 +1060,7 @@ function toyMat(color, rough = 0.55) {
 }
 const PASTELS = [0xf94144, 0xf3722c, 0xf9c74f, 0x90be6d, 0x577590, 0x9b5de5];
 
-function buildingGeometry(key, def, owner, rng) {
+function buildingGeometry(key, def, owner, rng, up = false) {
   const g = new THREE.Group();
   const s = def.size;
   const teamCol = TEAM_COLORS[owner];
@@ -1103,15 +1103,27 @@ function buildingGeometry(key, def, owner, rng) {
     add(box(0.7, 0.2, 0.4, teamCol), 0, 1.25, 0);              // roof beacon
     add(cyl(0.16, 0.4, 0x2b2f36), -s * 0.3, 0.2, s * 0.34).rotation.z = Math.PI / 2; // spare tire
   } else if (key === 'tower') {
-    const pencil = add(cyl(0.32, 2.0, 0xf9c74f, 6), 0, 1.0, 0);
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.5, 6), toyMat(0xd9a066));
-    add(tip, 0, 2.25, 0);
-    const lead = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.18, 6), toyMat(0x333333));
-    add(lead, 0, 2.48, 0);
-    add(cyl(0.34, 0.25, 0xe98aa2), 0, 0.12, 0); // eraser base
-    const band = add(box(0.5, 0.2, 0.05, teamCol), 0, 1.6, 0.33);
-    band.castShadow = false;
-    pencil.castShadow = true;
+    if (up) {
+      // Pen Tower: sleek blue-and-silver ballpoint with a metal nib and clip
+      const body = add(cyl(0.3, 1.9, 0x2f6fd0, 12), 0, 1.05, 0);
+      add(cyl(0.32, 0.5, 0xc0c6cf, 12), 0, 0.35, 0);          // silver grip
+      add(new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.5, 12), toyMat(0xc0c6cf)), 0, 2.25, 0); // metal cone
+      add(new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.22, 8), toyMat(0x888f99)), 0, 2.55, 0); // nib
+      add(box(0.05, 0.7, 0.12, 0xc0c6cf), 0.3, 1.5, 0);       // clip
+      add(cyl(0.31, 0.14, 0x1a4fa0, 12), 0, 2.02, 0);         // top ring
+      const band = add(box(0.5, 0.2, 0.05, teamCol), 0, 1.5, 0.33); band.castShadow = false;
+      body.castShadow = true;
+    } else {
+      const pencil = add(cyl(0.32, 2.0, 0xf9c74f, 6), 0, 1.0, 0);
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.5, 6), toyMat(0xd9a066));
+      add(tip, 0, 2.25, 0);
+      const lead = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.18, 6), toyMat(0x333333));
+      add(lead, 0, 2.48, 0);
+      add(cyl(0.34, 0.25, 0xe98aa2), 0, 0.12, 0); // eraser base
+      const band = add(box(0.5, 0.2, 0.05, teamCol), 0, 1.6, 0.33);
+      band.castShadow = false;
+      pencil.castShadow = true;
+    }
   } else if (key === 'farm') {
     // snack mat: checkered picnic cloth with crumbs
     const cloth = add(box(1.7, 0.06, 1.7, 0xf0e8d8), 0, 0.03, 0);
@@ -1166,8 +1178,8 @@ function buildingGeometry(key, def, owner, rng) {
     add(cyl(0.03, 1.0, 0xddd6c0, 6), -0.34, 0.88, -0.55);
     flagT.castShadow = false;
   } else if (key === 'wall') {
-    // staggered toy bricks
-    const cols = [0xd95b5b, 0xd96a5b, 0xc95555];
+    // staggered toy bricks — steel plating once Steelworks is researched
+    const cols = up ? [0x9aa3ad, 0x868e98, 0xb2bac2] : [0xd95b5b, 0xd96a5b, 0xc95555];
     for (let layer = 0; layer < 3; layer++) {
       const off = (layer % 2) * 0.22 - 0.11;
       for (let k = -1; k <= 1; k++) {
@@ -1177,11 +1189,12 @@ function buildingGeometry(key, def, owner, rng) {
     }
   } else if (key === 'gate') {
     // single-tile doorway: two slim posts flanking a lifting bar (opening runs in Z)
-    add(box(0.18, 1.0, 0.5, 0xc95555), -0.45, 0.5, 0);   // posts
-    add(box(0.18, 1.0, 0.5, 0xc95555), 0.45, 0.5, 0);
+    const postC = up ? 0x9aa3ad : 0xc95555, barC = up ? 0x868e98 : 0xd9a066;
+    add(box(0.18, 1.0, 0.5, postC), -0.45, 0.5, 0);   // posts
+    add(box(0.18, 1.0, 0.5, postC), 0.45, 0.5, 0);
     add(box(0.24, 0.14, 0.56, teamCol), -0.45, 1.06, 0); // team caps
     add(box(0.24, 0.14, 0.56, teamCol), 0.45, 1.06, 0);
-    const bar = add(box(0.72, 0.5, 0.18, 0xd9a066), 0, 0.45, 0); // the lifting bar
+    const bar = add(box(0.72, 0.5, 0.18, barC), 0, 0.45, 0); // the lifting bar
     g.userData.gateBar = bar;
   } else if (key === 'wonder') {
     // pillow mountain with a draped blanket and a golden star
@@ -1434,13 +1447,18 @@ export function renderPortraits(unitRegistry) {
   return PORTRAITS;
 }
 
-export function createBuildingView(key, def, owner, rngSeed = 1) {
+export function createBuildingView(key, def, owner, rngSeed = 1, up = false) {
   let seed = rngSeed;
   const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const group = new THREE.Group();
   let meshes;
-  if (buildingRegistry[key]) {
-    meshes = buildingRegistry[key].clone(true);
+  // upgraded towers become a Pen Tower — generated model if present, else the
+  // procedural pen (never the plain pencil GLB, so the upgrade always reads)
+  const wantPen = up && key === 'tower';
+  const modelKey = (wantPen && buildingRegistry.pentower) ? 'pentower' : key;
+  const useGlb = wantPen ? !!buildingRegistry.pentower : !!buildingRegistry[modelKey];
+  if (useGlb) {
+    meshes = buildingRegistry[modelKey].clone(true);
     // team banner so ownership stays readable on generated models
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.2, 6), toyMat(0xddd6c0));
     pole.position.set(def.size * 0.4, def.height + 0.4, def.size * 0.4);
@@ -1448,7 +1466,7 @@ export function createBuildingView(key, def, owner, rngSeed = 1) {
     flag.position.set(def.size * 0.4 + 0.22, def.height + 0.9, def.size * 0.4);
     meshes.add(pole, flag);
   } else {
-    meshes = buildingGeometry(key, def, owner, rng);
+    meshes = buildingGeometry(key, def, owner, rng, up);
   }
   group.add(meshes);
   const s = def.size;

@@ -145,7 +145,7 @@ async function boot() {
   failuresCache = failures;
   // generated building models are optional — missing files fall back silently
   setBuildingFootprints(Object.fromEntries(Object.entries(BUILDINGS).map(([k, d]) => [k, d.size])));
-  await loadBuildingModels(Object.keys(BUILDINGS), (done, total) => {
+  await loadBuildingModels([...Object.keys(BUILDINGS), 'pentower'], (done, total) => {
     text.textContent = `Arranging the furniture… (${done}/${total})`;
   });
   await loadMapModels((done, total) => {

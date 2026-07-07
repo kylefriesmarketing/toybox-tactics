@@ -359,9 +359,9 @@ export const BUILDINGS = {
   tinker: {
     name: 'Tinker Bench', tags: ['building'], size: 2, hp: 520, cost: { blocks: 110, snacks: 40 }, buildTime: 20,
     armor: { melee: 1, pierce: 6 }, vision: 4, age: 2, height: 0.9,
-    techs: ['whetstone', 'quilting', 'reinforced', 'sugarrush', 'overwound'],
+    techs: ['whetstone', 'quilting', 'reinforced', 'sugarrush', 'overwound', 'pentower', 'steelwork'],
     debris: WOOD_DEBRIS,
-    desc: 'Upgrade shop: research blanket boosts — sharper weapons, tougher plastic, faster springs.',
+    desc: 'Upgrade shop: research blanket boosts for toys AND buildings — sharper weapons, pen towers, steel walls.',
   },
   // ---- faction buildings (each tribe's own workshop, Playmat Age) ----
   tent: {
@@ -575,6 +575,9 @@ export const TECHS = {
   reinforced: { name: 'Reinforced Cores', age: 3, cost: { snacks: 200, marbles: 100 }, time: 40, desc: 'All military toys +15% HP — upgrades the living, stacks with Training.' },
   sugarrush:  { name: 'Sugar Rush',       age: 3, cost: { snacks: 150, buttons: 150 }, time: 35, desc: 'Every toy scoots 8% faster — infantry and wheels alike.' },
   overwound:  { name: 'Overwound Springs',age: 3, cost: { buttons: 200, marbles: 120 }, time: 40, desc: 'Military toys attack 12% faster.' },
+  // ---- Tinker Bench BUILDING upgrades (level up your structures) ----
+  pentower:   { name: 'Pen Towers',       age: 3, cost: { blocks: 150, buttons: 120 }, time: 40, building: true, desc: 'Pencil Towers become Pen Towers: +8 attack, +1.5 range, +80% HP.' },
+  steelwork:  { name: 'Steelworks',       age: 3, cost: { blocks: 200, marbles: 120 }, time: 45, building: true, desc: 'Block Walls and Gates go steel: +2 armor and much tougher (+150% HP).' },
 };
 
 export const START = {
