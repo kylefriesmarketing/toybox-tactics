@@ -629,7 +629,12 @@ export function generateRandomMap(seed, opts = {}) {
 }
 
 // which building types count as "production" for the conquest win condition
-export const PRODUCTION_BUILDINGS = ['chest', 'mat', 'bench', 'garage', 'workshop', 'fort'];
+// buildings that produce units — losing your last one (with no workers to
+// rebuild) is what ends a Conquest game. Includes the faction workshops and the
+// Dock, which all TRAIN units (omitting them wrongly eliminated players that
+// still had an army-producing building standing).
+export const PRODUCTION_BUILDINGS = ['chest', 'mat', 'bench', 'garage', 'workshop', 'fort',
+  'tent', 'brickshop', 'nest', 'pitstop', 'dock'];
 
 // ---------------- techs (researched at buildings, apply stat modifiers) ----------------
 export const TECHS = {

@@ -3178,9 +3178,15 @@ export class Game {
       // one Toy Chest, no rebuilding — lose it and you're out
       return this.entities.some((e) => e.kind === 'building' && e.type === 'chest' && e.owner === p.id && !e.dead);
     }
-    // standard/koth: any production building keeps you in
-    return this.entities.some((e) =>
-      e.kind === 'building' && e.owner === p.id && !e.dead && PRODUCTION_BUILDINGS.includes(e.type));
+    // standard/koth: you're still in while you can produce OR rebuild.
+    // - any unit-training building keeps you in outright; OR
+    // - a worker + ANY standing building (a basket/tower is a foothold to
+    //   rebuild a Toy Chest from). This is stall-safe: the winner just razes
+    //   your last building — it never has to chase down a fleeing worker.
+    const mine = this.entities.filter((e) => e.owner === p.id && !e.dead);
+    if (mine.some((e) => e.kind === 'building' && PRODUCTION_BUILDINGS.includes(e.type))) return true;
+    return mine.some((e) => e.kind === 'building')
+      && mine.some((e) => e.kind === 'unit' && e.type === 'worker');
   }
 
   checkWin() {
