@@ -2180,14 +2180,19 @@ function addBedroom(g, N, style) {
   const rug = new THREE.Mesh(new THREE.CircleGeometry(half + 20, 56), new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(rugCv), roughness: 1 }));
   rug.rotation.x = -Math.PI / 2; rug.position.y = -0.014; rug.receiveShadow = true; g.add(rug);
 
-  // --- BED against the north wall (-z) ---
-  const bz = -half - 16;
-  put(box(74, 5, 24, 0x8a5a34), 0, 3, bz);                          // frame
-  put(box(70, 4, 20, 0xf3ede0, 0.95), 0, 7, bz + 1);                // mattress
-  put(box(72, 3, 13, attic ? 0x9a7a52 : 0x6f7fc4, 0.85), 0, 9.5, bz + 5); // folded blanket
-  put(box(22, 5, 9, 0xffffff, 0.95), -17, 9.5, bz - 6);             // pillow
-  put(box(22, 5, 9, 0xfff2d8, 0.95), 8, 9.5, bz - 6);               // pillow
-  put(box(76, 22, 3, 0x6f4526), 0, 11, bz - 10);                    // headboard
+  // --- BED along the north wall, turned LENGTHWISE (long axis = x) so it has
+  // real bed proportions instead of a stubby bench squeezed against the mat ---
+  const bx = -3, bz = -half - 18;                                    // centre (x=-3, z=-54)
+  put(box(46, 5, 20, 0x8a5a34), bx, 3, bz);                          // frame
+  put(box(42, 5, 17, 0xf3ede0, 0.96), bx, 7, bz);                   // mattress
+  put(box(4, 22, 20, 0x6f4526), bx - 23, 11, bz);                   // headboard panel (west end)
+  put(cyl(1.5, 1.5, 26, 0x5a3a20, 8), bx - 23, 13, bz - 9);         // headboard posts
+  put(cyl(1.5, 1.5, 26, 0x5a3a20, 8), bx - 23, 13, bz + 9);
+  put(box(3.5, 11, 20, 0x6f4526), bx + 23, 5.5, bz);               // footboard (east end)
+  put(box(9, 5, 16, 0xffffff, 0.96), bx - 17, 9.4, bz);            // pillows at the head
+  put(box(9, 5, 16, 0xfff2d8, 0.96), bx - 16, 9.7, bz + 1);
+  put(box(28, 4.5, 18, attic ? 0x9a7a52 : 0x6f7fc4, 0.85), bx + 5, 9.2, bz); // duvet over the lower half
+  for (const lx of [bx - 21, bx + 21]) for (const lz of [bz - 8, bz + 8]) put(cyl(1.3, 1.3, 3, 0x5d3d22, 8), lx, 1.5, lz); // legs
 
   // --- DRESSER against the east wall (+x) ---
   const dx = half + 20;
