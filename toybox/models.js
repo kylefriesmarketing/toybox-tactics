@@ -1660,6 +1660,96 @@ export function createGround(N, style = 'playmat') {
     // stitched mat border
     x.strokeStyle = '#f6f2e6'; x.lineWidth = 14; x.setLineDash([40, 24]);
     x.strokeRect(26, 26, S - 52, S - 52); x.setLineDash([]);
+  } else if (style === 'kitchen') {
+    // dinner table: warm wood, gingham placemats, plates, milk spills, crumbs
+    let seedK = 33221;
+    const rndK = () => (seedK = (seedK * 16807) % 2147483647) / 2147483647;
+    x.fillStyle = '#b07a44'; x.fillRect(0, 0, S, S);
+    for (let p = 0; p < 12; p++) {
+      x.fillStyle = p % 2 ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.03)';
+      x.fillRect(0, p * 172, S, 172);
+      x.strokeStyle = 'rgba(70,40,15,0.4)'; x.lineWidth = 5;
+      x.beginPath(); x.moveTo(0, p * 172); x.lineTo(S, p * 172); x.stroke();
+    }
+    for (let i = 0; i < 30; i++) { // wood knots
+      x.strokeStyle = 'rgba(70,40,15,0.4)'; x.lineWidth = 3;
+      x.beginPath(); x.ellipse(rndK() * S, rndK() * S, 12 + rndK() * 12, 7 + rndK() * 7, rndK() * 3, 0, Math.PI * 2); x.stroke();
+    }
+    // two gingham placemats with a plate on each (SW + NE seats)
+    const mat = (mx, my) => {
+      x.save(); x.translate(mx, my); x.rotate((rndK() - 0.5) * 0.2);
+      x.fillStyle = '#f2ede0'; x.fillRect(-330, -230, 660, 460);
+      x.fillStyle = 'rgba(210,70,70,0.5)';
+      for (let gx = -330; gx < 330; gx += 60) x.fillRect(gx, -230, 30, 460);
+      for (let gy = -230; gy < 230; gy += 60) x.fillRect(-330, gy, 660, 30);
+      x.fillStyle = '#fbfaf6'; x.beginPath(); x.arc(0, 0, 150, 0, Math.PI * 2); x.fill();
+      x.strokeStyle = '#c9c3b2'; x.lineWidth = 8; x.beginPath(); x.arc(0, 0, 150, 0, Math.PI * 2); x.stroke();
+      x.beginPath(); x.arc(0, 0, 112, 0, Math.PI * 2); x.stroke();
+      x.restore();
+    };
+    mat(470, 1580); mat(1580, 470);
+    // milk spills (cream blobs with a glossy rim)
+    for (let i = 0; i < 5; i++) {
+      const bx = 300 + rndK() * (S - 600), by = 300 + rndK() * (S - 600);
+      x.fillStyle = 'rgba(245,242,230,0.92)'; x.beginPath();
+      for (let a = 0; a < Math.PI * 2; a += 0.4) { const rr = 70 + rndK() * 55; const px = bx + Math.cos(a) * rr, py = by + Math.sin(a) * rr * 0.8; a === 0 ? x.moveTo(px, py) : x.lineTo(px, py); }
+      x.closePath(); x.fill();
+    }
+    x.fillStyle = 'rgba(90,55,25,0.5)'; // crumbs
+    for (let i = 0; i < 1400; i++) x.fillRect(rndK() * S, rndK() * S, 3 + rndK() * 4, 2 + rndK() * 3);
+  } else if (style === 'bookshelf') {
+    // looking down into packed shelves: bands of colourful book spines
+    let seedB = 51423;
+    const rndB = () => (seedB = (seedB * 16807) % 2147483647) / 2147483647;
+    x.fillStyle = '#6e4a2a'; x.fillRect(0, 0, S, S); // shelf wood
+    const spineCols = ['#b5443c', '#d9a066', '#5a7d4f', '#3a6ea5', '#8a5a86', '#c98a3c', '#4a8a8a', '#a03c4a'];
+    const bandH = S / 6;
+    for (let band = 0; band < 6; band++) {
+      const y0 = band * bandH;
+      x.fillStyle = 'rgba(0,0,0,0.28)'; x.fillRect(0, y0 + bandH - 20, S, 20); // shelf shadow
+      let sx = 8;
+      while (sx < S - 8) {
+        const w = 44 + rndB() * 70;
+        const h = bandH - 26 - rndB() * (bandH * 0.18);
+        const col = spineCols[(rndB() * spineCols.length) | 0];
+        x.fillStyle = col; x.fillRect(sx, y0 + (bandH - 22 - h), w, h);
+        x.fillStyle = 'rgba(255,255,255,0.10)'; x.fillRect(sx, y0 + (bandH - 22 - h), w, 10); // top edge
+        x.fillStyle = 'rgba(0,0,0,0.18)'; x.fillRect(sx + w - 6, y0 + (bandH - 22 - h), 6, h); // spine shade
+        x.strokeStyle = 'rgba(246,242,230,0.5)'; x.lineWidth = 3; // title bands
+        for (let t = 0; t < 2 + (rndB() * 2 | 0); t++) { const ty = y0 + (bandH - 22 - h) + 26 + t * 22; x.beginPath(); x.moveTo(sx + 8, ty); x.lineTo(sx + w - 10, ty); x.stroke(); }
+        sx += w + 3;
+      }
+    }
+  } else if (style === 'livingroom') {
+    // holiday carpet: deep pile, a round tree-skirt hill, ribbon lanes
+    let seedL = 71234;
+    const rndL = () => (seedL = (seedL * 16807) % 2147483647) / 2147483647;
+    x.fillStyle = '#8f2f37'; x.fillRect(0, 0, S, S); // cranberry carpet
+    x.fillStyle = 'rgba(255,255,255,0.05)';
+    for (let i = 0; i < 5000; i++) x.fillRect(rndL() * S, rndL() * S, 3, 6); // pile fibres
+    x.fillStyle = 'rgba(0,0,0,0.06)';
+    for (let i = 0; i < 2600; i++) x.fillRect(rndL() * S, rndL() * S, 3, 6);
+    // diagonal wrapping-ribbon lanes (green + gold candy stripes)
+    const ribbon = (fn, col) => { x.strokeStyle = col; x.lineWidth = 70; x.lineCap = 'round'; x.beginPath(); fn(); x.stroke(); x.strokeStyle = 'rgba(255,255,255,0.5)'; x.lineWidth = 6; x.setLineDash([30, 26]); x.beginPath(); fn(); x.stroke(); x.setLineDash([]); };
+    ribbon(() => { x.moveTo(180, 1000); x.bezierCurveTo(760, 620, 1300, 1420, 1868, 1040); }, '#2f6f45');
+    ribbon(() => { x.moveTo(1000, 180); x.bezierCurveTo(620, 760, 1420, 1300, 1040, 1868); }, '#c79a2c');
+    // central tree-skirt: white ring with red trim + pine-needle speckle
+    x.fillStyle = '#f4f0e6'; x.beginPath(); x.arc(1024, 1024, 250, 0, Math.PI * 2); x.fill();
+    x.strokeStyle = '#c23a3a'; x.lineWidth = 22; x.beginPath(); x.arc(1024, 1024, 240, 0, Math.PI * 2); x.stroke();
+    x.fillStyle = '#3f6f45'; x.beginPath(); x.arc(1024, 1024, 120, 0, Math.PI * 2); x.fill();
+    x.strokeStyle = '#2f5f38'; x.lineWidth = 3;
+    for (let i = 0; i < 240; i++) { const a = rndL() * Math.PI * 2, r = rndL() * 118; x.beginPath(); x.moveTo(1024 + Math.cos(a) * r, 1024 + Math.sin(a) * r); x.lineTo(1024 + Math.cos(a) * (r + 10), 1024 + Math.sin(a) * (r + 10)); x.stroke(); }
+    // scattered ornament + candy-cane doodles on the carpet
+    for (let i = 0; i < 24; i++) {
+      const ox = 200 + rndL() * (S - 400), oy = 200 + rndL() * (S - 400);
+      if ((ox - 1024) ** 2 + (oy - 1024) ** 2 < 300 * 300) continue;
+      x.fillStyle = ['#e8c34a', '#4a86c8', '#e5484d', '#5aa06a'][(rndL() * 4) | 0];
+      x.beginPath(); x.arc(ox, oy, 16, 0, Math.PI * 2); x.fill();
+      x.fillStyle = 'rgba(255,255,255,0.6)'; x.beginPath(); x.arc(ox - 5, oy - 5, 5, 0, Math.PI * 2); x.fill();
+    }
+    // tinsel border
+    x.strokeStyle = '#e8c34a'; x.lineWidth = 16; x.setLineDash([30, 20]);
+    x.strokeRect(24, 24, S - 48, S - 48); x.setLineDash([]);
   } else {
     // classic bedroom playmat
     x.fillStyle = '#79b45a'; x.fillRect(0, 0, S, S);
@@ -1872,6 +1962,38 @@ export function createDecorMesh(kind, rngSeed = 1) {
     pole.position.set(0.4, 0.33, 0.1);
     const flag = add(new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.08, 0.01), toyMat(0xe5484d, 0.4)));
     flag.position.set(0.47, 0.37, 0.1);
+    g.rotation.y = rng() * Math.PI * 2;
+  } else if (kind === 'teacup') {
+    const col = PASTELS[(rng() * PASTELS.length) | 0];
+    const saucer = add(new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.28, 0.05, 16), toyMat(0xf6f2e6, 0.3)));
+    saucer.position.y = 0.025;
+    const cup = add(new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.15, 0.26, 16), toyMat(col, 0.3)));
+    cup.position.y = 0.19;
+    const tea = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.02, 16), toyMat(0x7a4a28, 0.2));
+    tea.position.y = 0.31; g.add(tea);
+    const handle = add(new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.028, 8, 14, Math.PI), toyMat(col, 0.3)));
+    handle.position.set(0.24, 0.19, 0); handle.rotation.z = -Math.PI / 2;
+    g.rotation.y = rng() * Math.PI * 2;
+  } else if (kind === 'ornament') {
+    const col = [0xe5484d, 0x4a86c8, 0xe8c34a, 0x5aa06a, 0x9a5ab0][(rng() * 5) | 0];
+    const ball = add(new THREE.Mesh(new THREE.SphereGeometry(0.24, 16, 12),
+      new THREE.MeshStandardMaterial({ color: col, roughness: 0.15, metalness: 0.5, emissive: col, emissiveIntensity: 0.12 })));
+    ball.position.y = 0.28;
+    const cap = add(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.08, 10), toyMat(0xe8c34a, 0.3)));
+    cap.position.y = 0.52;
+    const loop = add(new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.012, 6, 12), toyMat(0xe8c34a, 0.3)));
+    loop.position.y = 0.57;
+    g.rotation.y = rng() * Math.PI * 2;
+  } else if (kind === 'gift') {
+    const boxCol = PASTELS[(rng() * PASTELS.length) | 0];
+    const ribCol = [0xe5484d, 0xe8c34a, 0xf6f2e6][(rng() * 3) | 0];
+    const s = 0.34 + rng() * 0.12;
+    const box = add(new THREE.Mesh(new THREE.BoxGeometry(s, s * 0.85, s), toyMat(boxCol, 0.5)));
+    box.position.y = s * 0.42;
+    const ribM = toyMat(ribCol, 0.4);
+    const r1 = add(new THREE.Mesh(new THREE.BoxGeometry(s + 0.02, s * 0.86, 0.06), ribM)); r1.position.y = s * 0.42;
+    const r2 = add(new THREE.Mesh(new THREE.BoxGeometry(0.06, s * 0.86, s + 0.02), ribM)); r2.position.y = s * 0.42;
+    for (const bx of [-0.05, 0.05]) { const bow = add(new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), ribM)); bow.position.set(bx, s * 0.9, 0); }
     g.rotation.y = rng() * Math.PI * 2;
   } else { // ball
     const b = add(new THREE.Mesh(new THREE.SphereGeometry(0.35, 14, 10), toyMat(PASTELS[(rng() * PASTELS.length) | 0], 0.4)));

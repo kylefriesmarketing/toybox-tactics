@@ -469,6 +469,31 @@ export const MAPS = {
     decorCount: 18,
     desc: 'Sunny backyard: sandbox center, swings and slides everywhere.',
   },
+  kitchen: {
+    label: 'Kitchen Table', icon: '🍽️', ground: 'kitchen', light: 'warm',
+    obstacles: 4, canyon: false, resourceMul: 1.35, stickers: 2, plateaus: 2,
+    // dinner-table spills read as impassable milk lakes — lots of them
+    features: { milk: 3, ranges: 1, forests: 1 },
+    decor: ['teacup', 'die', 'ball', 'crayon'],
+    decorCount: 15,
+    desc: 'A crumb-strewn dinner table — rich, but mind the milk spills.',
+  },
+  bookshelf: {
+    label: 'Bookshelf Heights', icon: '📚', ground: 'bookshelf', light: 'warm',
+    // elevation-forward: extra plateaus + ramps make a tiered high-ground fight,
+    // but kept navigable (too many blockers wall armies out and stalemate).
+    obstacles: 4, canyon: false, resourceMul: 1, stickers: 3, plateaus: 3,
+    features: { ranges: 1, forests: 1 },
+    desc: 'Stacked shelves and ramps — seize and hold the high ground.',
+  },
+  livingroom: {
+    label: 'Living Room', icon: '🎄', ground: 'livingroom', light: 'warm',
+    obstacles: 3, canyon: false, resourceMul: 1.3, stickers: 3, plateaus: 2,
+    features: { forests: 1 },
+    decor: ['ornament', 'gift', 'die', 'ball'],
+    decorCount: 16,
+    desc: 'Holiday carpet: presents to grab, a tree skirt to hold.',
+  },
 };
 
 // which building types count as "production" for the conquest win condition
