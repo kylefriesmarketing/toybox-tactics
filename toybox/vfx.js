@@ -586,6 +586,22 @@ export class VFX {
       rand(0.18, 0.3), 0.09, color, 0, 3);
   }
 
+  // gold flourish when a toy is promoted to a higher upgrade tier
+  promote(x, z) {
+    // rising gold fountain
+    for (let i = 0; i < 16; i++) {
+      const a = Math.random() * Math.PI * 2;
+      this.sparks.spawn(x + rand(-0.2, 0.2), rand(0.2, 0.7), z + rand(-0.2, 0.2),
+        Math.cos(a) * rand(0.3, 1.0), rand(1.8, 3.4), Math.sin(a) * rand(0.3, 1.0),
+        rand(0.5, 0.9), rand(0.09, 0.15), pick([0xffe08a, 0xffd24a, 0xffec9e]), 4, 2);
+    }
+    // gold shock ring skimming the ground
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      this.sparks.spawn(x, 0.1, z, Math.cos(a) * 2.0, 0.25, Math.sin(a) * 2.0, 0.34, 0.12, 0xffd24a, 0, 4);
+    }
+  }
+
   // gentle green sparkles over a toy being patched up
   heal(x, z) {
     for (let i = 0; i < 3; i++) {

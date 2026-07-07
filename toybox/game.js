@@ -1061,6 +1061,8 @@ export class Game {
         if (e.kind === 'unit' && e.owner === owner && !e.dead && e.type === line) {
           if (elite) { const f = e.hp / e.maxHp; e.maxHp = Math.round(e.maxHp * 1.25); e.hp = e.maxHp * f; }
           if (e.view) applyUnitTier(e.view, e.def, owner, tier);
+          // gold flourish so the promotion reads on the battlefield
+          if (this.fx && this.fog.state(e.x, e.z) === 2) this.fx.promote(e.x, e.z);
         }
       }
     }
