@@ -449,6 +449,48 @@ function addCommonRings(view, def, owner, radius) {
   view.markDamaged = () => { view._damaged = true; hpBar.sprite.visible = true; };
 }
 
+// procedural weapons slotted into a rigged model's hand bone — fixes the
+// generated army men whose meshes shipped without a weapon. The weapon is a
+// child of the hand bone, so it follows the walk/attack animation.
+const HAND_BONE = { bow: 'LeftHand' }; // most weapons ride the right hand
+function buildWeapon(type, owner) {
+  const g = new THREE.Group();          // built in WORLD units, then scaled to the bone
+  const mat = (c, r = 0.5, m = 0) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m });
+  const box = (w, h, d, c, r) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c, r));
+  const cyl = (r0, r1, h, c, seg = 10) => new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, h, seg), mat(c));
+  if (type === 'rifle') {
+    const barrel = box(0.05, 0.52, 0.05, 0x2b2f36, 0.5); barrel.position.y = 0.2; g.add(barrel);
+    const stock = box(0.07, 0.19, 0.06, 0x5a3d22, 0.6); stock.position.y = -0.03; g.add(stock);
+    const mag = box(0.05, 0.1, 0.04, 0x2b2f36); mag.position.set(0, 0.02, 0.06); g.add(mag);
+  } else if (type === 'bazooka') {
+    const tube = cyl(0.07, 0.07, 0.62, 0x3a5a34); tube.position.y = 0.24; g.add(tube);
+    const mouth = cyl(0.09, 0.07, 0.06, 0x223a20); mouth.position.y = 0.54; g.add(mouth);
+    const grip = box(0.05, 0.12, 0.05, 0x2b2f36); grip.position.set(0, 0.02, 0.07); g.add(grip);
+    const sight = box(0.02, 0.06, 0.02, 0x777777); sight.position.set(0, 0.34, 0.08); g.add(sight);
+  } else if (type === 'grenade') {
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), mat(0x394d36, 0.6)); body.position.y = 0.04; g.add(body);
+    const cap = cyl(0.03, 0.03, 0.04, 0x8a6a3a); cap.position.y = 0.11; g.add(cap);
+    const lever = box(0.015, 0.09, 0.03, 0x9aa0a6); lever.position.set(0.05, 0.06, 0); g.add(lever);
+  } else if (type === 'bow') {
+    const bow = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.02, 8, 14, Math.PI * 1.15), mat(0x6a4a2e, 0.6));
+    bow.rotation.z = Math.PI / 2 - Math.PI * 0.075; g.add(bow);
+    const string = box(0.008, 0.42, 0.008, 0xf2efe4, 0.4); string.position.z = -0.02; g.add(string);
+  }
+  return g;
+}
+function attachHandWeapon(model, def, owner) {
+  const boneName = HAND_BONE[def.handWeapon] || 'RightHand';
+  let bone = null;
+  model.traverse((o) => { if (o.isBone && o.name === boneName) bone = o; });
+  if (!bone) return; // rig has no such hand bone — leave the model as-is
+  bone.updateWorldMatrix(true, false);
+  const bs = new THREE.Vector3();
+  bone.matrixWorld.decompose(new THREE.Vector3(), new THREE.Quaternion(), bs);
+  const w = buildWeapon(def.handWeapon, owner);
+  w.scale.multiplyScalar(1 / (bs.x || 1)); // world size → bone-local size
+  bone.add(w);
+}
+
 function makeModelView(entry, def, owner) {
   const group = new THREE.Group();
   const model = entry.rigless ? entry.proto.clone(true) : cloneSkinned(entry.proto);
@@ -553,6 +595,7 @@ function makeModelView(entry, def, owner) {
     return a;
   }
   play('idle', 0);
+  if (def.handWeapon) attachHandWeapon(model, def, owner);
 
   let moving = false, deathT = -1, deathClipDur = 0;
   view.setMoving = (v) => {
