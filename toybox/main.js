@@ -3,7 +3,7 @@
 // ============================================================
 
 import * as THREE from 'three';
-import { MAP_N, BUILDINGS, MAPS, FACTIONS, GAME_MODES } from './data.js';
+import { MAP_N, BUILDINGS, MAPS, FACTIONS, GAME_MODES, generateRandomMap } from './data.js';
 import {
   loadUnitModels, loadBuildingModels, loadMapModels, setBuildingFootprints,
   createGhostMesh, createMoveMarker, createLamp, renderPortraits,
@@ -366,12 +366,48 @@ for (const btn of document.querySelectorAll('#startres-row .startres-btn')) {
   });
 }
 let chosenMap = 'playmat';
+// random-map settings (only used when chosenMap === 'random')
+const rndOpts = { size: 'medium', resources: 'standard', water: 'some' };
+let rndSeed = (Math.random() * 1e6) | 0;
+function refreshRandomDesc() {
+  const d = document.getElementById('map-desc');
+  if (d) d.textContent = generateRandomMap(rndSeed, rndOpts).desc;
+}
 for (const btn of document.querySelectorAll('.map-btn')) {
   btn.addEventListener('click', () => {
     chosenMap = btn.dataset.map;
     document.querySelectorAll('.map-btn').forEach((b) => b.classList.toggle('sel', b === btn));
-    const d = document.getElementById('map-desc');
-    if (d) d.textContent = MAPS[chosenMap].desc;
+    const isRandom = chosenMap === 'random';
+    const rr = document.getElementById('random-row');
+    if (rr) rr.style.display = isRandom ? 'flex' : 'none';
+    if (isRandom) refreshRandomDesc();
+    else { const d = document.getElementById('map-desc'); if (d) d.textContent = MAPS[chosenMap].desc; }
+  });
+}
+// random-map option buttons (size / resources / water)
+for (const btn of document.querySelectorAll('.rnd-btn')) {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.rnd;
+    rndOpts[key] = btn.dataset.val;
+    document.querySelectorAll(`.rnd-btn[data-rnd="${key}"]`).forEach((b) => b.classList.toggle('sel', b === btn));
+    refreshRandomDesc();
+  });
+}
+{
+  const seedInput = document.getElementById('rnd-seed');
+  if (seedInput) {
+    seedInput.value = String(rndSeed);
+    seedInput.addEventListener('input', () => {
+      const v = parseInt(seedInput.value.replace(/\D/g, ''), 10);
+      rndSeed = Number.isFinite(v) ? v : 0;
+      refreshRandomDesc();
+    });
+  }
+  const reroll = document.getElementById('rnd-reroll');
+  if (reroll) reroll.addEventListener('click', () => {
+    rndSeed = (Math.random() * 1e6) | 0;
+    if (seedInput) seedInput.value = String(rndSeed);
+    refreshRandomDesc();
   });
 }
 let chosenFaction = 'classic';
@@ -406,6 +442,7 @@ function applyMapLighting(mode) {
 $('start-btn').addEventListener('click', () => startGame(chosenDiff));
 $('tutorial-btn').addEventListener('click', () => startTutorial());
 window.__ttStart = (d, m) => startGame(d || 'normal', m); // headless test hook
+window.__ttRandom = generateRandomMap; // headless: build a random-map config to soak
 
 // ---------------- tutorial ----------------
 let tutorialActive = false, tutStepI = 0, tutStartCam = null, tutSpawned = false;
@@ -566,8 +603,16 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
     setTimeout(() => menuEl.remove(), 600);
   }
 
-  const map = (mpOpts && mpOpts.map) || mapKey || chosenMap;
-  applyMapLighting((MAPS[map] || MAPS.playmat).light);
+  let map = (mpOpts && mpOpts.map) || mapKey || chosenMap;
+  // seed: MP/resume carry theirs; fresh games roll a new one
+  let seedVal = mpOpts ? mpOpts.seed : (resume ? resume.opts.seed : (Math.random() * 2 ** 31) | 0);
+  // a fresh single-player random map: build the config from the seed panel and
+  // tie the whole match seed to it, so a given seed reproduces the exact board
+  if (map === 'random' && !mpOpts && !resume) {
+    map = generateRandomMap(rndSeed, rndOpts);
+    seedVal = rndSeed | 0;
+  }
+  applyMapLighting((typeof map === 'object' ? map : (MAPS[map] || MAPS.playmat)).light);
   vfx = new VFX(scene);
   net = mpOpts ? mpOpts.net : null;
   // team roster: 1v1 stays implicit; 2v2 spells out the four seats
@@ -598,7 +643,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
     gameMode: mpOpts ? mpOpts.gameMode : (resume ? resume.opts.gameMode : chosenMode),
     startRes: mpOpts ? mpOpts.startRes : (resume ? resume.opts.startRes : chosenStartRes),
     // resumed games must rebuild the identical map shell before restoring
-    seed: mpOpts ? mpOpts.seed : (resume ? resume.opts.seed : (Math.random() * 2 ** 31) | 0),
+    seed: seedVal,
     mp: !!mpOpts, myId: mpOpts ? mpOpts.myId : 0, net,
     faction: chosenFaction,
     factions: mpOpts ? mpOpts.factions : (resume ? resume.opts.factions : null),

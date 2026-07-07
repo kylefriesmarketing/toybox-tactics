@@ -550,6 +550,84 @@ export const MAPS = {
   },
 };
 
+// ---------------- random map generator ----------------
+// Produces a MAPS-shaped config object deterministically from a seed + settings,
+// which the existing seeded terrain pipeline (game.setup) turns into real terrain.
+// Same seed + settings => identical map (shareable / lockstep-safe).
+// settings: { size:'small'|'medium'|'large', resources:'sparse'|'standard'|'rich', water:'none'|'some'|'lots' }
+export const RANDOM_THEMES = [
+  { ground: 'playmat',    light: 'normal', name: 'Playmat',     decor: ['crayon', 'die', 'ball'] },
+  { ground: 'underbed',   light: 'dark',   name: 'Under-Bed',   decor: ['die', 'ball', 'crayon'] },
+  { ground: 'attic',      light: 'warm',   name: 'Attic',       decor: ['die', 'ball', 'crayon'] },
+  { ground: 'playground', light: 'warm',   name: 'Playground',  decor: ['swingset', 'slide', 'seesaw', 'sandbucket', 'ball'] },
+  { ground: 'kitchen',    light: 'warm',   name: 'Kitchen',     decor: ['teacup', 'die', 'ball', 'crayon'] },
+  { ground: 'bookshelf',  light: 'warm',   name: 'Bookshelf',   decor: ['die', 'ball', 'crayon'] },
+  { ground: 'livingroom', light: 'warm',   name: 'Living Room', decor: ['ornament', 'gift', 'die', 'ball'] },
+  { ground: 'bathtub',    light: 'normal', name: 'Bathtub',     decor: ['duckling', 'ball', 'die'] },
+];
+
+export function generateRandomMap(seed, opts = {}) {
+  // self-contained LCG (must match game.js makeRng so results feel consistent)
+  let s = (seed | 0) % 2147483647; if (s <= 0) s += 2147483646;
+  const rng = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const ri = (lo, hi) => lo + ((rng() * (hi - lo + 1)) | 0); // inclusive int
+  const pick = (arr) => arr[(rng() * arr.length) | 0];
+
+  const size = opts.size || 'medium';
+  const resKey = opts.resources || 'standard';
+  const waterKey = opts.water || 'some';
+
+  // size tunes elevation, openness and spread (grid itself is fixed)
+  const SZ = {
+    small:  { plateaus: [1, 2], obstacles: [5, 7], feat: 1.15, decor: 0.8 },
+    medium: { plateaus: [2, 3], obstacles: [4, 6], feat: 1.0,  decor: 1.0 },
+    large:  { plateaus: [3, 4], obstacles: [3, 5], feat: 0.85, decor: 1.2 },
+  }[size] || { plateaus: [2, 3], obstacles: [4, 6], feat: 1.0, decor: 1.0 };
+  const RES = { sparse: 0.8, standard: 1.05, rich: 1.4 }[resKey] ?? 1.05;
+
+  // water: bounded so land armies can still ring the basin and close games out
+  let water = null;
+  if (waterKey === 'some' && rng() < 0.6) water = { rx: ri(10, 12), rz: ri(8, 10) };
+  else if (waterKey === 'lots') water = { rx: ri(13, 15), rz: ri(10, 12) };
+  const wet = !!water;
+
+  // a watery board biases the theme toward the tub; otherwise anything goes
+  const theme = wet && rng() < 0.5 ? RANDOM_THEMES[7] : pick(RANDOM_THEMES);
+
+  // a rare pillow barricade splits the room (skip when there's a lake to cross)
+  const canyon = !wet && rng() < 0.16;
+
+  const fscale = SZ.feat;
+  const fc = (base) => Math.max(0, Math.round(base * fscale));
+  const features = {
+    // wet/canyon boards are already carved up — keep land clutter light to
+    // avoid fragmenting the map into a pathing stalemate
+    forests: fc(1 + (rng() < 0.6 ? 1 : 0) + (rng() < 0.3 ? 1 : 0)), // 1–3
+    ranges: canyon ? 0 : fc(rng() < 0.5 ? 1 : (rng() < 0.4 ? 2 : 0)), // 0–2
+    milk: (wet || canyon) ? 0 : fc(rng() < 0.45 ? 1 : (rng() < 0.3 ? 2 : 0)), // 0–2
+  };
+
+  let obstacles = ri(SZ.obstacles[0], SZ.obstacles[1]);
+  if (canyon) obstacles = Math.max(2, obstacles - 2); // the barricade is enough
+
+  const cfg = {
+    random: true,
+    label: 'Random Map', icon: '🎲',
+    ground: theme.ground, light: theme.light,
+    obstacles, canyon,
+    resourceMul: +(RES * (0.92 + rng() * 0.16)).toFixed(2),
+    stickers: 2 + (rng() < 0.4 ? 1 : 0),
+    plateaus: ri(SZ.plateaus[0], SZ.plateaus[1]),
+    features,
+    decor: theme.decor,
+    decorCount: Math.round((12 + ri(0, 8)) * SZ.decor),
+    seed: seed | 0,
+    desc: `Seed ${seed | 0} · ${size} · ${theme.name}${wet ? ' · watery' : ''} — a fresh field every roll.`,
+  };
+  if (water) cfg.water = water;
+  return cfg;
+}
+
 // which building types count as "production" for the conquest win condition
 export const PRODUCTION_BUILDINGS = ['chest', 'mat', 'bench', 'garage', 'workshop', 'fort'];
 

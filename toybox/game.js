@@ -217,7 +217,8 @@ export class Game {
     this.mp = !!opts.mp;          // multiplayer: no AI, commands via lockstep
     this.net = opts.net || null;
     this.rng = makeRng(opts.seed || 20260703);
-    this.map = MAPS[opts.map] || MAPS.playmat;
+    // opts.map may be a MAPS key or a full config object (e.g. a random map)
+    this.map = (opts.map && typeof opts.map === 'object') ? opts.map : (MAPS[opts.map] || MAPS.playmat);
     this.tutorial = !!opts.tutorial; // AI sits idle; scripted steps drive play
     this.gameMode = opts.gameMode && GAME_MODES[opts.gameMode] ? opts.gameMode : 'standard';
     this.startResKey = opts.startRes && START_RES[opts.startRes] ? opts.startRes : 'standard';
