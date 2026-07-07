@@ -312,6 +312,9 @@ export const MODEL_MANIFEST = {
   catapult:{ dir: 'assets/units/catapult',model: 'model.glb', targetHeight: 0.65 },
   dragster:{ dir: 'assets/units/dragster',model: 'model.glb', targetHeight: 0.42 },
   cart:    { dir: 'assets/units/cart',    model: 'model.glb', targetHeight: 0.5 },
+  // static naval hulls, no rig — code-animated (bob on the water); proc fallback
+  tugboat: { dir: 'assets/units/tugboat', model: 'model.glb', targetHeight: 0.55 },
+  duckboat:{ dir: 'assets/units/duckboat',model: 'model.glb', targetHeight: 0.6 },
 };
 
 // ---------------- buildings ----------------
