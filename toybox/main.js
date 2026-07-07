@@ -1239,6 +1239,9 @@ function setupAmbient() {
     doorLight = new THREE.PointLight(0xffd9a0, 26, 32, 1.7);
     doorLight.position.set(63.5, 4, DZ + 3);
     door.add(doorLight);
+    // sit the whole door just in front of the wall's baseboard — otherwise the
+    // frame/panel are coplanar with it and z-fight (flickers at the door's base)
+    door.position.x = -1.2;
     g.add(door);
   }
 
