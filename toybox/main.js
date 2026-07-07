@@ -515,6 +515,69 @@ for (const btn of document.querySelectorAll('.pcount-btn')) {
 }
 renderLobby(); // initial
 
+// ---------------- multiplayer lobby (2 humans + AI seats, online) ----------------
+// The two humans occupy seats 0 (host) and 1 (guest) — the lockstep layer relays
+// exactly those two command streams; AI seats 2–3 run deterministically on both
+// clients. The host's roster is sent to the guest so both build an identical game.
+const MP_TEAM_PRESETS = {
+  2: { '1v1': [0, 1] },
+  3: { 'co-op': [0, 0, 1], ffa: [0, 1, 2] },
+  4: { 'co-op': [0, 0, 1, 1], '2v2': [0, 1, 0, 1], ffa: [0, 1, 2, 3] },
+};
+const MP_PRESET_LABEL = { '1v1': '⚔️ 1v1', 'co-op': '🤝 Co-op vs AI', '2v2': '🤝 2v2', ffa: '🎲 FFA' };
+const mpLobby = { count: 2, preset: '1v1', civ: ['', '', 'random', 'random'], diff: ['', '', 'default', 'default'] };
+function renderMpLobby() {
+  if (!MP_TEAM_PRESETS[mpLobby.count][mpLobby.preset]) mpLobby.preset = Object.keys(MP_TEAM_PRESETS[mpLobby.count])[0];
+  const teams = MP_TEAM_PRESETS[mpLobby.count][mpLobby.preset];
+  const tr = document.getElementById('mp-teams');
+  if (tr) {
+    tr.innerHTML = Object.keys(MP_TEAM_PRESETS[mpLobby.count]).map((k) =>
+      `<button class="mp-team-preset diff-btn ${k === mpLobby.preset ? 'sel' : ''}" data-preset="${k}">${MP_PRESET_LABEL[k]}</button>`).join('');
+    for (const b of tr.querySelectorAll('.mp-team-preset')) b.addEventListener('click', () => { mpLobby.preset = b.dataset.preset; renderMpLobby(); });
+  }
+  const seats = document.getElementById('mp-seats');
+  if (seats) {
+    const facOpts = (sel) => ['random', ...Object.keys(FACTIONS)].map((f) =>
+      `<option value="${f}" ${f === sel ? 'selected' : ''}>${f === 'random' ? '🎲 Random civ' : FACTIONS[f].icon + ' ' + FACTIONS[f].label}</option>`).join('');
+    const diffOpts = (sel) => `<option value="default" ${sel === 'default' ? 'selected' : ''}>Default</option>` +
+      Object.keys(DIFFICULTIES).map((d) => `<option value="${d}" ${d === sel ? 'selected' : ''}>${DIFFICULTIES[d].label}</option>`).join('');
+    let html = '';
+    for (let i = 0; i < mpLobby.count; i++) {
+      const badge = `<span class="team-badge" style="background:${TEAM_COLOR[teams[i]]}">${TEAM_LETTER[teams[i]]}</span>`;
+      if (i === 0) { const f = FACTIONS[chosenFaction] || FACTIONS.classic; html += `<div class="seat"><span class="seat-ic">🎖️</span><span class="seat-name">You (host)</span>${badge}<span class="seat-spring"></span><span style="color:#d7cff2;font-size:12px">${f.icon} ${f.label}</span></div>`; }
+      else if (i === 1) html += `<div class="seat"><span class="seat-ic">🧑</span><span class="seat-name">Friend</span>${badge}<span class="seat-spring"></span><span style="color:#9a92c4;font-size:12px">joins online with their own civ</span></div>`;
+      else html += `<div class="seat" data-seat="${i}"><span class="seat-ic">🤖</span><span class="seat-name">AI ${i + 1}</span>${badge}<span class="seat-spring"></span>` +
+        `<select class="mp-seat-civ" data-seat="${i}">${facOpts(mpLobby.civ[i])}</select><select class="mp-seat-diff" data-seat="${i}">${diffOpts(mpLobby.diff[i])}</select></div>`;
+    }
+    seats.innerHTML = html;
+    for (const s of seats.querySelectorAll('.mp-seat-civ')) s.addEventListener('change', () => { mpLobby.civ[+s.dataset.seat] = s.value; });
+    for (const s of seats.querySelectorAll('.mp-seat-diff')) s.addEventListener('change', () => { mpLobby.diff[+s.dataset.seat] = s.value; });
+  }
+  const mm = document.getElementById('mp-mapmode');
+  if (mm) {
+    const mapName = chosenMap === 'random' ? '🎲 Random' : (MAPS[chosenMap] ? MAPS[chosenMap].label : chosenMap);
+    mm.innerHTML = `Map: <b>${mapName}</b> · Mode: <b>${GAME_MODES[chosenMode].label}</b> <span style="color:#9a92c4">— set these in Custom Skirmish</span>`;
+  }
+}
+function buildMpDefs() {
+  const teams = MP_TEAM_PRESETS[mpLobby.count][mpLobby.preset] || Object.values(MP_TEAM_PRESETS[mpLobby.count])[0];
+  const defs = [];
+  for (let i = 0; i < mpLobby.count; i++) {
+    if (i === 0) defs.push({ team: teams[0], isAI: false, faction: chosenFaction });
+    else if (i === 1) defs.push({ team: teams[1], isAI: false, faction: 'classic' }); // guest's civ filled on connect
+    else defs.push({ team: teams[i], isAI: true, faction: mpLobby.civ[i] === 'random' ? null : mpLobby.civ[i], difficulty: mpLobby.diff[i] === 'default' ? chosenDiff : mpLobby.diff[i] });
+  }
+  return defs;
+}
+for (const btn of document.querySelectorAll('.mp-pcount-btn')) {
+  btn.addEventListener('click', () => {
+    mpLobby.count = +btn.dataset.pc;
+    document.querySelectorAll('.mp-pcount-btn').forEach((b) => b.classList.toggle('sel', b === btn));
+    renderMpLobby();
+  });
+}
+renderMpLobby(); // initial
+
 // per-theme room lighting (fog near/far go through fogBase so zoom can scale them)
 function applyMapLighting(mode) {
   if (mode === 'dark') {
@@ -545,7 +608,7 @@ function showMenuScreen(name) {
 }
 $('home-quick').addEventListener('click', () => startGame(chosenDiff));
 $('home-custom').addEventListener('click', () => showMenuScreen('setup'));
-$('home-mp').addEventListener('click', () => showMenuScreen('mp'));
+$('home-mp').addEventListener('click', () => { showMenuScreen('mp'); renderMpLobby(); });
 for (const b of document.querySelectorAll('.setup-back')) b.addEventListener('click', () => showMenuScreen('home'));
 window.__ttStart = (d, m) => startGame(d || 'normal', m); // headless test hook
 window.__ttRandom = generateRandomMap; // headless: build a random-map config to soak
@@ -726,11 +789,13 @@ $('mp-host').addEventListener('click', async () => {
   mpStatus('Setting up the room…');
   try {
     const n = new Net();
-    // the Battle picker doubles as the online mode: 2v2 hosts a co-op room
-    const setup = await n.host(chosenMap, chosenFaction, (msg) => mpStatus(msg),
-      chosenSize === '2v2' ? 'coop' : '1v1', chosenDiff, chosenMode, chosenStartRes);
+    // send the whole lobby roster; a random map is generated once and shipped
+    const mpMap = chosenMap === 'random' ? generateRandomMap(rndSeed, rndOpts) : chosenMap;
+    const defs = buildMpDefs();
+    const setup = await n.host(mpMap, chosenFaction, (msg) => mpStatus(msg),
+      'lobby', chosenDiff, chosenMode, chosenStartRes, defs);
     mpStatus('Friend joined! Starting…');
-    startGame(setup.difficulty, null, { net: n, myId: 0, seed: setup.seed, map: setup.map, factions: setup.factions, mode: setup.mode, gameMode: setup.gameMode, startRes: setup.startRes });
+    startGame(setup.difficulty, null, { net: n, myId: 0, seed: setup.seed, map: setup.map, factions: setup.factions, mode: setup.mode, gameMode: setup.gameMode, startRes: setup.startRes, playerDefs: setup.playerDefs });
   } catch (e) {
     mpStatus(`⚠ ${e.message || e.type || 'Hosting failed'}`);
   }
@@ -744,7 +809,7 @@ $('mp-join').addEventListener('click', async () => {
   try {
     const n = new Net();
     const setup = await n.join(code, chosenFaction, (msg) => mpStatus(msg));
-    startGame('normal', null, { net: n, myId: 1, seed: setup.seed, map: setup.map, factions: setup.factions, mode: setup.mode, gameMode: setup.gameMode, startRes: setup.startRes });
+    startGame('normal', null, { net: n, myId: 1, seed: setup.seed, map: setup.map, factions: setup.factions, mode: setup.mode, gameMode: setup.gameMode, startRes: setup.startRes, playerDefs: setup.playerDefs });
   } catch (e) {
     mpStatus(`⚠ ${e.message || e.type || 'Could not join'}`);
   }
@@ -836,13 +901,8 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   let playerDefs = resume ? resume.opts.playerDefs || null : null;
   if (!playerDefs && !mpOpts && !campaignMission) {
     playerDefs = buildLobbyDefs();
-  } else if (!playerDefs && mpOpts && mpOpts.mode === 'coop') {
-    playerDefs = [
-      { team: 0, isAI: false, faction: mpOpts.factions[0] }, // host
-      { team: 0, isAI: false, faction: mpOpts.factions[1] }, // guest — same team
-      { team: 1, isAI: true },
-      { team: 1, isAI: true },
-    ];
+  } else if (!playerDefs && mpOpts && mpOpts.playerDefs) {
+    playerDefs = mpOpts.playerDefs; // networked lobby: host's roster (both clients identical)
   }
   // campaign missions fix the matchup (you vs a scripted enemy tribe)
   const campFactions = campaignMission ? [campaignMission.faction, campaignMission.enemy] : null;

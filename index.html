@@ -265,8 +265,8 @@
     background: #140c2680; border: 1px solid #2f2450; border-radius: 14px; padding: 8px 12px 12px; }
   @media (max-width: 720px) { .setup-grid { grid-template-columns: 1fr; } }
   /* skirmish lobby */
-  #pcount-row, #teams-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-  #lobby-seats { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 640px; margin: 2px auto 4px; }
+  #pcount-row, #teams-row, #mp-pcount, #mp-teams { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  #lobby-seats, #mp-seats { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 640px; margin: 2px auto 4px; }
   .seat { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 12px;
     background: #140c2688; border: 1px solid #2f2450; }
   .seat .seat-ic { font-size: 19px; width: 24px; text-align: center; flex: none; }
@@ -623,15 +623,26 @@
 
     <!-- ============ MULTIPLAYER ============ -->
     <div id="menu-mp" style="display:none">
-      <div class="menu-card" style="max-width:480px">
+      <div class="menu-card" style="max-width:580px">
         <div class="setup-head">
           <button class="setup-back diff-btn">← Back</button>
-          <span class="menu-label" style="margin:0">Multiplayer — 1v1 online</span>
+          <span class="menu-label" style="margin:0">Multiplayer — 2 humans + AI</span>
           <span class="setup-head-spacer"></span>
         </div>
-        <div class="menu-help" style="margin:0 0 4px">Host a game to get a 4-letter code and share it, or type a friend's code to join. Uses the civilization you pick in Custom Skirmish.</div>
+        <div class="menu-help" style="margin:0 0 6px"><b>Hosting?</b> Set up the room below, then share the 4-letter code. <b>Joining?</b> Just type your friend's code. Map, mode &amp; your civ come from Custom Skirmish.</div>
+        <div class="menu-label">Host setup — Players</div>
+        <div id="mp-pcount">
+          <button class="mp-pcount-btn diff-btn sel" data-pc="2">2</button>
+          <button class="mp-pcount-btn diff-btn" data-pc="3">3</button>
+          <button class="mp-pcount-btn diff-btn" data-pc="4">4</button>
+        </div>
+        <div class="menu-label">Teams</div>
+        <div id="mp-teams"></div>
+        <div id="mp-seats"></div>
+        <div id="mp-mapmode" class="menu-help" style="margin:6px 0 2px"></div>
         <div id="mp-row">
           <button id="mp-host" class="diff-btn">🌐 Host game</button>
+          <span style="color:#9a92c4;font-size:12px">— or join —</span>
           <input id="mp-code" maxlength="4" placeholder="CODE" autocomplete="off">
           <button id="mp-join" class="diff-btn">Join</button>
         </div>

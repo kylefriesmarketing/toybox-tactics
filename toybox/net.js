@@ -40,9 +40,12 @@ export class Net {
     });
   }
 
-  // host: returns { seed, map, factions, mode } once a guest is connected.
-  // mode '1v1' = versus; 'coop' = both humans on one team vs two AI rivals
-  host(mapKey, faction, onStatus, mode = '1v1', difficulty = 'normal', gameMode = 'standard', startRes = 'standard') {
+  // host: returns { seed, map, factions, mode, playerDefs } once a guest connects.
+  // playerDefs (optional) is the lobby seat list: seat 0 = host, seat 1 = the
+  // joining guest (its faction is filled in from the guest's hello), seats 2+ =
+  // AI bots that both clients simulate deterministically (no traffic for them).
+  // mapKey may be a string or a full random-map config object (JSON-serialized).
+  host(mapKey, faction, onStatus, mode = '1v1', difficulty = 'normal', gameMode = 'standard', startRes = 'standard', playerDefs = null) {
     return this.loadLib().then(() => new Promise((resolve, reject) => {
       const code = randomCode();
       this.myId = 0;
@@ -57,6 +60,12 @@ export class Net {
         this.conn = conn;
         conn.on('data', (d) => {
           if (d && d.type === 'hello') {
+            // finalize the roster with the guest's chosen civilization in seat 1
+            let defs = null;
+            if (playerDefs) {
+              defs = playerDefs.map((s) => ({ ...s }));
+              if (defs[1]) defs[1].faction = d.faction || 'classic';
+            }
             const setup = {
               type: 'start',
               seed: (Math.random() * 2 ** 31) | 0,
@@ -65,6 +74,7 @@ export class Net {
               difficulty, // both clients must build identical AI opponents
               gameMode, startRes, // and identical victory conditions / economy
               factions: [faction || 'classic', d.faction || 'classic'],
+              playerDefs: defs,
             };
             conn.send(setup);
             this.wire();
