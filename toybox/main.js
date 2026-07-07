@@ -3,7 +3,7 @@
 // ============================================================
 
 import * as THREE from 'three';
-import { MAP_N, BUILDINGS, MAPS, FACTIONS, GAME_MODES, generateRandomMap } from './data.js';
+import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, generateRandomMap } from './data.js';
 import {
   loadUnitModels, loadBuildingModels, loadMapModels, setBuildingFootprints,
   createGhostMesh, createMoveMarker, createLamp, renderPortraits,
@@ -411,14 +411,36 @@ for (const btn of document.querySelectorAll('.rnd-btn')) {
   });
 }
 let chosenFaction = 'classic';
+// rich civ card: surfaces each civ's bonus + unique unit + unique building + unique tech
+function renderCivPanel(facKey) {
+  const panel = document.getElementById('civ-panel');
+  if (!panel) return;
+  const f = FACTIONS[facKey] || FACTIONS.classic;
+  const uniqueUnits = Object.values(UNITS).filter((u) => u.faction === facKey);
+  const signature = uniqueUnits.find((u) => u.age === 3) || uniqueUnits[0];
+  const bld = Object.values(BUILDINGS).find((b) => b.faction === facKey);
+  const tech = Object.values(TECHS).find((t) => t.faction === facKey);
+  const esc = (s) => (s || '').replace(/</g, '&lt;');
+  const short = (s) => { const t = (s || '').split(/[—:]/).pop().trim(); return t.length > 64 ? t.slice(0, 61) + '…' : t; };
+  const chip = (lbl, ttl, sub) => `<div class="civ-chip"><span class="lbl">${lbl}</span><span class="ttl">${esc(ttl)}</span>${sub ? ` <span class="sub">— ${esc(sub)}</span>` : ''}</div>`;
+  const extra = uniqueUnits.length > 1 ? ` (+${uniqueUnits.length - 1} more)` : '';
+  panel.innerHTML =
+    `<div class="civ-head"><span class="civ-name">${esc(f.icon)} ${esc(f.label)}</span></div>` +
+    `<div class="civ-bonus">${esc(f.desc)}</div>` +
+    `<div class="civ-uniques">` +
+    (signature ? chip('⭐ Unique Unit' + extra, signature.name, short(signature.desc)) : '') +
+    (bld ? chip('🏛️ Unique Building', bld.name, short(bld.desc)) : '') +
+    (tech ? chip('🔬 Unique Tech', tech.name, short(tech.desc)) : '') +
+    `</div>`;
+}
 for (const btn of document.querySelectorAll('.fac-btn')) {
   btn.addEventListener('click', () => {
     chosenFaction = btn.dataset.fac;
     document.querySelectorAll('.fac-btn').forEach((b) => b.classList.toggle('sel', b === btn));
-    const d = document.getElementById('fac-desc');
-    if (d) d.textContent = FACTIONS[chosenFaction].desc;
+    renderCivPanel(chosenFaction);
   });
 }
+renderCivPanel(chosenFaction); // initial fill
 
 // per-theme room lighting (fog near/far go through fogBase so zoom can scale them)
 function applyMapLighting(mode) {

@@ -211,6 +211,19 @@
     text-transform: uppercase; font-weight: 700; text-shadow: 0 2px 3px #000; }
   #diff-row, #map-row, #mp-row, #fac-row, #size-row, #mode-row, #startres-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
   #map-desc, #fac-desc, #mode-desc { color: #d8cba8; font-size: 12px; min-height: 16px; text-shadow: 0 1px 2px #000; }
+  /* civilization info card */
+  #civ-panel { max-width: 560px; margin: 2px auto 0; padding: 10px 14px; border-radius: 14px;
+    background: linear-gradient(180deg,#1a1030e0,#140b26e0); border: 1px solid #3a2a55;
+    box-shadow: inset 0 1px 0 #ffffff10, 0 4px 14px #0007; }
+  .civ-head { display: flex; align-items: baseline; justify-content: center; gap: 8px; }
+  .civ-name { font-size: 16px; font-weight: 800; color: #ffd97a; letter-spacing: .3px; }
+  .civ-bonus { color: #cfe8b0; font-size: 12px; margin: 3px 0 8px; text-align: center; }
+  .civ-uniques { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .civ-chip { flex: 1 1 46%; min-width: 200px; text-align: left; background: #0f0a1eb0;
+    border: 1px solid #34264d; border-radius: 10px; padding: 6px 9px; }
+  .civ-chip .lbl { display: block; font-size: 9.5px; letter-spacing: 1.2px; text-transform: uppercase; color: #ffb347; margin-bottom: 1px; }
+  .civ-chip .ttl { color: #f4eede; font-size: 12.5px; font-weight: 700; }
+  .civ-chip .sub { color: #b9ad8e; font-size: 11px; }
   #mp-code { width: 92px; text-align: center; font-size: 17px; letter-spacing: 3px;
     text-transform: uppercase; background: #180f2cd8; color: #ffd97a; font-weight: 700;
     border: 2px solid #7a5432; border-radius: 12px; padding: 9px 6px;
@@ -413,7 +426,7 @@
       <button class="fac-btn diff-btn" data-fac="plush">🧸 Plushies</button>
       <button class="fac-btn diff-btn" data-fac="racers">🏎️ RC Racers</button>
     </div>
-    <div id="fac-desc">The all-rounders. No bonuses, no weaknesses.</div>
+    <div id="civ-panel"></div>
     <div class="menu-label">Battlefield</div>
     <div id="map-row">
       <button class="map-btn diff-btn sel" data-map="playmat">🧸 Playmat</button>

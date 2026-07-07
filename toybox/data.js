@@ -367,28 +367,28 @@ export const BUILDINGS = {
   tent: {
     name: 'Command Tent', tags: ['building'], size: 3, hp: 550, cost: { blocks: 140 }, buildTime: 20,
     armor: { melee: 1, pierce: 6 }, vision: 4, age: 2, height: 1.2, faction: 'classic',
-    trains: ['soldier', 'spear', 'grenadier', 'bazooka'],
+    trains: ['soldier', 'spear', 'grenadier', 'bazooka'], techs: ['liveammo'],
     debris: { shapes: ['stick', 'cube'], colors: [0x4a7a44, 0x8a915a] },
     desc: 'Classic unique: field HQ. Trains army men of every stripe, including Grenade Lobbers.',
   },
   brickshop: {
     name: 'Brick Foundry', tags: ['building'], size: 3, hp: 700, cost: { blocks: 160 }, buildTime: 22,
     armor: { melee: 2, pierce: 6 }, vision: 4, age: 2, height: 1.3, faction: 'bricks',
-    trains: ['golem', 'lancer'], techs: ['plating'],
+    trains: ['golem', 'lancer'], techs: ['plating', 'interlock'],
     debris: BRICK_DEBRIS,
     desc: 'Snap-Brick unique: molds Brick Golems and Pogo Lancers, researches Plating.',
   },
   nest: {
     name: 'Pillow Nest', tags: ['building'], size: 3, hp: 600, cost: { blocks: 130, snacks: 50 }, buildTime: 20,
     armor: { melee: 1, pierce: 6 }, vision: 4, age: 2, height: 1.0, faction: 'plush',
-    trains: ['medic', 'sockpuppet', 'bear'], techs: ['training'],
+    trains: ['medic', 'sockpuppet', 'bear'], techs: ['training', 'grouphug'],
     debris: { shapes: ['cube'], colors: [0xe8e0f4, 0xd88aa8], fluff: true },
     desc: 'Plushie unique: a cozy nest that stitches Sock Puppets, Medics and Bears.',
   },
   pitstop: {
     name: 'Pit Stop', tags: ['building'], size: 3, hp: 550, cost: { blocks: 150, buttons: 40 }, buildTime: 20,
     armor: { melee: 1, pierce: 6 }, vision: 4, age: 2, height: 1.0, faction: 'racers',
-    trains: ['raider', 'dragster', 'drone', 'cart'], techs: ['springs'],
+    trains: ['raider', 'dragster', 'drone', 'cart'], techs: ['springs', 'nitro'],
     debris: { shapes: ['disc', 'stick'], colors: [0x666f7a, 0xe5484d] },
     desc: 'RC Racer unique: fuels every wheeled and winged toy in the garage.',
   },
@@ -656,6 +656,11 @@ export const TECHS = {
   // ---- Tinker Bench BUILDING upgrades (level up your structures) ----
   pentower:   { name: 'Pen Towers',       age: 3, cost: { blocks: 150, buttons: 120 }, time: 40, building: true, desc: 'Pencil Towers become Pen Towers: +8 attack, +1.5 range, +80% HP.' },
   steelwork:  { name: 'Steelworks',       age: 3, cost: { blocks: 200, marbles: 120 }, time: 45, building: true, desc: 'Block Walls and Gates go steel: +2 armor and much tougher (+150% HP).' },
+  // ---- civilization signature techs (each locked to one faction's own building) ----
+  liveammo:   { name: 'Live Ammo',        age: 3, faction: 'classic', cost: { snacks: 180, buttons: 160 }, time: 40, desc: 'Army Men load the good stuff: all military +2 melee AND +2 ranged attack.' },
+  interlock:  { name: 'Interlocking Studs', age: 3, faction: 'bricks', cost: { blocks: 220, marbles: 120 }, time: 45, building: true, desc: 'Double-studded construction: every building +30% HP (stacks with Plating).' },
+  grouphug:   { name: 'Group Hug',        age: 3, faction: 'plush',   cost: { snacks: 220, buttons: 150 }, time: 40, desc: 'Plushies squeeze tighter: Medics heal 60% more and every toy +10% HP.' },
+  nitro:      { name: 'Nitro Injection',  age: 3, faction: 'racers',  cost: { snacks: 170, buttons: 180 }, time: 38, desc: 'Redline everything: wheeled toys +20% speed and +2 attack.' },
 };
 
 export const START = {

@@ -1005,6 +1005,27 @@ export class Game {
           }
         }
         break;
+      // ---- civilization signature techs ----
+      case 'liveammo': m.atkMelee += 2; m.atkPierce += 2; break;
+      case 'nitro': m.speedWheels *= 1.2; m.atkVehicle += 2; break;
+      case 'interlock':
+        m.buildingHp *= 1.3; // future builds
+        for (const e of this.entities) {
+          if (e.kind === 'building' && e.owner === owner && !e.dead) {
+            const f = e.hp / e.maxHp;
+            e.maxHp *= 1.3; e.hp = e.maxHp * f;
+          }
+        }
+        break;
+      case 'grouphug':
+        m.healRate *= 1.6; m.unitHp *= 1.1; // future units
+        for (const e of this.entities) {
+          if (e.kind === 'unit' && e.owner === owner && !e.dead) {
+            const f = e.hp / e.maxHp;
+            e.maxHp *= 1.1; e.hp = e.maxHp * f;
+          }
+        }
+        break;
       // ---- building tier upgrades ----
       case 'pentower': this.upgradeBuildingsOfType(owner, 'tower'); break;
       case 'steelwork':
@@ -2817,7 +2838,10 @@ export class Game {
       if (matCount === 1 && has('mat', true) && p.res.blocks > 450 && military.length >= 4) {
         this.aiPlace('mat', chest, workers);
       }
-      if (p.age === 2) {
+      // age 2+ production buildings (was age-2-only, which meant a fast boomer
+      // that hit age 3 first would NEVER raise its faction workshop → no unique
+      // units, buildings or civ tech; build them whenever the age prereq is met)
+      if (p.age >= 2) {
         if (!has('bench') && this.canAfford(owner, BUILDINGS.bench.cost)) this.aiPlace('bench', chest, workers);
         else if (has('bench', true) && !has('garage') && p.res.buttons > 140 && this.canAfford(owner, BUILDINGS.garage.cost)) {
           this.aiPlace('garage', chest, workers);
@@ -2870,6 +2894,10 @@ export class Game {
           ai.techT = 18;
           const priority = ['sorting', 'pockets',
             enemyRanged > 3 ? 'bands' : 'pencils', 'scissors', 'shoes', 'pencils', 'bands',
+            // civ signature techs first — the loop below only researches the one
+            // this AI's own faction building offers, so listing all is safe, and
+            // fronting them makes each AI civ actually express its identity
+            'liveammo', 'interlock', 'grouphug', 'nitro',
             'whetstone', 'springs', 'tape', 'quilting', 'training', 'reinforced', 'plating',
             'sugarrush', 'overwound',
             ...(mine.some((e) => e.type === 'tower') ? ['pentower'] : []),
