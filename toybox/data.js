@@ -261,6 +261,29 @@ export const UNITS = {
     debris: { shapes: ['stick', 'stick', 'disc'], colors: [0xc9a86a, 0xb08050], count: 9 },
     desc: 'Lobs sticker wads. Splash damage punishes clumps and bases.',
   },
+  // ---- naval toys (built at a Dock; sail only on water) ----
+  tugboat: {
+    name: 'Tugboat Gunner', tags: ['ship'], age: 2, proc: 'tugboat', naval: true, targetHeight: 0.5,
+    cost: { blocks: 70, buttons: 40 }, trainTime: 18, pop: 2,
+    hp: 140, atk: 12, atkType: 'pierce', interval: 1.8, range: 5.5,
+    bonus: { ship: 8, building: 6 },
+    armor: { melee: 2, pierce: 3 }, speed: 2.0, vision: 8, aggro: 8,
+    impact: 0.6, color: 0xc0392b,
+    projectile: { speed: 15, arc: true, color: 0xffe08a, size: 0.09, trail: 0xffb703 },
+    debris: { shapes: ['cube', 'disc'], colors: [0xc0392b, 0xe8ddc0], count: 7 },
+    desc: 'Heavy gunboat: rules the water and shells the shore. Sails only on water.',
+  },
+  duckboat: {
+    name: 'Rubber Duck Raider', tags: ['ship'], age: 2, proc: 'duckboat', naval: true, targetHeight: 0.44,
+    cost: { snacks: 40, buttons: 30 }, trainTime: 11, pop: 1,
+    hp: 70, atk: 7, atkType: 'pierce', interval: 1.2, range: 4,
+    bonus: { ship: 3 },
+    armor: { melee: 0, pierce: 1 }, speed: 3.0, vision: 8, aggro: 7,
+    impact: 0.5, color: 0xffd23f,
+    projectile: { speed: 16, arc: false, color: 0xf4a04a, size: 0.06, trail: 0xffd23f },
+    debris: { shapes: ['disc'], colors: [0xffd23f, 0xf4802a], count: 5 },
+    desc: 'Fast, cheap skiff — swarm the bath and harass enemy boats. Water only.',
+  },
 };
 
 // GLB manifest: each clip file is the same mesh with one animation baked in.
@@ -320,6 +343,13 @@ export const BUILDINGS = {
     armor: { melee: 1, pierce: 5 }, dropoff: true, vision: 3, height: 0.9,
     debris: WOOD_DEBRIS,
     desc: 'Forward drop-off: workers bank resources here instead of hauling home.',
+  },
+  dock: {
+    name: 'Dock', tags: ['building'], size: 3, hp: 500, cost: { blocks: 120, snacks: 30 }, buildTime: 20,
+    armor: { melee: 1, pierce: 6 }, vision: 5, age: 2, height: 0.65, dock: true,
+    trains: ['tugboat', 'duckboat'],
+    debris: WOOD_DEBRIS,
+    desc: 'Shipyard — build it at the water\'s edge to launch boats onto the basin.',
   },
   // ---- faction buildings (each tribe's own workshop, Playmat Age) ----
   tent: {
@@ -493,6 +523,18 @@ export const MAPS = {
     decor: ['ornament', 'gift', 'die', 'ball'],
     decorCount: 16,
     desc: 'Holiday carpet: presents to grab, a tree skirt to hold.',
+  },
+  bathtub: {
+    label: 'Bathtub Armada', icon: '🛁', ground: 'bathtub', light: 'normal',
+    obstacles: 3, canyon: false, resourceMul: 1.3, stickers: 2, plateaus: 1,
+    features: { forests: 1 },
+    // a central basin of sailable water: build a Dock, launch boats, and rule
+    // the bath while land toys ring the tub. water: ellipse half-axes in tiles.
+    // (kept moderate so land armies can still ring the tub and close games out)
+    water: { rx: 14, rz: 11 },
+    decor: ['duckling', 'ball', 'die'],
+    decorCount: 12,
+    desc: 'Bath-time battle: a lake in the middle — build Docks and go naval!',
   },
 };
 

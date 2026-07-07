@@ -11,8 +11,8 @@ import { PORTRAITS } from './models.js';
 
 const $ = (id) => document.getElementById(id);
 
-export const B_ICONS = { chest: '🧰', house: '🏠', farm: '🍽️', mat: '🥋', bench: '🎯', garage: '🏁', market: '🏪', tower: '✏️', workshop: '🛠️', fort: '🏰', wall: '🧱', gate: '🚪', wonder: '⭐', basket: '🧺', tent: '⛺', brickshop: '🏭', nest: '🪺', pitstop: '🛞' };
-export const U_ICONS = { worker: '🔧', scout: '🔭', soldier: '🪖', spear: '📌', archer: '🎯', flinger: '🪀', raider: '🏎️', hero: '🦸', ram: '🛏️', catapult: '🪃', medic: '🧸', cart: '🚚', hypno: '🌀', bear: '🐻', golem: '🧱', dragster: '🏎️', bazooka: '🎁', grenadier: '💣', lancer: '🎠', sockpuppet: '🧦', drone: '🚁' };
+export const B_ICONS = { chest: '🧰', house: '🏠', farm: '🍽️', mat: '🥋', bench: '🎯', garage: '🏁', market: '🏪', tower: '✏️', workshop: '🛠️', fort: '🏰', wall: '🧱', gate: '🚪', wonder: '⭐', basket: '🧺', tent: '⛺', brickshop: '🏭', nest: '🪺', pitstop: '🛞', dock: '⚓' };
+export const U_ICONS = { worker: '🔧', scout: '🔭', soldier: '🪖', spear: '📌', archer: '🎯', flinger: '🪀', raider: '🏎️', hero: '🦸', ram: '🛏️', catapult: '🪃', medic: '🧸', cart: '🚚', hypno: '🌀', bear: '🐻', golem: '🧱', dragster: '🏎️', bazooka: '🎁', grenadier: '💣', lancer: '🎠', sockpuppet: '🧦', drone: '🚁', tugboat: '🚢', duckboat: '🦆' };
 const ALERT_ICONS = { info: '💬', warn: '⚠️', attack: '⚔️', age: '✨' };
 
 export class UI {
@@ -344,6 +344,7 @@ export class UI {
       for (const [key, def] of Object.entries(BUILDINGS)) {
         if (key === 'chest' && g.players[me].age < 2) continue;
         if (def.faction && def.faction !== g.factionKeys[me]) continue; // other tribes' workshops
+        if (def.dock && !g.map.water) continue; // no point building a dock on dry land
 
         const ageReq = def.age || 1;
         cmds.push({

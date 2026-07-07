@@ -14,6 +14,7 @@ import {
   createUnitView, createBuildingView, createResourceView,
   createGround, createObstacleMesh, createDecorMesh, createStickerView, createRallyFlag,
   makeRankBadge, createCritterView, createMilkSpill, createKingCrown, createThroneView,
+  createWaterSurface,
 } from './models.js';
 
 const N = MAP_N;
@@ -41,37 +42,40 @@ function makeRng(seed) {
 const CLIMB = 0.3;
 
 class PathFinder {
-  constructor(blocked, gates, heights) {
+  constructor(blocked, gates, heights, water) {
     this.blocked = blocked;
     this.gates = gates; // gateOwner per tile (-1 none); own gates are passable
     this.h = heights;   // per-tile terrain height (cliffs block movement)
+    this.water = water; // per-tile water flag: ships need it, land toys avoid it
     this.g = new Float32Array(N * N);
     this.visit = new Int32Array(N * N).fill(-1);
     this.from = new Int32Array(N * N);
     this.stamp = 0;
   }
-  isBlockedFor(m, owner) {
-    return this.blocked[m] && this.gates[m] !== owner;
+  // naval toys sail only on water and never onto land; land toys never enter it
+  isBlockedFor(m, owner, naval) {
+    if (naval) return !this.water[m] || this.blocked[m];
+    return (this.blocked[m] && this.gates[m] !== owner) || this.water[m] === 1;
   }
   climbable(m, n) {
     return Math.abs(this.h[m] - this.h[n]) <= CLIMB;
   }
-  nearestFree(i, j, maxR = 8) {
-    if (inMap(i, j) && !this.blocked[idx(i, j)]) return [i, j];
+  nearestFree(i, j, maxR = 8, naval = false) {
+    if (inMap(i, j) && !this.isBlockedFor(idx(i, j), -2, naval)) return [i, j];
     for (let r = 1; r <= maxR; r++) {
       for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
         if (Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
         const a = i + di, b = j + dj;
-        if (inMap(a, b) && !this.blocked[idx(a, b)]) return [a, b];
+        if (inMap(a, b) && !this.isBlockedFor(idx(a, b), -2, naval)) return [a, b];
       }
     }
     return null;
   }
-  find(sx, sz, tx, tz, forOwner = -2) {
+  find(sx, sz, tx, tz, forOwner = -2, naval = false) {
     let si = tileOf(sx), sj = tileOf(sz), ti = tileOf(tx), tj = tileOf(tz);
-    const sFree = this.nearestFree(si, sj, 4); if (!sFree) return null;
+    const sFree = this.nearestFree(si, sj, 4, naval); if (!sFree) return null;
     [si, sj] = sFree;
-    const tFree = this.nearestFree(ti, tj, 10); if (!tFree) return null;
+    const tFree = this.nearestFree(ti, tj, 10, naval); if (!tFree) return null;
     [ti, tj] = tFree;
     if (si === ti && sj === tj) return [{ x: worldOf(ti), z: worldOf(tj) }];
 
@@ -115,9 +119,9 @@ class PathFinder {
         const a = ni + di, b = nj + dj;
         if (!inMap(a, b)) continue;
         const m = idx(a, b);
-        if (this.isBlockedFor(m, forOwner)) continue;
-        if (!this.climbable(m, n)) continue; // no scaling cliffs
-        if (di && dj && (this.isBlockedFor(idx(ni + di, nj), forOwner) || this.isBlockedFor(idx(ni, nj + dj), forOwner))) continue;
+        if (this.isBlockedFor(m, forOwner, naval)) continue;
+        if (!naval && !this.climbable(m, n)) continue; // land toys can't scale cliffs
+        if (di && dj && (this.isBlockedFor(idx(ni + di, nj), forOwner, naval) || this.isBlockedFor(idx(ni, nj + dj), forOwner, naval))) continue;
         const cost = g[n] + (di && dj ? 1.414 : 1);
         if (visit[m] === stamp && g[m] <= cost) continue;
         visit[m] = stamp; g[m] = cost; from[m] = n;
@@ -216,11 +220,12 @@ export class Game {
     this.formation = 'box'; // client-local; travels inside move commands
     this.projectiles = [];
     this.blocked = new Uint8Array(N * N);
+    this.water = new Uint8Array(N * N);               // 1 = sailable water tile
     this.gateOwner = new Int8Array(N * N).fill(-1);
     this.ELEV = 0.85; // world height of one terrain level
     this.height = new Float32Array(N * N);            // per-tile terrain
     this.cornerH = new Float32Array((N + 1) * (N + 1)); // bilinear corners
-    this.pf = new PathFinder(this.blocked, this.gateOwner, this.height);
+    this.pf = new PathFinder(this.blocked, this.gateOwner, this.height, this.water);
     this.fog = new FogOfWar(scene);
     this.rallyFlag = createRallyFlag();
     scene.add(this.rallyFlag.group);
@@ -306,6 +311,7 @@ export class Game {
     if (!inMap(i, j) || !inMap(i + w - 1, j + d - 1)) return false;
     const h0 = level !== null ? level : this.height[idx(i, j)];
     for (let b = j; b < j + d; b++) for (let a = i; a < i + w; a++) {
+      if (this.water[idx(a, b)]) return false; // nothing builds on the water
       if (Math.abs(this.height[idx(a, b)] - h0) > 0.01) return false;
     }
     return true;
@@ -367,6 +373,18 @@ export class Game {
     this.homePos = this.homes[this.myId];
     const clearHomes = (i, j, r) =>
       this.homes.every((h) => (worldOf(i) - h.x) ** 2 + (worldOf(j) - h.z) ** 2 > r * r);
+
+    // ---- naval basin: flood a central lake that only ships can cross ----
+    if (this.map.water) {
+      const A = this.map.water.rx || 15, B = this.map.water.rz || 12;
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        const di = i - N / 2, dj = j - N / 2;
+        if ((di * di) / (A * A) + (dj * dj) / (B * B) <= 1 && clearHomes(i, j, 12)) {
+          this.water[idx(i, j)] = 1;
+          this.height[idx(i, j)] = 0; // water sits flat at floor level
+        }
+      }
+    }
 
     // ---- elevation: plateaus hiding under the mat, ramps as choke points ----
     const E = this.ELEV;
@@ -434,8 +452,14 @@ export class Game {
         }
       }
     }
+    // keep the basin dead flat even if a plateau clipped its edge
+    if (this.map.water) for (let k = 0; k < this.water.length; k++) if (this.water[k]) this.height[k] = 0;
     this.computeCorners();
     this.applyTerrainToGround();
+    if (this.map.water) {
+      this.waterSurface = createWaterSurface(N, this.water);
+      this.scene.add(this.waterSurface.group);
+    }
 
     for (let k = 0; k < this.map.obstacles; k++) {
       const i = 14 + (rng() * (N - 28)) | 0, j = 14 + (rng() * (N - 28)) | 0;
@@ -688,7 +712,22 @@ export class Game {
     c.view.group.rotation.y = c.facing;
   }
 
+  // nudge a world point off the water onto the nearest dry tile (for objectives)
+  snapToLand(x, z) {
+    let i = tileOf(x), j = tileOf(z);
+    if (!inMap(i, j) || !this.water[idx(i, j)]) return { x, z };
+    for (let r = 1; r <= 20; r++) {
+      for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
+        if (Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
+        const a = i + di, b = j + dj;
+        if (inMap(a, b) && !this.water[idx(a, b)] && !this.blocked[idx(a, b)]) return { x: worldOf(a), z: worldOf(b) };
+      }
+    }
+    return { x, z };
+  }
+
   addSticker(x, z) {
+    ({ x, z } = this.snapToLand(x, z));
     const view = createStickerView();
     view.group.position.set(x, this.heightAtWorld(x, z), z);
     this.scene.add(view.group);
@@ -701,6 +740,7 @@ export class Game {
   }
 
   addThrone(x, z) {
+    ({ x, z } = this.snapToLand(x, z));
     const view = createThroneView();
     view.group.position.set(x, this.heightAtWorld(x, z), z);
     this.scene.add(view.group);
@@ -753,7 +793,7 @@ export class Game {
   }
 
   addResourceNode(resType, i, j) {
-    if (!inMap(i, j) || this.blocked[idx(i, j)]) return null;
+    if (!inMap(i, j) || this.blocked[idx(i, j)] || this.water[idx(i, j)]) return null;
     // resources sit on flat levels, never on ramps (they'd block the only way up)
     const h = this.height[idx(i, j)];
     if (h > 0.01 && Math.abs(h - this.ELEV) > 0.01 && Math.abs(h - this.ELEV * 2) > 0.01) return null;
@@ -828,7 +868,8 @@ export class Game {
   spawnUnit(type, owner, x, z, fromBuilding = false) {
     const def = UNITS[type];
     const p = this.players[owner];
-    const free = this.pf.nearestFree(tileOf(x), tileOf(z), 6);
+    // ships must launch onto water — search a little wider from the dock
+    const free = this.pf.nearestFree(tileOf(x), tileOf(z), def.naval ? 14 : 6, def.naval);
     if (free) { x = worldOf(free[0]); z = worldOf(free[1]); }
     const view = createUnitView(this.registry, type, def, owner);
     view.group.position.set(x, this.heightAtWorld(x, z), z);
@@ -1256,6 +1297,7 @@ export class Game {
       },
       time: this.time, nextId: this.nextId, rng: this.rng.getState(),
       blocked: Array.from(this.blocked), gateOwner: Array.from(this.gateOwner),
+      water: Array.from(this.water),
       aiState: Object.fromEntries(Object.entries(this.aiState).map(([k, st]) => {
         const { diff, ...rest } = st;
         return [k, { ...rest, attackTarget: null }];
@@ -1311,6 +1353,7 @@ export class Game {
     this.projectiles.length = 0;
     this.blocked.set(snap.blocked);
     this.gateOwner.set(snap.gateOwner);
+    if (snap.water) this.water.set(snap.water);
     snap.players.forEach((sp, i) => {
       const p = this.players[i];
       Object.assign(p.res, sp.res);
@@ -1508,6 +1551,16 @@ export class Game {
     }
     // buildings need flat ground; 1-tile walls may perch anywhere (ramp forts!)
     if (s > 1 && !this.flatAt(i, j, s, s)) return false;
+    // a Dock must sit at the water's edge (a water tile in the surrounding ring)
+    if (def.dock) {
+      let touchesWater = false;
+      for (let b = j - 1; b <= j + s && !touchesWater; b++) {
+        for (let a = i - 1; a <= i + s && !touchesWater; a++) {
+          if (inMap(a, b) && this.water[idx(a, b)]) touchesWater = true;
+        }
+      }
+      if (!touchesWater) return false;
+    }
     for (const e of this.entities) {
       if (e.kind !== 'unit' || e.dead || e.garrisoned) continue;
       const ti = tileOf(e.x), tj = tileOf(e.z);
@@ -1822,7 +1875,7 @@ export class Game {
   }
 
   // ---------- smooth movement (velocity steering + LOS-smoothed paths) ----------
-  lineFree(x0, z0, x1, z1, owner = -2) {
+  lineFree(x0, z0, x1, z1, owner = -2, naval = false) {
     const dx = x1 - x0, dz = z1 - z0;
     const d = Math.sqrt(dx * dx + dz * dz);
     const steps = Math.ceil(d / 0.35);
@@ -1832,18 +1885,21 @@ export class Game {
       const i = tileOf(x0 + dx * f), j = tileOf(z0 + dz * f);
       if (!inMap(i, j)) return false;
       const m = idx(i, j);
+      if (naval) { if (this.water[m] !== 1 || this.blocked[m]) return false; continue; }
       if (this.blocked[m] && this.gateOwner[m] !== owner) return false;
+      if (this.water[m] === 1) return false; // land toys can't wade in
       const h = this.height[m];
       if (Math.abs(h - prevH) > CLIMB) return false; // cliff in the way
       prevH = h;
     }
     return true;
   }
-  tileOpenFor(x, z, owner) {
+  tileOpenFor(x, z, owner, naval = false) {
     const i = tileOf(x), j = tileOf(z);
     if (!inMap(i, j)) return false;
     const m = idx(i, j);
-    return !this.blocked[m] || this.gateOwner[m] === owner;
+    if (naval) return this.water[m] === 1 && !this.blocked[m];
+    return (!this.blocked[m] || this.gateOwner[m] === owner) && this.water[m] !== 1;
   }
 
   // steer u toward (tx,tz); returns true when within `arrive`
@@ -1866,20 +1922,20 @@ export class Game {
       u.losT = 0.15 + this.rng() * 0.1;
       u.goal = { x: tx, z: tz };
       if (goalMoved) u.path = null;
-      if (this.lineFree(u.x, u.z, tx, tz, u.owner)) {
+      if (this.lineFree(u.x, u.z, tx, tz, u.owner, u.def.naval)) {
         u.aim = { x: tx, z: tz };
         u.path = null;
         u.noPath = false;
       } else {
         if (!u.path) {
-          u.path = this.pf.find(u.x, u.z, tx, tz, u.owner);
+          u.path = this.pf.find(u.x, u.z, tx, tz, u.owner, u.def.naval);
           u.pathI = 0;
           u.noPath = !u.path;
         }
         if (u.path) {
           // skip ahead to the furthest waypoint we can see (kills the tile zigzag)
           while (u.pathI + 1 < u.path.length
-              && this.lineFree(u.x, u.z, u.path[u.pathI + 1].x, u.path[u.pathI + 1].z, u.owner)) {
+              && this.lineFree(u.x, u.z, u.path[u.pathI + 1].x, u.path[u.pathI + 1].z, u.owner, u.def.naval)) {
             u.pathI++;
           }
           const wp = (u.pathI >= u.path.length - 1) ? { x: tx, z: tz } : u.path[u.pathI];
@@ -1918,12 +1974,14 @@ export class Game {
     }
     // toys can't be shoved off cliffs — steps beyond CLIMB are walls
     const hCur = this.tileHeight(tileOf(u.x), tileOf(u.z));
-    const stepOk = (x, z) => Math.abs(this.tileHeight(tileOf(x), tileOf(z)) - hCur) <= CLIMB;
-    if (this.tileOpenFor(nx, nz, u.owner) && stepOk(nx, nz)) {
+    // ships glide over flat water; only land toys mind cliff steps
+    const stepOk = u.def.naval ? (() => true) : (x, z) => Math.abs(this.tileHeight(tileOf(x), tileOf(z)) - hCur) <= CLIMB;
+    const nav = u.def.naval;
+    if (this.tileOpenFor(nx, nz, u.owner, nav) && stepOk(nx, nz)) {
       u.x = nx; u.z = nz; u.stuckT = 0;
-    } else if (this.tileOpenFor(nx, u.z, u.owner) && stepOk(nx, u.z)) {
+    } else if (this.tileOpenFor(nx, u.z, u.owner, nav) && stepOk(nx, u.z)) {
       u.x = nx; u.vz *= 0.4; u.stuckT += dt; // slide along the wall
-    } else if (this.tileOpenFor(u.x, nz, u.owner) && stepOk(u.x, nz)) {
+    } else if (this.tileOpenFor(u.x, nz, u.owner, nav) && stepOk(u.x, nz)) {
       u.z = nz; u.vx *= 0.4; u.stuckT += dt;
     } else {
       u.vx *= 0.2; u.vz *= 0.2;
@@ -2224,7 +2282,7 @@ export class Game {
       u.facing = Math.atan2(faceTarget.x - u.x, faceTarget.z - u.z);
     }
     u.view.group.position.set(u.x,
-      this.heightAtWorld(u.x, u.z) + (u.def.fly ? 1.25 : 0), u.z);
+      this.heightAtWorld(u.x, u.z) + (u.def.fly ? 1.25 : u.def.naval ? 0.12 : 0), u.z);
     let dr = u.facing - u.view.group.rotation.y;
     while (dr > Math.PI) dr -= Math.PI * 2;
     while (dr < -Math.PI) dr += Math.PI * 2;
@@ -2568,9 +2626,16 @@ export class Game {
           const nx = dx / d, nz = dz / d;
           const ux = u.x - nx * push, uz = u.z - nz * push;
           const vx = v.x + nx * push, vz = v.z + nz * push;
-          const okShove = (e, x, z) => inMap(tileOf(x), tileOf(z))
-            && !this.blocked[idx(tileOf(x), tileOf(z))]
-            && Math.abs(this.tileHeight(tileOf(x), tileOf(z)) - this.tileHeight(tileOf(e.x), tileOf(e.z))) <= CLIMB;
+          const okShove = (e, x, z) => {
+            const ti = tileOf(x), tj = tileOf(z);
+            if (!inMap(ti, tj)) return false;
+            const m = idx(ti, tj);
+            if (this.blocked[m]) return false;
+            // stay in your element: ships can't be shoved ashore, toys can't be shoved into the drink
+            if (e.def.naval) return this.water[m] === 1;
+            if (this.water[m] === 1) return false;
+            return Math.abs(this.tileHeight(ti, tj) - this.tileHeight(tileOf(e.x), tileOf(e.z))) <= CLIMB;
+          };
           if (okShove(u, ux, uz)) { u.x = ux; u.z = uz; }
           if (okShove(v, vx, vz)) { v.x = vx; v.z = vz; }
         }
@@ -2656,6 +2721,11 @@ export class Game {
         if (fbKey && has('bench', true) && !has(fbKey) && this.canAfford(owner, BUILDINGS[fbKey].cost)) {
           this.aiPlace(fbKey, chest, workers);
         }
+      }
+      // naval maps: raise a Dock at the shoreline and start launching boats
+      if (this.map.water && p.age >= 2 && !has('dock') && has('mat', true)
+          && this.canAfford(owner, BUILDINGS.dock.cost)) {
+        this.aiPlace('dock', chest, workers);
       }
       // forward baskets when the economy strays far from home
       if (!mine.some((e) => e.type === 'basket' && e.built < 1)) {
@@ -2891,7 +2961,8 @@ export class Game {
   aiPlace(type, chest, workers) {
     const owner = chest.owner;
     const def = BUILDINGS[type];
-    for (let r = 2; r < 16; r++) {
+    const maxR = def.dock ? 32 : 16; // docks reach out to find the shoreline
+    for (let r = 2; r < maxR; r++) {
       for (let k = 0; k < 10; k++) {
         const ang = this.rng() * Math.PI * 2;
         const i = Math.round(chest.ti + 2 + Math.cos(ang) * (def.size + r));
@@ -3126,6 +3197,7 @@ export class Game {
       this.rallyFlag.group.position.y = this.heightAtWorld(rb.rally.x, rb.rally.z);
     } else this.rallyFlag.hide();
     this.rallyFlag.update(dt);
+    if (this.waterSurface) this.waterSurface.update(dt);
 
     this.fogT -= dt;
     if (this.fogT <= 0) {

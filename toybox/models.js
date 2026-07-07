@@ -848,6 +848,34 @@ function makeProcView(def, owner, kind) {
     knob.position.y = 0.66;
     for (const m of [coneDown, belly, dome, stripe, swirl, stem, knob]) { m.castShadow = true; spinner.add(m); }
     parts.spinner = spinner;
+  } else if (kind === 'tugboat') {
+    // chunky harbour tug: hull, white fender, team cabin, funnel, deck gun (bow +z)
+    const hullC = 0xc0392b;
+    const hull = add(box(0.44, 0.22, 0.74, hullC, 0.5), 0, 0.13, 0);
+    add(box(0.4, 0.04, 0.7, 0xe8ddc0, 0.6), 0, 0.25, 0);        // deck
+    const fender = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.035, 6, 18), toyMat(0xf2efe4, 0.6));
+    fender.rotation.x = Math.PI / 2; fender.scale.set(0.75, 1, 1.25); fender.position.y = 0.24; fender.castShadow = true; rig.add(fender);
+    add(box(0.26, 0.2, 0.24, TEAM_COLORS[owner], 0.5), 0, 0.37, 0.06); // cabin
+    add(box(0.2, 0.02, 0.18, 0x223344, 0.3), 0, 0.48, 0.06);          // roof
+    add(cyl(0.06, 0.07, 0.22, 0x222222, 10), 0, 0.45, -0.18);          // funnel
+    add(cyl(0.075, 0.075, 0.04, 0xf2efe4, 10), 0, 0.56, -0.18);        // funnel band
+    const gun = cyl(0.03, 0.035, 0.34, 0x556677, 8);
+    gun.rotation.x = Math.PI / 2; gun.position.set(0, 0.3, 0.42); gun.castShadow = true; rig.add(gun);
+    parts.tube = gun; parts.body = hull;
+  } else if (kind === 'duckboat') {
+    // rubber-duck gunboat: duck hull, sail, cork popper (bow/head at +z)
+    const yellow = toyMat(0xffd23f, 0.4);
+    const hull = add(new THREE.Mesh(new THREE.SphereGeometry(0.24, 14, 10), yellow), 0, 0.16, 0);
+    hull.scale.set(1.05, 0.7, 1.4);
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 10), yellow), 0, 0.34, 0.16); // head forward
+    const bill = add(new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.14, 8), toyMat(0xf4802a, 0.4)), 0, 0.33, 0.32);
+    bill.rotation.x = Math.PI / 2;
+    for (const ex of [-0.06, 0.06]) { const eye = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 6), toyMat(0x222222, 0.3)); eye.position.set(ex, 0.38, 0.24); rig.add(eye); }
+    add(cyl(0.012, 0.012, 0.24, 0xd9b38c, 6), 0, 0.4, -0.1);        // mast
+    add(box(0.02, 0.16, 0.14, TEAM_COLORS[owner], 0.5), 0.01, 0.44, -0.06); // sail
+    const gun = cyl(0.022, 0.028, 0.24, 0x8a5a34, 8);
+    gun.rotation.x = Math.PI / 2; gun.position.set(0, 0.2, 0.34); gun.castShadow = true; rig.add(gun);
+    parts.tube = gun; parts.body = hull;
   } else { // catapult
     add(box(0.16, 0.06, 0.8, 0xc9a86a), -0.2, 0.1, 0);
     add(box(0.16, 0.06, 0.8, 0xc9a86a), 0.2, 0.1, 0);
@@ -1152,6 +1180,19 @@ function buildingGeometry(key, def, owner, rng) {
     const flagB = add(box(0.34, 0.2, 0.03, teamCol), 0.7, 1.05, 0);
     add(cyl(0.03, 0.7, 0xddd6c0, 6), 0.7, 0.8, 0);
     flagB.castShadow = false;
+  } else if (key === 'dock') {
+    // wooden jetty: planked deck on pilings, a crane, and a team lifebuoy
+    add(box(2.6, 0.16, 2.2, 0x9a6a3c), 0, 0.35, 0);
+    for (let p = -1; p <= 1; p++) add(box(2.6, 0.02, 0.06, 0x7a4e28), 0, 0.44, p * 0.6);
+    for (const [px, pz] of [[-1.1, -0.9], [1.1, -0.9], [-1.1, 0.9], [1.1, 0.9]]) add(cyl(0.12, 0.7, 0x6f4425, 8), px, 0.25, pz);
+    add(cyl(0.09, 1.2, 0x556677, 8), -0.7, 1.0, -0.4);        // crane mast
+    const arm = box(0.9, 0.08, 0.1, 0x556677); arm.position.set(-0.3, 1.5, -0.4); arm.castShadow = true; g.add(arm);
+    add(cyl(0.015, 0.4, 0x333333, 6), 0.1, 1.3, -0.4);         // hook line
+    const buoy = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.08, 8, 16), toyMat(teamCol, 0.5));
+    buoy.rotation.x = Math.PI / 2; add(buoy, 0.95, 0.7, 0.7);
+    const flagD = add(box(0.34, 0.2, 0.03, teamCol), -1.0, 1.15, 0.9);
+    add(cyl(0.03, 0.9, 0xddd6c0, 6), -1.16, 0.9, 0.9);
+    flagD.castShadow = false;
   } else if (key === 'tent') {
     // canvas command tent with an open flap and a radio antenna
     const canvas = toyMat(0x5d7a4a, 0.95);
@@ -1750,6 +1791,28 @@ export function createGround(N, style = 'playmat') {
     // tinsel border
     x.strokeStyle = '#e8c34a'; x.lineWidth = 16; x.setLineDash([30, 20]);
     x.strokeRect(24, 24, S - 48, S - 48); x.setLineDash([]);
+  } else if (style === 'bathtub') {
+    // porcelain tub floor: white tiles + grout, a blue basin, a drain, suds
+    let seedT = 60101;
+    const rndT = () => (seedT = (seedT * 16807) % 2147483647) / 2147483647;
+    x.fillStyle = '#e9eef2'; x.fillRect(0, 0, S, S);
+    x.strokeStyle = 'rgba(150,170,185,0.5)'; x.lineWidth = 4;
+    for (let gl = 0; gl <= S; gl += 128) { x.beginPath(); x.moveTo(gl, 0); x.lineTo(gl, S); x.stroke(); x.beginPath(); x.moveTo(0, gl); x.lineTo(S, gl); x.stroke(); }
+    // basin: deeper blue tub bottom (the translucent water mesh sits on top)
+    const grd = x.createRadialGradient(1024, 1024, 80, 1024, 1024, 470);
+    grd.addColorStop(0, '#2b7fb8'); grd.addColorStop(0.7, '#3a93cc'); grd.addColorStop(1, '#bfe0ef');
+    x.fillStyle = grd; x.beginPath(); x.ellipse(1024, 1024, 470, 380, 0, 0, Math.PI * 2); x.fill();
+    x.strokeStyle = '#f4fbff'; x.lineWidth = 12; x.beginPath(); x.ellipse(1024, 1024, 470, 380, 0, 0, Math.PI * 2); x.stroke();
+    x.save(); x.beginPath(); x.ellipse(1024, 1024, 462, 372, 0, 0, Math.PI * 2); x.clip();
+    x.strokeStyle = 'rgba(255,255,255,0.12)'; x.lineWidth = 3;
+    for (let gl = 0; gl <= S; gl += 128) { x.beginPath(); x.moveTo(gl, 0); x.lineTo(gl, S); x.stroke(); x.beginPath(); x.moveTo(0, gl); x.lineTo(S, gl); x.stroke(); }
+    x.restore();
+    // drain at the very centre
+    x.fillStyle = '#9fb4c0'; x.beginPath(); x.arc(1024, 1024, 34, 0, Math.PI * 2); x.fill();
+    x.strokeStyle = '#5f7683'; x.lineWidth = 4;
+    for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; x.beginPath(); x.moveTo(1024 + Math.cos(a) * 10, 1024 + Math.sin(a) * 10); x.lineTo(1024 + Math.cos(a) * 30, 1024 + Math.sin(a) * 30); x.stroke(); }
+    // suds ringing the basin rim
+    for (let i = 0; i < 140; i++) { const a = rndT() * Math.PI * 2, rr = 372 + rndT() * 95; const bx = 1024 + Math.cos(a) * rr * 1.23, by = 1024 + Math.sin(a) * rr; x.fillStyle = 'rgba(255,255,255,0.6)'; x.beginPath(); x.arc(bx, by, 6 + rndT() * 12, 0, Math.PI * 2); x.fill(); }
   } else {
     // classic bedroom playmat
     x.fillStyle = '#79b45a'; x.fillRect(0, 0, S, S);
@@ -1874,6 +1937,35 @@ export function createLamp(N) {
 }
 
 // non-blocking bedroom clutter scattered around the playmat
+// translucent water sheet for naval maps: one map-sized plane masked to the
+// water tiles (same trick the fog uses), with a gentle bob ripple.
+export function createWaterSurface(N, water) {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = N;
+  const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(N, N);
+  for (let k = 0; k < water.length; k++) {
+    const p = k * 4, on = water[k] ? 255 : 0;
+    img.data[p] = on; img.data[p + 1] = on; img.data[p + 2] = on; img.data[p + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const mask = new THREE.CanvasTexture(cv);
+  mask.magFilter = THREE.LinearFilter;
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x3fa8e0, transparent: true, opacity: 0.84, alphaMap: mask,
+    roughness: 0.12, metalness: 0.25, emissive: 0x1c5f92, emissiveIntensity: 0.28,
+    depthWrite: false, side: THREE.DoubleSide,
+  });
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(N, N, 1, 1), mat);
+  plane.rotation.x = -Math.PI / 2;
+  plane.position.y = 0.15;
+  plane.renderOrder = 3;
+  const group = new THREE.Group();
+  group.add(plane);
+  let t = 0;
+  return { group, update(dt) { t += dt; plane.position.y = 0.15 + Math.sin(t * 1.6) * 0.02; } };
+}
+
 export function createDecorMesh(kind, rngSeed = 1) {
   let seed = rngSeed * 48271 + 11;
   const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -1994,6 +2086,18 @@ export function createDecorMesh(kind, rngSeed = 1) {
     const r1 = add(new THREE.Mesh(new THREE.BoxGeometry(s + 0.02, s * 0.86, 0.06), ribM)); r1.position.y = s * 0.42;
     const r2 = add(new THREE.Mesh(new THREE.BoxGeometry(0.06, s * 0.86, s + 0.02), ribM)); r2.position.y = s * 0.42;
     for (const bx of [-0.05, 0.05]) { const bow = add(new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), ribM)); bow.position.set(bx, s * 0.9, 0); }
+    g.rotation.y = rng() * Math.PI * 2;
+  } else if (kind === 'duckling') {
+    const yellow = toyMat(0xffd23f, 0.4);
+    const body = add(new THREE.Mesh(new THREE.SphereGeometry(0.26, 14, 10), yellow));
+    body.scale.set(1, 0.8, 1.25); body.position.y = 0.2;
+    const head = add(new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), yellow));
+    head.position.set(0, 0.42, 0.18);
+    const bill = add(new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.16, 8), toyMat(0xf4802a, 0.4)));
+    bill.rotation.x = Math.PI / 2; bill.position.set(0, 0.4, 0.36);
+    const tail = add(new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.18, 8), yellow));
+    tail.rotation.x = -Math.PI / 2.4; tail.position.set(0, 0.28, -0.28);
+    for (const ex of [-0.07, 0.07]) { const eye = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 6), toyMat(0x222222, 0.3)); eye.position.set(ex, 0.46, 0.31); g.add(eye); }
     g.rotation.y = rng() * Math.PI * 2;
   } else { // ball
     const b = add(new THREE.Mesh(new THREE.SphereGeometry(0.35, 14, 10), toyMat(PASTELS[(rng() * PASTELS.length) | 0], 0.4)));
