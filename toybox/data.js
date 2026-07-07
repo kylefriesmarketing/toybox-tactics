@@ -392,10 +392,10 @@ export const BUILDINGS = {
     desc: 'Cheap brick wall. Click and drag to place a line. Siege breaks it.',
   },
   gate: {
-    name: 'Block Gate', tags: ['building', 'wall'], size: 2, hp: 400, cost: { blocks: 30 }, buildTime: 8,
+    name: 'Block Gate', tags: ['building', 'wall'], size: 1, hp: 400, cost: { blocks: 30 }, buildTime: 8,
     armor: { melee: 2, pierce: 8 }, vision: 2, height: 1.0, gate: true,
     debris: RED_BRICK_DEBRIS,
-    desc: 'Opens for your toys, stays shut for the rival\'s.',
+    desc: 'A single-tile doorway that sits flush in your wall — opens for your toys, shut to the rival\'s.',
   },
   farm: {
     name: 'Snack Mat', tags: ['building'], size: 2, hp: 140, cost: { blocks: 45 }, buildTime: 9,

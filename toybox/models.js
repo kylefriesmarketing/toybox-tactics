@@ -1158,11 +1158,12 @@ function buildingGeometry(key, def, owner, rng) {
       }
     }
   } else if (key === 'gate') {
-    add(box(0.34, 1.0, 0.5, 0xc95555), -0.72, 0.5, 0);   // posts
-    add(box(0.34, 1.0, 0.5, 0xc95555), 0.72, 0.5, 0);
-    add(box(0.4, 0.14, 0.56, teamCol), -0.72, 1.06, 0);  // team caps
-    add(box(0.4, 0.14, 0.56, teamCol), 0.72, 1.06, 0);
-    const bar = add(box(1.14, 0.5, 0.18, 0xd9a066), 0, 0.45, 0); // the lifting bar
+    // single-tile doorway: two slim posts flanking a lifting bar (opening runs in Z)
+    add(box(0.18, 1.0, 0.5, 0xc95555), -0.45, 0.5, 0);   // posts
+    add(box(0.18, 1.0, 0.5, 0xc95555), 0.45, 0.5, 0);
+    add(box(0.24, 0.14, 0.56, teamCol), -0.45, 1.06, 0); // team caps
+    add(box(0.24, 0.14, 0.56, teamCol), 0.45, 1.06, 0);
+    const bar = add(box(0.72, 0.5, 0.18, 0xd9a066), 0, 0.45, 0); // the lifting bar
     g.userData.gateBar = bar;
   } else if (key === 'wonder') {
     // pillow mountain with a draped blanket and a golden star
