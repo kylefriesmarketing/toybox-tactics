@@ -99,10 +99,12 @@ function applyCamera(dt = 1) {
   camera.position.set(cam.x + jx, cam.dist * hf, cam.z + cam.dist * zf + jz);
   camera.lookAt(cam.x + jx * 0.4, 0, cam.z + jz * 0.4);
   if (sh) { cam.shake *= Math.max(0, 1 - dt * 7); if (cam.shake < 0.01) cam.shake = 0; }
-  // fog backs off as the camera rises so max zoom stays clear
+  // fog backs off as the camera rises so the battlefield stays clear, but not so
+  // far that the room's outer edge is exposed — the perimeter always dissolves
+  // softly into the (matching) background instead of ending in a hard line
   const extra = Math.max(0, cam.dist - 24);
-  scene.fog.near = fogBase.near + extra * 2.2;
-  scene.fog.far = fogBase.far + extra * 3.4;
+  scene.fog.near = fogBase.near + extra * 1.5;
+  scene.fog.far = fogBase.far + extra * 1.7;
 }
 applyCamera();
 

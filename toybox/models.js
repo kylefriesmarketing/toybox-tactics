@@ -1724,9 +1724,11 @@ export function createGround(N, style = 'playmat') {
   }
   const floorTex = new THREE.CanvasTexture(floorCanvas);
   floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
-  floorTex.repeat.set(8, 8);
+  floorTex.repeat.set(14, 14);
   const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.9 });
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(N * 4, N * 4), floorMat);
+  // big floor: its edge always sits far past the fog, so it dissolves into the
+  // background instead of ending in a hard visible line
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(N * 7, N * 7), floorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -0.02;
   floor.receiveShadow = true;
@@ -1740,7 +1742,7 @@ export function createGround(N, style = 'playmat') {
       t.colorSpace = THREE.SRGBColorSpace;
       t.anisotropy = 8;
       t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping;
-      t.repeat.set(3, 3);
+      t.repeat.set(6, 6);
       floorMat.map = t;
       floorMat.needsUpdate = true;
     },
@@ -1751,7 +1753,7 @@ export function createGround(N, style = 'playmat') {
   // room walls with baseboards frame the max zoom-out (skip under the bed —
   // there is no wall down there, just darkness)
   if (style !== 'underbed') {
-    const WALL = N / 2 + 30, WH = 22, WT = 1.6;
+    const WALL = N / 2 + 30, WH = 42, WT = 1.6;
     const wallColor = style === 'attic' ? 0x6a5a48 : 0x5a688f;
     const wallM = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.95 });
     const baseM = new THREE.MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.8 });
@@ -2090,17 +2092,81 @@ export function createGround(N, style = 'playmat') {
     () => {} // keep the canvas art if no generated texture exists
   );
 
-  // bed legs looming outside the playmat corners
-  for (const [lx, lz] of [[-N / 2 - 9, -N / 2 - 6], [N / 2 + 7, -N / 2 - 9], [-N / 2 - 7, N / 2 + 9], [N / 2 + 9, N / 2 + 6]]) {
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 3.1, 26, 12), toyMat(0x5d3d22, 0.8));
-    leg.position.set(lx, 13, lz);
-    leg.castShadow = true;
-    g.add(leg);
-    const foot = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.6, 1.2, 12), toyMat(0x4a3018, 0.85));
-    foot.position.set(lx, 0.6, lz);
-    g.add(foot);
-  }
+  // a believable bedroom around the battlefield (skip under the bed — no room)
+  if (style !== 'underbed') addBedroom(g, N, style);
   return g;
+}
+
+// A cozy kid's bedroom that frames the battlefield so the world never ends at a
+// hard edge: a rug the playmat rests on, plus a bed, dresser, toy chest,
+// bookshelf and a moonlit window against the walls. All visual-only, placed
+// well outside the play area (±N/2) and inside the room walls (±N/2+30).
+function addBedroom(g, N, style) {
+  const half = N / 2;
+  const attic = style === 'attic';
+  const M = (c, r = 0.8) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
+  const box = (w, h, d, c, r) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), M(c, r));
+  const cyl = (r0, r1, h, c, seg = 12) => new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, h, seg), M(c));
+  const put = (m, x, y, z, ry = 0) => { m.position.set(x, y, z); m.rotation.y = ry; m.castShadow = true; m.receiveShadow = true; g.add(m); return m; };
+  let rs = 4211 + N;
+  const rnd = () => (rs = (rs * 16807) % 2147483647) / 2147483647;
+
+  // --- round rug under the playmat (shows as a warm ring framing the mat) ---
+  const rugCv = document.createElement('canvas'); rugCv.width = rugCv.height = 256;
+  const rx = rugCv.getContext('2d');
+  const rug3 = attic ? ['#7a5a3a', '#a5824f', '#5f4327'] : ['#8a4450', '#c88a6a', '#63333d'];
+  rx.fillStyle = rug3[0]; rx.beginPath(); rx.arc(128, 128, 126, 0, 7); rx.fill();
+  rx.lineWidth = 12; rx.strokeStyle = rug3[1]; rx.beginPath(); rx.arc(128, 128, 100, 0, 7); rx.stroke();
+  rx.lineWidth = 7; rx.strokeStyle = rug3[2]; rx.beginPath(); rx.arc(128, 128, 74, 0, 7); rx.stroke();
+  rx.lineWidth = 3; rx.strokeStyle = rug3[1];
+  for (let i = 0; i < 96; i++) { const a = i / 96 * Math.PI * 2; rx.beginPath(); rx.moveTo(128 + Math.cos(a) * 119, 128 + Math.sin(a) * 119); rx.lineTo(128 + Math.cos(a) * 127, 128 + Math.sin(a) * 127); rx.stroke(); }
+  const rug = new THREE.Mesh(new THREE.CircleGeometry(half + 20, 56), new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(rugCv), roughness: 1 }));
+  rug.rotation.x = -Math.PI / 2; rug.position.y = -0.014; rug.receiveShadow = true; g.add(rug);
+
+  // --- BED against the north wall (-z) ---
+  const bz = -half - 16;
+  put(box(74, 5, 24, 0x8a5a34), 0, 3, bz);                          // frame
+  put(box(70, 4, 20, 0xf3ede0, 0.95), 0, 7, bz + 1);                // mattress
+  put(box(72, 3, 13, attic ? 0x9a7a52 : 0x6f7fc4, 0.85), 0, 9.5, bz + 5); // folded blanket
+  put(box(22, 5, 9, 0xffffff, 0.95), -17, 9.5, bz - 6);             // pillow
+  put(box(22, 5, 9, 0xfff2d8, 0.95), 8, 9.5, bz - 6);               // pillow
+  put(box(76, 22, 3, 0x6f4526), 0, 11, bz - 10);                    // headboard
+
+  // --- DRESSER against the east wall (+x) ---
+  const dx = half + 20;
+  put(box(16, 24, 34, 0x9a6a3e), dx, 12, -8);
+  for (let r = 0; r < 3; r++) {
+    put(box(1, 6, 28, 0xc0925a), dx - 8, 6 + r * 7, -8);            // drawer face
+    put(new THREE.Mesh(new THREE.SphereGeometry(0.8, 8, 6), M(0x3a2a16)), dx - 8.8, 6 + r * 7, -8); // knob
+  }
+  put(cyl(2.4, 3.0, 2, 0xff8a5a), dx, 25, -14);                     // toy on top
+
+  // --- TOY CHEST against the west wall (-x), lid open ---
+  const cx = -half - 18;
+  put(box(18, 14, 30, 0x7a5a86), cx, 7, -4);
+  const lid = put(box(18, 2.4, 30, 0x8a6a96), cx, 15, -18); lid.rotation.x = -0.6;
+  put(cyl(2.6, 2.6, 2.6, 0xffd24a, 10), cx + 2, 16, 2);
+  put(box(5, 5, 5, 0xe05555), cx - 3, 16, -2);
+  put(new THREE.Mesh(new THREE.SphereGeometry(2.8, 12, 10), M(0x59a0e0)), cx, 16, 8);
+
+  // --- BOOKSHELF against the south wall (+z) ---
+  const sz = half + 20;
+  put(box(44, 28, 9, 0x8a5a34), 0, 14, sz);
+  const bc = [0xe05555, 0xf0a44a, 0xf0d24a, 0x6fb86f, 0x59a0e0, 0x9a6ad0];
+  for (let s = 0; s < 3; s++) {
+    put(box(44, 1, 9, 0x6a4526), 0, 5 + s * 8, sz);
+    let bx = -20;
+    while (bx < 19) { const bw = 1.4 + rnd() * 1.6; put(box(bw, 6.5, 6.5, bc[(rnd() * bc.length) | 0], 0.7), bx, 9 + s * 8, sz); bx += bw + 0.35; }
+  }
+
+  // --- moonlit WINDOW high on the north wall, above the bed ---
+  const wz = -half - 29.6;
+  const win = new THREE.Mesh(new THREE.PlaneGeometry(22, 16), new THREE.MeshStandardMaterial({ color: 0xbcd6ff, emissive: 0x6f90e8, emissiveIntensity: 0.7, roughness: 0.5 }));
+  win.position.set(0, 27, wz); g.add(win);
+  put(box(24, 1.6, 1, 0xf0ead8), 0, 35.4, wz);   // frame top
+  put(box(24, 1.6, 1, 0xf0ead8), 0, 18.6, wz);   // frame bottom
+  put(box(1.6, 18, 1, 0xf0ead8), 0, 27, wz);     // vertical mullion
+  put(box(24, 1.6, 1, 0xf0ead8), 0, 27, wz);     // horizontal mullion
 }
 
 // bedside lamp looming over the playmat corner — warm pool of real light
