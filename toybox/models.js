@@ -523,7 +523,7 @@ function makeModelView(entry, def, owner) {
     group.userData.cape = cape;
   }
 
-  const view = { group, _damaged: false, _dead: false, _ratio: 1 };
+  const view = { group, model, _damaged: false, _dead: false, _ratio: 1 };
   view.setSpeedRatio = (r) => { view._ratio = r; };
 
   if (entry.rigless) {
@@ -1054,21 +1054,72 @@ export function createUnitView(registry, key, def, owner) {
 }
 
 // ---------------- unit upgrade tiers (visual) ----------------
-// INTERIM: the procedural gear-over-mesh look didn't read well, so upgraded
-// units are getting whole new models instead (swapped like building tiers).
-// Until those land, tier 2 (champion) just gets a clean gold floor ring — no
-// floating gear. Idempotent: strips any prior tier decoration first.
+// Army men are single-colour moulded plastic, so an upgrade re-casts the WHOLE
+// figure in a new material — burnished steel at tier 1, polished gold at tier 2
+// — plus a champion size bump. This transforms the entire model (what Kyle
+// wanted) instead of bolting floating gear onto an animating skeleton (which
+// detached from the walk cycle and looked broken). Team identity is unaffected:
+// that lives on the ground ring, not the body. Idempotent and reversible.
+const TIER_STEEL = new THREE.Color(0x9aa4b4);
+const TIER_GOLD = new THREE.Color(0xe7b53c);
 export function applyUnitTier(view, def, owner, tier) {
   if (!view || !view.group) return;
-  if (view.tierGear) for (const g of view.tierGear) g.parent && g.parent.remove(g);
-  view.tierGear = [];
-  view._tier = tier || 0;
-  if (tier >= 2) {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.028, 6, 22),
-      new THREE.MeshBasicMaterial({ color: 0xffd94a }));
-    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.02;
-    view.group.add(ring); view.tierGear.push(ring);
+  tier = tier || 0;
+  const model = view.model || view.group;
+
+  // One-time: take ownership of this instance's materials (they're shared across
+  // clones) and snapshot the factory look so tier 0 can restore it exactly.
+  if (!view._tierInit) {
+    view._tierMats = [];
+    model.traverse((n) => {
+      if (!n.isMesh || !n.material) return;
+      const arr = Array.isArray(n.material) ? n.material : [n.material];
+      const owned = arr.map((m) => {
+        const c = m.clone();
+        c.userData.tier0 = {
+          color: c.color ? c.color.clone() : null,
+          metalness: c.metalness, roughness: c.roughness,
+          emissive: c.emissive ? c.emissive.clone() : null,
+          emissiveIntensity: c.emissiveIntensity,
+        };
+        return c;
+      });
+      n.material = Array.isArray(n.material) ? owned : owned[0];
+      owned.forEach((m) => view._tierMats.push(m));
+    });
+    view._baseScale = view.model ? view.model.scale.x : 1;
+    view._tierInit = true;
   }
+
+  if (view._tier === tier) return;
+  view._tier = tier;
+
+  for (const m of view._tierMats) {
+    const b = m.userData.tier0;
+    if (tier <= 0) {
+      if (b.color && m.color) m.color.copy(b.color);
+      if (b.metalness !== undefined) m.metalness = b.metalness;
+      if (b.roughness !== undefined) m.roughness = b.roughness;
+      if (b.emissive && m.emissive) m.emissive.copy(b.emissive);
+      if (b.emissiveIntensity !== undefined) m.emissiveIntensity = b.emissiveIntensity;
+    } else if (tier === 1) {
+      if (b.color && m.color) m.color.copy(b.color).lerp(TIER_STEEL, 0.6);
+      if (m.metalness !== undefined) m.metalness = 0.62;
+      if (m.roughness !== undefined) m.roughness = 0.3;
+      if (m.emissive) m.emissive.setHex(0x1c2230);
+      if (m.emissiveIntensity !== undefined) m.emissiveIntensity = 0.22;
+    } else {
+      if (b.color && m.color) m.color.copy(b.color).lerp(TIER_GOLD, 0.72);
+      if (m.metalness !== undefined) m.metalness = 0.82;
+      if (m.roughness !== undefined) m.roughness = 0.22;
+      if (m.emissive) m.emissive.setHex(0x5a3d00);
+      if (m.emissiveIntensity !== undefined) m.emissiveIntensity = 0.32;
+    }
+    m.needsUpdate = true;
+  }
+
+  // champions stand a touch taller and broader than the rank and file
+  if (view.model) view.model.scale.setScalar(view._baseScale * (tier >= 2 ? 1.1 : 1));
 }
 
 // ---------------- building views ----------------
