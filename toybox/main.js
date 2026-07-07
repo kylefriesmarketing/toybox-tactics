@@ -463,6 +463,17 @@ function applyMapLighting(mode) {
 }
 $('start-btn').addEventListener('click', () => startGame(chosenDiff));
 $('tutorial-btn').addEventListener('click', () => startTutorial());
+// landing-screen navigation: home ⇄ custom-setup ⇄ multiplayer
+function showMenuScreen(name) {
+  for (const id of ['menu-home', 'menu-setup', 'menu-mp']) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (id === 'menu-' + name) ? '' : 'none';
+  }
+}
+$('home-quick').addEventListener('click', () => startGame(chosenDiff));
+$('home-custom').addEventListener('click', () => showMenuScreen('setup'));
+$('home-mp').addEventListener('click', () => showMenuScreen('mp'));
+for (const b of document.querySelectorAll('.setup-back')) b.addEventListener('click', () => showMenuScreen('home'));
 window.__ttStart = (d, m) => startGame(d || 'normal', m); // headless test hook
 window.__ttRandom = generateRandomMap; // headless: build a random-map config to soak
 

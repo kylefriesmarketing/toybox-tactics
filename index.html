@@ -201,25 +201,62 @@
       url('assets/ui/title.png') center / cover no-repeat #14102a;
     transition: opacity .5s; overflow-y: auto; }
   #menu.show { display: flex; }
-  #menu-card { display: flex; flex-direction: column; align-items: center; gap: 3px;
-    padding: 8px 28px 12px; border-radius: 22px; border: 3px solid #7a5432;
+  .menu-card { display: flex; flex-direction: column; align-items: center; gap: 3px;
+    width: min(900px, 94vw); max-height: 84vh; overflow-y: auto;
+    padding: 14px 26px 16px; border-radius: 22px; border: 3px solid #7a5432;
     background:
-      linear-gradient(180deg, #140e2888 0%, #140e28b0 100%),
+      linear-gradient(180deg, #140e28c8 0%, #140e28e2 100%),
       url('assets/ui/panel-wood.png') center / cover;
     box-shadow: 0 18px 50px #000c, inset 0 2px 0 #ffffff22, inset 0 -3px 12px #0008; }
+  /* landing screen */
+  #menu-home { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 6px; }
+  .home-buttons { display: flex; flex-direction: column; gap: 12px; width: min(420px, 90vw); }
+  .home-btn { display: flex; align-items: center; gap: 14px; text-align: left; cursor: pointer;
+    padding: 12px 18px; border-radius: 16px; color: #f4eede; letter-spacing: .2px;
+    border: 2px solid #241a3e;
+    background: linear-gradient(180deg, #574a8e 0%, #3d3268 55%, #322858 100%);
+    box-shadow: 0 5px 0 #1c1436, 0 8px 16px #0008, inset 0 2px 0 #ffffff2e;
+    transition: transform .09s, box-shadow .09s; }
+  .home-btn:hover { transform: translateY(-2px); box-shadow: 0 7px 0 #1c1436, 0 11px 20px #0008, inset 0 2px 0 #ffffff2e; }
+  .home-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #1c1436; }
+  .home-btn.primary { border-color: #7e1e14;
+    background: linear-gradient(180deg, #ff8a5c 0%, #f3552c 55%, #d63a1e 100%);
+    box-shadow: 0 5px 0 #7e1e14, 0 10px 22px #000a, inset 0 2px 0 #ffffff55; }
+  .home-btn.primary:hover { box-shadow: 0 7px 0 #7e1e14, 0 13px 26px #000a, inset 0 2px 0 #ffffff55; }
+  .home-btn .hb-ic { font-size: 28px; width: 40px; text-align: center; flex: none;
+    filter: drop-shadow(0 2px 2px #0007); }
+  .home-btn .hb-txt { display: flex; flex-direction: column; line-height: 1.25; }
+  .home-btn .hb-txt b { font-size: 18px; font-weight: 800; text-shadow: 0 2px 3px #0009; }
+  .home-btn .hb-txt small { font-size: 11.5px; color: #d7cff2; opacity: .85; }
+  .home-btn.primary .hb-txt small { color: #ffe9df; }
+  #controls-ref { width: min(560px, 92vw); color: #b8ab8d; margin-top: 2px; }
+  #controls-ref summary { cursor: pointer; text-align: center; font-size: 12px; color: #ffd97a;
+    letter-spacing: 1px; list-style: none; padding: 4px; }
+  #controls-ref summary::-webkit-details-marker { display: none; }
+  #controls-ref[open] summary { margin-bottom: 4px; }
+  /* setup panel */
+  .setup-head { display: flex; align-items: center; justify-content: space-between; width: 100%;
+    margin-bottom: 10px; }
+  .setup-head-spacer { width: 64px; flex: none; }
+  .setup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 22px; width: 100%; }
+  .setup-col { display: flex; flex-direction: column; align-items: center; gap: 3px;
+    background: #140c2680; border: 1px solid #2f2450; border-radius: 14px; padding: 8px 12px 12px; }
+  @media (max-width: 720px) { .setup-grid { grid-template-columns: 1fr; } }
   .menu-label { margin-top: 3px; color: #ffd97a; font-size: 11px; letter-spacing: 2px;
     text-transform: uppercase; font-weight: 700; text-shadow: 0 2px 3px #000; }
-  #diff-row, #map-row, #mp-row, #fac-row, #size-row, #mode-row, #startres-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  #diff-row, #mp-row, #fac-row, #size-row, #mode-row, #startres-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  #map-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 680px; margin: 0 auto; }
+  #map-row .map-btn { min-width: 118px; justify-content: center; }
   #map-desc, #fac-desc, #mode-desc { color: #d8cba8; font-size: 12px; min-height: 16px; text-shadow: 0 1px 2px #000; }
   /* civilization info card */
-  #civ-panel { max-width: 560px; margin: 2px auto 0; padding: 10px 14px; border-radius: 14px;
+  #civ-panel { width: 100%; margin: 4px auto 0; padding: 10px 14px; border-radius: 14px;
     background: linear-gradient(180deg,#1a1030e0,#140b26e0); border: 1px solid #3a2a55;
     box-shadow: inset 0 1px 0 #ffffff10, 0 4px 14px #0007; }
   .civ-head { display: flex; align-items: baseline; justify-content: center; gap: 8px; }
   .civ-name { font-size: 16px; font-weight: 800; color: #ffd97a; letter-spacing: .3px; }
   .civ-bonus { color: #cfe8b0; font-size: 12px; margin: 3px 0 8px; text-align: center; }
   .civ-uniques { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
-  .civ-chip { flex: 1 1 46%; min-width: 200px; text-align: left; background: #0f0a1eb0;
+  .civ-chip { flex: 1 1 100%; text-align: left; background: #0f0a1eb0;
     border: 1px solid #34264d; border-radius: 10px; padding: 6px 9px; }
   .civ-chip .lbl { display: block; font-size: 9.5px; letter-spacing: 1.2px; text-transform: uppercase; color: #ffb347; margin-bottom: 1px; }
   .civ-chip .ttl { color: #f4eede; font-size: 12.5px; font-weight: 700; }
@@ -431,98 +468,134 @@
     <img class="logo" src="assets/ui/logo.png" alt="AGE OF TOYS"
       onerror="this.outerHTML='<h1 style=&quot;font-size:52px&quot;>AGE OF TOYS</h1>'">
     <div class="sub">After Bedtime — the toys wake up and go to war</div>
-    <div id="menu-card">
-    <div class="menu-label">Rival difficulty</div>
-    <div id="diff-row">
-      <button class="diff-btn" data-diff="easy">😴 Sleepy</button>
-      <button class="diff-btn sel" data-diff="normal">🙂 Playful</button>
-      <button class="diff-btn" data-diff="hard">😾 Cranky</button>
-    </div>
-    <div class="menu-label">Battle</div>
-    <div id="size-row">
-      <button class="size-btn diff-btn sel" data-size="1v1">🤺 1v1</button>
-      <button class="size-btn diff-btn" data-size="2v2">🤝 2v2 — AI ally</button>
-    </div>
-    <div class="menu-label">Game mode</div>
-    <div id="mode-row">
-      <button class="mode-btn diff-btn sel" data-mode="standard">⚔️ Conquest</button>
-      <button class="mode-btn diff-btn" data-mode="regicide">👑 Regicide</button>
-      <button class="mode-btn diff-btn" data-mode="koth">🏔️ Hill</button>
-      <button class="mode-btn diff-btn" data-mode="sudden">💥 Sudden</button>
-    </div>
-    <div id="mode-desc">Destroy every enemy base to win.</div>
-    <div class="menu-label">Starting resources</div>
-    <div id="startres-row">
-      <button class="startres-btn diff-btn sel" data-sr="standard">🎒 Standard</button>
-      <button class="startres-btn diff-btn" data-sr="high">💰 High</button>
-      <button class="startres-btn diff-btn" data-sr="marathon">🏰 Marathon</button>
-    </div>
-    <div class="menu-label">Your faction</div>
-    <div id="fac-row">
-      <button class="fac-btn diff-btn sel" data-fac="classic">🎁 Classic</button>
-      <button class="fac-btn diff-btn" data-fac="bricks">🧱 Snap-Bricks</button>
-      <button class="fac-btn diff-btn" data-fac="plush">🧸 Plushies</button>
-      <button class="fac-btn diff-btn" data-fac="racers">🏎️ RC Racers</button>
-    </div>
-    <div id="civ-panel"></div>
-    <div class="menu-label">Battlefield</div>
-    <div id="map-row">
-      <button class="map-btn diff-btn sel" data-map="playmat">🧸 Playmat</button>
-      <button class="map-btn diff-btn" data-map="canyon">🏔️ Canyon</button>
-      <button class="map-btn diff-btn" data-map="underbed">🌑 Under-Bed</button>
-      <button class="map-btn diff-btn" data-map="attic">📦 Attic</button>
-      <button class="map-btn diff-btn" data-map="playground">🛝 Playground</button>
-      <button class="map-btn diff-btn" data-map="kitchen">🍽️ Kitchen</button>
-      <button class="map-btn diff-btn" data-map="bookshelf">📚 Bookshelf</button>
-      <button class="map-btn diff-btn" data-map="livingroom">🎄 Living Room</button>
-      <button class="map-btn diff-btn" data-map="bathtub">🛁 Bathtub</button>
-      <button class="map-btn diff-btn" data-map="random">🎲 Random</button>
-    </div>
-    <div id="random-row" style="display:none">
-      <div class="rnd-group"><span class="rnd-lbl">Size</span>
-        <button class="rnd-btn diff-btn" data-rnd="size" data-val="small">Small</button>
-        <button class="rnd-btn diff-btn sel" data-rnd="size" data-val="medium">Medium</button>
-        <button class="rnd-btn diff-btn" data-rnd="size" data-val="large">Large</button>
+
+    <!-- ============ LANDING ============ -->
+    <div id="menu-home">
+      <div class="home-buttons">
+        <button id="home-quick" class="home-btn primary"><span class="hb-ic">▶</span><span class="hb-txt"><b>Quick Battle</b><small>Jump right in with the last settings</small></span></button>
+        <button id="home-custom" class="home-btn"><span class="hb-ic">⚔️</span><span class="hb-txt"><b>Custom Skirmish</b><small>Choose map, mode, civilization &amp; difficulty</small></span></button>
+        <button id="campaign-btn" class="home-btn"><span class="hb-ic">🎖️</span><span class="hb-txt"><b>Campaign</b><small>The Bedroom Wars — a 5-mission story</small></span></button>
+        <button id="tutorial-btn" class="home-btn"><span class="hb-ic">📖</span><span class="hb-txt"><b>How to Play</b><small>Learn the ropes in a guided match</small></span></button>
+        <button id="home-mp" class="home-btn"><span class="hb-ic">🌐</span><span class="hb-txt"><b>Multiplayer</b><small>Host or join a 1v1 online</small></span></button>
       </div>
-      <div class="rnd-group"><span class="rnd-lbl">Resources</span>
-        <button class="rnd-btn diff-btn" data-rnd="resources" data-val="sparse">Sparse</button>
-        <button class="rnd-btn diff-btn sel" data-rnd="resources" data-val="standard">Standard</button>
-        <button class="rnd-btn diff-btn" data-rnd="resources" data-val="rich">Rich</button>
+      <details id="controls-ref">
+        <summary>⌨️ Controls &amp; tips</summary>
+        <div class="menu-help">
+          Left click / drag: select · double-click: select all of a type · Right click: move, gather, attack, build<br>
+          Right-click a friendly toy: bodyguard it · right-click chest/tower/fort: garrison inside · B: town bell<br>
+          WASD / arrows / edges: camera · Shift: queue orders · F: attack-move · Z: patrol · G: attack-ground<br>
+          H: Toy Chest · . : idle worker · X: stop · Delete: demolish · ESC: game menu · M: sound · Ctrl+1-9: groups<br>
+          F6: save game · F7: load save · Delivery Carts: right-click a Market to run trade routes for Buttons<br>
+          Wind-up mice roam mid-map — walk any toy up to one and it follows you home for Snacks · Alt+minimap: flare<br>
+          Each faction has a unique building &amp; two unique toys · T: tech tree · , : idle military · ESC: settings<br>
+          <b>Win 3 ways:</b> smash every enemy base, defend an Imagination Wonder, or hold every ⭐ Lost Sticker at once<br>
+          2v2: pick 🤝 in Battle — solo you get an AI ally; hosting online makes it co-op (select a Chest to 🎁 tribute to allies)
+        </div>
+      </details>
+    </div>
+
+    <!-- ============ CUSTOM SKIRMISH SETUP ============ -->
+    <div id="menu-setup" style="display:none">
+      <div class="menu-card">
+        <div class="setup-head">
+          <button class="setup-back diff-btn">← Back</button>
+          <span class="menu-label" style="margin:0">Custom Skirmish</span>
+          <span class="setup-head-spacer"></span>
+        </div>
+        <div class="setup-grid">
+          <div class="setup-col">
+            <div class="menu-label">Rival difficulty</div>
+            <div id="diff-row">
+              <button class="diff-btn" data-diff="easy">😴 Sleepy</button>
+              <button class="diff-btn sel" data-diff="normal">🙂 Playful</button>
+              <button class="diff-btn" data-diff="hard">😾 Cranky</button>
+            </div>
+            <div class="menu-label">Game mode</div>
+            <div id="mode-row">
+              <button class="mode-btn diff-btn sel" data-mode="standard">⚔️ Conquest</button>
+              <button class="mode-btn diff-btn" data-mode="regicide">👑 Regicide</button>
+              <button class="mode-btn diff-btn" data-mode="koth">🏔️ Hill</button>
+              <button class="mode-btn diff-btn" data-mode="sudden">💥 Sudden</button>
+            </div>
+            <div id="mode-desc">Destroy every enemy base to win.</div>
+            <div class="menu-label">Battle</div>
+            <div id="size-row">
+              <button class="size-btn diff-btn sel" data-size="1v1">🤺 1v1</button>
+              <button class="size-btn diff-btn" data-size="2v2">🤝 2v2 — AI ally</button>
+            </div>
+            <div class="menu-label">Starting resources</div>
+            <div id="startres-row">
+              <button class="startres-btn diff-btn sel" data-sr="standard">🎒 Standard</button>
+              <button class="startres-btn diff-btn" data-sr="high">💰 High</button>
+              <button class="startres-btn diff-btn" data-sr="marathon">🏰 Marathon</button>
+            </div>
+          </div>
+          <div class="setup-col">
+            <div class="menu-label">Your civilization</div>
+            <div id="fac-row">
+              <button class="fac-btn diff-btn sel" data-fac="classic">🎁 Classic</button>
+              <button class="fac-btn diff-btn" data-fac="bricks">🧱 Snap-Bricks</button>
+              <button class="fac-btn diff-btn" data-fac="plush">🧸 Plushies</button>
+              <button class="fac-btn diff-btn" data-fac="racers">🏎️ RC Racers</button>
+            </div>
+            <div id="civ-panel"></div>
+          </div>
+        </div>
+        <div class="menu-label">Battlefield</div>
+        <div id="map-row">
+          <button class="map-btn diff-btn sel" data-map="playmat">🧸 Playmat</button>
+          <button class="map-btn diff-btn" data-map="canyon">🏔️ Canyon</button>
+          <button class="map-btn diff-btn" data-map="underbed">🌑 Under-Bed</button>
+          <button class="map-btn diff-btn" data-map="attic">📦 Attic</button>
+          <button class="map-btn diff-btn" data-map="playground">🛝 Playground</button>
+          <button class="map-btn diff-btn" data-map="kitchen">🍽️ Kitchen</button>
+          <button class="map-btn diff-btn" data-map="bookshelf">📚 Bookshelf</button>
+          <button class="map-btn diff-btn" data-map="livingroom">🎄 Living Room</button>
+          <button class="map-btn diff-btn" data-map="bathtub">🛁 Bathtub</button>
+          <button class="map-btn diff-btn" data-map="random">🎲 Random</button>
+        </div>
+        <div id="random-row" style="display:none">
+          <div class="rnd-group"><span class="rnd-lbl">Size</span>
+            <button class="rnd-btn diff-btn" data-rnd="size" data-val="small">Small</button>
+            <button class="rnd-btn diff-btn sel" data-rnd="size" data-val="medium">Medium</button>
+            <button class="rnd-btn diff-btn" data-rnd="size" data-val="large">Large</button>
+          </div>
+          <div class="rnd-group"><span class="rnd-lbl">Resources</span>
+            <button class="rnd-btn diff-btn" data-rnd="resources" data-val="sparse">Sparse</button>
+            <button class="rnd-btn diff-btn sel" data-rnd="resources" data-val="standard">Standard</button>
+            <button class="rnd-btn diff-btn" data-rnd="resources" data-val="rich">Rich</button>
+          </div>
+          <div class="rnd-group"><span class="rnd-lbl">Water</span>
+            <button class="rnd-btn diff-btn" data-rnd="water" data-val="none">None</button>
+            <button class="rnd-btn diff-btn sel" data-rnd="water" data-val="some">Some</button>
+            <button class="rnd-btn diff-btn" data-rnd="water" data-val="lots">Lots</button>
+          </div>
+          <div class="rnd-group"><span class="rnd-lbl">Seed</span>
+            <input id="rnd-seed" maxlength="9" autocomplete="off" inputmode="numeric">
+            <button id="rnd-reroll" class="diff-btn">🎲 Reroll</button>
+          </div>
+        </div>
+        <div id="map-desc">Open center, safe corners — the classic.</div>
+        <button id="start-btn">▶ Wake the Toys</button>
       </div>
-      <div class="rnd-group"><span class="rnd-lbl">Water</span>
-        <button class="rnd-btn diff-btn" data-rnd="water" data-val="none">None</button>
-        <button class="rnd-btn diff-btn sel" data-rnd="water" data-val="some">Some</button>
-        <button class="rnd-btn diff-btn" data-rnd="water" data-val="lots">Lots</button>
+    </div>
+
+    <!-- ============ MULTIPLAYER ============ -->
+    <div id="menu-mp" style="display:none">
+      <div class="menu-card" style="max-width:480px">
+        <div class="setup-head">
+          <button class="setup-back diff-btn">← Back</button>
+          <span class="menu-label" style="margin:0">Multiplayer — 1v1 online</span>
+          <span class="setup-head-spacer"></span>
+        </div>
+        <div class="menu-help" style="margin:0 0 4px">Host a game to get a 4-letter code and share it, or type a friend's code to join. Uses the civilization you pick in Custom Skirmish.</div>
+        <div id="mp-row">
+          <button id="mp-host" class="diff-btn">🌐 Host game</button>
+          <input id="mp-code" maxlength="4" placeholder="CODE" autocomplete="off">
+          <button id="mp-join" class="diff-btn">Join</button>
+        </div>
+        <div id="mp-status"></div>
       </div>
-      <div class="rnd-group"><span class="rnd-lbl">Seed</span>
-        <input id="rnd-seed" maxlength="9" autocomplete="off" inputmode="numeric">
-        <button id="rnd-reroll" class="diff-btn">🎲 Reroll</button>
-      </div>
-    </div>
-    <div id="map-desc">Open center, safe corners — the classic.</div>
-    <button id="start-btn">▶ Wake the Toys</button>
-    <div style="display:flex; gap:8px; margin-top:8px; justify-content:center; flex-wrap:wrap">
-      <button id="campaign-btn" class="diff-btn">🎖️ Campaign</button>
-      <button id="tutorial-btn" class="diff-btn">📖 How to Play (Tutorial)</button>
-    </div>
-    <div class="menu-label">Multiplayer (1v1, needs internet)</div>
-    <div id="mp-row">
-      <button id="mp-host" class="diff-btn">🌐 Host game</button>
-      <input id="mp-code" maxlength="4" placeholder="CODE" autocomplete="off">
-      <button id="mp-join" class="diff-btn">Join</button>
-    </div>
-    <div id="mp-status"></div>
-    </div>
-    <div class="menu-help">
-      Left click / drag: select · double-click: select all of a type · Right click: move, gather, attack, build<br>
-      Right-click a friendly toy: bodyguard it · right-click chest/tower/fort: garrison inside · B: town bell<br>
-      WASD / arrows / edges: camera · Shift: queue orders · F: attack-move · Z: patrol · G: attack-ground<br>
-      H: Toy Chest · . : idle worker · X: stop · Delete: demolish · ESC: game menu · M: sound · Ctrl+1-9: groups<br>
-      F6: save game · F7: load save · Delivery Carts: right-click a Market to run trade routes for Buttons<br>
-      Wind-up mice roam mid-map — walk any toy up to one and it follows you home for Snacks · Alt+minimap: flare<br>
-      Each faction has a unique building &amp; two unique toys · T: tech tree · , : idle military · ESC: settings<br>
-      <b>Win 3 ways:</b> smash every enemy base, defend an Imagination Wonder, or hold every ⭐ Lost Sticker at once<br>
-      2v2: pick 🤝 in Battle — solo you get an AI ally; hosting online makes it co-op (select a Chest to 🎁 tribute to allies)
     </div>
   </div>
 
