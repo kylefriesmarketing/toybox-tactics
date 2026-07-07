@@ -291,7 +291,9 @@ export const MODEL_MANIFEST = {
   worker:  { dir: 'assets/units/worker',  clips: ['idle', 'walk', 'attack', 'death'], targetHeight: 0.5 },
   scout:   { dir: 'assets/units/scout',   clips: ['idle', 'walk', 'attack', 'death'], targetHeight: 0.5 },
   soldier: { dir: 'assets/units/soldier', clips: ['idle', 'walk', 'attack', 'death'], targetHeight: 0.5 },
-  spear:   { dir: 'assets/units/spear',   clips: ['idle', 'walk', 'attack', 'death'], targetHeight: 0.55 },
+  // spear: the auto-rigged clips contorted the mesh (leg-over-head on move+attack);
+  // swapped to a clean static model with code-driven bob + attack lunge instead
+  spear:   { dir: 'assets/units/spear',   model: 'model.glb', targetHeight: 0.55 },
   archer:  { dir: 'assets/units/archer',  clips: ['idle', 'walk', 'attack', 'death'], targetHeight: 0.5 },
   hero:    { dir: 'assets/units/hero',    clips: ['idle', 'walk', 'attack', 'death'], targetHeight: 0.64 },
   medic:   { dir: 'assets/units/medic',   clips: ['idle', 'walk', 'attack', 'death'], targetHeight: 0.52 },
