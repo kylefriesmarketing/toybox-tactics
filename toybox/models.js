@@ -551,6 +551,8 @@ function makeModelView(entry, def, owner) {
         if (deathT > 1.0) setOpacity(model, Math.max(0, 1 - (deathT - 1.0)));
         return;
       }
+      // spinning tops (Hypno-Top) twirl endlessly, moving or not
+      if (def.spin) model.rotation.y += dt * 5;
       // per-unit idle flavor: drones hover-bob, socks sway constantly
       if (def.hover) model.position.y = 0.05 + Math.sin(t * 4) * 0.05;
       else if (def.sway) model.rotation.z = Math.sin(t * (moving ? 8 : 3)) * (moving ? 0.16 : 0.07);

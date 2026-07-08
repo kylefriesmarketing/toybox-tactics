@@ -230,7 +230,7 @@ export const UNITS = {
     desc: 'Runs trade routes: right-click a Market, it shuttles to your Chest. Longer routes pay more Buttons.',
   },
   hypno: {
-    name: 'Hypno-Top', tags: ['support', 'magic'], age: 3, proc: 'hypno',
+    name: 'Hypno-Top', tags: ['support', 'magic'], age: 3, proc: 'hypno', spin: true,
     cost: { snacks: 120, buttons: 140 }, trainTime: 22,
     hp: 70, atk: 0, atkType: 'melee', interval: 2, range: 0.6,
     convert: { time: 5, range: 4.5, cooldown: 11 },
@@ -338,6 +338,7 @@ export const MODEL_MANIFEST = {
   catapult:{ dir: 'assets/units/catapult',model: 'model.glb', targetHeight: 0.65 },
   dragster:{ dir: 'assets/units/dragster',model: 'model.glb', targetHeight: 0.42 },
   cart:    { dir: 'assets/units/cart',    model: 'model.glb', targetHeight: 0.5 },
+  hypno:   { dir: 'assets/units/hypno',   model: 'model.glb', targetHeight: 0.5 },
   // static naval hulls, no rig — code-animated (bob on the water); proc fallback
   tugboat: { dir: 'assets/units/tugboat', model: 'model.glb', targetHeight: 0.55 },
   duckboat:{ dir: 'assets/units/duckboat',model: 'model.glb', targetHeight: 0.6 },
