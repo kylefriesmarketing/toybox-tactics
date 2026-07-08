@@ -934,7 +934,7 @@ export class Game {
     // ships must launch onto water — search a little wider from the dock
     const free = this.pf.nearestFree(tileOf(x), tileOf(z), def.naval ? 14 : 6, def.naval);
     if (free) { x = worldOf(free[0]); z = worldOf(free[1]); }
-    const view = createUnitView(this.registry, type, def, owner);
+    const view = createUnitView(this.registry, type, def, owner, this.factionKeys[owner]);
     view.group.position.set(x, this.heightAtWorld(x, z), z);
     this.scene.add(view.group);
     const hpMult = ((def.aggro > 0 && p.techs.has('training')) ? 1.15 : 1) * p.mods.unitHp
@@ -1534,7 +1534,7 @@ export class Game {
       let e = null;
       if (se.k === 'u') {
         const def = UNITS[se.type];
-        const view = createUnitView(this.registry, se.type, def, se.owner);
+        const view = createUnitView(this.registry, se.type, def, se.owner, this.factionKeys[se.owner]);
         view.group.position.set(se.x, this.heightAtWorld(se.x, se.z), se.z);
         view.group.rotation.y = se.facing || 0;
         this.scene.add(view.group);
@@ -2766,7 +2766,7 @@ export class Game {
     t.anchor = null; t.stance = 'agg'; t.fleeResume = null; t.bellResume = null;
     if (this.selected.includes(t)) this.setSelection(this.selected.filter((s) => s !== t));
     this.scene.remove(t.view.group);
-    t.view = createUnitView(this.registry, t.type, t.def, newOwner);
+    t.view = createUnitView(this.registry, t.type, t.def, newOwner, this.factionKeys[newOwner]);
     t.view.group.position.set(t.x, this.heightAtWorld(t.x, t.z), t.z);
     t.view.group.rotation.y = t.facing;
     this.scene.add(t.view.group);

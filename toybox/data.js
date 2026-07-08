@@ -361,6 +361,13 @@ export const UNITS = {
 // GLB manifest: each clip file is the same mesh with one animation baked in.
 export const MODEL_MANIFEST = {
   worker:  { dir: 'assets/units/worker',  clips: ['idle', 'walk', 'attack', 'death'], targetHeight: 0.5 },
+  // faction-unique workers — static generated models, code-driven bob (fall back
+  // to the rigged default worker if a tribe's GLB is missing)
+  'worker-classic': { dir: 'assets/units/worker-classic', model: 'model.glb', targetHeight: 0.52 },
+  'worker-bricks':  { dir: 'assets/units/worker-bricks',  model: 'model.glb', targetHeight: 0.52 },
+  'worker-plush':   { dir: 'assets/units/worker-plush',   model: 'model.glb', targetHeight: 0.52 },
+  'worker-racers':  { dir: 'assets/units/worker-racers',  model: 'model.glb', targetHeight: 0.52 },
+  'worker-bots':    { dir: 'assets/units/worker-bots',    model: 'model.glb', targetHeight: 0.52 },
   scout:   { dir: 'assets/units/scout',   clips: ['idle', 'walk', 'attack', 'death'], targetHeight: 0.5 },
   soldier: { dir: 'assets/units/soldier', clips: ['idle', 'walk', 'attack', 'death'], targetHeight: 0.5 },
   // spear: the auto-rigged clips contorted the mesh (leg-over-head on move+attack);

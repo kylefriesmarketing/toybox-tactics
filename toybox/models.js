@@ -1099,9 +1099,11 @@ function makeBoxView(def, owner) {
   return view;
 }
 
-export function createUnitView(registry, key, def, owner) {
+export function createUnitView(registry, key, def, owner, faction = null) {
   let view;
-  const entry = registry[def.modelKey || key];
+  // workers are faction-unique when their tribe's model is loaded, else default
+  const facWorker = (key === 'worker' && faction && registry['worker-' + faction]) ? 'worker-' + faction : null;
+  const entry = registry[facWorker || def.modelKey || key];
   if (entry) {
     view = makeModelView(entry, def, owner); // generated model wins when present
   } else if (def.proc) {
