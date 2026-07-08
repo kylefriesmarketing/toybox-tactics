@@ -2704,9 +2704,12 @@ export function createMilkSpill(rx, rz, rngSeed = 1) {
   lip.rotation.x = -Math.PI / 2;
   lip.position.y = 0.7;
   glass.add(lip);
-  glass.rotation.z = Math.PI / 2 - 0.04; // lying on its side, mouth toward the spill
-  glass.position.set(-rx - 0.8, 0.56, (rng() - 0.5) * rz);
-  glass.rotation.y = (rng() - 0.5) * 0.8;
+  // the glass lies on its side just off the puddle's left edge; tip the open mouth
+  // (local +Y, where the milk lip sits) back toward the spill it poured out
+  const gz = (rng() - 0.5) * rz;
+  glass.rotation.z = -Math.PI / 2 + 0.04;
+  glass.position.set(-rx - 0.8, 0.56, gz);
+  glass.rotation.y = Math.atan2(gz, rx + 0.8); // aim the mouth straight at the puddle centre
   glass.traverse((m) => { if (m.isMesh) m.castShadow = true; });
   g.add(glass);
   return g;

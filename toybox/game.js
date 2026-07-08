@@ -24,6 +24,10 @@ const idx = (i, j) => j * N + i;
 const inMap = (i, j) => i >= 0 && j >= 0 && i < N && j < N;
 const tileOf = (x) => Math.floor(x + N / 2);
 const worldOf = (i) => i - N / 2 + 0.5;
+// keep scatter off the very edge of the mat — bases already clamp to [11, N-16],
+// so nothing playable needs the outer ring where it reads as "off the map"
+const PLAY_MARGIN = 6;
+const inPlay = (i, j) => i >= PLAY_MARGIN && j >= PLAY_MARGIN && i < N - PLAY_MARGIN && j < N - PLAY_MARGIN;
 const dist2 = (a, b) => (a.x - b.x) ** 2 + (a.z - b.z) ** 2;
 
 function makeRng(seed) {
@@ -829,6 +833,8 @@ export class Game {
 
   addObstacle(kind, i, j, w, d, seed) {
     if (!inMap(i, j) || !inMap(i + w - 1, j + d - 1)) return;
+    if (!inPlay(i, j) || !inPlay(i + w - 1, j + d - 1)) return; // keep clutter off the mat's edge
+
     for (let b = j; b < j + d; b++) for (let a = i; a < i + w; a++) this.blocked[idx(a, b)] = 1;
     const mesh = createObstacleMesh(kind, w, d, seed);
     mesh.position.set(worldOf(i) + (w - 1) / 2, this.tileHeight(i, j), worldOf(j) + (d - 1) / 2);
@@ -836,7 +842,7 @@ export class Game {
   }
 
   addResourceNode(resType, i, j) {
-    if (!inMap(i, j) || this.blocked[idx(i, j)] || this.water[idx(i, j)]) return null;
+    if (!inMap(i, j) || !inPlay(i, j) || this.blocked[idx(i, j)] || this.water[idx(i, j)]) return null;
     // resources sit on flat levels, never on ramps (they'd block the only way up)
     const h = this.height[idx(i, j)];
     if (h > 0.01 && Math.abs(h - this.ELEV) > 0.01 && Math.abs(h - this.ELEV * 2) > 0.01) return null;
@@ -861,15 +867,13 @@ export class Game {
   }
 
   addResourceCluster(resType, i0, j0, count) {
-    // Blocks pile up everywhere and read as one giant brick heap when packed
-    // tile-to-tile — give them a 2-tile pitch so each pile stands apart. Snacks,
-    // Buttons and Marbles stay cosy in a tight little cache.
-    const pitch = resType === 'blocks' ? 2 : 1;
+    // all resource types cache tile-to-tile in a tight little pile (the block
+    // over-concentration was the forests, not these clusters — see below)
     const offs = [[0, 0], [1, 0], [0, 1], [1, 1], [-1, 0], [0, -1], [1, -1], [-1, 1]];
     let placed = 0;
     for (const [di, dj] of offs) {
       if (placed >= count) break;
-      if (this.addResourceNode(resType, Math.round(i0 + di * pitch), Math.round(j0 + dj * pitch))) placed++;
+      if (this.addResourceNode(resType, Math.round(i0 + di), Math.round(j0 + dj))) placed++;
     }
   }
 
