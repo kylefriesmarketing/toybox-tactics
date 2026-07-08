@@ -894,6 +894,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   applySettings();
   const menuEl = $('menu');
   if (menuEl) {
+    const bg = $('menu-bg'); if (bg && bg.pause) bg.pause(); // stop the title loop
     menuEl.classList.remove('show');
     setTimeout(() => menuEl.remove(), 600);
   }

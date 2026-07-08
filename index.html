@@ -223,6 +223,12 @@
       url('assets/ui/title.png') center / cover no-repeat var(--bg);
     transition: opacity .5s; overflow-y: auto; }
   #menu.show { display: flex; }
+  /* living title backdrop: seedance loop pinned behind the menu content */
+  #menu > * { position: relative; z-index: 2; }
+  #menu-bg { position: fixed; inset: 0; width: 100vw; height: 100vh;
+    object-fit: cover; z-index: 0; pointer-events: none; }
+  #menu-shade { position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background: linear-gradient(180deg, #0f0e17a8 0%, #12111cc2 45%, #0f0e17ee 100%); }
   .menu-card { display: flex; flex-direction: column; align-items: center; gap: 3px;
     width: min(900px, 94vw); max-height: 84vh; overflow-y: auto;
     padding: 18px 26px 20px; border-radius: var(--r-lg); border: 1px solid var(--gold-deep);
@@ -499,6 +505,12 @@
   </div>
 
   <div id="menu">
+    <video id="menu-bg" autoplay muted loop playsinline preload="auto"
+      poster="assets/ui/title-cine.jpg"
+      onerror="this.style.display='none'">
+      <source src="assets/ui/menu-bg.mp4" type="video/mp4">
+    </video>
+    <div id="menu-shade"></div>
     <img class="logo" src="assets/ui/logo.png" alt="AGE OF TOYS"
       onerror="this.outerHTML='<h1 style=&quot;font-size:52px&quot;>AGE OF TOYS</h1>'">
     <div class="sub">After Bedtime — the toys wake up and go to war</div>

@@ -128,7 +128,13 @@ class PathFinder {
         const m = idx(a, b);
         if (this.isBlockedFor(m, forOwner, naval)) continue;
         if (!naval && !this.climbable(m, n)) continue; // land toys can't scale cliffs
-        if (di && dj && (this.isBlockedFor(idx(ni + di, nj), forOwner, naval) || this.isBlockedFor(idx(ni, nj + dj), forOwner, naval))) continue;
+        // diagonal steps must clear BOTH orthogonal tiles — for blockage AND
+        // climb, else the path slips through cliff notches steering can't walk
+        if (di && dj) {
+          const o1 = idx(ni + di, nj), o2 = idx(ni, nj + dj);
+          if (this.isBlockedFor(o1, forOwner, naval) || this.isBlockedFor(o2, forOwner, naval)) continue;
+          if (!naval && (!this.climbable(o1, n) || !this.climbable(o2, n))) continue;
+        }
         const cost = g[n] + (di && dj ? 1.414 : 1);
         if (visit[m] === stamp && g[m] <= cost) continue;
         visit[m] = stamp; g[m] = cost; from[m] = n;
@@ -447,9 +453,11 @@ export class Game {
           if (!inMap(i, j) || this.height[idx(i, j)] < E) break;
           d++;
         }
-        for (let s = 0; s < 3; s++) {
-          const hVal = E * (2 - s) / 3; // 0.57 → 0.28 → 0: gentle enough to climb
-          for (let wOff = -1; wOff <= 1; wOff++) {
+        // 4 gentle steps (0.64→0.43→0.21→0, each ≤ CLIMB) and 5 tiles wide, so
+        // whole armies flow up the ramp instead of grinding on a narrow lip
+        for (let s = 0; s < 4; s++) {
+          const hVal = E * (3 - s) / 4;
+          for (let wOff = -2; wOff <= 2; wOff++) {
             const i = Math.round(ci + dx * (d + s) - dz * wOff);
             const j = Math.round(cj + dz * (d + s) + dx * wOff);
             if (inMap(i, j)) this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], hVal);
@@ -473,9 +481,9 @@ export class Game {
           if (!inMap(i, j) || this.height[idx(i, j)] < E * 2) break;
           d++;
         }
-        for (let s = 0; s < 3; s++) {
-          const hVal = E + E * (2 - s) / 3;
-          for (let wOff = -1; wOff <= 1; wOff++) {
+        for (let s = 0; s < 4; s++) {
+          const hVal = E + E * (3 - s) / 4;
+          for (let wOff = -2; wOff <= 2; wOff++) {
             const i = Math.round(ci + dx * (d + s) - dz * wOff);
             const j = Math.round(cj + dz * (d + s) + dx * wOff);
             if (inMap(i, j) && this.height[idx(i, j)] <= E + 0.01) {
@@ -1229,13 +1237,23 @@ export class Game {
     // give nearby units nearby slots so they don't cross paths
     const px = Math.cos(ang), pz = -Math.sin(ang);
     const sorted = list.slice().sort((a, b) => (a.x * px + a.z * pz) - (b.x * px + b.z * pz));
+    const hClick = inMap(tileOf(x), tileOf(z)) ? this.height[idx(tileOf(x), tileOf(z))] : 0;
     sorted.forEach((u, k) => {
-      const row = Math.floor(k / cols), col = k % cols;
+      // line fills column-major (adjacent toys stack front/back in the same
+      // column) so the laterally-sorted order is preserved — row-major made
+      // the whole left half of the army file across to the front row
+      const row = formation === 'line' ? k % 2 : Math.floor(k / cols);
+      const col = formation === 'line' ? (k >> 1) : k % cols;
       const ox = (col - (cols - 1) / 2) * spacing;
       const oz = -row * spacing;
       const rx = ox * Math.cos(ang) + oz * Math.sin(ang);
       const rz = -ox * Math.sin(ang) + oz * Math.cos(ang);
-      this.setOrder(u, { type: amove ? 'amove' : 'move', x: x + rx, z: z + rz }, queued);
+      let sx = x + rx, sz = z + rz;
+      // slots that land across a cliff edge from the click collapse onto the
+      // click point — otherwise half the squad marches off to find a ramp
+      const si = tileOf(sx), sj = tileOf(sz);
+      if (!inMap(si, sj) || Math.abs(this.height[idx(si, sj)] - hClick) > CLIMB) { sx = x; sz = z; }
+      this.setOrder(u, { type: amove ? 'amove' : 'move', x: sx, z: sz }, queued);
     });
   }
   cmdAttack(units, target, queued = false) {
@@ -1848,6 +1866,22 @@ export class Game {
         target.path = null; target.aim = null; target.losT = 0;
       }
     }
+    // military toys fight back when hit — even mid-walk — instead of soaking
+    // arrows from beyond their aggro radius. Player-ordered attacks stand.
+    if (target.kind === 'unit' && !target.dead && target.def.aggro > 0
+        && attacker.kind === 'unit' && attacker.owner >= 0
+        && this.isEnemy(target.owner, attacker.owner)) {
+      const o = target.order;
+      const engaged = o && o.type === 'attack' && o.target && !o.target.dead
+        && !(o.auto && o.target.kind === 'building'); // drop the building for whoever is shooting us
+      if (!engaged) {
+        if (target.stance === 'def' && !target.anchor) target.anchor = { x: target.x, z: target.z };
+        target.order = {
+          type: 'attack', target: attacker, auto: true,
+          then: (o && o.type !== 'attack') ? o : (o ? o.then : null),
+        };
+      }
+    }
     if (target.hp <= 0) this.kill(target, attacker);
   }
 
@@ -2023,6 +2057,25 @@ export class Game {
     }
     return best;
   }
+  // battle sense for auto-acquired targets: real threats first — fighters over
+  // workers, anything over buildings, and wounded toys get finished off
+  pickTarget(owner, x, z, maxD, includeBuildings = true) {
+    let best = null, bestS = Infinity;
+    const maxD2 = maxD * maxD;
+    for (const e of this.entities) {
+      if (e.dead || e.garrisoned || !this.isEnemy(owner, e.owner)) continue;
+      if (e.kind !== 'unit' && e.kind !== 'building') continue;
+      if (e.kind === 'building' && !includeBuildings) continue;
+      const d2 = (e.x - x) ** 2 + (e.z - z) ** 2;
+      if (d2 > maxD2) continue;
+      let s = d2;
+      if (e.kind === 'building') s *= 4;                    // don't whack houses while archers shoot
+      else if (!(e.def.aggro > 0) && !e.isKing) s *= 1.6;   // workers matter less than soldiers
+      s *= 0.6 + 0.4 * (e.hp / e.maxHp);                    // prefer finishing wounded toys
+      if (s < bestS) { bestS = s; best = e; }
+    }
+    return best;
+  }
 
   // ---------- smooth movement (velocity steering + LOS-smoothed paths) ----------
   lineFree(x0, z0, x1, z1, owner = -2, naval = false) {
@@ -2188,19 +2241,20 @@ export class Game {
         // fleeing workers only need to reach the building's edge
         if (this.steer(u, o.x, o.z, dt, o.flee ? 2.8 : 0.3)) {
           u.order = null;
-          // fled workers head back to work once the coast is clear
+          // fled workers head back to work once the coast is clear; if raiders
+          // still lurk, KEEP the memory — the idle watcher below retries
           if (o.flee && u.fleeResume) {
             if (!this.nearestEnemy(u.owner, u.x, u.z, 9, (e) => e.kind === 'unit' && e.def.aggro > 0)) {
               u.order = u.fleeResume;
+              u.fleeResume = null;
             }
-            u.fleeResume = null;
           }
         }
       } else if (o.type === 'amove') {
         u.scanT -= dt;
         if (u.def.aggro > 0 && u.scanT <= 0) {
           u.scanT = 0.4;
-          const t = this.nearestEnemy(u.owner, u.x, u.z, u.def.aggro);
+          const t = this.pickTarget(u.owner, u.x, u.z, u.def.aggro);
           if (t) { u.order = { type: 'attack', target: t, auto: true, then: o }; return this.finishUnitFrame(u, dt, faceTarget); }
         }
         if (this.steer(u, o.x, o.z, dt, 0.6)) u.order = null;
@@ -2208,7 +2262,7 @@ export class Game {
         u.scanT -= dt;
         if (u.def.aggro > 0 && u.scanT <= 0) {
           u.scanT = 0.4;
-          const t = this.nearestEnemy(u.owner, u.x, u.z, u.def.aggro);
+          const t = this.pickTarget(u.owner, u.x, u.z, u.def.aggro);
           if (t) { u.order = { type: 'attack', target: t, auto: true, then: o }; return this.finishUnitFrame(u, dt, faceTarget); }
         }
         const tx = o.leg ? o.bx : o.ax, tz = o.leg ? o.bz : o.az;
@@ -2221,7 +2275,7 @@ export class Game {
           if (u.scanT <= 0) {
             u.scanT = 0.4;
             // protect the ward: engage anything that closes in on it
-            const t = this.nearestEnemy(u.owner, g.x, g.z, u.def.aggro);
+            const t = this.pickTarget(u.owner, g.x, g.z, u.def.aggro);
             if (t) { u.order = { type: 'attack', target: t, auto: true, then: o }; return this.finishUnitFrame(u, dt, faceTarget); }
           }
           const keep = g.radius + u.radius + 1.5;
@@ -2313,9 +2367,22 @@ export class Game {
       } else if (o.type === 'attack') {
         const t = o.target;
         if (!t || t.dead) {
-          const next = o.auto ? this.nearestEnemy(u.owner, u.x, u.z, u.def.aggro || 6) : null;
+          const next = o.auto ? this.pickTarget(u.owner, u.x, u.z, u.def.aggro || 6) : null;
           u.order = next ? { type: 'attack', target: next, auto: o.auto, then: o.then } : (o.then || null);
         } else {
+          // auto-razing a building? keep an eye out for actual fighters — swap
+          // to any enemy unit that shows up, and come back to the building after
+          if (o.auto && t.kind === 'building') {
+            u.scanT -= dt;
+            if (u.scanT <= 0) {
+              u.scanT = 0.5;
+              const threat = this.pickTarget(u.owner, u.x, u.z, u.def.aggro || 6, false);
+              if (threat) {
+                u.order = { type: 'attack', target: threat, auto: true, then: o };
+                return this.finishUnitFrame(u, dt, faceTarget);
+              }
+            }
+          }
           const reach = u.def.range + t.radius + u.radius;
           const d2t = dist2(u, t);
           if (u.def.minRange && d2t < (u.def.minRange + t.radius) ** 2) {
@@ -2326,6 +2393,14 @@ export class Game {
             faceTarget = t;
             u.noPathT = 0;
             if (u.cd <= 0) this.startSwing(u, t);
+            else if (u.def.range >= 2 && t.kind === 'unit' && (t.def.range || 0) < 1.6
+                && d2t < (reach * 0.45) ** 2 && u.stance !== 'stand' && !u.swing) {
+              // kite-lite: while reloading, open distance from a melee chaser
+              const away = Math.atan2(u.x - t.x, u.z - t.z);
+              const sp = this.speedOf(u) * 0.8;
+              u.dvx = Math.sin(away) * sp;
+              u.dvz = Math.cos(away) * sp;
+            }
           } else if (o.auto && u.stance === 'stand') {
             // stand ground: never chase — fall back to whatever we were doing
             u.order = o.then || null;
@@ -2372,6 +2447,18 @@ export class Game {
                 // chain to the next nearby foundation (wall lines build hands-free)
                 const next = this.nearestFoundation(u.owner, u.x, u.z, 6);
                 u.order = next ? { type: 'build', b: next } : null;
+                if (!u.order) {
+                  // hands free — head back to gathering something nearby rather
+                  // than loitering at the finished building
+                  const node = this.nearestGatherSource(u.owner, u.carryType || 'snacks', u.x, u.z, 14, u)
+                    || this.nearestGatherSource(u.owner, u.carryType === 'blocks' ? 'snacks' : 'blocks', u.x, u.z, 14, u);
+                  if (node) {
+                    const resType = node.kind === 'building' ? 'snacks' : node.resType;
+                    if (u.carryType !== resType) u.carry = 0;
+                    u.carryType = resType;
+                    u.order = { type: 'gather', node, phase: 'to', resType };
+                  }
+                }
               }
             } else {
               b.hp = Math.min(b.maxHp, b.hp + (dt * this.players[u.owner].mods.buildRate) * b.maxHp / (b.def.buildTime * 2)); // repair
@@ -2390,10 +2477,20 @@ export class Game {
         u.scanT = 0.5;
         // stand ground only notices what's already in weapon reach
         const scanR = u.stance === 'stand' ? u.def.range + 1.0 : u.def.aggro;
-        const t = this.nearestEnemy(u.owner, u.x, u.z, scanR, (e) => e.kind === 'unit' || e.kind === 'building');
+        const t = this.pickTarget(u.owner, u.x, u.z, scanR);
         if (t) {
           if (u.stance === 'def' && !u.anchor) u.anchor = { x: u.x, z: u.z };
           u.order = { type: 'attack', target: t, auto: true };
+        }
+      }
+    } else if (u.type === 'worker' && u.fleeResume) {
+      // sheltered worker: peek out now and then, resume work when it's safe
+      u.scanT -= dt;
+      if (u.scanT <= 0) {
+        u.scanT = 1.2;
+        if (!this.nearestEnemy(u.owner, u.x, u.z, 9, (e) => e.kind === 'unit' && e.def.aggro > 0)) {
+          u.order = u.fleeResume;
+          u.fleeResume = null;
         }
       }
     }
