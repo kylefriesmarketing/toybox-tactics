@@ -736,47 +736,84 @@ export const CAMPAIGN = [
     id: 'naptime', name: 'Naptime Uprising', icon: '😴',
     map: 'playmat', faction: 'classic', enemy: 'plush',
     gameMode: 'standard', difficulty: 'easy', startRes: 'standard',
-    brief: "It's naptime — but the toys are wide awake. A rogue Plushie Horde has claimed the far corner of the playmat. Rally your Army Men and tuck them back in the toy box.",
-    objective: 'Destroy every enemy production building.',
-    victory: 'The playmat is yours. But across the room, more toys are stirring…',
-    defeat: 'The Army Men are back in the box. Regroup and try again.',
+    brief: 'The Kid went down for a nap at two, and by five past the Plushie Horde had '
+      + 'claimed the sunny corner of the playmat — the corner nearest the pillow, the one '
+      + 'every toy dreams of. Colonel Snug swears his people only want "a softer patch of '
+      + 'rug." General Greenboots isn\'t buying it. Rally your Army Men, Commander, and '
+      + 'take back the corner before the Kid wakes to find the room rearranged.',
+    objective: 'Tuck the Horde back in: destroy every enemy production building.',
+    victory: 'The corner is retaken. Colonel Snug withdraws into the toy box with great '
+      + 'dignity, which is difficult while being dragged by one ear. But listen — out the '
+      + 'window, engines. The yard has heard about the fighting, and the yard has wheels.',
+    defeat: 'Back in the box: soldiers on top, dignity somewhere underneath. Naps end. '
+      + 'Grudges don\'t. Try again, Commander.',
     bonus: { soldier: 2 }, // a small friendly head start to ease newcomers in
   },
   {
     id: 'sandbox', name: 'Sandbox Skirmish', icon: '🛝',
     map: 'playground', faction: 'racers', enemy: 'bricks',
     gameMode: 'standard', difficulty: 'normal', startRes: 'high',
-    brief: 'Out in the backyard, the Snap-Bricks are fortifying the sandbox. You have the fastest wheels in the yard — out-boom them and overrun the swings before they dig in.',
-    objective: 'Destroy every enemy production building.',
-    victory: 'The sandbox is a racetrack now. On to the bathroom…',
-    defeat: 'The Bricks walled you out. Come back faster.',
+    brief: 'Three o\'clock. The Kid dug a fortress in the sandbox, then wandered off after '
+      + 'an ice-cream truck — and thrones don\'t stay empty. By half past, Foreman Klik and '
+      + 'his Snap-Bricks had moved in, snapping up walls faster than anyone believed '
+      + 'possible, because nobody ever thinks about how fast a brick can click. You drive '
+      + 'for the RC Racers now, Commander. You have the one thing bricks cannot build: '
+      + 'speed. Overrun the sandbox before the last wall clicks shut.',
+    objective: 'Outrun the masons: destroy every enemy production building.',
+    victory: 'The fortress is a racetrack now, and Foreman Klik is exactly one wall short '
+      + 'of a comeback. Word spreads down the garden hose before the engines cool: tonight '
+      + 'is bath night. And in the tub, Commander, wheels don\'t float.',
+    defeat: 'Walled out. Klik built battlements out of your bumpers. Refuel, take the '
+      + 'corner wider, and run it back.',
   },
   {
     id: 'bathtub', name: 'Bathtub Blockade', icon: '🛁',
     map: 'bathtub', faction: 'classic', enemy: 'racers',
     gameMode: 'standard', difficulty: 'normal', startRes: 'standard',
-    brief: 'A whole lake in the middle of the battlefield! Build a Dock, launch your boats, and rule the bath. The RC Racers are already paddling rubber ducks — sink them.',
-    objective: 'Build a navy and destroy every enemy production building.',
-    victory: 'The armada is scrap. The bedroom\'s toughest toys await…',
-    defeat: 'Sunk. Bail out and try again.',
+    brief: 'Seven o\'clock is bath hour, and tonight the tub never drained. A whole sea, '
+      + 'steaming quietly in the middle of the bathroom — and the RC Racers got there '
+      + 'first, paddling out on rubber ducks with little flags stuck in their bills. '
+      + 'General Greenboots gets seasick standing on a damp sponge, but orders are orders: '
+      + 'raise a Dock, launch your boats, and take the bath back before the water goes cold.',
+    objective: 'Rule the waves: build a navy and destroy every enemy production building.',
+    victory: 'The duck armada is scrap and soap. As the last bubble pops, a rumor drifts '
+      + 'in on the steam: the Plushies have raised a golden Throne on the hill in the '
+      + 'yard. At dusk, everything soft gets brave.',
+    defeat: 'Sunk with all hands — and you had so many hands. Bail out, wring out, go again.',
   },
   {
     id: 'hill', name: 'Hold the Hill', icon: '🏔️',
     map: 'playground', faction: 'bricks', enemy: 'plush',
     gameMode: 'koth', difficulty: 'hard', startRes: 'standard',
-    brief: 'One golden Throne sits at the heart of the yard, and the Plushie Horde wants it. You are the Snap-Bricks — throw up a wall, seize the hill, and do not let go.',
+    brief: 'Dusk. The Kid was king of the hill right up until dinner was called, and '
+      + 'thrones, as we have established, do not stay empty. Colonel Snug is marching the '
+      + 'entire Plushie Horde up the yard, button eyes shining, to claim the golden seat '
+      + '"for everyone who has ever been sat on." You build for the Snap-Bricks now, '
+      + 'Commander. Wall the hill. Take the Throne. Hold it until the stars come out.',
     objective: 'Hold the golden Throne at the center for 2 minutes.',
-    victory: 'The hill is held. Only the final bedtime remains…',
-    defeat: 'The Throne slipped away. Hold firmer.',
+    victory: 'Held. Colonel Snug tips his stitched cap from the bottom of the hill — he '
+      + 'respects a good wall, and he is mostly stuffing anyway. Then the porch light dies. '
+      + 'Lights out. And in the attic above the bedroom, something old drags itself to the '
+      + 'war table.',
+    defeat: 'The hill has a soft new king. Bricks bounce, Commander. Get back up there.',
   },
   {
     id: 'finale', name: 'The Final Bedtime', icon: '👑',
     map: 'attic', faction: 'plush', enemy: 'classic',
     gameMode: 'regicide', difficulty: 'hard', startRes: 'marathon',
-    brief: 'Lights out. The whole toy box marches on the attic war table for one last battle. Each side crowns a King. Guard yours to the last stitch — and topple theirs.',
+    brief: 'Lights out. Above the bedroom, up where the boxes go when the Kid "outgrows '
+      + 'things," the attic war table is set for the last battle of the Bedroom Wars. '
+      + 'Every tribe has sent its King. Yours is an old bear with one eye and a lifetime '
+      + 'of goodnights; theirs is the first soldier the Kid ever owned, and he has never '
+      + 'lost. No one downstairs will ever know this war happened, Commander. Fight it '
+      + 'anyway. Guard your King to the final stitch — and topple theirs.',
     objective: 'Protect your King. Defeat the enemy King.',
-    victory: 'The bedroom is united under one toy box at last. Sweet dreams, commander.',
-    defeat: 'Your King has fallen. But the war is not over…',
+    victory: 'It ends the way toy wars always end: quietly, before morning. One toy box, '
+      + 'one room, every tribe under the same lid — and the old bear back on the pillow\'s '
+      + 'edge, right where the Kid left him. Sweet dreams, Commander. You are the story '
+      + 'the toys tell now.',
+    defeat: 'Your King came apart at the seam. Stitch him up and go again — old bears '
+      + 'keep their promises, and he promised the Kid he\'d be there in the morning.',
     enemyBoost: 1.5, // the finale enemy starts richer for a proper boss fight
   },
 ];
@@ -828,15 +865,15 @@ export const FACTIONS = {
 export const PERSONAS = {
   rusher: {
     workerTarget: -3, firstWave: -3, raidInterval: 55,
-    taunt: 'Scouts report the rival toys sharpening push-pins — expect an early strike!',
+    taunt: 'Scouts report sharpened push-pins and double-knotted laces — they mean to hit you before the room warms up.',
   },
   balanced: {
     workerTarget: 0, firstWave: 0, raidInterval: 0,
-    taunt: 'The rival toys stir in the dark, watching for weakness.',
+    taunt: 'The rival toys stir in the dark, patient as bedtime, watching for a door left open.',
   },
   boomer: {
     workerTarget: 5, firstWave: 6, raidInterval: 150,
-    taunt: 'The rival toys are hoarding snacks — they plan to out-grow you.',
+    taunt: 'The rival toys are stacking snacks like sandbags — they mean to out-grow you, not out-fight you.',
   },
 };
 
