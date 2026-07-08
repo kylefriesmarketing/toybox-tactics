@@ -500,6 +500,9 @@ function makeModelView(entry, def, owner) {
   if (def.targetHeight && entry.height && def.targetHeight !== entry.height) {
     model.scale.setScalar(def.targetHeight / entry.height);
   }
+  // static forward offset so a model whose nose isn't built along +z still
+  // drives/faces the way it travels (the group yaw handles heading)
+  if (def.modelYaw) model.rotation.y = def.modelYaw;
   // fallback-model carts (borrowing another unit's mesh) get a visible cargo
   // crate; the dedicated truck model already hauls its own
   if (def.trade && def.modelKey) {
@@ -553,20 +556,40 @@ function makeModelView(entry, def, owner) {
       }
       // spinning tops (Hypno-Top) twirl endlessly, moving or not
       if (def.spin) model.rotation.y += dt * 5;
-      // per-unit idle flavor: drones hover-bob, socks sway constantly
-      if (def.hover) model.position.y = 0.05 + Math.sin(t * 4) * 0.05;
-      else if (def.sway) model.rotation.z = Math.sin(t * (moving ? 8 : 3)) * (moving ? 0.16 : 0.07);
-      if (moving) {
-        for (const w of wheels) w.rotation.x += dt * 9 * view._ratio;
-        if (def.hop) {                       // pogo bounce
-          model.position.y = Math.abs(Math.sin(t * 9)) * 0.22;
+      const gait = def.gait;
+      if (gait === 'roll') {
+        // wheeled toy: glide flat and roll the wheels — no cartoon bounce
+        if (moving) for (const w of wheels) w.rotation.x += dt * 11 * view._ratio;
+        const damp = Math.min(1, dt * 9);
+        model.position.y += (0 - model.position.y) * damp;   // settle to the ground
+        model.rotation.z += (0 - model.rotation.z) * damp;
+      } else if (gait === 'stomp') {
+        // heavy legged toy: rock side-to-side + bob per step (fakes a walk cycle)
+        const step = t * 6;
+        model.rotation.z = moving ? Math.sin(step) * 0.10 : model.rotation.z * 0.85;
+        model.rotation.x = moving ? Math.sin(step * 2) * 0.035 : model.rotation.x * 0.85;
+        model.position.y = moving ? Math.abs(Math.sin(step)) * 0.05 : model.position.y * 0.85;
+      } else if (gait === 'waddle') {
+        // plush waddle: slow, pronounced side sway with a gentle bob
+        const w = t * (moving ? 4.5 : 1.6);
+        model.rotation.z = Math.sin(w) * (moving ? 0.14 : 0.045);
+        model.position.y = moving ? Math.abs(Math.sin(w)) * 0.028 : model.position.y * 0.9;
+      } else {
+        // default idle flavor: drones hover-bob, socks sway constantly
+        if (def.hover) model.position.y = 0.05 + Math.sin(t * 4) * 0.05;
+        else if (def.sway) model.rotation.z = Math.sin(t * (moving ? 8 : 3)) * (moving ? 0.16 : 0.07);
+        if (moving) {
+          for (const w of wheels) w.rotation.x += dt * 9 * view._ratio;
+          if (def.hop) {                       // pogo bounce
+            model.position.y = Math.abs(Math.sin(t * 9)) * 0.22;
+          } else if (!def.hover) {
+            model.position.y = Math.abs(Math.sin(t * 14)) * 0.03;
+            model.rotation.z = def.sway ? model.rotation.z : Math.sin(t * 14) * 0.02;
+          }
         } else if (!def.hover) {
-          model.position.y = Math.abs(Math.sin(t * 14)) * 0.03;
-          model.rotation.z = def.sway ? model.rotation.z : Math.sin(t * 14) * 0.02;
+          if (def.hop) model.position.y *= 0.85;
+          else { model.position.y *= 0.8; if (!def.sway) model.rotation.z *= 0.8; }
         }
-      } else if (!def.hover) {
-        if (def.hop) model.position.y *= 0.85;
-        else { model.position.y *= 0.8; if (!def.sway) model.rotation.z *= 0.8; }
       }
       if (view._lunge !== undefined) {
         view._lunge -= dt;

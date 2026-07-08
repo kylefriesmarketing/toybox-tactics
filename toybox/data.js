@@ -84,7 +84,7 @@ export const UNITS = {
     desc: 'Ranged damage. Beats slow melee, dies to raiders.',
   },
   flinger: {
-    name: 'Rubber-Band Flinger', tags: ['ranged', 'skirmisher'], age: 2, proc: 'flinger',
+    name: 'Rubber-Band Flinger', tags: ['ranged', 'skirmisher'], age: 2, proc: 'flinger', gait: 'roll',
     cost: { snacks: 35, blocks: 35 }, trainTime: 12,
     hp: 45, atk: 3, atkType: 'pierce', interval: 1.7, range: 4.5, minRange: 1,
     bonus: { ranged: 8 },
@@ -116,7 +116,7 @@ export const UNITS = {
     desc: 'Plushie unique: a walking wall of hugs. Slow, enormous, refuses to fall over.',
   },
   golem: {
-    name: 'Brick Golem', tags: ['infantry', 'heavy'], age: 3, proc: 'golem', faction: 'bricks',
+    name: 'Brick Golem', tags: ['infantry', 'heavy'], age: 3, proc: 'golem', faction: 'bricks', gait: 'stomp',
     cost: { blocks: 190, marbles: 60 }, trainTime: 26,
     hp: 190, atk: 9, atkType: 'melee', interval: 1.7, range: 0.85,
     bonus: { building: 14 },
@@ -126,7 +126,7 @@ export const UNITS = {
     desc: 'Snap-Brick unique: armored stack of bricks. Shrugs off arrows, cracks walls.',
   },
   dragster: {
-    name: 'Nitro Dragster', tags: ['raider', 'vehicle'], age: 3, proc: 'dragster', faction: 'racers',
+    name: 'Nitro Dragster', tags: ['raider', 'vehicle'], age: 3, proc: 'dragster', faction: 'racers', gait: 'roll',
     cost: { snacks: 90, buttons: 70 }, trainTime: 16,
     hp: 55, atk: 11, atkType: 'melee', interval: 1.1, range: 0.9,
     bonus: { worker: 5, ranged: 6 },
@@ -201,7 +201,7 @@ export const UNITS = {
     desc: 'Tin Bots unique: wind-up robot with a spark blaster. Outranges most toys, +2 vs infantry.',
   },
   titanbot: {
-    name: 'Titan Bot', tags: ['infantry', 'heavy', 'bot'], age: 3, proc: 'titanbot', faction: 'bots',
+    name: 'Titan Bot', tags: ['infantry', 'heavy', 'bot'], age: 3, proc: 'titanbot', faction: 'bots', gait: 'stomp',
     cost: { snacks: 120, marbles: 70 }, trainTime: 26,
     hp: 240, atk: 20, atkType: 'melee', interval: 1.5, range: 0.95,
     bonus: { building: 12 },
@@ -220,7 +220,7 @@ export const UNITS = {
     desc: 'Regicide: protect your King at all costs. If he falls, your toybox is out.',
   },
   cart: {
-    name: 'Delivery Cart', tags: ['vehicle', 'trade'], age: 2, targetHeight: 0.5,
+    name: 'Delivery Cart', tags: ['vehicle', 'trade'], age: 2, targetHeight: 0.5, gait: 'roll',
     trade: true,
     cost: { snacks: 60, blocks: 40 }, trainTime: 14,
     hp: 55, atk: 0, atkType: 'melee', interval: 2, range: 0.5,
@@ -240,7 +240,7 @@ export const UNITS = {
     desc: 'Spins a dazzling spiral. Target an enemy toy: after 5s it joins your side. Slow cooldown.',
   },
   raider: {
-    name: 'RC Raider', tags: ['raider', 'vehicle'], age: 2, rigless: true,
+    name: 'RC Raider', tags: ['raider', 'vehicle'], age: 2, rigless: true, gait: 'roll',
     cost: { snacks: 80, buttons: 40 }, trainTime: 15,
     hp: 70, atk: 7, atkType: 'melee', interval: 1.3, range: 0.9,
     bonus: { worker: 3, ranged: 4 },
@@ -261,7 +261,7 @@ export const UNITS = {
     desc: 'Premium heavy melee. Wears the cape. Fears massed ranged.',
   },
   ram: {
-    name: 'Pillow Ram', tags: ['siege'], age: 3, proc: 'ram',
+    name: 'Pillow Ram', tags: ['siege'], age: 3, proc: 'ram', gait: 'roll',
     cost: { blocks: 160, buttons: 60 }, trainTime: 20,
     hp: 190, atk: 4, atkType: 'siege', interval: 2.2, range: 0.9,
     bonus: { building: 24 },
@@ -272,7 +272,7 @@ export const UNITS = {
     desc: 'Soaks arrows and flattens buildings. Escort it — melee eats it.',
   },
   catapult: {
-    name: 'Sticker Catapult', tags: ['siege'], age: 3, proc: 'catapult',
+    name: 'Sticker Catapult', tags: ['siege'], age: 3, proc: 'catapult', gait: 'roll',
     cost: { blocks: 120, buttons: 100 }, trainTime: 22,
     hp: 85, atk: 26, atkType: 'siege', interval: 3.6, range: 6.5, minRange: 2,
     bonus: { building: 14 },
@@ -307,7 +307,7 @@ export const UNITS = {
   },
   // ---- MEGA UNITS: one colossal Age-3 signature per faction (its faction building) ----
   tank: {
-    name: "General's Tank", tags: ['siege', 'vehicle', 'mega'], age: 3, faction: 'classic',
+    name: "General's Tank", tags: ['siege', 'vehicle', 'mega'], age: 3, faction: 'classic', gait: 'roll',
     cost: { blocks: 260, snacks: 150 }, trainTime: 45,
     hp: 480, atk: 30, atkType: 'siege', interval: 3.2, range: 6, minRange: 1.5,
     bonus: { building: 22 },
@@ -318,7 +318,7 @@ export const UNITS = {
     desc: 'MEGA (Army Men): a rolling fortress. Lobs a heavy cannon shell with big splash. Crushes buildings.',
   },
   colossus: {
-    name: 'Brick Colossus', tags: ['infantry', 'heavy', 'mega'], age: 3, faction: 'bricks', proc: 'golem',
+    name: 'Brick Colossus', tags: ['infantry', 'heavy', 'mega'], age: 3, faction: 'bricks', proc: 'golem', gait: 'stomp',
     cost: { blocks: 340, marbles: 120 }, trainTime: 50,
     hp: 720, atk: 24, atkType: 'melee', interval: 2.0, range: 1.2, slam: 2.6,
     bonus: { building: 30 },
@@ -328,7 +328,7 @@ export const UNITS = {
     desc: 'MEGA (Snap-Bricks): an unstoppable brick titan. Its ground-slam smashes everything nearby. Wrecks bases.',
   },
   mamabear: {
-    name: 'Mama Bear', tags: ['infantry', 'heavy', 'plush', 'mega'], age: 3, faction: 'plush', proc: 'bear',
+    name: 'Mama Bear', tags: ['infantry', 'heavy', 'plush', 'mega'], age: 3, faction: 'plush', proc: 'bear', gait: 'waddle',
     cost: { snacks: 300, buttons: 180 }, trainTime: 48,
     hp: 680, atk: 18, atkType: 'melee', interval: 2.2, range: 1.3,
     heal: { range: 6, rate: 10 },
@@ -338,7 +338,7 @@ export const UNITS = {
     desc: 'MEGA (Plushies): a colossal teddy. Soaks enormous damage and mends nearby toys with a healing aura.',
   },
   monster: {
-    name: 'Monster Truck', tags: ['raider', 'vehicle', 'mega'], age: 3, faction: 'racers',
+    name: 'Monster Truck', tags: ['raider', 'vehicle', 'mega'], age: 3, faction: 'racers', gait: 'roll',
     cost: { snacks: 200, buttons: 230 }, trainTime: 42,
     hp: 520, atk: 14, atkType: 'melee', interval: 1.4, range: 1.0, trample: 16,
     armor: { melee: 4, pierce: 5 }, speed: 3.2, vision: 8, aggro: 6, radius: 0.55,
@@ -347,7 +347,7 @@ export const UNITS = {
     desc: 'MEGA (RC Racers): a flame-painted monster truck. Tramples every toy it drives through. Fast and huge.',
   },
   mecha: {
-    name: 'Mecha-Titan', tags: ['vehicle', 'ranged', 'bot', 'mega'], age: 3, faction: 'bots',
+    name: 'Mecha-Titan', tags: ['vehicle', 'ranged', 'bot', 'mega'], age: 3, faction: 'bots', gait: 'stomp',
     cost: { buttons: 260, marbles: 160 }, trainTime: 48,
     hp: 600, atk: 26, atkType: 'pierce', interval: 2.6, range: 7.5, beam: true,
     bonus: { infantry: 6 },

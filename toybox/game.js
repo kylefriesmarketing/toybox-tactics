@@ -2602,7 +2602,8 @@ export class Game {
     let dr = u.facing - u.view.group.rotation.y;
     while (dr > Math.PI) dr -= Math.PI * 2;
     while (dr < -Math.PI) dr += Math.PI * 2;
-    u.view.group.rotation.y += dr * Math.min(1, dt * 11);
+    // wheeled toys turn smoothly (no twitchy nose-swinging as they navigate)
+    u.view.group.rotation.y += dr * Math.min(1, dt * (u.def.gait === 'roll' ? 6 : 11));
     if (moving !== u.wasMoving) { u.view.setMoving(moving); u.wasMoving = moving; }
     u.view.setSpeedRatio && u.view.setSpeedRatio(speed / REF_SPEED);
     // fast wheeled toys kick up carpet dust
