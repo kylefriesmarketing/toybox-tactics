@@ -155,12 +155,14 @@ class FogOfWar {
     this.soft.width = this.soft.height = N * 4;
     this.tex = new THREE.CanvasTexture(this.soft);
     const plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(N, N),
+      new THREE.PlaneGeometry(N, N, N, N),   // subdivided so it can drape over hills
       new THREE.MeshBasicMaterial({ map: this.tex, transparent: true, depthWrite: false })
     );
     plane.rotation.x = -Math.PI / 2;
     plane.position.y = 0.09;
     plane.renderOrder = 500;
+    plane.frustumCulled = false;             // displaced bounds would cull it early
+    this.plane = plane;
     scene.add(plane);
   }
   update(entities, viewOwners = [0]) {
@@ -197,6 +199,17 @@ class FogOfWar {
   state(x, z) {
     const i = tileOf(x), j = tileOf(z);
     return inMap(i, j) ? this.vis[idx(i, j)] : 0;
+  }
+  // drape the fog sheet over the terrain heightfield so plateaus/ramps don't
+  // poke up through it while still unexplored (matches applyTerrainToGround)
+  drape(heightFn) {
+    const pos = this.plane.geometry.attributes.position;
+    for (let k = 0; k < pos.count; k++) {
+      // plane is rotated -90° about x: local (x, y) sits at world (x, -y)
+      pos.setZ(k, heightFn(pos.getX(k), -pos.getY(k)));
+    }
+    pos.needsUpdate = true;
+    this.plane.geometry.computeBoundingSphere();
   }
 }
 
@@ -476,6 +489,7 @@ export class Game {
     if (this.map.water) for (let k = 0; k < this.water.length; k++) if (this.water[k]) this.height[k] = 0;
     this.computeCorners();
     this.applyTerrainToGround();
+    this.fog.drape((x, z) => this.heightAtWorld(x, z)); // fog sheet hugs the hills
     if (this.map.water) {
       this.waterSurface = createWaterSurface(N, this.water);
       this.scene.add(this.waterSurface.group);
