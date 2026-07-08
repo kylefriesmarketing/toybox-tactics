@@ -574,6 +574,20 @@ function makeModelView(entry, def, owner) {
         const w = t * (moving ? 4.5 : 1.6);
         model.rotation.z = Math.sin(w) * (moving ? 0.14 : 0.045);
         model.position.y = moving ? Math.abs(Math.sin(w)) * 0.028 : model.position.y * 0.9;
+      } else if (gait === 'walk') {
+        // toy-figure walk: springy step-bounce + a little rock when moving, and a
+        // soft breathing sway when idle — stands in for the old skinned walk/idle
+        if (moving) {
+          const s = t * 9;
+          model.position.y = Math.abs(Math.sin(s)) * 0.075;
+          model.rotation.z = Math.sin(s) * 0.06;
+          model.rotation.x = -0.05 + Math.sin(s * 2) * 0.03;
+        } else {
+          const damp = Math.min(1, dt * 4);
+          model.position.y += (Math.sin(t * 2.2) * 0.01 - model.position.y) * damp;
+          model.rotation.z += (Math.sin(t * 1.5) * 0.025 - model.rotation.z) * damp;
+          model.rotation.x += (0 - model.rotation.x) * damp;
+        }
       } else {
         // default idle flavor: drones hover-bob, socks sway constantly
         if (def.hover) model.position.y = 0.05 + Math.sin(t * 4) * 0.05;

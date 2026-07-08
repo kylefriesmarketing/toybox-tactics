@@ -39,7 +39,7 @@ export const UNITS = {
     cost: { snacks: 50 }, trainTime: 11,
     hp: 35, atk: 2, atkType: 'melee', interval: 1.5, range: 0.7,
     armor: { melee: 0, pierce: 0 }, speed: 1.5, vision: 5, aggro: 0,
-    carry: 10, gatherRate: 1.35, impact: 0.45, color: 0xf9c74f,
+    carry: 10, gatherRate: 1.35, impact: 0.45, color: 0xf9c74f, gait: 'walk',
     debris: { shapes: ['limb', 'peg', 'cube'], colors: [0xf9c74f, 0xe8b53e] },
     desc: 'Gathers, builds and repairs. Protect them.',
   },
