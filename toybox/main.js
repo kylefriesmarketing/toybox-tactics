@@ -438,7 +438,7 @@ function renderCivPanel(facKey) {
   const chip = (lbl, ttl, sub) => `<div class="civ-chip"><span class="lbl">${lbl}</span><span class="ttl">${esc(ttl)}</span>${sub ? ` <span class="sub">— ${esc(sub)}</span>` : ''}</div>`;
   const extra = uniqueUnits.length > 1 ? ` (+${uniqueUnits.length - 1} more)` : '';
   panel.innerHTML =
-    `<div class="civ-head"><span class="civ-name">${esc(f.icon)} ${esc(f.label)}</span></div>` +
+    `<div class="civ-head">${FACTIONS[facKey] && facKey !== 'random' ? `<img class="civ-crest" src="assets/ui/crest-${facKey}.png" alt="" onerror="this.remove()">` : ''}<span class="civ-name">${esc(f.label)}</span></div>` +
     `<div class="civ-bonus">${esc(f.desc)}</div>` +
     `<div class="civ-uniques">` +
     (signature ? chip('⭐ Unique Unit' + extra, signature.name, short(signature.desc)) : '') +
