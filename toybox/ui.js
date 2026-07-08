@@ -13,6 +13,15 @@ const $ = (id) => document.getElementById(id);
 
 export const B_ICONS = { chest: '🧰', house: '🏠', farm: '🍽️', mat: '🥋', bench: '🎯', garage: '🏁', market: '🏪', tower: '✏️', workshop: '🛠️', fort: '🏰', wall: '🧱', gate: '🚪', wonder: '⭐', basket: '🧺', tent: '⛺', brickshop: '🏭', nest: '🪺', pitstop: '🛞', robolab: '🤖', dock: '⚓', tinker: '⚙️' };
 export const U_ICONS = { worker: '🔧', scout: '🔭', soldier: '🪖', spear: '📌', archer: '🎯', flinger: '🪀', raider: '🏎️', hero: '🦸', ram: '🛏️', catapult: '🪃', medic: '🧸', cart: '🚚', hypno: '🌀', bear: '🐻', golem: '🧱', dragster: '🏎️', bazooka: '🎁', grenadier: '💣', lancer: '🎠', sockpuppet: '🧦', drone: '🚁', tugboat: '🚢', duckboat: '🦆' };
+// painted action/tech icons keyed by their command emoji (variation selectors stripped
+// at lookup). Missing files fall back to the emoji, so this is always safe.
+const ACTION_IMG = {
+  '✋': 'assets/ui/ic-stop.png', '🔁': 'assets/ui/ic-patrol.png', '💥': 'assets/ui/ic-bombard.png',
+  '🚩': 'assets/ui/ic-rally.png', '🔔': 'assets/ui/ic-bell.png', '📤': 'assets/ui/ic-empty.png',
+  '🗑': 'assets/ui/ic-demolish.png', '⏫': 'assets/ui/ic-ageup.png', '🔬': 'assets/ui/ic-research.png',
+  '💰': 'assets/ui/ic-sell.png', '🛒': 'assets/ui/ic-buy.png', '🎁': 'assets/ui/ic-give.png',
+  '⚔': 'assets/ui/ic-attack.png', '🛡': 'assets/ui/ic-defend.png', '🧍': 'assets/ui/ic-hold.png',
+};
 const ALERT_ICONS = { info: '💬', warn: '⚠️', attack: '⚔️', age: '✨' };
 
 export class UI {
@@ -531,8 +540,9 @@ export class UI {
       const b = document.createElement('button');
       b.className = 'cmd' + (c.isHint ? ' hint' : '') + (c.active ? ' active' : '');
       const key = !c.isHint && ki < KEYS.length ? KEYS[ki++] : null;
+      const im = c.img || ACTION_IMG[(c.icon || '').replace(/[︀-️]/g, '')];
       b.innerHTML = (key ? `<kbd>${key}</kbd>` : '')
-        + (c.img ? `<img class="icoimg" src="${c.img}" alt="">` : `<span class="ico">${c.icon || '❔'}</span>`)
+        + (im ? `<img class="icoimg" src="${im}" alt="">` : `<span class="ico">${c.icon || '❔'}</span>`)
         + `<span class="lbl">${c.label}</span>`
         + (c.sub ? `<small>${typeof c.sub === 'function' ? c.sub() : c.sub}</small>` : '')
         + (c.lock ? `<span class="lock">🔒</span>` : '');
