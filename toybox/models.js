@@ -1814,11 +1814,10 @@ export function createGround(N, style = 'playmat') {
     for (let i = 0; i < 4; i++) {
       const horiz = i < 2;
       const sign = i % 2 === 0 ? -1 : 1;
-      // the camera always looks north from the south, so the south wall (i===1)
-      // is the "fourth wall" — keep it low or it flies outside / blocks the view
-      const wh = (i === 1) ? 11 : WH;
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(horiz ? WALL * 2 + WT * 2 : WT, wh, horiz ? WT : WALL * 2 + WT * 2), wallM);
-      wall.position.set(horiz ? 0 : sign * WALL, wh / 2 - 0.02, horiz ? sign * WALL : 0);
+      // all four walls are tall; the camera is clamped (see clampCam) so it never
+      // slides south of the south wall, which would otherwise reveal floor behind it
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(horiz ? WALL * 2 + WT * 2 : WT, WH, horiz ? WT : WALL * 2 + WT * 2), wallM);
+      wall.position.set(horiz ? 0 : sign * WALL, WH / 2 - 0.02, horiz ? sign * WALL : 0);
       wall.receiveShadow = true;
       g.add(wall);
       const base = new THREE.Mesh(new THREE.BoxGeometry(horiz ? WALL * 2 + WT * 2 : WT + 0.5, 1.7, horiz ? WT + 0.5 : WALL * 2 + WT * 2), baseM);

@@ -83,6 +83,14 @@ function clampCam() {
   const half = N / 2 + 6;
   cam.tx = Math.max(-half, Math.min(half, cam.tx));
   cam.tz = Math.max(-half, Math.min(half, cam.tz));
+  // the camera sits south of its target by dist*zf (over-the-shoulder). Keep it
+  // from sliding past the tall south wall (z = N/2+30), which would reveal the
+  // empty floor behind it. Only bites when zoomed out; the whole map is visible
+  // by then anyway, so no southern ground is lost.
+  const t = Math.min(1, Math.max(0, (cam.tdist - 4) / 26));
+  const zf = 0.88 - 0.26 * t;
+  const southLimit = (N / 2 + 30) - 6 - cam.tdist * zf;
+  if (cam.tz > southLimit) cam.tz = southLimit;
 }
 function applyCamera(dt = 1) {
   const k = Math.min(1, dt * 10);
