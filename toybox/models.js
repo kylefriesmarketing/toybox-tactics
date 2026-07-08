@@ -1717,7 +1717,9 @@ function makeIconSnapper() {
 // clean building mesh for an icon: the generated GLB when we have one, else the
 // procedural mesh (faction-aware, so faction houses/walls get their own icon)
 function buildingIconMesh(k, def, factionKey) {
-  if (buildingRegistry[k]) return buildingRegistry[k].clone(true);
+  if (k === 'house' && factionKey && buildingRegistry['house-' + factionKey]) return buildingRegistry['house-' + factionKey].clone(true);
+  const proceduralKey = (k === 'house' || k === 'wall' || k === 'gate'); // faction-drawn, never the generic house.glb
+  if (!proceduralKey && buildingRegistry[k]) return buildingRegistry[k].clone(true);
   let seed = 7;
   const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   return buildingGeometry(k, def, 0, rng, false, 1, factionKey);
@@ -1758,11 +1760,12 @@ export function createBuildingView(key, def, owner, rngSeed = 1, up = false, age
   // upgraded towers become a Pen Tower — generated model if present, else the
   // procedural pen (never the plain pencil GLB, so the upgrade always reads)
   const wantPen = up && key === 'tower';
-  const modelKey = (wantPen && buildingRegistry.pentower) ? 'pentower' : key;
-  // house / wall / gate are faction-unique — always draw them procedurally so each
-  // tribe's own style shows, even though a generic house.glb exists
-  const factionVariant = key === 'house' || key === 'wall' || key === 'gate';
-  const useGlb = factionVariant ? false : (wantPen ? !!buildingRegistry.pentower : !!buildingRegistry[modelKey]);
+  // house is faction-unique: prefer a generated house-<faction>.glb, else the
+  // procedural tent/cottage/etc. wall & gate always render procedurally.
+  const facHouseKey = (key === 'house' && faction && buildingRegistry['house-' + faction]) ? 'house-' + faction : null;
+  const modelKey = facHouseKey || ((wantPen && buildingRegistry.pentower) ? 'pentower' : key);
+  const proceduralOnly = key === 'wall' || key === 'gate' || (key === 'house' && !facHouseKey);
+  const useGlb = proceduralOnly ? false : (facHouseKey ? true : (wantPen ? !!buildingRegistry.pentower : !!buildingRegistry[modelKey]));
   if (useGlb) {
     meshes = buildingRegistry[modelKey].clone(true);
     // team banner so ownership stays readable on generated models

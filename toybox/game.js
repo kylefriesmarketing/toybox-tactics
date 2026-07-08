@@ -24,9 +24,9 @@ const idx = (i, j) => j * N + i;
 const inMap = (i, j) => i >= 0 && j >= 0 && i < N && j < N;
 const tileOf = (x) => Math.floor(x + N / 2);
 const worldOf = (i) => i - N / 2 + 0.5;
-// keep scatter off the very edge of the mat — bases already clamp to [11, N-16],
-// so nothing playable needs the outer ring where it reads as "off the map"
-const PLAY_MARGIN = 6;
+// keep scatter just off the very edge of the mat (past the stitched border), but
+// still let the corners and edges carry resources — only the outermost ring is off
+const PLAY_MARGIN = 3;
 const inPlay = (i, j) => i >= PLAY_MARGIN && j >= PLAY_MARGIN && i < N - PLAY_MARGIN && j < N - PLAY_MARGIN;
 const dist2 = (a, b) => (a.x - b.x) ** 2 + (a.z - b.z) ** 2;
 
@@ -559,6 +559,10 @@ export class Game {
       RC('snacks', ci + face * 16, cj + faceZ * 10, 3);
       RC('blocks', ci + face * 11, cj + faceZ * 16, 3);
       RC('marbles', ci + face * 14, cj - faceZ * 2, 2);
+      // backfield behind the base, toward the corner, so it isn't a barren dead zone
+      RC('snacks', ci - face * 6, cj - faceZ * 4, 3);
+      RC('blocks', ci - face * 4, cj - faceZ * 7, 3);
+      RC('buttons', ci - face * 8, cj - faceZ * 2, 2);
     }
     RC('buttons', N / 2 - 4, N / 2 - 1, 3);
     RC('buttons', N / 2 + 2, N / 2 + 1, 3);
