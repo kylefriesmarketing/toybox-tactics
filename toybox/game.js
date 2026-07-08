@@ -525,7 +525,7 @@ export class Game {
       const i = 6 + (rng() * (N - 12)) | 0, j = 6 + (rng() * (N - 12)) | 0;
       if (this.blocked[idx(i, j)]) continue;
       const decor = createDecorMesh(kinds[(rng() * kinds.length) | 0], k + 3);
-      decor.position.set(worldOf(i), this.tileHeight(i, j), worldOf(j));
+      decor.position.set(worldOf(i), this.heightAtWorld(worldOf(i), worldOf(j)), worldOf(j));
       this.scene.add(decor);
     }
     // resource abundance scales with the map theme
@@ -664,11 +664,12 @@ export class Game {
         const i0 = 13 + (rng() * (N - 26)) | 0, j0 = 13 + (rng() * (N - 26)) | 0;
         if (!clearOfHomes(i0, j0, 17)) continue;
         let placed = 0;
-        for (let b = -3; b <= 3; b++) for (let a = -3; a <= 3; a++) {
-          if (a * a + b * b > 8 + rng() * 4) continue; // ragged blob edge
+        for (let b = -4; b <= 4; b++) for (let a = -4; a <= 4; a++) {
+          if (a * a + b * b > 12 + rng() * 5) continue; // ragged, wider blob edge
+          if (rng() < 0.45) continue;                   // scatter the grove — open lanes, no solid brick wall
           if (this.addResourceNode('blocks', i0 + a, j0 + b)) placed++;
         }
-        if (placed >= 6) break;
+        if (placed >= 5) break;
       }
     }
 
@@ -839,9 +840,15 @@ export class Game {
     // resources sit on flat levels, never on ramps (they'd block the only way up)
     const h = this.height[idx(i, j)];
     if (h > 0.01 && Math.abs(h - this.ELEV) > 0.01 && Math.abs(h - this.ELEV * 2) > 0.01) return null;
+    // only on the flat interior of a level: a tile whose four mesh corners all
+    // sit at h. skirting a plateau edge makes a pile float over — or sink into —
+    // the sloped surface the corner-interpolated mesh actually renders there.
+    const W = N + 1, C = this.cornerH;
+    if (Math.abs(C[j * W + i] - h) > 0.01 || Math.abs(C[j * W + i + 1] - h) > 0.01
+      || Math.abs(C[(j + 1) * W + i] - h) > 0.01 || Math.abs(C[(j + 1) * W + i + 1] - h) > 0.01) return null;
     this.blocked[idx(i, j)] = 1;
     const view = createResourceView(resType, i * 131 + j);
-    view.group.position.set(worldOf(i), h, worldOf(j));
+    view.group.position.set(worldOf(i), this.heightAtWorld(worldOf(i), worldOf(j)), worldOf(j));
     this.scene.add(view.group);
     const e = {
       id: this.nextId++, kind: 'resource', resType, owner: -1,
@@ -854,11 +861,15 @@ export class Game {
   }
 
   addResourceCluster(resType, i0, j0, count) {
-    const offs = [[0, 0], [1, 0], [0, 1], [1, 1], [-1, 0], [0, -1]];
+    // Blocks pile up everywhere and read as one giant brick heap when packed
+    // tile-to-tile — give them a 2-tile pitch so each pile stands apart. Snacks,
+    // Buttons and Marbles stay cosy in a tight little cache.
+    const pitch = resType === 'blocks' ? 2 : 1;
+    const offs = [[0, 0], [1, 0], [0, 1], [1, 1], [-1, 0], [0, -1], [1, -1], [-1, 1]];
     let placed = 0;
     for (const [di, dj] of offs) {
       if (placed >= count) break;
-      if (this.addResourceNode(resType, Math.round(i0 + di), Math.round(j0 + dj))) placed++;
+      if (this.addResourceNode(resType, Math.round(i0 + di * pitch), Math.round(j0 + dj * pitch))) placed++;
     }
   }
 
@@ -1553,7 +1564,7 @@ export class Game {
         view.hpBar.set(e.hp / e.maxHp);
       } else if (se.k === 'r') {
         const view = createResourceView(se.resType, se.ti * 131 + se.tj);
-        view.group.position.set(worldOf(se.ti), this.tileHeight(se.ti, se.tj), worldOf(se.tj));
+        view.group.position.set(worldOf(se.ti), this.heightAtWorld(worldOf(se.ti), worldOf(se.tj)), worldOf(se.tj));
         this.scene.add(view.group);
         e = {
           id: se.id, kind: 'resource', resType: se.resType, owner: -1,
