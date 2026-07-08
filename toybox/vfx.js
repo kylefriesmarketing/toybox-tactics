@@ -404,6 +404,18 @@ export class VFX {
     this.dmgNums.pop(x, y + 0.35, z, '-' + amount, color);
   }
 
+  // Mecha-Titan laser: a bright dotted beam that flashes down a line and fades
+  beam(x, y, z, ang, len, color = 0x9ff0ff) {
+    const dx = Math.sin(ang), dz = Math.cos(ang);
+    const n = Math.max(6, Math.ceil(len * 3));
+    for (let i = 0; i <= n; i++) {
+      const f = i / n, px = x + dx * len * f, pz = z + dz * len * f;
+      this.sparks.spawn(px, y, pz, 0, 0, 0, 0.22, 0.24, 0xffffff, 0, 0); // white core
+      this.sparks.spawn(px, y, pz, 0, 0, 0, 0.34, 0.4, color, 0, 0);     // colored glow
+    }
+    this.muzzle(x, y, z, color, ang);
+  }
+
   // combat hit at a point (color hints attack type) + the odd chipped piece
   hit(x, y, z, color = 0xffe28a, count = 6) {
     // bright core flash — the punch you feel

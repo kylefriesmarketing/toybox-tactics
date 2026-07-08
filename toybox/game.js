@@ -922,7 +922,7 @@ export class Game {
       * (p.techs.has(`elite_${type}`) ? 1.25 : 1);
     const e = {
       id: this.nextId++, kind: 'unit', type, owner, def, view,
-      x, z, vx: 0, vz: 0, radius: 0.3,
+      x, z, vx: 0, vz: 0, radius: def.radius || 0.3,
       hp: def.hp * hpMult, maxHp: def.hp * hpMult,
       order: null, oq: [], path: null, pathI: 0, aim: null, losT: 0, stuckT: 0,
       cd: 0, scanT: this.rng() * 0.5, gfxT: 0,
@@ -1521,7 +1521,7 @@ export class Game {
         this.scene.add(view.group);
         e = {
           id: se.id, kind: 'unit', type: se.type, owner: se.owner, def, view,
-          x: se.x, z: se.z, vx: 0, vz: 0, radius: 0.3, hp: se.hp, maxHp: se.maxHp,
+          x: se.x, z: se.z, vx: 0, vz: 0, radius: def.radius || 0.3, hp: se.hp, maxHp: se.maxHp,
           order: null, oq: [], path: null, pathI: 0, aim: null, losT: 0, stuckT: 0,
           cd: 0, scanT: 0.3, gfxT: 0, swing: null, carry: se.carry, carryType: se.carryType,
           stance: se.stance || 'agg', anchor: null, garrisoned: se.garrisoned || null,
@@ -2077,6 +2077,60 @@ export class Game {
     return best;
   }
 
+  // ---------- mega-unit signature attacks ----------
+  // Mecha-Titan: a piercing beam that damages every enemy in a line toward the
+  // aim point (a thin rectangle along the shot axis)
+  fireBeam(u, target, spec) {
+    const ang = Math.atan2(target.x - u.x, target.z - u.z);
+    const dx = Math.sin(ang), dz = Math.cos(ang);
+    const range = u.def.range + 1.5, halfW = 0.9;
+    const seen = this.fog.state(u.x, u.z) === 2;
+    if (this.fx && seen && this.fx.beam) {
+      this.fx.beam(u.x, 0.55 + this.heightAtWorld(u.x, u.z), u.z, ang, range, (u.def.projectile && u.def.projectile.color) || 0x9ff0ff);
+    }
+    if (this.sfx && seen) this.sfx.play('twang', 110);
+    if (this.cb.shake && seen) this.cb.shake(0.2);
+    for (const e of this.entities) {
+      if (e.dead || e.garrisoned || e.owner === u.owner || e.owner === -1 || !this.isEnemy(u.owner, e.owner)) continue;
+      if (e.kind !== 'unit' && e.kind !== 'building') continue;
+      const rx = e.x - u.x, rz = e.z - u.z;
+      const along = rx * dx + rz * dz;                 // distance down the beam
+      if (along < -e.radius || along > range + e.radius) continue;
+      const perp = Math.abs(rx * dz - rz * dx);        // sideways offset
+      if (perp > halfW + e.radius) continue;
+      this.applyDamage(u, e, spec);
+    }
+  }
+  // Brick Colossus: ground slam — AoE around the struck target (in addition to
+  // the single-target hit already applied)
+  slamHit(u, center, spec) {
+    const r = u.def.slam;
+    const seen = this.fog.state(center.x, center.z) === 2;
+    if (this.fx && seen) this.fx.explosion(center.x, center.z, r * 0.7);
+    if (this.cb.shake && seen) this.cb.shake(0.32);
+    const aoe = { atk: spec.atk * 0.6, atkType: 'siege', bonus: u.def.bonus };
+    for (const e of this.entities) {
+      if (e.dead || e === center || e.garrisoned || e.owner === u.owner || e.owner === -1 || !this.isEnemy(u.owner, e.owner)) continue;
+      if (e.kind !== 'unit' && e.kind !== 'building') continue;
+      if ((e.x - center.x) ** 2 + (e.z - center.z) ** 2 <= (r + e.radius) ** 2) this.applyDamage(u, e, aoe);
+    }
+  }
+  // Monster Truck: trample — a periodic pulse of damage to enemies it overlaps
+  // while moving (discrete pulses so flee/retaliation fire but don't spam)
+  trample(u, dt) {
+    u.trampleT = (u.trampleT || 0) - dt;
+    if (u.trampleT > 0 || (u.vx * u.vx + u.vz * u.vz) < 0.36) return; // must be moving
+    u.trampleT = 0.35;
+    const spec = { atk: u.def.trample, atkType: 'melee' };
+    for (const e of this.entities) {
+      if (e.dead || e.kind !== 'unit' || e.garrisoned || e.owner === u.owner || e.owner === -1 || !this.isEnemy(u.owner, e.owner)) continue;
+      if ((e.x - u.x) ** 2 + (e.z - u.z) ** 2 <= (u.radius + e.radius + 0.25) ** 2) {
+        this.applyDamage(u, e, spec);
+        if (this.fx && this.fog.state(e.x, e.z) === 2) this.fx.hit(e.x, 0.35, e.z, 0xffffff, 4);
+      }
+    }
+  }
+
   // ---------- smooth movement (velocity steering + LOS-smoothed paths) ----------
   lineFree(x0, z0, x1, z1, owner = -2, naval = false) {
     const dx = x1 - x0, dz = z1 - z0;
@@ -2229,9 +2283,14 @@ export class Game {
       if (!s.dealt && s.t >= s.impactAt) {
         s.dealt = true;
         const spec = { atk: this.atkOf(u), atkType: u.def.atkType, bonus: u.def.bonus, projectile: u.def.projectile };
-        if (!s.target.dead && dist2(u, s.target) < (u.def.range + s.target.radius + 1.4) ** 2) {
+        if (u.def.beam) {
+          this.fireBeam(u, s.target, spec); // Mecha-Titan: piercing line
+        } else if (!s.target.dead && dist2(u, s.target) < (u.def.range + s.target.radius + 1.4) ** 2) {
           if (spec.projectile) this.spawnProjectile(u, s.target, spec);
-          else this.applyDamage(u, s.target, spec);
+          else {
+            this.applyDamage(u, s.target, spec);
+            if (u.def.slam) this.slamHit(u, s.target, spec); // Brick Colossus: ground slam
+          }
         }
       }
       if (s.t >= s.dur) u.swing = null;
@@ -2523,6 +2582,7 @@ export class Game {
 
   finishUnitFrame(u, dt, faceTarget) {
     const speed = u.swing ? (u.vx = u.vz = 0, 0) : this.integrate(u, dt);
+    if (u.def.trample) this.trample(u, dt); // Monster Truck runs toys over as it moves
     const moving = speed > 0.18;
     if (moving) {
       u.facing = Math.atan2(u.vx, u.vz);
