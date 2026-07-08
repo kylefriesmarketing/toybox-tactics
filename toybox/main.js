@@ -669,7 +669,12 @@ function showBriefing(mission) {
   const dm = { easy: 'Sleepy', normal: 'Playful', hard: 'Cranky' };
   const mapName = (MAPS[mission.map] && MAPS[mission.map].label) || mission.map;
   $('bf-title').textContent = `${mission.icon} ${mission.name}`;
-  $('bf-tags').textContent = `${mapName} · ${GAME_MODES[mission.gameMode].label} · You: ${FACTIONS[mission.faction].label} · Foe: ${FACTIONS[mission.enemy].label} · ${dm[mission.difficulty]}`;
+  $('bf-tags').innerHTML = `${mapName} · ${GAME_MODES[mission.gameMode].label} · ${dm[mission.difficulty]}`
+    + `<div class="bf-versus">`
+    + `<span class="vs-side"><img class="vs-crest" src="assets/ui/crest-${mission.faction}.png" alt="" onerror="this.remove()">${FACTIONS[mission.faction].label}</span>`
+    + `<span class="vs-mid">VS</span>`
+    + `<span class="vs-side"><img class="vs-crest" src="assets/ui/crest-${mission.enemy}.png" alt="" onerror="this.remove()">${FACTIONS[mission.enemy].label}</span>`
+    + `</div>`;
   $('bf-brief').textContent = mission.brief;
   $('bf-obj').textContent = '🎯 ' + mission.objective;
   $('briefing').classList.add('show');

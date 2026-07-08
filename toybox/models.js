@@ -1890,27 +1890,8 @@ export function createGround(N, style = 'playmat') {
     }
   }
 
-  // spilled toys scattered on the floor outside the mat (visual only —
-  // generated map models get reused as oversized room clutter)
-  const scatterKinds = Object.keys(mapRegistry);
-  if (scatterKinds.length) {
-    let ss = 987 + N;
-    const rnd = () => (ss = (ss * 16807) % 2147483647) / 2147483647;
-    let placed = 0;
-    for (let i = 0; i < 120 && placed < 22; i++) {
-      const ang = rnd() * Math.PI * 2;
-      const rad = N / 2 + 5 + rnd() * 24;
-      const px = Math.cos(ang) * rad, pz = Math.sin(ang) * rad;
-      if (Math.max(Math.abs(px), Math.abs(pz)) < N / 2 + 2.5) continue; // stay off the mat
-      if (Math.max(Math.abs(px), Math.abs(pz)) > N / 2 + 27) continue;  // stay inside the walls
-      const m = mapRegistry[scatterKinds[(rnd() * scatterKinds.length) | 0]].clone(true);
-      m.scale.setScalar(1.6 + rnd() * 2.2);
-      m.position.set(px, 0, pz);
-      m.rotation.y = rnd() * Math.PI * 2;
-      g.add(m);
-      placed++;
-    }
-  }
+  // (no off-mat resource/obstacle clutter — cloning snack/block/marble/button/book/
+  // pillow models onto the floor read as unreachable resources outside the play area)
 
   // the playmat itself — hi-res canvas, art varies by map theme
   const S = 2048;

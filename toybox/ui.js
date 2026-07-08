@@ -109,7 +109,14 @@ export class UI {
       ['Buildings razed', ...order.map((p) => stats[p.id].razed)],
       ['Upgrades researched', ...order.map((p) => g.players[p.id].techs.size)],
     ];
-    $('go-stats').innerHTML =
+    const myFac = g.factionKeys && g.factionKeys[me];
+    const foeP = order.find((p) => p.team !== g.myTeam);
+    const foeFac = foeP && g.factionKeys ? g.factionKeys[foeP.id] : null;
+    const goCrest = (fk) => (fk ? `<img class="go-crest" src="assets/ui/crest-${fk}.png" alt="" onerror="this.remove()">` : '');
+    const versus = (myFac && foeFac)
+      ? `<div class="go-versus"><span class="go-side">${goCrest(myFac)}You</span><span class="go-vs">VS</span><span class="go-side">${goCrest(foeFac)}${TEAM_NAMES[1]}</span></div>`
+      : '';
+    $('go-stats').innerHTML = versus +
       `<div class="statline">Match time ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')} · Your score: <b style="color:#ffd94a">${scoreOf(g.players[me])}</b></div>` +
       '<table>' + rows.map((r, i) =>
         `<tr>${r.map((c, j) => i === 0 ? `<th>${c}</th>` : `<td class="${j === 0 ? 'label' : ''}">${c}</td>`).join('')}</tr>`

@@ -55,9 +55,9 @@
     font-size: 14px; pointer-events: none; }
   #topbar .chip { pointer-events: auto; display: flex; align-items: center; gap: 6px;
     background: linear-gradient(180deg, var(--panel-2), var(--panel-3));
-    border: 1px solid var(--line); border-top-color: #4a4560; border-radius: 9px; padding: 5px 12px;
+    border: 1px solid var(--gold-deep); border-top-color: var(--gold); border-radius: 9px; padding: 5px 12px;
     color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .3px;
-    box-shadow: 0 2px 6px #0007, inset 0 1px 0 #ffffff0d; }
+    box-shadow: 0 2px 6px #0007, inset 0 1px 0 #ffffff14, inset 0 0 0 1.5px #d8b25a2e; }
   #topbar .chip:nth-child(1) { border-bottom: 2px solid #d8a24a; }
   #topbar .chip:nth-child(2) { border-bottom: 2px solid #e05555; }
   #topbar .chip:nth-child(3) { border-bottom: 2px solid #f0d060; }
@@ -135,14 +135,16 @@
   #hud { position: absolute; left: 0; right: 0; bottom: 0; z-index: 10; display: flex;
     align-items: flex-end; gap: 12px; padding: 12px; pointer-events: none; }
   #hud > * { pointer-events: auto; }
-  #minimap { width: 186px; height: 186px; border-radius: 12px; border: 3px solid #0e0d15;
-    background: #10132c; cursor: crosshair;
-    box-shadow: 0 8px 20px #000b, inset 0 0 22px #0009, var(--frame-ring), 0 0 16px #00000066; }
-  #sel-panel { flex: 0 0 320px; min-height: 128px;
+  #minimap { width: 176px; height: 176px; background: #10132c; cursor: crosshair;
+    border-style: solid; border-width: 16px;
+    border-image: url('assets/ui/panel-frame.png') 104 stretch;
+    box-shadow: 0 8px 20px #000b, inset 0 0 22px #0009; }
+  #sel-panel { flex: 0 0 320px; min-height: 118px;
     background: linear-gradient(180deg, var(--panel-2), var(--panel-3));
-    border: 1px solid var(--gold-deep); border-radius: var(--r); padding: 12px; display: flex; gap: 12px;
-    font-size: 13px; color: var(--ink);
-    box-shadow: var(--shadow), inset 0 1px 0 #ffffff0f; }
+    border-style: solid; border-width: 17px;
+    border-image: url('assets/ui/panel-frame.png') 104 stretch;
+    padding: 6px 9px; display: flex; gap: 11px; font-size: 13px; color: var(--ink);
+    box-shadow: var(--shadow); }
   #sel-portrait { position: relative; overflow: hidden; font-size: 42px; width: 68px; height: 68px;
     display: flex; align-items: center; justify-content: center;
     background: radial-gradient(circle at 35% 30%, #2e2a44, #171622);
@@ -182,8 +184,8 @@
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
     color: var(--ink); border-radius: 11px; padding: 4px 2px;
     background: linear-gradient(180deg, var(--panel-2), var(--panel-3));
-    border: 1px solid var(--line);
-    box-shadow: var(--shadow-soft), inset 0 1px 0 #ffffff18, inset 0 0 0 1px #00000055, inset 0 -6px 11px #00000042; }
+    border: 1px solid var(--gold-deep);
+    box-shadow: var(--shadow-soft), inset 0 1px 0 #ffffff20, inset 0 0 0 1px #00000066, inset 0 -6px 11px #00000042, inset 0 0 0 2px #d8b25a30; }
   button.cmd .ico { font-size: 25px; line-height: 1.15; filter: drop-shadow(0 2px 2px #0008); }
   button.cmd img.icoimg { width: 40px; height: 40px; object-fit: contain;
     filter: drop-shadow(0 2px 2px #0008); pointer-events: none; }
@@ -254,12 +256,13 @@
   /* landing screen */
   #menu-home { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 6px; }
   .home-buttons { display: flex; flex-direction: column; gap: 12px; width: min(420px, 90vw); }
-  .home-btn { display: flex; align-items: center; gap: 14px; text-align: left; cursor: pointer;
-    padding: 13px 18px; border-radius: var(--r); color: var(--ink); letter-spacing: .2px;
-    border: 1px solid var(--line);
+  .home-btn { display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer;
+    padding: 4px 14px; color: var(--ink); letter-spacing: .2px;
+    border-style: solid; border-width: 15px 17px;
+    border-image: url('assets/ui/panel-frame.png') 104 stretch;
     background: linear-gradient(180deg, var(--panel-2), #201f2e);
-    box-shadow: var(--shadow-soft), inset 0 1px 0 #ffffff0f;
-    transition: transform .1s, box-shadow .1s, border-color .1s; }
+    box-shadow: var(--shadow-soft);
+    transition: transform .1s, box-shadow .1s; }
   .home-btn:hover { transform: translateY(-1px); border-color: var(--gold);
     box-shadow: 0 6px 18px #0008, inset 0 1px 0 #ffffff14, inset 0 0 0 1px #d8b25a44; }
   .home-btn:active { transform: translateY(1px); }
@@ -317,6 +320,16 @@
     filter: drop-shadow(0 2px 5px #000b); }
   .fac-crest { width: 19px; height: 19px; object-fit: contain; vertical-align: -4px;
     margin-right: 5px; filter: drop-shadow(0 1px 1px #0009); }
+  /* You-vs-Foe crest banners (campaign briefing + victory screen) */
+  .bf-versus { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 12px 0 2px; }
+  .vs-side { display: flex; align-items: center; gap: 8px; font-weight: 800; color: #ffe9b0; font-size: 14px; }
+  .vs-crest { width: 42px; height: 42px; object-fit: contain; filter: drop-shadow(0 2px 4px #000a); }
+  .vs-mid, .go-vs { font-family: var(--font-display); font-weight: 800; color: var(--gold-2);
+    letter-spacing: 1px; text-shadow: var(--emboss); }
+  .go-versus { display: flex; align-items: center; justify-content: center; gap: 24px; margin: 4px 0 12px; }
+  .go-crest { width: 70px; height: 70px; object-fit: contain; filter: drop-shadow(0 3px 8px #000b); }
+  .go-vs { font-size: 26px; }
+  .go-side { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #ffe9b0; font-weight: 700; font-size: 13px; }
   /* ornate 9-slice frame texture — the carved-wood AoE panel look */
   .menu-card, #tt-card {
     border-style: solid; border-width: 22px;
