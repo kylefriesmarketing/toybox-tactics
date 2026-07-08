@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, DIFFICULTIES, CAMPAIGN, generateRandomMap } from './data.js';
 import {
-  loadUnitModels, loadBuildingModels, loadMapModels, setBuildingFootprints,
+  loadUnitModels, loadBuildingModels, loadMapModels, loadFurnitureModels, setBuildingFootprints,
   createGhostMesh, createMoveMarker, createLamp, renderPortraits, applyUnitTier,
 } from './models.js';
 import { Game } from './game.js';
@@ -165,6 +165,9 @@ async function boot() {
   });
   await loadMapModels((done, total) => {
     text.textContent = `Scattering the snacks… (${done}/${total})`;
+  });
+  await loadFurnitureModels((done, total) => {
+    text.textContent = `Furnishing the bedroom… (${done}/${total})`;
   });
   text.textContent = 'Painting portraits…';
   renderPortraits(registry);

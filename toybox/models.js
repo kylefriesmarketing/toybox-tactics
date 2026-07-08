@@ -1543,6 +1543,33 @@ export async function loadMapModels(onProgress) {
   return mapRegistry;
 }
 
+// bedroom furniture: generated models drop into assets/furniture/<key>.glb and
+// replace the procedural boxes in addBedroom; procedural stays as the fallback.
+export const furnitureRegistry = {};
+const FURNITURE_KEYS = ['bed', 'dresser', 'bookshelf', 'toychest'];
+export async function loadFurnitureModels(onProgress) {
+  const loader = new GLTFLoader();
+  let done = 0;
+  await Promise.all(FURNITURE_KEYS.map(async (key) => {
+    try {
+      const gltf = await loader.loadAsync(`assets/furniture/${key}.glb`);
+      prepareScene(gltf.scene);
+      // normalize so the largest horizontal extent = 1, grounded at y=0
+      const box = new THREE.Box3().setFromObject(gltf.scene);
+      const dim = new THREE.Vector3(); box.getSize(dim);
+      const s = 1 / Math.max(dim.x, dim.z, 1e-6);
+      const wrap = new THREE.Group();
+      wrap.add(gltf.scene);
+      gltf.scene.scale.setScalar(s);
+      gltf.scene.position.set(-(box.min.x + dim.x / 2) * s, -box.min.y * s, -(box.min.z + dim.z / 2) * s);
+      furnitureRegistry[key] = wrap;
+    } catch { /* not generated yet — procedural fallback */ }
+    done++;
+    onProgress && onProgress(done, FURNITURE_KEYS.length, key);
+  }));
+  return furnitureRegistry;
+}
+
 // ---------------- UI portraits: real renders of the generated models ----------------
 // Filled once at load by renderPortraits(); ui.js falls back to emoji when absent.
 export const PORTRAITS = {};
@@ -2166,6 +2193,24 @@ function addBedroom(g, N, style) {
   const put = (m, x, y, z, ry = 0) => { m.position.set(x, y, z); m.rotation.y = ry; m.castShadow = true; m.receiveShadow = true; g.add(m); return m; };
   let rs = 4211 + N;
   const rnd = () => (rs = (rs * 16807) % 2147483647) / 2147483647;
+  // place a generated furniture GLB (normalized to max-horizontal-extent 1,
+  // grounded at y=0); returns false if the model isn't loaded so the caller
+  // falls back to the procedural version. size = world units of the longest side.
+  const placeFurn = (key, x, z, targetH, ry = 0) => {
+    const proto = furnitureRegistry[key];
+    if (!proto) return false;
+    const m = proto.clone(true);
+    // scale to a target HEIGHT (reconstructions vary in bulk; height is the
+    // predictable dimension and keeps furniture from clipping the walls/mat)
+    const b = new THREE.Box3().setFromObject(m);
+    const sz = new THREE.Vector3(); b.getSize(sz);
+    m.scale.setScalar(targetH / Math.max(sz.y, 1e-6));
+    m.position.set(x, 0, z);
+    m.rotation.y = ry;
+    m.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
+    g.add(m);
+    return true;
+  };
 
   // --- round rug under the playmat (shows as a warm ring framing the mat) ---
   const rugCv = document.createElement('canvas'); rugCv.width = rugCv.height = 256;
@@ -2182,6 +2227,7 @@ function addBedroom(g, N, style) {
   // --- BED along the north wall, turned LENGTHWISE (long axis = x) so it has
   // real bed proportions instead of a stubby bench squeezed against the mat ---
   const bx = -3, bz = -half - 18;                                    // centre (x=-3, z=-54)
+  if (!placeFurn('bed', bx, bz, 15, 0)) {                            // real model wins; else procedural
   put(box(46, 5, 20, 0x8a5a34), bx, 3, bz);                          // frame
   put(box(42, 5, 17, 0xf3ede0, 0.96), bx, 7, bz);                   // mattress
   put(box(4, 22, 20, 0x6f4526), bx - 23, 11, bz);                   // headboard panel (west end)
@@ -2192,32 +2238,39 @@ function addBedroom(g, N, style) {
   put(box(9, 5, 16, 0xfff2d8, 0.96), bx - 16, 9.7, bz + 1);
   put(box(28, 4.5, 18, attic ? 0x9a7a52 : 0x6f7fc4, 0.85), bx + 5, 9.2, bz); // duvet over the lower half
   for (const lx of [bx - 21, bx + 21]) for (const lz of [bz - 8, bz + 8]) put(cyl(1.3, 1.3, 3, 0x5d3d22, 8), lx, 1.5, lz); // legs
+  }
 
-  // --- DRESSER against the east wall (+x) ---
+  // --- DRESSER against the east wall (+x), facing into the room (-x) ---
   const dx = half + 20;
+  if (!placeFurn('dresser', dx, -8, 22, -Math.PI / 2)) {
   put(box(16, 24, 34, 0x9a6a3e), dx, 12, -8);
   for (let r = 0; r < 3; r++) {
     put(box(1, 6, 28, 0xc0925a), dx - 8, 6 + r * 7, -8);            // drawer face
     put(new THREE.Mesh(new THREE.SphereGeometry(0.8, 8, 6), M(0x3a2a16)), dx - 8.8, 6 + r * 7, -8); // knob
   }
   put(cyl(2.4, 3.0, 2, 0xff8a5a), dx, 25, -14);                     // toy on top
+  }
 
-  // --- TOY CHEST against the west wall (-x), lid open ---
+  // --- TOY CHEST against the west wall (-x), facing into the room (+x) ---
   const cx = -half - 18;
+  if (!placeFurn('toychest', cx, -4, 13, Math.PI / 2)) {
   put(box(18, 14, 30, 0x7a5a86), cx, 7, -4);
   const lid = put(box(18, 2.4, 30, 0x8a6a96), cx, 15, -18); lid.rotation.x = -0.6;
   put(cyl(2.6, 2.6, 2.6, 0xffd24a, 10), cx + 2, 16, 2);
   put(box(5, 5, 5, 0xe05555), cx - 3, 16, -2);
   put(new THREE.Mesh(new THREE.SphereGeometry(2.8, 12, 10), M(0x59a0e0)), cx, 16, 8);
+  }
 
-  // --- BOOKSHELF against the south wall (+z) ---
+  // --- BOOKSHELF against the south wall (+z), facing into the room (-z) ---
   const sz = half + 20;
+  if (!placeFurn('bookshelf', 0, sz - 7, 26, Math.PI)) {
   put(box(44, 28, 9, 0x8a5a34), 0, 14, sz);
   const bc = [0xe05555, 0xf0a44a, 0xf0d24a, 0x6fb86f, 0x59a0e0, 0x9a6ad0];
   for (let s = 0; s < 3; s++) {
     put(box(44, 1, 9, 0x6a4526), 0, 5 + s * 8, sz);
     let bx = -20;
     while (bx < 19) { const bw = 1.4 + rnd() * 1.6; put(box(bw, 6.5, 6.5, bc[(rnd() * bc.length) | 0], 0.7), bx, 9 + s * 8, sz); bx += bw + 0.35; }
+  }
   }
 
   // --- moonlit WINDOW high on the north wall, above the bed ---

@@ -327,6 +327,9 @@ export const MODEL_MANIFEST = {
   lancer:  { dir: 'assets/units/lancer',  model: 'model.glb', targetHeight: 0.62 },
   sockpuppet: { dir: 'assets/units/sockpuppet', model: 'model.glb', targetHeight: 0.5 },
   drone:   { dir: 'assets/units/drone',   model: 'model.glb', targetHeight: 0.35 },
+  // Tin Bots: static robot models, code-driven bob (proc fallback if GLB missing)
+  zapbot:  { dir: 'assets/units/zapbot',  model: 'model.glb', targetHeight: 0.55 },
+  titanbot:{ dir: 'assets/units/titanbot',model: 'model.glb', targetHeight: 0.9 },
   // static vehicle, no rig — animated by code (wheel spin + bounce)
   raider:  { dir: 'assets/units/raider',  model: 'model.glb', targetHeight: 0.5 },
   // static siege — code-animated (bounce + lunge); proc fallback if missing
