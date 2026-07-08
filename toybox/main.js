@@ -170,7 +170,7 @@ async function boot() {
     text.textContent = `Furnishing the bedroom… (${done}/${total})`;
   });
   text.textContent = 'Painting portraits…';
-  renderPortraits(registry);
+  renderPortraits(registry, BUILDINGS);
   $('loading').classList.add('hide');
   setTimeout(() => $('loading').remove(), 700);
   $('menu').classList.add('show');

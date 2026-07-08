@@ -1599,7 +1599,7 @@ export async function loadFurnitureModels(onProgress) {
 // Filled once at load by renderPortraits(); ui.js falls back to emoji when absent.
 export const PORTRAITS = {};
 
-export function renderPortraits(unitRegistry) {
+export function renderPortraits(unitRegistry, buildingDefs) {
   const SIZE = 96;
   let r;
   try {
@@ -1632,8 +1632,20 @@ export function renderPortraits(unitRegistry) {
   for (const [k, e] of Object.entries(unitRegistry || {})) {
     try { PORTRAITS[k] = snap(e.proto); } catch { /* keep emoji */ }
   }
-  for (const [k, m] of Object.entries(buildingRegistry)) {
-    try { PORTRAITS[k] = snap(m); } catch { /* keep emoji */ }
+  // every building gets a real 3D icon: the generated GLB when we have one,
+  // otherwise its procedural mesh — clean (no banner / hp-bar) for the card.
+  for (const [k, def] of Object.entries(buildingDefs || {})) {
+    try {
+      let m;
+      if (buildingRegistry[k]) {
+        m = buildingRegistry[k].clone(true);
+      } else {
+        let seed = 7;
+        const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+        m = buildingGeometry(k, def, 0, rng, false, 1);
+      }
+      PORTRAITS[k] = snap(m);
+    } catch { /* keep emoji */ }
   }
   r.dispose();
   return PORTRAITS;
