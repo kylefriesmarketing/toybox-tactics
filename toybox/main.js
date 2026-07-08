@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, DIFFICULTIES, CAMPAIGN, generateRandomMap } from './data.js';
 import {
   loadUnitModels, loadBuildingModels, loadMapModels, loadFurnitureModels, setBuildingFootprints,
-  createGhostMesh, createMoveMarker, createLamp, renderPortraits, applyUnitTier,
+  createGhostMesh, createMoveMarker, createLamp, renderPortraits, applyUnitTier, refreshFactionBuildingIcons,
 } from './models.js';
 import { Game } from './game.js';
 import { UI } from './ui.js';
@@ -983,6 +983,8 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   }
   const fMine = FACTIONS[game.factionKeys[game.myId]] || FACTIONS.classic;
   const fFoe = FACTIONS[game.factionKeys[1 - game.myId]] || FACTIONS.classic;
+  // re-skin the build card's house/wall/gate icons to the local player's tribe
+  try { refreshFactionBuildingIcons(game.factionKeys[game.myId], ['house', 'wall', 'gate'], BUILDINGS); } catch { /* keep default icons */ }
   ui.alert(`${fMine.icon} Your ${fMine.label} take the field against the ${fFoe.icon} ${fFoe.label}!`, 'age');
   ui.alert('Night falls. Queue Worker Buddies and find the Snacks. (H = Toy Chest, WASD = camera, ESC = menu)', 'info');
   clock.start();

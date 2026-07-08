@@ -885,7 +885,7 @@ export class Game {
       if (def.gate) this.gateOwner[idx(a, b)] = owner;
     }
     const upTech = this.buildingUpTech(type, owner); // already-researched tier upgrade?
-    const view = createBuildingView(type, def, owner, i * 977 + j, !!upTech, this.players[owner].age);
+    const view = createBuildingView(type, def, owner, i * 977 + j, !!upTech, this.players[owner].age, this.factionKeys[owner]);
     const x = worldOf(i) + (s - 1) / 2, z = worldOf(j) + (s - 1) / 2;
     view.group.position.set(x, this.tileHeight(i, j), z);
     this.scene.add(view.group);
@@ -1134,7 +1134,7 @@ export class Game {
     const age = this.players[b.owner].age;
     const wasSel = this.selected.includes(b);
     this.scene.remove(b.view.group);
-    b.view = createBuildingView(b.type, b.def, b.owner, b.ti * 977 + b.tj, up, age);
+    b.view = createBuildingView(b.type, b.def, b.owner, b.ti * 977 + b.tj, up, age, this.factionKeys[b.owner]);
     b.view.group.position.set(b.x, this.tileHeight(b.ti, b.tj), b.z);
     b.view.setProgress(b.built);
     b.view.hpBar.set(b.hp / b.maxHp);
@@ -1551,7 +1551,7 @@ export class Game {
       } else if (se.k === 'b') {
         const def = BUILDINGS[se.type];
         const s = def.size;
-        const view = createBuildingView(se.type, def, se.owner, se.ti * 977 + se.tj, !!this.buildingUpTech(se.type, se.owner), this.players[se.owner].age);
+        const view = createBuildingView(se.type, def, se.owner, se.ti * 977 + se.tj, !!this.buildingUpTech(se.type, se.owner), this.players[se.owner].age, this.factionKeys[se.owner]);
         const x = worldOf(se.ti) + (s - 1) / 2, z = worldOf(se.tj) + (s - 1) / 2;
         view.group.position.set(x, this.tileHeight(se.ti, se.tj), z);
         this.scene.add(view.group);

@@ -1189,7 +1189,110 @@ function toyMat(color, rough = 0.55) {
 }
 const PASTELS = [0xf94144, 0xf3722c, 0xf9c74f, 0x90be6d, 0x577590, 0x9b5de5];
 
-function buildingGeometry(key, def, owner, rng, up = false, age = 1) {
+// ---- faction-unique Block House styles (each tribe builds its own home) ----
+function factionHouse(faction, add, box, cyl, teamCol, rng) {
+  if (faction === 'plush') {
+    // pillow fort: soft rounded cushions under a draped team blanket + plush ears
+    const base = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), toyMat(0xf2d0dd, 0.9));
+    base.scale.set(0.98, 0.6, 0.98); add(base, 0, 0.5, 0);
+    for (const [x, z, s] of [[-0.55, -0.35, 0.5], [0.6, -0.25, 0.46], [0.05, 0.6, 0.5]]) {
+      const q = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), toyMat(0xf6e6b0, 0.9));
+      q.scale.set(s, s * 0.62, s); add(q, x, s * 0.5, z);
+    }
+    const blanket = new THREE.Mesh(new THREE.ConeGeometry(1.15, 0.72, 5), toyMat(teamCol, 0.85));
+    blanket.rotation.y = Math.PI / 5; add(blanket, 0, 1.15, 0);
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), toyMat(0xb98a5a)), -0.34, 1.5, -0.18);
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), toyMat(0xb98a5a)), 0.34, 1.5, -0.18);
+    return;
+  }
+  if (faction === 'bricks') {
+    // stacked toy-brick cottage: courses of little bricks, studded team roof, chimney
+    const cols = [0xe05555, 0xf0b03a, 0x4d9bff, 0x74c476];
+    for (let row = 0; row < 3; row++) {
+      const y = 0.16 + row * 0.32, off = (row % 2) * 0.18 - 0.09;
+      for (let c = -1; c <= 1; c++) add(box(0.5, 0.3, 1.4, cols[(row + c + 4) % 4]), c * 0.5 + off, y, 0);
+    }
+    add(box(1.55, 0.18, 1.5, teamCol), 0, 1.12, 0);
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) add(cyl(0.09, 0.08, teamCol, 10), a * 0.42, 1.25, b * 0.42);
+    add(box(0.28, 0.5, 0.28, 0xd06a3a), 0.5, 1.4, -0.42);
+    return;
+  }
+  if (faction === 'racers') {
+    // pit garage: low bay, striped roll-door, checkered valance, spare tire, beacon
+    add(box(1.6, 1.0, 1.35, 0x5a626e), 0, 0.5, -0.1);
+    for (let i = 0; i < 4; i++) add(box(0.98, 0.2, 0.06, i % 2 ? 0xd0d4da : 0x2b2f36), 0, 0.2 + i * 0.2, 0.64);
+    for (let i = 0; i < 6; i++) add(box(0.24, 0.16, 0.04, i % 2 ? 0x101014 : 0xf0f0f0), -0.6 + i * 0.24, 1.06, 0.64);
+    add(cyl(0.28, 0.18, 0x1a1d22, 16), -0.92, 0.28, 0.42).rotation.z = Math.PI / 2;
+    add(box(0.5, 0.18, 0.32, teamCol), 0, 1.16, -0.1);
+    return;
+  }
+  if (faction === 'bots') {
+    // tin bunker: riveted steel box + dome, antenna, glowing team eye
+    add(box(1.5, 0.9, 1.4, 0x8a929c), 0, 0.45, 0);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.8, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), toyMat(0x9aa3ad));
+    add(dome, 0, 0.9, 0);
+    for (const [x, z] of [[-0.7, -0.62], [0.7, -0.62], [-0.7, 0.62], [0.7, 0.62]]) add(new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), toyMat(0x5a626e)), x, 0.78, z);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), new THREE.MeshStandardMaterial({ color: teamCol, emissive: teamCol, emissiveIntensity: 0.7, roughness: 0.4 }));
+    add(eye, 0, 0.95, 0.72);
+    add(cyl(0.03, 0.6, 0x5a626e, 6), 0.4, 1.5, 0);
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), toyMat(teamCol)), 0.4, 1.85, 0);
+    return;
+  }
+  // classic (default): canvas pyramid tent + sandbag row + team pennant
+  const tent = new THREE.Mesh(new THREE.ConeGeometry(1.15, 1.25, 4), toyMat(0x8a935a));
+  tent.rotation.y = Math.PI / 4; add(tent, 0, 0.62, 0);
+  add(box(0.4, 0.6, 0.02, 0x5a5a3a), 0, 0.35, 0.76);
+  for (let i = 0; i < 5; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), toyMat(i % 2 ? 0xb7a877 : 0xc2b280)); b.scale.set(1.4, 0.7, 1); add(b, -0.72 + i * 0.36, 0.1, 0.82); }
+  add(cyl(0.03, 0.7, 0xddd6c0, 6), 0, 1.5, 0);
+  add(box(0.42, 0.24, 0.03, teamCol), 0.22, 1.7, 0).castShadow = false;
+}
+
+// ---- faction-unique Block Wall styles (rise a course each Age, like the base) ----
+function factionWall(faction, add, box, cyl, teamCol, rng, up, age) {
+  const layers = 2 + age;
+  if (faction === 'racers') {
+    for (let layer = 0; layer < layers; layer++) {
+      const off = (layer % 2) * 0.18 - 0.09;
+      for (let k = -1; k <= 1; k++) {
+        add(cyl(0.2, 0.34, 0x1a1d22, 14), k * 0.34 + off, 0.2 + layer * 0.34, 0).rotation.x = Math.PI / 2;
+        add(cyl(0.09, 0.36, 0x3a3f47, 12), k * 0.34 + off, 0.2 + layer * 0.34, 0).rotation.x = Math.PI / 2;
+      }
+    }
+    return;
+  }
+  if (faction === 'plush') {
+    const cols = [0xf2c6d8, 0xf6e6b0, 0xcfe3ef];
+    for (let layer = 0; layer < layers; layer++) {
+      const off = (layer % 2) * 0.2 - 0.1;
+      for (let k = -1; k <= 1; k++) add(box(0.5, 0.28, 0.42, cols[(layer + k + 3) % 3]), k * 0.34 + off, 0.16 + layer * 0.3, 0);
+    }
+    return;
+  }
+  if (faction === 'bots') {
+    for (let layer = 0; layer < layers; layer++) {
+      add(box(1.0, 0.3, 0.36, up ? 0xb2bac2 : 0x8a929c), 0, 0.18 + layer * 0.31, 0);
+      for (const rx of [-0.4, 0.4]) add(new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), toyMat(0x5a626e)), rx, 0.18 + layer * 0.31, 0.19);
+    }
+    return;
+  }
+  if (faction === 'classic') {
+    for (let layer = 0; layer < layers; layer++) {
+      const off = (layer % 2) * 0.2 - 0.1;
+      for (let k = -1; k <= 1; k++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), toyMat(layer % 2 ? 0xb7a877 : 0xc2b280)); b.scale.set(1.5, 0.75, 1.1); b.castShadow = true; add(b, k * 0.34 + off, 0.13 + layer * 0.24, 0); }
+    }
+    return;
+  }
+  // bricks (default): staggered studded toy bricks with a team cap
+  const cols = up ? [0x9aa3ad, 0x868e98, 0xb2bac2] : [0xe05555, 0xd96a5b, 0xc95555];
+  for (let layer = 0; layer < layers; layer++) {
+    const off = (layer % 2) * 0.22 - 0.11;
+    for (let k = -1; k <= 1; k++) add(box(0.42, 0.26, 0.34, cols[(layer + k + 3) % 3]), k * 0.3 + off, 0.14 + layer * 0.27, 0).rotation.y = (rng() - 0.5) * 0.06;
+  }
+  const topY = 0.14 + layers * 0.27;
+  for (const bx of [-0.3, 0, 0.3]) add(cyl(0.07, 0.06, cols[0], 10), bx, topY, 0);
+}
+
+function buildingGeometry(key, def, owner, rng, up = false, age = 1, faction = null) {
   const g = new THREE.Group();
   const s = def.size;
   const teamCol = TEAM_COLORS[owner];
@@ -1218,11 +1321,7 @@ function buildingGeometry(key, def, owner, rng, up = false, age = 1) {
     const flag = add(box(0.5, 0.3, 0.04, teamCol), s * 0.38 + 0.28, 2.0, s * 0.26);
     flag.castShadow = false; pole.castShadow = false;
   } else if (key === 'house') {
-    add(box(1.5, 0.5, 1.5, PASTELS[rng() * PASTELS.length | 0]), 0, 0.25, 0);
-    add(box(1.3, 0.45, 1.3, PASTELS[rng() * PASTELS.length | 0]), 0, 0.72, 0);
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(1.1, 0.6, 4), toyMat(teamCol));
-    roof.rotation.y = Math.PI / 4;
-    add(roof, 0, 1.25, 0);
+    factionHouse(faction, add, box, cyl, teamCol, rng);
   } else if (key === 'mat') {
     add(box(s * 0.95, 0.12, s * 0.95, 0x4a9b5e), 0, 0.06, 0);
     add(box(0.25, 0.8, 0.25, 0xc9a86a), -0.8, 0.4, -0.8);  // practice post
@@ -1319,20 +1418,7 @@ function buildingGeometry(key, def, owner, rng, up = false, age = 1) {
     add(cyl(0.03, 1.0, 0xddd6c0, 6), -0.34, 0.88, -0.55);
     flagT.castShadow = false;
   } else if (key === 'wall') {
-    // staggered toy bricks — steel plating with Steelworks, taller each age
-    const cols = up ? [0x9aa3ad, 0x868e98, 0xb2bac2] : [0xd95b5b, 0xd96a5b, 0xc95555];
-    const layers = 2 + age; // ramparts rise from 3 → 4 → 5 courses
-    for (let layer = 0; layer < layers; layer++) {
-      const off = (layer % 2) * 0.22 - 0.11;
-      for (let k = -1; k <= 1; k++) {
-        const b = add(box(0.42, 0.26, 0.34, cols[(layer + k + 3) % 3]), k * 0.3 + off, 0.14 + layer * 0.27, 0);
-        b.rotation.y = (rng() - 0.5) * 0.06;
-      }
-    }
-    if (age >= 3) { // battlement crenellations along the top
-      const topY = 0.14 + layers * 0.27;
-      for (const bx of [-0.36, 0, 0.36]) add(box(0.24, 0.22, 0.34, cols[0]), bx, topY, 0);
-    }
+    factionWall(faction, add, box, cyl, teamCol, rng, up, age);
   } else if (key === 'gate') {
     // single-tile doorway: two slim posts flanking a lifting bar (opening runs in Z)
     const postC = up ? 0x9aa3ad : 0xc95555, barC = up ? 0x868e98 : 0xd9a066;
@@ -1599,23 +1685,19 @@ export async function loadFurnitureModels(onProgress) {
 // Filled once at load by renderPortraits(); ui.js falls back to emoji when absent.
 export const PORTRAITS = {};
 
-export function renderPortraits(unitRegistry, buildingDefs) {
-  const SIZE = 96;
+// one-shot 96px icon renderer, shared by the load-time pass and the per-faction refresh
+function makeIconSnapper() {
   let r;
-  try {
-    r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-  } catch { return PORTRAITS; }
-  r.setSize(SIZE, SIZE);
+  try { r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }); }
+  catch { return null; }
+  r.setSize(96, 96);
   r.outputColorSpace = THREE.SRGBColorSpace;
   const scene = new THREE.Scene();
   const cam = new THREE.PerspectiveCamera(30, 1, 0.01, 60);
   scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-  const keyL = new THREE.DirectionalLight(0xfff2dd, 2.1);
-  keyL.position.set(1.6, 2.4, 2.2);
-  const rimL = new THREE.DirectionalLight(0x9db8ff, 1.0);
-  rimL.position.set(-2, 1.4, -1.6);
+  const keyL = new THREE.DirectionalLight(0xfff2dd, 2.1); keyL.position.set(1.6, 2.4, 2.2);
+  const rimL = new THREE.DirectionalLight(0x9db8ff, 1.0); rimL.position.set(-2, 1.4, -1.6);
   scene.add(keyL, rimL);
-
   const snap = (model) => {
     scene.add(model);
     const box = measureBounds(model);
@@ -1629,29 +1711,46 @@ export function renderPortraits(unitRegistry, buildingDefs) {
     scene.remove(model);
     return r.domElement.toDataURL('image/png');
   };
+  return { snap, dispose: () => r.dispose() };
+}
+
+// clean building mesh for an icon: the generated GLB when we have one, else the
+// procedural mesh (faction-aware, so faction houses/walls get their own icon)
+function buildingIconMesh(k, def, factionKey) {
+  if (buildingRegistry[k]) return buildingRegistry[k].clone(true);
+  let seed = 7;
+  const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  return buildingGeometry(k, def, 0, rng, false, 1, factionKey);
+}
+
+export function renderPortraits(unitRegistry, buildingDefs, factionKey = null) {
+  const snapper = makeIconSnapper();
+  if (!snapper) return PORTRAITS;
+  const { snap, dispose } = snapper;
   for (const [k, e] of Object.entries(unitRegistry || {})) {
     try { PORTRAITS[k] = snap(e.proto); } catch { /* keep emoji */ }
   }
-  // every building gets a real 3D icon: the generated GLB when we have one,
-  // otherwise its procedural mesh — clean (no banner / hp-bar) for the card.
   for (const [k, def] of Object.entries(buildingDefs || {})) {
-    try {
-      let m;
-      if (buildingRegistry[k]) {
-        m = buildingRegistry[k].clone(true);
-      } else {
-        let seed = 7;
-        const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-        m = buildingGeometry(k, def, 0, rng, false, 1);
-      }
-      PORTRAITS[k] = snap(m);
-    } catch { /* keep emoji */ }
+    try { PORTRAITS[k] = snap(buildingIconMesh(k, def, factionKey)); } catch { /* keep emoji */ }
   }
-  r.dispose();
+  dispose();
   return PORTRAITS;
 }
 
-export function createBuildingView(key, def, owner, rngSeed = 1, up = false, age = 1) {
+// re-render just the faction-variant building icons (house/wall/gate) so the build
+// card shows the local player's own tribe — called once a match's faction is known
+export function refreshFactionBuildingIcons(faction, keys, buildingDefs) {
+  const snapper = makeIconSnapper();
+  if (!snapper) return;
+  const { snap, dispose } = snapper;
+  for (const k of keys) {
+    if (!buildingDefs[k]) continue;
+    try { PORTRAITS[k] = snap(buildingIconMesh(k, buildingDefs[k], faction)); } catch { /* keep current */ }
+  }
+  dispose();
+}
+
+export function createBuildingView(key, def, owner, rngSeed = 1, up = false, age = 1, faction = null) {
   let seed = rngSeed;
   const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const group = new THREE.Group();
@@ -1660,7 +1759,10 @@ export function createBuildingView(key, def, owner, rngSeed = 1, up = false, age
   // procedural pen (never the plain pencil GLB, so the upgrade always reads)
   const wantPen = up && key === 'tower';
   const modelKey = (wantPen && buildingRegistry.pentower) ? 'pentower' : key;
-  const useGlb = wantPen ? !!buildingRegistry.pentower : !!buildingRegistry[modelKey];
+  // house / wall / gate are faction-unique — always draw them procedurally so each
+  // tribe's own style shows, even though a generic house.glb exists
+  const factionVariant = key === 'house' || key === 'wall' || key === 'gate';
+  const useGlb = factionVariant ? false : (wantPen ? !!buildingRegistry.pentower : !!buildingRegistry[modelKey]);
   if (useGlb) {
     meshes = buildingRegistry[modelKey].clone(true);
     // team banner so ownership stays readable on generated models
@@ -1670,7 +1772,7 @@ export function createBuildingView(key, def, owner, rngSeed = 1, up = false, age
     flag.position.set(def.size * 0.4 + 0.22, def.height + 0.9, def.size * 0.4);
     meshes.add(pole, flag);
   } else {
-    meshes = buildingGeometry(key, def, owner, rng, up, age);
+    meshes = buildingGeometry(key, def, owner, rng, up, age, faction);
   }
   group.add(meshes);
   const s = def.size;
