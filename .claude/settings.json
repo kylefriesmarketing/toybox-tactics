@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -c '(.tool_input.file_path // \"\" | ascii_downcase | split(\".\") | last) as $ext | if ([\"glb\",\"gltf\",\"bin\",\"fbx\",\"obj\",\"stl\",\"ply\",\"3ds\",\"dae\",\"blend\",\"ktx2\",\"basis\",\"drc\",\"usdz\"] | index($ext)) then {hookSpecificOutput:{hookEventName:\"PreToolUse\",permissionDecision:\"deny\",permissionDecisionReason:\"Blocked: this is a binary/3D model asset. Reading it wastes tokens and returns no useful text — use ls, file size, or the path/filename instead of Read.\"}} else empty end'",
+            "statusMessage": "Checking for binary asset read"
+          }
+        ]
+      }
+    ]
+  }
+}
