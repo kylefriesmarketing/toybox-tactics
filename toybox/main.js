@@ -159,7 +159,10 @@ async function boot() {
   registryCache = registry;
   failuresCache = failures;
   // generated building models are optional — missing files fall back silently
-  const facBldKeys = Object.keys(FACTIONS).flatMap((f) => [`house-${f}`, `chest-${f}`]); // per-tribe house + toy-chest GLBs
+  // (bricks skips the GLB house on purpose: the procedural stud-brick cottage
+  // reads better for the lego men, per Kyle)
+  const facBldKeys = Object.keys(FACTIONS).flatMap((f) => [`house-${f}`, `chest-${f}`])
+    .filter((k) => k !== 'house-bricks');
   setBuildingFootprints(Object.fromEntries([
     ...Object.entries(BUILDINGS).map(([k, d]) => [k, d.size]),
     ...facBldKeys.map((k) => [k, BUILDINGS[k.split('-')[0]].size]),
