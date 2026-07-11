@@ -1161,6 +1161,103 @@ export const CAMPAIGN = [
   },
 ];
 
+// ---------------- scripted mission moments ----------------
+// Each campaign mission gets 2-3 one-shot beats: story lines mid-battle,
+// reinforcement drops, and telegraphed enemy surges. `at` is sim-seconds.
+// types: (none)=story line · spawn {unit,n,owner} · boost {owner,res}
+export const MISSION_EVENTS = {
+  naptime: [
+    { at: 150, text: 'Under the bed, something soft shifted its weight. The Horde knows you are here now.' },
+    { at: 300, type: 'spawn', unit: 'soldier', n: 3, owner: 0, kind: 'info',
+      text: 'Reinforcements! Three soldiers who slept through the uprising report for duty, deeply embarrassed.' },
+  ],
+  sandbox: [
+    { at: 180, text: 'Sand gets into everything, the storybooks warn. Especially plans.' },
+    { at: 360, type: 'boost', owner: 1, res: { snacks: 150, blocks: 150 }, kind: 'attack',
+      text: 'The masons found a buried juice-box cache — Snap-Brick coffers are suddenly full!' },
+    { at: 540, type: 'spawn', unit: 'raider', n: 2, owner: 0, kind: 'info',
+      text: 'Two wind-up raiders roll in from the swing set, already ignoring your orders slightly.' },
+  ],
+  bathtub: [
+    { at: 200, text: 'The water remembers every armada. It is beginning to remember yours.' },
+    { at: 380, type: 'spawn', unit: 'duckboat', n: 2, owner: 0, kind: 'info',
+      text: 'The rubber fleet answers the call — two Duck Raiders squeak into formation!' },
+  ],
+  hill: [
+    { at: 180, text: 'Hold a hill long enough, the old toys say, and the hill starts holding you back.' },
+    { at: 420, type: 'spawn', unit: 'lancer', n: 3, owner: 1, kind: 'attack',
+      text: 'Pogo Lancers vault the pillow ridge — the Bricks want their hill back!' },
+    { at: 640, type: 'spawn', unit: 'bear', n: 1, owner: 0, kind: 'info',
+      text: 'A Big Bear Hug lumbers up the slope to join you. The hill creaks respectfully.' },
+  ],
+  finale: [
+    { at: 150, text: 'The attic holds its breath. Every retired toy is watching this one.' },
+    { at: 400, type: 'boost', owner: 1, res: { snacks: 250, blocks: 250 }, kind: 'attack',
+      text: 'The first soldier the Kid ever owned calls in every favor the attic owes him.' },
+    { at: 700, type: 'spawn', unit: 'hero', n: 1, owner: 0, kind: 'info',
+      text: 'Out of a dusty shoebox steps a hero the storybooks thought was lost. Not tonight.' },
+  ],
+  crumbs: [
+    { at: 160, text: 'The Tin Bots harvest in perfect rows. It would be beautiful if it weren\'t YOUR table.' },
+    { at: 380, type: 'spawn', unit: 'zapbot', n: 3, owner: 1, kind: 'attack',
+      text: 'A fresh column of Zap Bots marches out of the backpack, crackling politely.' },
+  ],
+  sofa: [
+    { at: 200, text: 'Cushion country: every ridge is soft, every ambush softer.' },
+    { at: 450, type: 'spawn', unit: 'medic', n: 2, owner: 0, kind: 'info',
+      text: 'Two Medics arrive from the armrest with fresh thread and no patience for heroics.' },
+  ],
+  canyonrun: [
+    { at: 150, text: 'In the canyon, the racing line IS the battle line.' },
+    { at: 350, type: 'spawn', unit: 'drone', n: 2, owner: 0, kind: 'info',
+      text: 'Whirly Drones lift off the shelf to fly your colors down the gap.' },
+    { at: 600, type: 'boost', owner: 1, res: { buttons: 200 }, kind: 'attack',
+      text: 'The Bots requisition a coin jar. Their war chest just got heavier.' },
+  ],
+  nightlight: [
+    { at: 180, text: 'The nightlight flickers. Everything under the bed leans a little closer.' },
+    { at: 420, type: 'spawn', unit: 'soldier', n: 4, owner: 1, kind: 'attack',
+      text: 'Old guard Army Men emerge from a forgotten slipper — the dark keeps its veterans.' },
+  ],
+  shelfking: [
+    { at: 200, text: 'Klik\'s crown clicks softly on the dictionary, counting its own studs.' },
+    { at: 450, type: 'spawn', unit: 'golem', n: 2, owner: 1, kind: 'attack',
+      text: 'The Shelf King commits his royal guard: two Brick Golems descend the poetry section.' },
+    { at: 700, type: 'spawn', unit: 'titanbot', n: 1, owner: 0, kind: 'info',
+      text: 'Your engineers finish a field-built Titan Bot from shelf scraps. It salutes with the wrong arm.' },
+  ],
+  tagged: [
+    { at: 150, text: 'Another car pulls in. The stickers glitter like little round dooms.' },
+    { at: 400, type: 'spawn', unit: 'raider', n: 3, owner: 1, kind: 'attack',
+      text: 'Yard Toy raiders sweep in from the sprinkler line, sun-bleached and certain.' },
+  ],
+  boxed: [
+    { at: 180, text: 'Somewhere above, tape screeches. Another box is being sealed.' },
+    { at: 400, type: 'spawn', unit: 'sockpuppet', n: 3, owner: 0, kind: 'info',
+      text: 'Three Sock Puppets wriggle in through a gap in the flaps. The dark is less dark already.' },
+  ],
+  bargain: [
+    { at: 160, text: 'A shopper\'s shadow crosses the bin. Everyone holds very, very still.' },
+    { at: 380, type: 'boost', owner: 1, res: { snacks: 200, blocks: 100 }, kind: 'attack',
+      text: 'The strangers barter with the next bin over — their supplies are restocked.' },
+    { at: 620, type: 'spawn', unit: 'golem', n: 1, owner: 0, kind: 'info',
+      text: 'From loose bricks at the bin\'s bottom, your masons quietly assemble a friend.' },
+  ],
+  stranger: [
+    { at: 180, text: 'The Prize Robot polishes itself. It has never once needed polishing.' },
+    { at: 420, type: 'spawn', unit: 'zapbot', n: 4, owner: 1, kind: 'attack',
+      text: 'Mint-in-box escorts deploy from the wagon in factory formation.' },
+    { at: 650, type: 'spawn', unit: 'dragster', n: 2, owner: 0, kind: 'info',
+      text: 'Two freed Racers roar back down the sidewalk to fight for the wagon they escaped.' },
+  ],
+  wayhome: [
+    { at: 200, text: 'The porch light holds steady across the dark lawn — a lighthouse that knows your name.' },
+    { at: 450, type: 'spawn', unit: 'bear', n: 1, owner: 0, kind: 'info',
+      text: 'A bear the sale forgot shakes the grass from its fur and falls in beside you.' },
+    { at: 750, text: 'Almost home. The window is open. The old bear is waiting. March, Commander.' },
+  ],
+};
+
 // ---------------- AI difficulty profiles ----------------
 export const DIFFICULTIES = {
   easy:   { label: 'Sleepy',   workerTarget: 9,  firstWave: 6,  waveGrowth: 3, handicap: 0.75, usesTechs: false, usesSiege: false },
@@ -1206,8 +1303,8 @@ export const FACTIONS = {
   },
   racers: {
     label: 'RC Racers', icon: '🏎️',
-    desc: 'Born at the finish line. Wheeled toys +15% speed and +1 attack — but workers gather 5% slower.',
-    mods: { speedWheels: 1.15, atkVehicle: 1, gather: 0.95 }, // battery-tuned: was 39% WR
+    desc: 'Born at the finish line. Wheeled toys +15% speed and +1 attack — but workers gather 3% slower.',
+    mods: { speedWheels: 1.15, atkVehicle: 1, gather: 0.97 }, // battery-tuned twice: 39% → 38% at 0.95
     commander: {
       name: 'Chief Nitro', title: 'Boss of the Pit', portrait: 'assets/ui/cmdr-racers.jpg',
       bio: 'Goggles up, wrench behind one ear, grease grin permanent. Has never met a battle he could not treat as a race, and never lost a race he could not treat as personal. Runs the whole war on fresh batteries and pure momentum.',

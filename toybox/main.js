@@ -3,7 +3,7 @@
 // ============================================================
 
 import * as THREE from 'three';
-import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, DIFFICULTIES, CAMPAIGN, INTRO, generateRandomMap } from './data.js';
+import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, DIFFICULTIES, CAMPAIGN, INTRO, MISSION_EVENTS, generateRandomMap } from './data.js';
 import {
   loadUnitModels, loadBuildingModels, loadMapModels, loadFurnitureModels, setBuildingFootprints,
   createGhostMesh, createMoveMarker, createLamp, renderPortraits, applyUnitTier, refreshFactionBuildingIcons,
@@ -769,6 +769,8 @@ function applyMissionMods(g, mission) {
       if (p.id !== 0) for (const key in p.res) p.res[key] = Math.round(p.res[key] * mission.enemyBoost);
     }
   }
+  // scripted moments: hand the game its own copy so retries start fresh
+  g.missionEvents = (MISSION_EVENTS[mission.id] || []).map((e) => ({ ...e }));
 }
 function campaignGameOver(win) {
   const m = campaignMission;
@@ -1282,6 +1284,9 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
     net.onDesync = (t) => { ui.alert('Sync drift detected — this match may be unreliable.', 'warn'); console.warn('[net] desync at tick', t); };
   }
   game.setup();
+  // resumed campaign saves need their event list in place BEFORE restore, so the
+  // snapshot's done-flags land on it (fired moments must not replay on load)
+  if (campaignMission && resume) game.missionEvents = (MISSION_EVENTS[campaignMission.id] || []).map((e) => ({ ...e }));
   if (resume) game.restore(resume);
   if (campaignMission && !resume) applyMissionMods(game, campaignMission);
   window.game = game;

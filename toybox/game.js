@@ -316,6 +316,7 @@ export class Game {
         wave: diff.firstWave, attacking: false, scoutT: 0, t: this.rng() * 0.7,
         techT: 20, raidT: persona.raidInterval || AI.raidInterval,
         raidInterval: persona.raidInterval || AI.raidInterval, diff,
+        persona: personaKey, // v2: personas differ in comp, walls and navy too
       };
       // the first enemy AI's plan is the one hinted at in the opening taunt
       if (!this.personaTaunt && p.team !== (this.playerDefs[this.myId] || this.playerDefs[0]).team) {
@@ -1554,6 +1555,9 @@ export class Game {
       relic: this.relicState ? { ...this.relicState } : null,
       market: { ...this.market },
       timeline: this.timeline,
+      // one-shot narrator beats + scripted mission moments must not replay on load
+      told: Object.keys(this).filter((k) => k.startsWith('_told_') && this[k]),
+      evDone: this.missionEvents ? this.missionEvents.map((e) => !!e.done) : null,
       players: this.players.map((p) => ({
         res: { ...p.res }, age: p.age, aging: p.aging, popUsed: p.popUsed, popCap: p.popCap,
         techs: [...p.techs], mods: { ...p.mods }, stats: { ...p.stats }, bell: !!p.bell,
@@ -1718,6 +1722,11 @@ export class Game {
     this.time = snap.time;
     this.tlT = 10;
     this.rng.setState(snap.rng);
+    // re-arm one-shot flags so narrator beats and mission moments don't replay
+    for (const k of snap.told || []) this[k] = true;
+    if (snap.evDone && this.missionEvents) {
+      snap.evDone.forEach((d, i) => { if (this.missionEvents[i]) this.missionEvents[i].done = d; });
+    }
     if (snap.aiState) {
       for (const [k, st] of Object.entries(snap.aiState)) {
         if (this.aiState[k]) Object.assign(this.aiState[k], st, { diff: this.aiState[k].diff });
@@ -3098,6 +3107,8 @@ export class Game {
     const enemyUnits = this.entities.filter((e) => e.kind === 'unit' && this.isEnemy(owner, e.owner) && !e.dead);
     const enemyRaiders = enemyUnits.filter((e) => e.def.tags.includes('raider')).length;
     const enemyRanged = enemyUnits.filter((e) => e.def.tags.includes('ranged')).length;
+    const enemyHeavy = enemyUnits.filter((e) => e.def.tags.includes('heavy')).length;
+    const persona = ai.persona || 'balanced';
 
     if (chest) {
       // --- economy manager ---
@@ -3185,6 +3196,15 @@ export class Game {
       if (diff.usesTechs && p.age >= 2 && !has('tinker') && has('mat', true) && military.length >= 3
           && this.canAfford(owner, BUILDINGS.tinker.cost)) {
         this.aiPlace('tinker', chest, workers);
+      }
+      // boomers dig in for the long game: watchtowers and an early market
+      if (persona === 'boomer' && p.age >= 2) {
+        const towers = mine.filter((e) => e.type === 'tower').length;
+        if (towers < 2 && p.res.blocks > 320 && this.canAfford(owner, BUILDINGS.tower.cost)) {
+          this.aiPlace('tower', chest, workers);
+        } else if (!has('market') && p.res.blocks > 260 && this.canAfford(owner, BUILDINGS.market.cost)) {
+          this.aiPlace('market', chest, workers);
+        }
       }
       // forward baskets when the economy strays far from home
       if (!mine.some((e) => e.type === 'basket' && e.built < 1)) {
@@ -3287,12 +3307,17 @@ export class Game {
           if (p.age >= 2 && medics < Math.floor(military.length / 6) && affordAboveReserve(UNITS.medic.cost)) {
             this.trainUnit(b, 'medic');
           } else {
-            const wantSpear = p.age >= 2 && (enemyRaiders >= 2 ? this.rng() < 0.7 : this.rng() < 0.3);
+            // rushers stamp out cheap soldiers; boomers keep powder dry in age 1
+            if (persona === 'boomer' && p.age === 1 && military.length >= 4) continue;
+            const spearBias = persona === 'rusher' ? 0.15 : 0.3;
+            const wantSpear = p.age >= 2 && (enemyRaiders >= 2 ? this.rng() < 0.7 : this.rng() < spearBias);
             const type = wantSpear ? 'spear' : 'soldier';
             if (affordAboveReserve(UNITS[type].cost)) this.trainUnit(b, type);
           }
         } else if (b.type === 'bench') {
-          const type = enemyRanged >= 3 && this.rng() < 0.6 ? 'flinger' : 'archer';
+          // counter-pick: flingers answer both massed ranged and massed heavies
+          const wantFlinger = (enemyRanged >= 3 && this.rng() < 0.6) || (enemyHeavy >= 3 && this.rng() < 0.5);
+          const type = wantFlinger ? 'flinger' : 'archer';
           if (affordAboveReserve(UNITS[type].cost)) this.trainUnit(b, type);
         } else if (b.type === 'garage' && p.res.buttons > 100) {
           if (affordAboveReserve(UNITS.raider.cost)) this.trainUnit(b, 'raider');
@@ -3301,16 +3326,26 @@ export class Game {
           if (affordAboveReserve(UNITS[type].cost)) this.trainUnit(b, type);
         } else if (b.def.trains) {
           // faction workshops: train whatever the tribe can field
-          // (skimmer fleet capped at 3 — enough to work the bath, not a navy)
+          // (skimmer fleet capped by temperament — rushers fish less, boomers more)
+          const skimCap = persona === 'rusher' ? 2 : persona === 'boomer' ? 4 : 3;
           const skimmers = mine.filter((e) => e.type === 'skimmer').length + b.queue.filter((q) => q.type === 'skimmer').length;
           const opts = b.def.trains.filter((t) => {
             const d = UNITS[t];
             return d && t !== 'cart' && (d.age || 1) <= p.age
-              && (t !== 'skimmer' || skimmers < 3)
+              && (t !== 'skimmer' || skimmers < skimCap)
               && (!d.faction || d.faction === this.factionKeys[owner]);
           });
           if (opts.length) {
-            const type = opts[(this.rng() * opts.length) | 0];
+            // rushers reach for the cheapest toy on the shelf; boomers for the biggest
+            let type;
+            const costSum = (t) => Object.values(UNITS[t].cost || {}).reduce((a, v) => a + v, 0);
+            if (persona === 'rusher' && this.rng() < 0.55) {
+              type = opts.reduce((m, t) => costSum(t) < costSum(m) ? t : m, opts[0]);
+            } else if (persona === 'boomer' && this.rng() < 0.55) {
+              type = opts.reduce((m, t) => costSum(t) > costSum(m) ? t : m, opts[0]);
+            } else {
+              type = opts[(this.rng() * opts.length) | 0];
+            }
             if (affordAboveReserve(UNITS[type].cost)) this.trainUnit(b, type);
           }
         }
@@ -3616,6 +3651,44 @@ export class Game {
     if (line) this.alert(line, event === 'king' ? 'attack' : 'warn', null, 20);
   }
 
+  // ---------- scripted mission moments (campaign only) ----------
+  // main.js hands us a per-game copy of the mission's event list; each event
+  // fires once when the clock crosses its timestamp. Deterministic and inert
+  // outside the campaign (missionEvents is simply never set).
+  processMissionEvents() {
+    if (!this.missionEvents) return;
+    for (const ev of this.missionEvents) {
+      if (ev.done || this.time < ev.at) continue;
+      ev.done = true;
+      if (ev.text) this.alert(ev.text, ev.kind || 'story', null, 0);
+      if (ev.type === 'spawn') {
+        const owner = ev.owner || 0;
+        const home = this.entities.find((e) => e.type === 'chest' && e.owner === owner && !e.dead)
+          || this.entities.find((e) => e.kind === 'building' && e.owner === owner && !e.dead);
+        if (!home) continue;
+        const naval = UNITS[ev.unit] && UNITS[ev.unit].naval;
+        let bx = home.x + 3, bz = home.z + 3;
+        if (naval) {
+          // ships arrive on the nearest open water instead of beaching at the chest
+          let best = null, bd = Infinity;
+          for (let j = 2; j < N - 2; j += 2) for (let i = 2; i < N - 2; i += 2) {
+            if (this.water[idx(i, j)] !== 1 || this.blocked[idx(i, j)]) continue;
+            const d = (worldOf(i) - home.x) ** 2 + (worldOf(j) - home.z) ** 2;
+            if (d < bd) { bd = d; best = [worldOf(i), worldOf(j)]; }
+          }
+          if (!best) continue;
+          bx = best[0]; bz = best[1];
+        }
+        for (let i = 0; i < (ev.n || 1); i++) {
+          this.spawnUnit(ev.unit, owner, bx + (i % 3) * 0.9, bz + ((i / 3) | 0) * 0.9, true);
+        }
+      } else if (ev.type === 'boost') {
+        const p = this.players[ev.owner ?? 1];
+        if (p) for (const [k, v] of Object.entries(ev.res || {})) p.res[k] += v;
+      }
+    }
+  }
+
   narrate(key) {
     const flag = '_told_' + key;
     if (this[flag] || !NARRATOR[key]) return;
@@ -3697,6 +3770,7 @@ export class Game {
       this.alert(this.personaTaunt, 'warn'); // a hint at the rival's game plan
     }
     if (this.time > 600) this.narrate('clock10');
+    this.processMissionEvents();
 
     for (const p of this.players) {
       if (p.aging > 0) {

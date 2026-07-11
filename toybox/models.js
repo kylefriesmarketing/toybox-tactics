@@ -2023,20 +2023,61 @@ export function createWaterDecor() {
 export function createGround(N, style = 'playmat') {
   const g = new THREE.Group();
 
-  // bedroom floor (wood planks, extends past the playmat)
+  // the floor beyond the mat — painted to match the room the map lives in
+  // (bathtub = tile, kitchen = checker, playground = grass, livingroom = carpet,
+  // bookshelf = dark wood; everything else = bedroom floorboards)
   const floorCanvas = document.createElement('canvas');
   floorCanvas.width = floorCanvas.height = 512;
   const fc = floorCanvas.getContext('2d');
-  fc.fillStyle = '#7a5230'; fc.fillRect(0, 0, 512, 512);
-  for (let y = 0; y < 512; y += 64) {
-    fc.fillStyle = `rgba(0,0,0,${0.04 + (y / 64 % 2) * 0.05})`;
-    fc.fillRect(0, y, 512, 64);
-    fc.strokeStyle = '#00000033'; fc.lineWidth = 3;
-    fc.beginPath(); fc.moveTo(0, y); fc.lineTo(512, y); fc.stroke();
-    // plank seams
-    for (let k = 0; k < 3; k++) {
-      const px = ((y * 7 + k * 173) % 512);
-      fc.beginPath(); fc.moveTo(px, y); fc.lineTo(px, y + 64); fc.stroke();
+  let fseed = 90210;
+  const frnd = () => (fseed = (fseed * 16807) % 2147483647) / 2147483647;
+  if (style === 'bathtub') {
+    // white bathroom tile with grout lines and the odd blue accent
+    fc.fillStyle = '#dfe6e6'; fc.fillRect(0, 0, 512, 512);
+    for (let ty = 0; ty < 8; ty++) for (let tx = 0; tx < 8; tx++) {
+      fc.fillStyle = frnd() < 0.08 ? '#9fc4cc' : (frnd() < 0.5 ? '#e6ecec' : '#d8e0e0');
+      fc.fillRect(tx * 64 + 2, ty * 64 + 2, 60, 60);
+    }
+    fc.strokeStyle = '#b8c4c4'; fc.lineWidth = 4;
+    for (let i = 0; i <= 8; i++) {
+      fc.beginPath(); fc.moveTo(i * 64, 0); fc.lineTo(i * 64, 512); fc.stroke();
+      fc.beginPath(); fc.moveTo(0, i * 64); fc.lineTo(512, i * 64); fc.stroke();
+    }
+  } else if (style === 'kitchen') {
+    // classic checkerboard linoleum
+    for (let ty = 0; ty < 8; ty++) for (let tx = 0; tx < 8; tx++) {
+      fc.fillStyle = (tx + ty) % 2 ? '#e8e2d0' : '#8a4438';
+      fc.fillRect(tx * 64, ty * 64, 64, 64);
+    }
+    fc.fillStyle = 'rgba(0,0,0,0.05)';
+    for (let i = 0; i < 300; i++) fc.fillRect(frnd() * 512, frnd() * 512, 3, 3);
+  } else if (style === 'playground') {
+    // sunny lawn: layered greens with grass ticks
+    fc.fillStyle = '#5a9a44'; fc.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 900; i++) {
+      fc.fillStyle = `rgba(${40 + frnd() * 60}, ${120 + frnd() * 70}, ${40 + frnd() * 40}, 0.35)`;
+      fc.fillRect(frnd() * 512, frnd() * 512, 3 + frnd() * 4, 8 + frnd() * 10);
+    }
+  } else if (style === 'livingroom') {
+    // warm holiday carpet with soft pile speckle
+    fc.fillStyle = '#a8846a'; fc.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 2500; i++) {
+      fc.fillStyle = `rgba(${150 + frnd() * 60}, ${110 + frnd() * 45}, ${85 + frnd() * 35}, 0.3)`;
+      fc.fillRect(frnd() * 512, frnd() * 512, 3, 3);
+    }
+  } else {
+    // bedroom / bookshelf floorboards (bookshelf reads darker, like a study)
+    const dark = style === 'bookshelf';
+    fc.fillStyle = dark ? '#54371f' : '#7a5230'; fc.fillRect(0, 0, 512, 512);
+    for (let y = 0; y < 512; y += 64) {
+      fc.fillStyle = `rgba(0,0,0,${0.04 + (y / 64 % 2) * 0.05})`;
+      fc.fillRect(0, y, 512, 64);
+      fc.strokeStyle = '#00000033'; fc.lineWidth = 3;
+      fc.beginPath(); fc.moveTo(0, y); fc.lineTo(512, y); fc.stroke();
+      for (let k = 0; k < 3; k++) {
+        const px = ((y * 7 + k * 173) % 512);
+        fc.beginPath(); fc.moveTo(px, y); fc.lineTo(px, y + 64); fc.stroke();
+      }
     }
   }
   const floorTex = new THREE.CanvasTexture(floorCanvas);
@@ -2071,9 +2112,14 @@ export function createGround(N, style = 'playmat') {
   // there is no wall down there, just darkness)
   if (style !== 'underbed') {
     const WALL = N / 2 + 30, WH = 88, WT = 1.6;  // tall enough the camera never rises over them
-    const wallColor = style === 'attic' ? 0x6a5a48 : 0x5a688f;
+    // each room wears its own paint (playground "walls" read as sky over a hedge)
+    const wallColor = ({
+      attic: 0x6a5a48, bathtub: 0xa8ccd4, kitchen: 0xe0cba0, playground: 0x8fc4ec,
+      bookshelf: 0x5f4a36, livingroom: 0x8a685a,
+    })[style] || 0x5a688f;
+    const baseColor = style === 'playground' ? 0x4a7a44 : style === 'bathtub' ? 0xcfdcdc : 0xe8e2d4;
     const wallM = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.95 });
-    const baseM = new THREE.MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.8 });
+    const baseM = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.8 });
     for (let i = 0; i < 4; i++) {
       const horiz = i < 2;
       const sign = i % 2 === 0 ? -1 : 1;
@@ -2393,8 +2439,235 @@ export function createGround(N, style = 'playmat') {
   );
 
   // a believable bedroom around the battlefield (skip under the bed â€” no room)
-  if (style !== 'underbed') addBedroom(g, N, style);
+  // the world past the mat matches the room the battle lives in
+  if (style === 'bathtub') addBathroomSurround(g, N);
+  else if (style === 'kitchen') addKitchenSurround(g, N);
+  else if (style === 'playground') addYardSurround(g, N);
+  else if (style === 'bookshelf') addStudySurround(g, N);
+  else if (style === 'livingroom') addLivingroomSurround(g, N);
+  else if (style === 'attic') addAtticSurround(g, N);
+  else if (style !== 'underbed') addBedroom(g, N, style);
   return g;
+}
+
+// shared toolkit for the themed surrounds (mirrors addBedroom's helpers)
+function surroundKit(g, N) {
+  const half = N / 2;
+  const M = (c, r = 0.8, e = 0) => new THREE.MeshStandardMaterial({ color: c, roughness: r, emissive: e ? c : 0x000000, emissiveIntensity: e });
+  const box = (w, h, d, c, r) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), M(c, r));
+  const cyl = (r0, r1, h, c, seg = 14) => new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, h, seg), M(c));
+  const sph = (r, c, rough = 0.7) => new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), M(c, rough));
+  const put = (m, x, y, z, ry = 0) => { m.position.set(x, y, z); m.rotation.y = ry; m.castShadow = true; m.receiveShadow = true; g.add(m); return m; };
+  // ring mat framing the play area, in theme colors [fill, ring1, ring2]
+  const ring = (cols, rough = 1) => {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+    const x2 = cv.getContext('2d');
+    x2.fillStyle = cols[0]; x2.beginPath(); x2.arc(128, 128, 126, 0, 7); x2.fill();
+    x2.lineWidth = 12; x2.strokeStyle = cols[1]; x2.beginPath(); x2.arc(128, 128, 100, 0, 7); x2.stroke();
+    x2.lineWidth = 7; x2.strokeStyle = cols[2]; x2.beginPath(); x2.arc(128, 128, 74, 0, 7); x2.stroke();
+    const m = new THREE.Mesh(new THREE.CircleGeometry(half + 20, 56),
+      new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(cv), roughness: rough }));
+    m.rotation.x = -Math.PI / 2; m.position.y = -0.014; m.receiveShadow = true; g.add(m);
+  };
+  // a glowing wall panel (window / sun / mirror) on the north wall
+  const glow = (w, h, y, color, intensity) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h),
+      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: intensity, roughness: 0.5 }));
+    m.position.set(0, y, -half - 29.6); g.add(m); return m;
+  };
+  return { half, M, box, cyl, sph, put, ring, glow };
+}
+
+// bathroom: pedestal sink, towels, shampoo regiment, laundry basket, duckies
+function addBathroomSurround(g, N) {
+  const { half, M, box, cyl, sph, put, ring, glow } = surroundKit(g, N);
+  ring(['#e9eef0', '#bcd4da', '#9fc4cc'], 1); // fluffy white bath mat
+  // pedestal sink against the east wall
+  const sx = half + 18;
+  put(cyl(3.4, 4.6, 18, 0xf2f4f4), sx, 9, -6);
+  put(box(16, 3.4, 13, 0xf6f8f8, 0.4), sx, 20, -6);
+  put(cyl(0.8, 0.8, 4, 0xc8ccd2), sx, 23, -10).rotation.x = 0.5; // faucet stub
+  // round mirror above the sink
+  const mir = new THREE.Mesh(new THREE.CylinderGeometry(6, 6, 0.5, 24), M(0xdfeef2, 0.15));
+  mir.rotation.z = Math.PI / 2; mir.rotation.y = Math.PI / 2; mir.position.set(half + 29, 32, -6); g.add(mir);
+  // towel rack with two hanging towels on the north wall
+  put(cyl(0.5, 0.5, 26, 0xc8ccd2, 8), -8, 30, -half - 28.4).rotation.z = Math.PI / 2;
+  put(box(9, 13, 0.8, 0x7fb0d8, 0.95), -13, 24, -half - 27.8);
+  put(box(9, 11, 0.8, 0xf2f4f4, 0.95), -2, 25, -half - 27.8);
+  // shampoo regiment along the south wall (giant bottles to toy-scale armies)
+  const bot = (x, h, c, cap) => { put(cyl(2.6, 3, h, c), x, h / 2, half + 22); put(cyl(1.2, 1.2, 3, cap), x, h + 1.5, half + 22); };
+  bot(-16, 16, 0x59a0e0, 0xf2f4f4); bot(-8, 20, 0xe08ab0, 0xffffff); bot(0, 13, 0x6fb86f, 0xf0d24a);
+  put(box(7, 9, 7, 0xf6f8f8, 0.3), 10, 4.5, half + 22); // soap box
+  // laundry basket + escaped sock, west side
+  const wx = -half - 18;
+  put(cyl(7, 5.5, 12, 0xd8b46a), wx, 6, 2);
+  put(sph(2.2, 0xe05555, 0.95), wx + 5, 1.4, 9);
+  // rubber duck family marching along the west wall
+  for (let i = 0; i < 3; i++) {
+    const s = 2.2 - i * 0.55;
+    const b = sph(s, 0xffd21e, 0.5); b.scale.set(1.15, 0.85, 1.3); put(b, wx + 2, s * 0.8, -14 - i * 7);
+    put(sph(s * 0.6, 0xffd21e, 0.5), wx + 2, s * 1.55, -14 - i * 7 + s * 0.9);
+  }
+  glow(18, 12, 30, 0xbfe4f0, 0.55); // frosted bathroom window
+}
+
+// kitchen: cabinet fronts, a looming fridge, fallen cutlery, cereal box
+function addKitchenSurround(g, N) {
+  const { half, box, cyl, put, ring, glow } = surroundKit(g, N);
+  ring(['#d8b46a', '#b08a44', '#8a6a30'], 1); // woven placemat under the arena
+  // fridge looming at the north wall
+  put(box(20, 46, 14, 0xeef0f0, 0.35), -14, 23, -half - 20);
+  put(box(1.4, 14, 1.4, 0xc8ccd2), -4.5, 34, -half - 12.6); // handle
+  // cabinet fronts along the east wall
+  for (let i = 0; i < 3; i++) {
+    put(box(12, 26, 18, 0x9a6a3e, 0.85), half + 20, 13, -22 + i * 20);
+    put(box(1, 3.5, 1, 0x3a2a16), half + 13.6, 15, -22 + i * 20);
+  }
+  // fallen fork + spoon, west side (giant to a toy)
+  const fx = -half - 14;
+  const fork = cyl(0.9, 0.9, 22, 0xc8ccd2, 8); fork.rotation.z = Math.PI / 2; put(fork, fx, 0.9, 8, 0.4);
+  for (let t = -1; t <= 1; t++) put(box(0.8, 0.8, 5, 0xc8ccd2, 0.3), fx - 11.5, 0.9, 8 + t * 1.6, 0.4);
+  const spoon = cyl(0.9, 0.9, 18, 0xd8dce0, 8); spoon.rotation.z = Math.PI / 2; put(spoon, fx + 2, 0.9, -12, -0.3);
+  put(new THREE.Mesh(new THREE.SphereGeometry(3.2, 12, 8), new THREE.MeshStandardMaterial({ color: 0xd8dce0, roughness: 0.3 })), fx + 11, 1.2, -14.5).scale.set(1, 0.4, 1.4);
+  // cereal box leaning on the south wall
+  put(box(16, 24, 6, 0xe05555, 0.8), 8, 12, half + 22, 0.3);
+  put(box(13, 8, 0.6, 0xf0d24a, 0.8), 8, 15, half + 18.6, 0.3);
+  glow(20, 13, 31, 0xfff2c8, 0.6); // warm kitchen window
+}
+
+// backyard: picket fence, hedges, flowers, garden hose, watering can, the sun
+function addYardSurround(g, N) {
+  const { half, box, cyl, sph, put, ring, glow } = surroundKit(g, N);
+  ring(['#6aaa50', '#4a8a3a', '#8aba60'], 1); // mowed ring around the sand arena
+  // picket fence just inside every wall
+  const P = half + 26;
+  for (let s = 0; s < 4; s++) {
+    const horiz = s < 2, sign = s % 2 ? 1 : -1;
+    for (let t = -P + 4; t <= P - 4; t += 6) {
+      const p = box(1.6, 9, 1, 0xe8e2d0, 0.9);
+      if (horiz) put(p, t, 4.5, sign * P);
+      else put(p, sign * P, 4.5, t, Math.PI / 2);
+    }
+    const rail = box(horiz ? P * 2 : 1, 1.4, horiz ? 1 : P * 2, 0xdcd6c4, 0.9);
+    put(rail, horiz ? 0 : sign * P, 7, horiz ? sign * P : 0);
+  }
+  // hedges + flowers in the corners
+  for (const [hx, hz] of [[-half - 16, -half - 16], [half + 16, -half - 14], [-half - 14, half + 16], [half + 15, half + 15]]) {
+    put(sph(7, 0x3f7a34, 0.95), hx, 5, hz).scale.set(1.3, 0.8, 1.1);
+    put(sph(4.5, 0x4a8a3a, 0.95), hx + 8, 3.4, hz + 3).scale.set(1.2, 0.75, 1);
+    for (let f = 0; f < 3; f++) {
+      put(cyl(0.25, 0.25, 3, 0x3f7a34, 6), hx - 6 + f * 3, 1.5, hz + 9);
+      put(sph(0.9, [0xe05555, 0xf0d24a, 0xe08ab0][f], 0.6), hx - 6 + f * 3, 3.4, hz + 9);
+    }
+  }
+  // coiled garden hose, east side
+  const hose = new THREE.Mesh(new THREE.TorusGeometry(5, 1.1, 10, 24), new THREE.MeshStandardMaterial({ color: 0x2f7a3a, roughness: 0.6 }));
+  hose.rotation.x = -Math.PI / 2; hose.position.set(half + 17, 1.2, 14); g.add(hose);
+  // watering can, west side
+  const wc = -half - 16;
+  put(cyl(4.5, 5, 9, 0x59a0e0), wc, 4.5, -10);
+  const spout = cyl(0.9, 1.4, 9, 0x59a0e0, 8); spout.rotation.z = 0.9; put(spout, wc + 6, 6.5, -10);
+  glow(16, 16, 34, 0xffe9a0, 0.9); // the sun, high on the north sky-wall
+}
+
+// study: monumental book stacks, a globe, a banker's lamp, a leaning ladder
+function addStudySurround(g, N) {
+  const { half, M, box, cyl, put, ring, glow } = surroundKit(g, N);
+  ring(['#6a4a2c', '#8a6238', '#4f3520'], 1); // leather desk-mat ring
+  const bookCols = [0x7a3a3a, 0x3a5a7a, 0x4a6a3a, 0x6a5a3a, 0x5a3a6a];
+  // flat book stacks in the corners (each book slightly rotated)
+  const stack = (x, z, n) => {
+    let y = 0;
+    for (let i = 0; i < n; i++) {
+      const w = 22 - i * 1.8, d = 15 - i * 1.1, h = 3.2;
+      put(box(w, h, d, bookCols[(i + n) % bookCols.length], 0.75), x, y + h / 2, z, (i % 2 ? -1 : 1) * (0.12 + i * 0.05));
+      y += h;
+    }
+  };
+  stack(-half - 17, -half - 14, 5); stack(half + 17, -10, 4); stack(-half - 15, 12, 3); stack(10, half + 20, 5);
+  // globe on a stand, east
+  put(cyl(4, 5.5, 3, 0x4a3320), half + 18, 1.5, 18);
+  put(cyl(0.9, 0.9, 8, 0x8a6a3a, 8), half + 18, 6.5, 18);
+  const globe = new THREE.Mesh(new THREE.SphereGeometry(5.5, 18, 14), M(0x3a6a9a, 0.6));
+  put(globe, half + 18, 14, 18).rotation.z = 0.35;
+  // banker's lamp glow on the south wall shelf line
+  put(box(26, 2, 8, 0x5a3a20), -18, 12, half + 24);
+  put(cyl(1, 1, 7, 0x2a3a2a, 8), -18, 16, half + 24);
+  const shade = new THREE.Mesh(new THREE.CylinderGeometry(4.5, 5.5, 4, 14, 1, true), new THREE.MeshStandardMaterial({ color: 0x2f6a4a, emissive: 0x4affa0, emissiveIntensity: 0.25, side: THREE.DoubleSide }));
+  put(shade, -18, 20, half + 24);
+  // ladder leaning on the north wall
+  for (const lx of [-3, 3]) put(box(1.2, 42, 1.2, 0x8a6a3a), lx + 20, 21, -half - 26, 0).rotation.x = 0.22;
+  for (let r = 0; r < 6; r++) put(box(6.5, 1, 1, 0x8a6a3a), 20, 5 + r * 6.5, -half - 26 + (21 - (5 + r * 6.5)) * 0.22);
+  glow(14, 18, 30, 0xd8c890, 0.35); // tall library window, dusty light
+}
+
+// living room: the sofa horizon, fireplace, gifts, string lights
+function addLivingroomSurround(g, N) {
+  const { half, M, box, cyl, sph, put, ring, glow } = surroundKit(g, N);
+  ring(['#9a4444', '#c88a6a', '#63333d'], 1); // holiday rug ring
+  // the great sofa along the north wall
+  const sz = -half - 19;
+  put(box(52, 9, 16, 0x7a4a3a, 0.95), 0, 4.5, sz);
+  put(box(52, 14, 5, 0x6a4232, 0.95), 0, 12, sz - 6);
+  for (const ax of [-27, 27]) put(box(6, 13, 16, 0x6a4232, 0.95), ax, 6.5, sz);
+  for (let c = 0; c < 3; c++) put(box(15, 6, 12, c % 2 ? 0x9a5a4a : 0x8a5242, 0.98), -16 + c * 16, 11, sz, c % 2 ? 0.06 : -0.05);
+  // fireplace on the east wall, embers glowing
+  const fx = half + 20;
+  put(box(24, 26, 12, 0x8a4438, 0.9), fx, 13, 8);
+  put(box(16, 14, 12.6, 0x2a1c14, 1), fx, 8, 8);
+  const ember = new THREE.Mesh(new THREE.BoxGeometry(12, 3, 10), new THREE.MeshStandardMaterial({ color: 0xff8a3a, emissive: 0xff6a1a, emissiveIntensity: 0.9 }));
+  put(ember, fx, 2.5, 8);
+  put(box(28, 2.5, 14, 0x6a4526), fx, 27, 8); // mantel
+  put(cyl(2, 2.4, 5, 0xe05555, 10), fx - 8, 30, 8); put(cyl(2, 2.4, 5, 0x6fb86f, 10), fx + 8, 30, 8); // stockings-ish
+  // wrapped gifts, west side
+  const gift = (x, z, w, h, c, rib) => {
+    put(box(w, h, w, c, 0.8), x, h / 2, z);
+    put(box(w + 0.4, h + 0.4, 2.2, rib, 0.7), x, h / 2, z);
+    put(box(2.2, h + 0.4, w + 0.4, rib, 0.7), x, h / 2, z);
+    put(sph(1.6, rib, 0.6), x, h + 1.2, z);
+  };
+  gift(-half - 16, -8, 12, 10, 0xe05555, 0xf0d24a);
+  gift(-half - 19, 6, 9, 13, 0x59a0e0, 0xf2f4f4);
+  gift(-half - 13, 14, 7, 6, 0x6fb86f, 0xe05555);
+  // string lights along the south wall
+  for (let i = 0; i < 12; i++) {
+    const c = [0xe05555, 0xf0d24a, 0x6fb86f, 0x59a0e0][i % 4];
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 8), new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.8 }));
+    bulb.position.set(-33 + i * 6, 34 - Math.sin(i / 11 * Math.PI) * 3, half + 28.6); g.add(bulb);
+  }
+  glow(20, 14, 31, 0x9fb8e8, 0.4); // cold winter window vs the warm room
+}
+
+// attic: box mountains, a steamer trunk, sheet-ghost coat rack, cobwebs
+function addAtticSurround(g, N) {
+  const { half, M, box, cyl, sph, put, ring, glow } = surroundKit(g, N);
+  ring(['#7a5a3a', '#a5824f', '#5f4327'], 1); // the old attic rug
+  // cardboard box mountains with tape stripes
+  const cardboard = (x, z, w, h, ry) => {
+    put(box(w, h, w * 0.9, 0xc09a5f, 0.95), x, h / 2, z, ry);
+    put(box(w + 0.3, 2, w * 0.28, 0xa8824a, 0.9), x, h - 1, z, ry);
+  };
+  cardboard(-half - 17, -12, 16, 14, 0.15); cardboard(-half - 14, -26, 12, 10, -0.2);
+  cardboard(-half - 15, 2, 13, 22, 0.05);
+  cardboard(half + 17, -18, 15, 12, -0.1); cardboard(half + 15, -4, 11, 18, 0.2);
+  cardboard(12, half + 20, 18, 16, 0.1); cardboard(-8, half + 22, 12, 24, -0.14);
+  // steamer trunk, east
+  put(box(20, 12, 12, 0x5a3a26, 0.85), half + 18, 6, 16);
+  put(box(20.6, 2, 12.6, 0x3f2a1a, 0.8), half + 18, 12.5, 16);
+  for (const bx of [-7, 0, 7]) put(box(1.6, 12, 12.8, 0x8a6a3a, 0.6), half + 18 + bx, 6, 16);
+  // the sheet-ghost coat rack (harmless, probably)
+  const gx = -half - 16, gz = 22;
+  const sheet = new THREE.Mesh(new THREE.ConeGeometry(6, 22, 12), M(0xe8e2d4, 0.98));
+  put(sheet, gx, 11, gz);
+  put(sph(4.2, 0xe8e2d4, 0.98), gx, 22, gz);
+  // old standing lamp with a weak amber pool
+  put(cyl(0.8, 1.4, 26, 0x4a3320, 8), 24, 13, -half - 20);
+  const lshade = new THREE.Mesh(new THREE.CylinderGeometry(5, 7, 6, 12, 1, true), new THREE.MeshStandardMaterial({ color: 0xd8b46a, emissive: 0xffc46a, emissiveIntensity: 0.3, side: THREE.DoubleSide }));
+  put(lshade, 24, 28, -half - 20);
+  // leaning picture frames
+  put(box(14, 18, 1, 0x6a4526, 0.8), -26, 9, -half - 25, 0.1).rotation.x = -0.12;
+  put(box(10, 13, 1, 0x8a6a3a, 0.8), -38, 6.5, -half - 25, -0.06).rotation.x = -0.12;
+  glow(12, 10, 34, 0xa8b8d8, 0.35); // small dusty gable window
 }
 
 // A cozy kid's bedroom that frames the battlefield so the world never ends at a
