@@ -413,6 +413,7 @@ export class Game {
       startById[pid] = [ci, cj];
     });
     const starts = this.players.map((p) => startById[p.id]);
+    this.startTiles = starts; // placement guards keep clutter off the chest doorsteps
     this.homes = starts.map(([ci, cj]) => ({ x: worldOf(ci + 2), z: worldOf(cj + 2) }));
     this.homePos = this.homes[this.myId];
     const clearHomes = (i, j, r) =>
@@ -540,6 +541,9 @@ export class Game {
     for (let k = 0; k < decorN; k++) {
       const i = 6 + (rng() * (N - 12)) | 0, j = 6 + (rng() * (N - 12)) | 0;
       if (this.blocked[idx(i, j)]) continue;
+      // decor is non-blocking, but a crayon poking out of a Toy Chest still looks wrong
+      if (this.startTiles && this.startTiles.some(([si, sj]) =>
+        i > si - 5 && i < si + 7 && j > sj - 5 && j < sj + 7)) continue;
       const decor = createDecorMesh(kinds[(rng() * kinds.length) | 0], k + 3);
       decor.position.set(worldOf(i), this.heightAtWorld(worldOf(i), worldOf(j)), worldOf(j));
       this.scene.add(decor);
@@ -695,11 +699,17 @@ export class Game {
       }
     }
 
-    // wind-up mice scatter around the middle third of the room
+    // wind-up mice scatter around the middle of the room — but they are ground
+    // toys: never in the water, never up on the plateaus (a mouse that spawns
+    // somewhere toys can't walk can never be befriended or deliver). Water maps
+    // flood most of the center, so keep sampling until dry ground turns up.
     for (let k = 0; k < CRITTERS.count; k++) {
-      const i = N / 2 - 12 + ((rng() * 24) | 0), j = N / 2 - 12 + ((rng() * 24) | 0);
-      if (this.blocked[idx(i, j)]) continue;
-      this.addCritter(worldOf(i), worldOf(j));
+      for (let t = 0; t < 30; t++) {
+        const i = N / 2 - 16 + ((rng() * 32) | 0), j = N / 2 - 16 + ((rng() * 32) | 0);
+        if (this.blocked[idx(i, j)] || this.water[idx(i, j)] === 1 || this.height[idx(i, j)] > 0.01) continue;
+        this.addCritter(worldOf(i), worldOf(j));
+        break;
+      }
     }
 
     this.fog.update(this.entities);
@@ -747,7 +757,9 @@ export class Game {
       const chest = this.entities.find((e) =>
         e.kind === 'building' && e.type === 'chest' && e.owner === c.captor && !e.dead && e.built >= 1);
       if (!chest) { c.captor = -1; c.tgt = null; return; }
-      c.tgt = { x: chest.x, z: chest.z };
+      // beeline home — unless mid-detour around a cliff or wall
+      if ((c.detourT || 0) > 0) c.detourT -= dt;
+      else c.tgt = { x: chest.x, z: chest.z };
       if (dist2(c, chest) < (chest.radius + 0.9) ** 2) {
         this.players[c.captor].res.snacks += CRITTERS.snack;
         this.players[c.captor].stats.gathered += CRITTERS.snack;
@@ -770,6 +782,14 @@ export class Game {
         const cliff = Math.abs(this.tileHeight(tileOf(nx), tileOf(nz))
           - this.tileHeight(tileOf(c.x), tileOf(c.z))) > CLIMB;
         if (this.tileOpenFor(nx, nz, -1) && !cliff) { c.x = nx; c.z = nz; c.facing = Math.atan2(dx, dz); }
+        else if (c.captor >= 0) {
+          // the straight way home is blocked: scurry a random step sideways,
+          // then re-aim at the chest (random-restart beelines round any plateau)
+          c.detourT = 0.9 + this.rng() * 0.8;
+          const a2 = this.rng() * Math.PI * 2, r2 = 1.5 + this.rng() * 2.5;
+          const dx2 = c.x + Math.sin(a2) * r2, dz2 = c.z + Math.cos(a2) * r2;
+          c.tgt = this.tileOpenFor(dx2, dz2, -1) ? { x: dx2, z: dz2 } : null;
+        }
         else c.tgt = null;
       } else c.tgt = null;
     }
@@ -852,6 +872,9 @@ export class Game {
   addObstacle(kind, i, j, w, d, seed) {
     if (!inMap(i, j) || !inMap(i + w - 1, j + d - 1)) return;
     if (!inPlay(i, j) || !inPlay(i + w - 1, j + d - 1)) return; // keep clutter off the mat's edge
+    // never fuse a book or pillow into a starting Toy Chest (3x3 at each start) or its doorstep
+    if (this.startTiles && this.startTiles.some(([si, sj]) =>
+      i + w > si - 4 && i < si + 7 && j + d > sj - 4 && j < sj + 7)) return;
 
     for (let b = j; b < j + d; b++) for (let a = i; a < i + w; a++) this.blocked[idx(a, b)] = 1;
     const mesh = createObstacleMesh(kind, w, d, seed);
