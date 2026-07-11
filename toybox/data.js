@@ -881,6 +881,107 @@ export const CAMPAIGN = [
       + 'keep their promises, and he promised the Kid he\'d be there in the morning.',
     enemyBoost: 1.5, // the finale enemy starts richer for a proper boss fight
   },
+
+  // ---------------- ACT II: The Sleepover ----------------
+  // The morning after the Bedroom Wars ended, a car pulled into the driveway.
+  {
+    id: 'crumbs', name: 'The Crumb Harvest', icon: '🥞',
+    map: 'kitchen', faction: 'classic', enemy: 'bots',
+    gameMode: 'standard', difficulty: 'normal', startRes: 'standard',
+    brief: 'Saturday, first light. A car in the driveway, a cousin on the air mattress, '
+      + 'and a backpack standing open at the foot of the bed like a dropped drawbridge. '
+      + 'Out of it, all night long, came marching: Tin Bots. Factory-fresh, gleaming, '
+      + 'polite as clockwork — and utterly ignorant of the truce. By breakfast they had '
+      + 'annexed the kitchen table and were harvesting crumbs with terrible efficiency. '
+      + 'General Greenboots put down his tiny binoculars and sighed the sigh of a soldier '
+      + 'whose war just came back from the dead. Go introduce yourself, Commander.',
+    objective: 'Contest the breakfast table: destroy every enemy production building.',
+    victory: 'The table is cleared — and the strangest thing, Commander: the Tin Bots '
+      + 'retreated in perfect formation, saluting as they went. Whoever wound them up '
+      + 'taught them manners. Greenboots salutes back before he can stop himself. '
+      + 'Word arrives at noon: the newcomers have dug into the sofa. Colonel Snug\'s sofa.',
+    defeat: 'Out-harvested at your own breakfast table. The bots didn\'t even gloat — '
+      + 'they just ticked. Somehow that\'s worse. Regroup and go again, Commander.',
+  },
+  {
+    id: 'sofa', name: 'Fortress of Cushions', icon: '🛋️',
+    map: 'livingroom', faction: 'plush', enemy: 'bots',
+    gameMode: 'sudden', difficulty: 'normal', startRes: 'high',
+    brief: 'Noon. The sofa is Plushie holy ground — every cushion a castle, every crease '
+      + 'a story, and somewhere deep in its springs, the legendary Lost Remote. Now the '
+      + 'Tin Bots have trenched into the cushion line, and Colonel Snug has taken it '
+      + 'personally, which for a bear stuffed with kindness is a frightening thing to '
+      + 'watch. No second chances this time, Commander: one Toy Chest each, winner keeps '
+      + 'the couch. The sofa remembers everyone who ever hid in it. Make it remember you.',
+    objective: 'Sudden death: protect your Toy Chest and destroy theirs. No rebuilding.',
+    victory: 'The cushion line holds! The bots withdraw with a synchronized bow, and Snug '
+      + '— soft old diplomat that he is — bows back. "They fight like they\'re homesick," '
+      + 'he says quietly. Keep that thought, Commander. Meanwhile the Racers report '
+      + 'strangers in the canyon: the supply race is on.',
+    defeat: 'The sofa has new management and your chest is under it, next to the remote. '
+      + 'Dust off the lint, Commander, and take back the cushions.',
+  },
+  {
+    id: 'canyonrun', name: 'The Canyon Run', icon: '🏁',
+    map: 'canyon', faction: 'racers', enemy: 'bots',
+    gameMode: 'standard', difficulty: 'hard', startRes: 'standard',
+    brief: 'Afternoon. Between the toy chests runs the canyon — the last unclaimed supply '
+      + 'line in the room, walls of stacked treasure, floor of open road. The Tin Bots '
+      + 'want it for their marching columns; the RC Racers want it because it is, and '
+      + 'this is the technical term, extremely fast. The bots have never lost a straight '
+      + 'line in their lives, Commander. So don\'t give them one. Give them corners.',
+    objective: 'Win the canyon: destroy every enemy production building.',
+    victory: 'Checkered flag! The bots stand at the finish line studying their own tire '
+      + 'tracks like scripture — they\'ve never been beaten by anything before, and they '
+      + 'seem almost grateful. That night, scouts hear ticking under the bed. Not '
+      + 'marching. Searching. Something down there is looking for the way home.',
+    defeat: 'Beaten on your own road — the bots took every corner like they\'d measured '
+      + 'it. They probably had. Remeasure your nerve and race it back, Commander.',
+  },
+  {
+    id: 'nightlight', name: 'The Nightlight', icon: '🌙',
+    map: 'underbed', faction: 'bots', enemy: 'classic',
+    gameMode: 'koth', difficulty: 'hard', startRes: 'standard',
+    brief: 'Night. Under the bed, where the dust drifts like snow over everything the '
+      + 'room forgot, the truth finally comes out: the Tin Bots were never invading. '
+      + 'Their whole world is a backpack, and the backpack is leaving Sunday. They fight '
+      + 'for the one bright thing under here — the nightlight\'s glow — because a signal '
+      + 'fire is how lost toys say WE ARE STILL HERE. Tonight, Commander, you wind their '
+      + 'key. General Greenboots is coming down to douse the light, and he does not '
+      + 'trust newcomers in the dark. Hold it anyway. Homesick is not the same as enemy.',
+    objective: 'Hold the golden Throne in the nightlight\'s glow for 2 minutes.',
+    victory: 'The light holds, and by it, at last, everyone can see: rust spelling out '
+      + 'a child\'s name on every little tin chest. Greenboots lowers his rifle and '
+      + 'offers the Tin Bot captain his hand — the full six seconds of it. "Nobody\'s '
+      + 'lost in my room," he says. "Not on my watch." One war left, Commander. The '
+      + 'shelf has a king.',
+    defeat: 'The light went out, and the dark under a bed is the oldest dark there is. '
+      + 'Wind the key, Commander. Lost toys don\'t stay lost — not while you\'re here.',
+  },
+  {
+    id: 'shelfking', name: 'The Shelf King', icon: '📚',
+    map: 'bookshelf', faction: 'bots', enemy: 'bricks',
+    gameMode: 'regicide', difficulty: 'hard', startRes: 'marathon',
+    brief: 'Sunday morning, and the treachery is architectural. While every tribe was '
+      + 'busy fighting strangers, Foreman Klik was quietly stacking himself a kingdom on '
+      + 'the bookshelf — the high country, the room\'s own mountain range — and at dawn '
+      + 'he crowned himself atop the dictionary, because no one argues with a dictionary. '
+      + 'The tribes held a council on the pillow and voted to send you, Commander — the '
+      + 'newcomers, the wind-up strangers, the toys with a Sunday deadline. Belonging '
+      + 'isn\'t given in this room. It\'s earned a shelf at a time. Guard your King. '
+      + 'Unseat his.',
+    objective: 'Protect your King. Defeat Foreman Klik\'s King on the high shelves.',
+    victory: 'The crown clicks apart into ordinary bricks, and Klik takes the long view '
+      + 'from the poetry section — even he admits the throne was "structurally vain." '
+      + 'And Sunday comes, as Sundays do. The car pulls away with the backpack in the '
+      + 'window... one soldier short. On the pillow, polished and gleaming, one small '
+      + 'Tin Bot stands where the old bear can keep an eye on him. Left behind on '
+      + 'purpose, Commander. That\'s how a toybox grows: one goodbye at a time. '
+      + 'The Bedroom Wars are over. The bedroom, at last, is one room.',
+    defeat: 'Klik keeps his crown and the dictionary now has a moat. Wind your key '
+      + 'tight, Commander — Sunday isn\'t over, and neither are you.',
+    enemyBoost: 1.4, // the Shelf King starts entrenched
+  },
 ];
 
 // ---------------- AI difficulty profiles ----------------
@@ -923,6 +1024,55 @@ export const FACTIONS = {
     label: 'Tin Bots', icon: '🤖',
     desc: 'Ranged toys +1 attack and every toy attacks 10% faster — but they trundle 8% slower on foot.',
     mods: { atkPierce: 1, atkSpeed: 0.9, speedInfantry: 0.92 },
+  },
+};
+
+// ---------------- game-over epilogues ----------------
+// every match ends like a bedtime story: one closing beat in your tribe's voice
+export const EPILOGUES = {
+  classic: {
+    win: 'The Army Men hold formation until the last enemy is boxed, because that is '
+      + 'the whole job. Then General Greenboots climbs the pillow, surveys the quiet '
+      + 'room, and allows himself one small, plastic smile. Dismissed, Commander — '
+      + 'and well done.',
+    lose: 'The Army Men retreat the way they do everything: in perfect order, single '
+      + 'file, chins up. Greenboots is already drawing tomorrow\'s battle plan in the '
+      + 'dust of the windowsill. Soldiers bend, Commander. They don\'t break.',
+  },
+  bricks: {
+    win: 'By morning there is a wall where the war was, and a tower on top of the wall, '
+      + 'and a flag on top of the tower, because Foreman Klik simply cannot help '
+      + 'himself. "Victory," he says, tapping it twice, "is just good construction." '
+      + 'Click. Done, Commander.',
+    lose: 'The walls came down — but walls always come down, that\'s what makes them '
+      + 'walls and not mountains. Klik is already sorting the rubble by color and size. '
+      + 'Everything broken, Commander, is just a kit for the next attempt.',
+  },
+  plush: {
+    win: 'The Plushie Horde doesn\'t cheer. They gather the fallen — theirs, yours, '
+      + 'everyone\'s — and prop them up against the pillow where it\'s warm. "War is '
+      + 'over," Colonel Snug announces, "hugs are mandatory." Somehow, Commander, you '
+      + 'won the soft way.',
+    lose: 'The Horde limps home leaking stuffing and stories in equal measure. Colonel '
+      + 'Snug counts every head twice and tucks the smallest ones in himself. Plushies '
+      + 'lose battles, Commander. They have never once lost each other.',
+  },
+  racers: {
+    win: 'The RC Racers take a victory lap, then another, then six more, until someone '
+      + 'points out the war has been over for ten minutes. They knew, Commander. They '
+      + 'just like the sound a finish line makes when it\'s yours.',
+    lose: 'Spun out. The Racers coast home on fumes and stubbornness, and the pit crew '
+      + 'is under the hood before the wheels stop turning. "We didn\'t lose," the '
+      + 'dragster insists, "we finished second." Refuel, Commander. Green flag\'s coming.',
+  },
+  bots: {
+    win: 'The Tin Bots stand down in perfect unison and file their victory report: '
+      + 'OUTCOME ACCEPTABLE. HOME DEFENDED. But their eyes glow a little warmer than '
+      + 'spec tonight, Commander, and the smallest one is humming. That wasn\'t in the '
+      + 'manual.',
+    lose: 'The Tin Bots wind down one by one, keys slowing, lights dimming to embers. '
+      + 'But listen: tick... tick... They are not stopping, Commander. They are '
+      + 'counting down to the rematch.',
   },
 };
 

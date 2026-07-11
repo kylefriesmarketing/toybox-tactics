@@ -5,7 +5,7 @@
 
 import {
   MAP_N, RES_TYPES, RES_META, UNITS, BUILDINGS, TECHS, MARKET,
-  AGES, AGE_UPS, TEAM_NAMES,
+  AGES, AGE_UPS, TEAM_NAMES, EPILOGUES,
 } from './data.js';
 import { PORTRAITS } from './models.js';
 
@@ -80,9 +80,12 @@ export class UI {
   gameOver(win, stats, timeline) {
     $('go-title').textContent = win ? 'VICTORY!' : 'DEFEAT';
     $('go-title').className = win ? 'win' : 'lose';
-    $('go-sub').textContent = win
-      ? `The ${TEAM_NAMES[1]} have no toys left to fight with. The bedroom is yours.`
-      : 'Your last production building has fallen. Back in the toy box…';
+    // close every match like a bedtime story, in the player's tribe's voice
+    const epi = EPILOGUES[this.game.factionKeys && this.game.factionKeys[this.game.myId]] || null;
+    $('go-sub').textContent = (epi && (win ? epi.win : epi.lose))
+      || (win
+        ? `The ${TEAM_NAMES[1]} have no toys left to fight with. The bedroom is yours.`
+        : 'Your last production building has fallen. Back in the toy box…');
     const t = Math.floor(this.game.time);
     const g = this.game, me = g.myId;
     // columns: you first, then ally, then the rivals

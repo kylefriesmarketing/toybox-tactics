@@ -1,5 +1,5 @@
-// ============================================================
-// TOYBOX TACTICS — model loading + all visual factories.
+﻿// ============================================================
+// TOYBOX TACTICS â€” model loading + all visual factories.
 // UnitModelLoader: per unit type, every GLB is the same mesh with a
 // different clip baked in; one file provides the display mesh, each
 // file contributes its AnimationClip to a { idle, walk, attack, death } map.
@@ -8,6 +8,19 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from '../assets/lib/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from '../assets/lib/jsm/loaders/DRACOLoader.js';
+
+// all GLBs ship Draco-compressed; one shared decoder serves every loader
+let _draco = null;
+function makeGLTFLoader() {
+  if (!_draco) {
+    _draco = new DRACOLoader();
+    _draco.setDecoderPath('assets/lib/draco/');
+  }
+  const loader = new GLTFLoader();
+  loader.setDRACOLoader(_draco);
+  return loader;
+}
 import { mergeVertices } from '../assets/lib/jsm/utils/BufferGeometryUtils.js';
 import { MODEL_MANIFEST, TEAM_COLORS } from './data.js';
 
@@ -37,7 +50,7 @@ function smoothGeometry(geo) {
   return merged;
 }
 
-// 1:4 linear subdivision — every attribute interpolated; skin influences of
+// 1:4 linear subdivision â€” every attribute interpolated; skin influences of
 // edge midpoints are merged and renormalized so animation doesn't tear
 function subdivideOnce(geo) {
   const index = geo.index.array;
@@ -98,8 +111,8 @@ function subdivideOnce(geo) {
   return g2;
 }
 
-// Taubin λ/μ smoothing (rounds without shrinking). Vertices that share a
-// position (UV-seam splits) are fused into one smoothing node — no cracks.
+// Taubin Î»/Î¼ smoothing (rounds without shrinking). Vertices that share a
+// position (UV-seam splits) are fused into one smoothing node â€” no cracks.
 function taubinRound(geo, iterations = 4, lambda = 0.5, mu = -0.53) {
   const pos = geo.attributes.position;
   const idx = geo.index.array;
@@ -188,7 +201,7 @@ function smoothSeamNormals(geo, creaseDeg = 62) {
 
 function prepareScene(scene) {
   // some generated models ship with a glassy transmissive shell around the
-  // painted figure — that's the "made of diamonds" look. If an opaque core
+  // painted figure â€” that's the "made of diamonds" look. If an opaque core
   // exists, strip the shell; if the whole model is glass, solidify it.
   const meshes = [];
   scene.traverse((n) => { if (n.isMesh) meshes.push(n); });
@@ -271,7 +284,7 @@ function normalizeToHeight(scene, targetHeight) {
 }
 
 export async function loadUnitModels(onProgress) {
-  const loader = new GLTFLoader();
+  const loader = makeGLTFLoader();
   const registry = {};
   const failures = [];
   const jobs = [];
@@ -378,8 +391,8 @@ export function makeRankBadge(tier = 1) {
   ctx.font = '40px serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  // ⭐ veteran, ⭐⭐ elite, 👑 legend
-  ctx.fillText(tier >= 3 ? '👑' : tier >= 2 ? '⭐⭐' : '⭐', 48, 26);
+  // â­ veteran, â­â­ elite, ðŸ‘‘ legend
+  ctx.fillText(tier >= 3 ? 'ðŸ‘‘' : tier >= 2 ? 'â­â­' : 'â­', 48, 26);
   const tex = new THREE.CanvasTexture(canvas);
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
   sprite.scale.set(tier >= 2 ? 0.5 : 0.3, tier >= 2 ? 0.25 : 0.15, 1);
@@ -449,7 +462,7 @@ function addCommonRings(view, def, owner, radius) {
   view.markDamaged = () => { view._damaged = true; hpBar.sprite.visible = true; };
 }
 
-// procedural weapons slotted into a rigged model's hand bone — fixes the
+// procedural weapons slotted into a rigged model's hand bone â€” fixes the
 // generated army men whose meshes shipped without a weapon. The weapon is a
 // child of the hand bone, so it follows the walk/attack animation.
 const HAND_BONE = { bow: 'LeftHand' }; // most weapons ride the right hand
@@ -482,12 +495,12 @@ function attachHandWeapon(model, def, owner) {
   const boneName = HAND_BONE[def.handWeapon] || 'RightHand';
   let bone = null;
   model.traverse((o) => { if (o.isBone && o.name === boneName) bone = o; });
-  if (!bone) return; // rig has no such hand bone — leave the model as-is
+  if (!bone) return; // rig has no such hand bone â€” leave the model as-is
   bone.updateWorldMatrix(true, false);
   const bs = new THREE.Vector3();
   bone.matrixWorld.decompose(new THREE.Vector3(), new THREE.Quaternion(), bs);
   const w = buildWeapon(def.handWeapon, owner);
-  w.scale.multiplyScalar(1 / (bs.x || 1)); // world size → bone-local size
+  w.scale.multiplyScalar(1 / (bs.x || 1)); // world size â†’ bone-local size
   bone.add(w);
 }
 
@@ -530,7 +543,7 @@ function makeModelView(entry, def, owner) {
   view.setSpeedRatio = (r) => { view._ratio = r; };
 
   if (entry.rigless) {
-    // RC Raider: static vehicle — code animation (wheel spin + bounce)
+    // RC Raider: static vehicle â€” code animation (wheel spin + bounce)
     const wheels = [];
     model.traverse((n) => { if (/wheel|tire|tyre/i.test(n.name)) wheels.push(n); });
     let moving = false, t = 0, deathT = -1;
@@ -558,7 +571,7 @@ function makeModelView(entry, def, owner) {
       if (def.spin) model.rotation.y += dt * 5;
       const gait = def.gait;
       if (gait === 'roll') {
-        // wheeled toy: glide flat and roll the wheels — no cartoon bounce
+        // wheeled toy: glide flat and roll the wheels â€” no cartoon bounce
         if (moving) for (const w of wheels) w.rotation.x += dt * 11 * view._ratio;
         const damp = Math.min(1, dt * 9);
         model.position.y += (0 - model.position.y) * damp;   // settle to the ground
@@ -576,7 +589,7 @@ function makeModelView(entry, def, owner) {
         model.position.y = moving ? Math.abs(Math.sin(w)) * 0.028 : model.position.y * 0.9;
       } else if (gait === 'walk') {
         // toy-figure walk: springy step-bounce + a little rock when moving, and a
-        // soft breathing sway when idle — stands in for the old skinned walk/idle
+        // soft breathing sway when idle â€” stands in for the old skinned walk/idle
         if (moving) {
           const s = t * 9;
           model.position.y = Math.abs(Math.sin(s)) * 0.075;
@@ -620,7 +633,7 @@ function makeModelView(entry, def, owner) {
   for (const [name, clip] of Object.entries(entry.clips)) {
     actions[name] = mixer.clipAction(clip);
   }
-  // archer's attack clip may be regenerating — fall back to a sped-up idle
+  // archer's attack clip may be regenerating â€” fall back to a sped-up idle
   if (!actions.attack && actions.idle) {
     actions.attack = mixer.clipAction(entry.clips.idle.clone());
   }
@@ -684,7 +697,7 @@ function makeModelView(entry, def, owner) {
   };
   let capeT = Math.random() * 9;
   view.update = (dt) => {
-    // walk cycle speed follows the unit's actual velocity — no more ice skating
+    // walk cycle speed follows the unit's actual velocity â€” no more ice skating
     if (moving && current === actions.walk && !view._dead) {
       actions.walk.timeScale = 0.55 + 0.65 * view._ratio;
     }
@@ -761,7 +774,7 @@ function makeProcView(def, owner, kind) {
       add(cyl(0.035, 0.035, 0.26, 0xc9a06a, 6), sx, 0.12, sz);
     }
   } else if (kind === 'bear') {
-    // Plushies unique: an oversized worn teddy — a wall of stuffing
+    // Plushies unique: an oversized worn teddy â€” a wall of stuffing
     const fur = 0x9a6a42, muzzleC = 0xc9a06a;
     const sph = (r, c) => new THREE.Mesh(new THREE.SphereGeometry(r, 12, 9), toyMat(c, 0.95));
     const body = add(sph(0.3, fur), 0, 0.34, 0);
@@ -854,7 +867,7 @@ function makeProcView(def, owner, kind) {
     add(nade, 0.23, 0.6, 0);
     parts.tube = arm; // reuse the recoil channel for a throw jerk
   } else if (kind === 'lancer') {
-    // minifig knight on a pogo spring — bounces as it moves
+    // minifig knight on a pogo spring â€” bounces as it moves
     const rider = new THREE.Group();
     rig.add(rider);
     const addR = (m, x, y, z) => { m.position.set(x, y, z); m.castShadow = true; rider.add(m); return m; };
@@ -911,7 +924,7 @@ function makeProcView(def, owner, kind) {
     }
     parts.body = hub;
   } else if (kind === 'hypno') {
-    // spinning top with a hypnotic dome — the whole spinner twirls
+    // spinning top with a hypnotic dome â€” the whole spinner twirls
     const spinner = new THREE.Group();
     rig.add(spinner);
     const coneDown = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.26, 14), toyMat(0xb14fe0, 0.35));
@@ -1073,7 +1086,7 @@ function makeProcView(def, owner, kind) {
 }
 
 function makeBoxView(def, owner) {
-  // placeholder fallback: labelled colored box (brief §17.2 placeholder rule)
+  // placeholder fallback: labelled colored box (brief Â§17.2 placeholder rule)
   const group = new THREE.Group();
   const h = 0.5;
   const body = new THREE.Mesh(
@@ -1131,8 +1144,8 @@ export function createUnitView(registry, key, def, owner, faction = null) {
 
 // ---------------- unit upgrade tiers (visual) ----------------
 // Army men are single-colour moulded plastic, so an upgrade re-casts the WHOLE
-// figure in a new material — burnished steel at tier 1, polished gold at tier 2
-// — plus a champion size bump. This transforms the entire model (what Kyle
+// figure in a new material â€” burnished steel at tier 1, polished gold at tier 2
+// â€” plus a champion size bump. This transforms the entire model (what Kyle
 // wanted) instead of bolting floating gear onto an animating skeleton (which
 // detached from the walk cycle and looked broken). Team identity is unaffected:
 // that lives on the ground ring, not the body. Idempotent and reversible.
@@ -1317,7 +1330,7 @@ function buildingGeometry(key, def, owner, rng, up = false, age = 1, faction = n
   const cyl = (r, h, c, seg = 16) => new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg), toyMat(c));
 
   if (key === 'chest') {
-    // the toy box grows richer with the ages: worn wood → painted → golden hoard
+    // the toy box grows richer with the ages: worn wood â†’ painted â†’ golden hoard
     const bodyC = age >= 3 ? 0xe0b020 : 0x8a5a33;
     const lidC = age >= 3 ? 0xc8961a : 0x6f4425;
     add(box(s * 0.85, 1.0, s * 0.6, bodyC), 0, 0.5, 0);
@@ -1545,7 +1558,7 @@ function buildingGeometry(key, def, owner, rng, up = false, age = 1, faction = n
     add(cyl(0.04, 1.1, 0xddd6c0, 6), 0, 2.1, 0.4);
     flagBS.castShadow = false;
   } else if (key === 'nest') {
-    // ring of cushions around a soft bed — the plush nursery
+    // ring of cushions around a soft bed â€” the plush nursery
     for (let i = 0; i < 7; i++) {
       const a = (i / 7) * Math.PI * 2;
       const p = new THREE.Mesh(new THREE.SphereGeometry(0.55, 10, 8), toyMat(i % 2 ? 0xe8e0f4 : 0xd88aa8, 0.95));
@@ -1605,7 +1618,7 @@ function buildingGeometry(key, def, owner, rng, up = false, age = 1, faction = n
 export const buildingRegistry = {};
 
 export async function loadBuildingModels(keys, onProgress) {
-  const loader = new GLTFLoader();
+  const loader = makeGLTFLoader();
   let done = 0;
   await Promise.all(keys.map(async (key) => {
     try {
@@ -1627,7 +1640,7 @@ export async function loadBuildingModels(keys, onProgress) {
       );
       buildingRegistry[key] = wrap;
     } catch {
-      /* not generated yet — procedural fallback stays */
+      /* not generated yet â€” procedural fallback stays */
     }
     done++;
     onProgress && onProgress(done, keys.length, key);
@@ -1643,7 +1656,7 @@ export const mapRegistry = {};
 const MAP_MODEL_KEYS = ['snacks', 'blocks', 'buttons', 'marbles', 'book', 'pillow'];
 
 export async function loadMapModels(onProgress) {
-  const loader = new GLTFLoader();
+  const loader = makeGLTFLoader();
   let done = 0;
   await Promise.all(MAP_MODEL_KEYS.map(async (key) => {
     try {
@@ -1675,7 +1688,7 @@ export async function loadMapModels(onProgress) {
 export const furnitureRegistry = {};
 const FURNITURE_KEYS = ['bed', 'dresser', 'bookshelf', 'toychest'];
 export async function loadFurnitureModels(onProgress) {
-  const loader = new GLTFLoader();
+  const loader = makeGLTFLoader();
   let done = 0;
   await Promise.all(FURNITURE_KEYS.map(async (key) => {
     try {
@@ -1690,7 +1703,7 @@ export async function loadFurnitureModels(onProgress) {
       gltf.scene.scale.setScalar(s);
       gltf.scene.position.set(-(box.min.x + dim.x / 2) * s, -box.min.y * s, -(box.min.z + dim.z / 2) * s);
       furnitureRegistry[key] = wrap;
-    } catch { /* not generated yet — procedural fallback */ }
+    } catch { /* not generated yet â€” procedural fallback */ }
     done++;
     onProgress && onProgress(done, FURNITURE_KEYS.length, key);
   }));
@@ -1756,7 +1769,7 @@ export function renderPortraits(unitRegistry, buildingDefs, factionKey = null) {
 }
 
 // re-render just the faction-variant building icons (house/wall/gate) so the build
-// card shows the local player's own tribe — called once a match's faction is known
+// card shows the local player's own tribe â€” called once a match's faction is known
 export function refreshFactionBuildingIcons(faction, keys, buildingDefs) {
   const snapper = makeIconSnapper();
   if (!snapper) return;
@@ -1773,7 +1786,7 @@ export function createBuildingView(key, def, owner, rngSeed = 1, up = false, age
   const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const group = new THREE.Group();
   let meshes;
-  // upgraded towers become a Pen Tower — generated model if present, else the
+  // upgraded towers become a Pen Tower â€” generated model if present, else the
   // procedural pen (never the plain pencil GLB, so the upgrade always reads)
   const wantPen = up && key === 'tower';
   // house is faction-unique: prefer a generated house-<faction>.glb, else the
@@ -1813,7 +1826,7 @@ export function createBuildingView(key, def, owner, rngSeed = 1, up = false, age
       }
     }
     if (age >= 3) {
-      // a gold star finial and base trim — the Fort Age of plenty
+      // a gold star finial and base trim â€” the Fort Age of plenty
       const gold = new THREE.MeshStandardMaterial({ color: 0xffd94a, roughness: 0.3, metalness: 0.6, emissive: 0x6a5200, emissiveIntensity: 0.3 });
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.5, 6), gold);
       pole.position.set(0, def.height + 0.55, 0); group.add(pole);
@@ -1874,7 +1887,7 @@ export function createGhostMesh(def) {
 
 // ---------------- resource node views ----------------
 
-// passive things (resources, critters) still get selected and inspected —
+// passive things (resources, critters) still get selected and inspected â€”
 // they need the same setSelected contract as units or selection crashes
 function passiveView(group, radius = 0.6) {
   const ring = flatRing(radius, radius * 1.18, 0xffffff, 0.9);
@@ -1989,7 +2002,7 @@ export function createGround(N, style = 'playmat') {
     () => {}
   );
 
-  // room walls with baseboards frame the max zoom-out (skip under the bed —
+  // room walls with baseboards frame the max zoom-out (skip under the bed â€”
   // there is no wall down there, just darkness)
   if (style !== 'underbed') {
     const WALL = N / 2 + 30, WH = 88, WT = 1.6;  // tall enough the camera never rises over them
@@ -2011,10 +2024,10 @@ export function createGround(N, style = 'playmat') {
     }
   }
 
-  // (no off-mat resource/obstacle clutter — cloning snack/block/marble/button/book/
+  // (no off-mat resource/obstacle clutter â€” cloning snack/block/marble/button/book/
   // pillow models onto the floor read as unreachable resources outside the play area)
 
-  // the playmat itself — hi-res canvas, art varies by map theme
+  // the playmat itself â€” hi-res canvas, art varies by map theme
   const S = 2048;
   const c = document.createElement('canvas');
   c.width = c.height = S;
@@ -2314,7 +2327,7 @@ export function createGround(N, style = 'playmat') {
     () => {} // keep the canvas art if no generated texture exists
   );
 
-  // a believable bedroom around the battlefield (skip under the bed — no room)
+  // a believable bedroom around the battlefield (skip under the bed â€” no room)
   if (style !== 'underbed') addBedroom(g, N, style);
   return g;
 }
@@ -2322,7 +2335,7 @@ export function createGround(N, style = 'playmat') {
 // A cozy kid's bedroom that frames the battlefield so the world never ends at a
 // hard edge: a rug the playmat rests on, plus a bed, dresser, toy chest,
 // bookshelf and a moonlit window against the walls. All visual-only, placed
-// well outside the play area (±N/2) and inside the room walls (±N/2+30).
+// well outside the play area (Â±N/2) and inside the room walls (Â±N/2+30).
 function addBedroom(g, N, style) {
   const half = N / 2;
   const attic = style === 'attic';
@@ -2422,7 +2435,7 @@ function addBedroom(g, N, style) {
   put(box(24, 1.6, 1, 0xf0ead8), 0, 27, wz);     // horizontal mullion
 
   // --- wall decor so the empty walls feel lived-in ---
-  const WI = half + 29.4;                          // just inside the ±(half+30) walls
+  const WI = half + 29.4;                          // just inside the Â±(half+30) walls
   // a framed picture, thin against a given wall; wall: 'e'|'w'|'s'
   const framed = (wall, along, py, w, h, col) => {
     const thin = 0.5, artC = new THREE.MeshStandardMaterial({ color: col, roughness: 0.7, emissive: col, emissiveIntensity: 0.06 });
@@ -2449,7 +2462,7 @@ function addBedroom(g, N, style) {
   }
 }
 
-// bedside lamp looming over the playmat corner — warm pool of real light
+// bedside lamp looming over the playmat corner â€” warm pool of real light
 export function createLamp(N) {
   const g = new THREE.Group();
   const add = (m) => { m.castShadow = true; g.add(m); return m; };
@@ -2650,7 +2663,7 @@ export function createDecorMesh(kind, rngSeed = 1) {
   return g;
 }
 
-// terrain blockers: books and pillows (brief §10.2)
+// terrain blockers: books and pillows (brief Â§10.2)
 export function createObstacleMesh(kind, w, d, rngSeed) {
   let seed = rngSeed * 104729 + 7;
   const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -2704,7 +2717,7 @@ export function createObstacleMesh(kind, w, d, rngSeed) {
   return g;
 }
 
-// Lost Sticker — capturable neutral objective (gold star that spins slowly)
+// Lost Sticker â€” capturable neutral objective (gold star that spins slowly)
 // floating golden crown that marks the Regicide King
 export function createKingCrown() {
   const g = new THREE.Group();
@@ -2725,7 +2738,7 @@ export function createKingCrown() {
   return g;
 }
 
-// golden throne for King of the Hill — the contested center
+// golden throne for King of the Hill â€” the contested center
 export function createThroneView() {
   const g = new THREE.Group();
   const gold = new THREE.MeshStandardMaterial({ color: 0xffd94a, roughness: 0.3, metalness: 0.5, emissive: 0x8a6a00, emissiveIntensity: 0.35 });
@@ -2755,7 +2768,7 @@ export function createThroneView() {
   };
 }
 
-// spilled milk: the bedroom's lake — an impassable puddle with the guilty glass
+// spilled milk: the bedroom's lake â€” an impassable puddle with the guilty glass
 export function createMilkSpill(rx, rz, rngSeed = 1) {
   let seed = rngSeed * 31337 + 7;
   const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
