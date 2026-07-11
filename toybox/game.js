@@ -582,6 +582,8 @@ export class Game {
     RC('blocks', N / 2 - 1, N / 2 + 6, 3);
     RC('marbles', N / 2 - 8, N / 2 + 1, 2);
     RC('marbles', N / 2 + 6, N / 2 - 1, 2);
+    // water maps: the themed bath-toy piles float in the tub (never on dry land)
+    if (this.map.water) this.seedWaterResources();
 
     // Lost Stickers: hold with military toys for a Buttons trickle (map control).
     // King of the Hill replaces them with a single golden Throne at center.
@@ -869,7 +871,8 @@ export class Game {
     if (Math.abs(C[j * W + i] - h) > 0.01 || Math.abs(C[j * W + i + 1] - h) > 0.01
       || Math.abs(C[(j + 1) * W + i] - h) > 0.01 || Math.abs(C[(j + 1) * W + i + 1] - h) > 0.01) return null;
     this.blocked[idx(i, j)] = 1;
-    const view = createResourceView(resType, i * 131 + j, !!this.map.water);
+    // themed bath-toy skin only where the tile is actually water; land piles stay normal
+    const view = createResourceView(resType, i * 131 + j, this.water[idx(i, j)] === 1);
     view.group.position.set(worldOf(i), this.heightAtWorld(worldOf(i), worldOf(j)), worldOf(j));
     this.scene.add(view.group);
     const e = {
@@ -880,6 +883,43 @@ export class Game {
     };
     this.entities.push(e);
     return e;
+  }
+
+  // Floating bath-toy resources: the ONLY piles that sit in the water. Placed on
+  // water tiles that touch a walkable shore, so a land worker can harvest them
+  // from the bank (gather is distance-based; 1-tile reach clears the waterline).
+  addWaterResourceNode(resType, i, j) {
+    if (!inMap(i, j) || this.water[idx(i, j)] !== 1 || this.blocked[idx(i, j)]) return null;
+    this.blocked[idx(i, j)] = 1;
+    const view = createResourceView(resType, i * 131 + j, true); // always the water skin
+    view.group.position.set(worldOf(i), this.heightAtWorld(worldOf(i), worldOf(j)), worldOf(j));
+    this.scene.add(view.group);
+    const e = {
+      id: this.nextId++, kind: 'resource', resType, owner: -1,
+      x: worldOf(i), z: worldOf(j), ti: i, tj: j, radius: 0.55,
+      amount: RES_META[resType].nodeAmount, def: { name: RES_META[resType].nodeName },
+      view, dead: false,
+    };
+    this.entities.push(e);
+    return e;
+  }
+
+  // spread ~8 floating resource clusters around the tub's shore (deterministic)
+  seedWaterResources() {
+    const types = ['blocks', 'buttons', 'marbles']; // soap / rubber-ducks / bath-pearls
+    const shore = (a, b) => inMap(a, b) && inPlay(a, b) && this.water[idx(a, b)] !== 1 && !this.blocked[idx(a, b)];
+    const eligible = [];
+    for (let j = 3; j < N - 3; j++) for (let i = 3; i < N - 3; i++) {
+      if (this.water[idx(i, j)] !== 1 || this.blocked[idx(i, j)]) continue;
+      if (shore(i - 1, j) || shore(i + 1, j) || shore(i, j - 1) || shore(i, j + 1)) eligible.push([i, j]);
+    }
+    if (!eligible.length) return;
+    const want = Math.min(8, eligible.length);
+    const step = eligible.length / want;
+    for (let k = 0; k < want; k++) {
+      const [i, j] = eligible[Math.floor(k * step)];
+      this.addWaterResourceNode(types[k % types.length], i, j);
+    }
   }
 
   addResourceCluster(resType, i0, j0, count) {
@@ -1584,7 +1624,7 @@ export class Game {
         view.setProgress(e.built);
         view.hpBar.set(e.hp / e.maxHp);
       } else if (se.k === 'r') {
-        const view = createResourceView(se.resType, se.ti * 131 + se.tj, !!this.map.water);
+        const view = createResourceView(se.resType, se.ti * 131 + se.tj, this.water[idx(se.ti, se.tj)] === 1);
         view.group.position.set(worldOf(se.ti), this.heightAtWorld(worldOf(se.ti), worldOf(se.tj)), worldOf(se.tj));
         this.scene.add(view.group);
         e = {
