@@ -8,6 +8,7 @@ import {
   AGES, AGE_UPS, TEAM_NAMES, EPILOGUES,
 } from './data.js';
 import { PORTRAITS } from './models.js';
+import { BARKS } from './barks.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -225,6 +226,36 @@ export class UI {
   refreshSelection() {
     this.queueSig = null;
     this.refreshInfo(true);
+    // a selected toy sometimes has something to say (pure flavor, throttled)
+    const own = this.game.selected.filter((e) => !e.dead && e.kind === 'unit' && e.owner === this.game.myId);
+    if (own.length) this.maybeBark('sel', own[0]);
+  }
+
+  // ---------- unit voice barks (text): UI-only, cooldown-gated ----------
+  maybeBark(kind, unit) {
+    const now = performance.now();
+    if (now - (this._barkT || 0) < 6500) return;
+    if (Math.random() < 0.45) return; // toys don't chirp on every click
+    const fac = this.game.factionKeys && this.game.factionKeys[this.game.myId];
+    const set = BARKS[unit.type + '@' + fac] || BARKS[unit.type] || BARKS._default;
+    const arr = set[kind] || set.sel;
+    if (!arr || !arr.length) return;
+    this._barkT = now;
+    const el = $('bark-line');
+    if (!el) return;
+    el.textContent = `“${arr[(Math.random() * arr.length) | 0]}”`;
+    el.classList.add('show');
+    clearTimeout(this._barkHide);
+    this._barkHide = setTimeout(() => el.classList.remove('show'), 3200);
+  }
+
+  // called from the right-click flow with the command that was issued
+  orderBark(result) {
+    const kind = result === 'attack' ? 'atk'
+      : (result === 'move' || result === 'gather' || result === 'rally') ? 'move' : null;
+    if (!kind) return;
+    const own = this.game.selected.filter((e) => !e.dead && e.kind === 'unit' && e.owner === this.game.myId);
+    if (own.length) this.maybeBark(kind, own[0]);
   }
 
   refreshInfo(rebuildCard = false) {

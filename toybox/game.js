@@ -273,7 +273,8 @@ export class Game {
       mods: { carry: 0, gather: 1, gatherSnacks: 1, speedInfantry: 1, speedWheels: 1, speedAll: 1,
               atkMelee: 0, atkPierce: 0, armorInfantry: 0, armorOther: 0, atkSpeed: 1,
               buildingHp: 1, buildRate: 1, unitHp: 1, healRate: 1, atkVehicle: 0 },
-      stats: { gathered: 0, trained: 0, lost: 0, kills: 0, razed: 0 },
+      stats: { gathered: 0, trained: 0, lost: 0, kills: 0, razed: 0,
+        shipsBuilt: 0, shipsLost: 0, wallsBuilt: 0, megaBuilt: 0, mice: 0 },
     }));
     // factions: humans bring their pick; AIs roll their own. The roll is
     // consumed for EVERY seat so the rng stream is identical whether a
@@ -763,6 +764,7 @@ export class Game {
       if (dist2(c, chest) < (chest.radius + 0.9) ** 2) {
         this.players[c.captor].res.snacks += CRITTERS.snack;
         this.players[c.captor].stats.gathered += CRITTERS.snack;
+        this.players[c.captor].stats.mice++;
         this.fx && this.fx.spawnPop(c.x, c.z, 0xf9c74f);
         if (c.captor === this.myId) {
           this.alert(`+${CRITTERS.snack} Snacks — the wind-up mouse delivered!`, 'info', null, 2);
@@ -1029,7 +1031,8 @@ export class Game {
     if (_tier && e.view) applyUnitTier(e.view, e.def, owner, _tier);
     if (fromBuilding) {
       p.stats.trained++;
-      if (def.tags && def.tags.includes('mega')) this.narrate('mega');
+      if (def.naval) p.stats.shipsBuilt++;
+      if (def.tags && def.tags.includes('mega')) { p.stats.megaBuilt++; this.narrate('mega'); }
       if (def.naval && def.aggro > 0) this.narrate('firstfleet');
       this.fx && this.fx.spawnPop(x, z, def.color);
       if (owner === this.myId) this.sfx && this.sfx.play('train', 300);
@@ -2014,6 +2017,7 @@ export class Game {
     if (e.kind === 'unit') {
       this.players[e.owner].popUsed--;
       this.players[e.owner].stats.lost++;
+      if (e.def.naval) this.players[e.owner].stats.shipsLost++;
       if (e.isKing) {
         this.fx && this.fx.confetti(e.x, e.z);
         this.alert(e.owner === this.myId
@@ -2603,6 +2607,7 @@ export class Game {
               if (u.gfxT <= 0 && this.fx) { u.gfxT = 0.5; this.fx.buildDust(b.x, b.z); }
               if (b.built >= 1) {
                 this.recalcPop(b.owner);
+                if (b.def.wall || b.def.gate) this.players[b.owner].stats.wallsBuilt++;
                 if (b.owner === this.myId) { this.alert(`${b.def.name} complete.`, 'info'); this.sfx && this.sfx.play('build'); }
                 // chain to the next nearby foundation (wall lines build hands-free)
                 const next = this.nearestFoundation(u.owner, u.x, u.z, 6);

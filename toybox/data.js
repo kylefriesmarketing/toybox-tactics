@@ -1188,8 +1188,8 @@ export const FACTIONS = {
   },
   bricks: {
     label: 'Snap-Bricks', icon: '🧱',
-    desc: 'Builders to the last stud. Buildings +20% HP, workers build 25% faster — but infantry march 6% slower.',
-    mods: { buildingHp: 1.2, buildRate: 1.25, speedInfantry: 0.94 },
+    desc: 'Builders to the last stud. Buildings +25% HP, workers build 25% faster — but infantry march 3% slower.',
+    mods: { buildingHp: 1.25, buildRate: 1.25, speedInfantry: 0.97 }, // battery-tuned: was 31% WR
     commander: {
       name: 'Foreman Klik', title: 'Master of the Stud', portrait: 'assets/ui/cmdr-bricks.jpg',
       bio: 'Believes there is no problem a wall cannot solve, and no wall that cannot be one brick taller. Sorts his troops by color before every battle. To Klik, victory and good construction are the exact same thing — click, done.',
@@ -1206,8 +1206,8 @@ export const FACTIONS = {
   },
   racers: {
     label: 'RC Racers', icon: '🏎️',
-    desc: 'Born at the finish line. Wheeled toys +15% speed and +1 attack — but workers gather 8% slower.',
-    mods: { speedWheels: 1.15, atkVehicle: 1, gather: 0.92 },
+    desc: 'Born at the finish line. Wheeled toys +15% speed and +1 attack — but workers gather 5% slower.',
+    mods: { speedWheels: 1.15, atkVehicle: 1, gather: 0.95 }, // battery-tuned: was 39% WR
     commander: {
       name: 'Chief Nitro', title: 'Boss of the Pit', portrait: 'assets/ui/cmdr-racers.jpg',
       bio: 'Goggles up, wrench behind one ear, grease grin permanent. Has never met a battle he could not treat as a race, and never lost a race he could not treat as personal. Runs the whole war on fresh batteries and pure momentum.',
@@ -1215,8 +1215,8 @@ export const FACTIONS = {
   },
   bots: {
     label: 'Tin Bots', icon: '🤖',
-    desc: 'Factory-fresh precision. Ranged +1 attack, all toys attack 10% faster — but they trundle 8% slower on foot.',
-    mods: { atkPierce: 1, atkSpeed: 0.9, speedInfantry: 0.92 },
+    desc: 'Factory-fresh precision. Ranged +1 attack, all toys attack 10% faster — but they trundle 5% slower on foot.',
+    mods: { atkPierce: 1, atkSpeed: 0.9, speedInfantry: 0.95 }, // battery-tuned: was 36% WR
     commander: {
       name: 'Captain Cogsworth', title: 'The Left-Behind', portrait: 'assets/ui/cmdr-bots.jpg',
       bio: 'Wound tight, blue eyes warmer than spec allows. Was set on the pillow the morning the Kid drove away and chose to stay and hold the room. Runs on a mainspring and a promise, and counts down — tick, tick — to every rematch.',

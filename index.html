@@ -485,6 +485,17 @@
     border-radius: 20px; padding: 6px 15px; transition: all .15s; }
   .cx-tab:hover { color: var(--ink); border-color: var(--gold-2, #ffb347); }
   .cx-tab.on { color: #2a1c0c; background: var(--gold, #e8a83c); border-color: var(--gold, #e8a83c); }
+  /* loading-screen lore cards: a bedtime line while the toys wake up */
+  #loadlore { max-width: 520px; margin: 18px auto 0; text-align: center; font-style: italic;
+    font-size: 13px; line-height: 1.55; color: #d7c9a6; opacity: 0; transition: opacity .6s ease; }
+  #loadlore.show { opacity: 1; }
+  #cx-search { margin: 0 0 8px; padding: 7px 12px; border-radius: 18px; border: 1px solid var(--line);
+    background: #1e1409b0; color: var(--ink); font-size: 12.5px; outline: none; }
+  #cx-search:focus { border-color: var(--gold-2, #ffb347); }
+  .go-awards { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px; }
+  .go-award { background: #2a1c0cd9; border: 1px solid var(--gold-2, #ffb347); border-radius: 18px;
+    padding: 5px 13px; font-size: 12.5px; color: #ffd97a; font-weight: 700;
+    animation: goArtIn .5s ease both; }
   #cx-body { flex: 1; display: flex; gap: 12px; min-height: 0; }
   #cx-list { width: 218px; flex: none; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 4px; }
   .cx-item { cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 5px 8px;
@@ -513,6 +524,12 @@
     padding: 9px; background: #1e1409b0; border: 1px solid var(--line); border-radius: 12px; }
   .cx-cmd img { width: 88px; height: 88px; object-fit: cover; border-radius: 10px;
     border: 2px solid var(--gold-2, #ffb347); flex: none; }
+  /* unit voice barks: a little speech line floating over the selection panel */
+  #bark-line { position: absolute; top: -26px; left: 12px; right: 12px; pointer-events: none;
+    font-style: italic; font-size: 12.5px; color: #ffe9b0; text-shadow: 0 1px 3px #000c;
+    opacity: 0; transform: translateY(5px); transition: opacity .25s ease, transform .25s ease;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #bark-line.show { opacity: 1; transform: none; }
   /* ============ mobile + accessibility polish ============ */
   html, body { overscroll-behavior: none; }
   button, .diff-btn, .home-btn, .cx-tab, .cx-item, .cm-mission, .fac-btn {
@@ -680,6 +697,7 @@
   <div id="hud">
     <canvas id="minimap" width="176" height="176"></canvas>
     <div id="sel-panel">
+      <div id="bark-line"></div>
       <div id="sel-portrait"></div>
       <div id="sel-body">
         <div id="sel-info"></div>
@@ -902,6 +920,7 @@
         <button id="cx-close" class="diff-btn">✕ Back</button>
       </div>
       <div id="cx-tabs"></div>
+      <input id="cx-search" type="text" placeholder="🔎 Search the storybook…" autocomplete="off">
       <div id="cx-body">
         <div id="cx-list"></div>
         <div id="cx-page"></div>
@@ -951,6 +970,7 @@
     <div class="sub">After Bedtime — the toys wake up and go to war</div>
     <div id="loadbar"><div id="loadbar-fill"></div></div>
     <div id="loadtext">Waking up the toys…</div>
+    <div id="loadlore"></div>
   </div>
 
   <script type="module" src="toybox/main.js"></script>

@@ -11,6 +11,7 @@ import {
 } from './models.js';
 import { Game } from './game.js';
 import { UI } from './ui.js';
+import { recordMatch, ACHIEVEMENTS, loadChronicle, loadEarned } from './chronicle.js';
 import { VFX } from './vfx.js';
 import { SFX } from './sfx.js';
 import { Net, TICK, INPUT_DELAY } from './net.js';
@@ -151,8 +152,37 @@ let game = null, ui = null, marker = null, vfx = null;
 const sfx = new SFX();
 let registryCache = null, failuresCache = [];
 
+// while the toys wake up: rotating storybook cards on the loading screen
+const LOAD_LORE = [
+  'The storybooks say the first war began over a patch of rug no bigger than a picture book.',
+  'A Worker Buddy has never lost a war. They have only ever been let down by their generals.',
+  'Nothing marches through milk. Generations of soldiers have tested this. All of them stickily.',
+  'The bath learned the word "armada" the day the first hull touched the water.',
+  'Colonel Snug\'s standing order has never changed: hold the line, hug the prisoners.',
+  'Walls are the room\'s oldest sentence, written in blocks: "no."',
+  'Wind-up mice deliver Snacks to whoever befriends them first. Everyone befriends them. Few deserve them.',
+  'The high shelf wins wars. The dictionary has never once been argued with.',
+  'Foreman Klik measures twice and conquers once.',
+  'Every Tin Bot spends its ticks carefully. Ask Captain Cogsworth what they\'re saving up for.',
+  'Set a rally on a Snack pile — new Worker Buddies will march straight to work.',
+  'The Hypno-Top only ever asks one question: whose side were you on, again?',
+];
+function startLoadLore() {
+  const el = $('loadlore');
+  if (!el) return () => {};
+  let i = (Math.random() * LOAD_LORE.length) | 0;
+  const showNext = () => {
+    el.classList.remove('show');
+    setTimeout(() => { el.textContent = LOAD_LORE[i++ % LOAD_LORE.length]; el.classList.add('show'); }, 350);
+  };
+  showNext();
+  const iv = setInterval(showNext, 4200);
+  return () => { clearInterval(iv); };
+}
+
 async function boot() {
   const bar = $('loadbar-fill'), text = $('loadtext');
+  const stopLore = startLoadLore();
   const { registry, failures } = await loadUnitModels((done, total, label) => {
     bar.style.width = `${(done / total) * 100}%`;
     text.textContent = `Waking up the toys… ${label} (${done}/${total})`;
@@ -179,6 +209,7 @@ async function boot() {
   });
   text.textContent = 'Painting portraits…';
   renderPortraits(registry, BUILDINGS);
+  stopLore();
   $('loading').classList.add('hide');
   setTimeout(() => $('loading').remove(), 700);
   $('menu').classList.add('show');
@@ -841,15 +872,31 @@ const playIntro = (function initIntro() {
     { id: 'toys', label: '🪖 Toys' },
     { id: 'buildings', label: '🏠 Buildings' },
     { id: 'maps', label: '🗺️ Battlefields' },
+    { id: 'techs', label: '🔬 Techs' },
+    { id: 'modes', label: '⚔️ Modes' },
+    { id: 'trophies', label: '🏆 Trophies' },
+    { id: 'legend', label: '📜 Your Legend' },
   ];
-  let LORE = null, cxCat = 'tribes', cxKey = null;
+  let LORE = null, cxCat = 'tribes', cxKey = null, cxQuery = '';
   const esc = (t) => (t || '').replace(/</g, '&lt;');
   const cxEntries = () => {
-    if (cxCat === 'tribes') return Object.keys(FACTIONS).map((k) => ({ k, name: FACTIONS[k].label, img: `assets/ui/crest-${k}.png`, icon: FACTIONS[k].icon }));
-    if (cxCat === 'toys') return Object.keys(UNITS).map((k) => ({ k, name: UNITS[k].name, img: PORTRAITS[k] || null, icon: '🪖' }));
-    if (cxCat === 'buildings') return Object.keys(BUILDINGS).map((k) => ({ k, name: BUILDINGS[k].name, img: PORTRAITS[k] || null, icon: '🏠' }));
-    return Object.keys(MAPS).map((k) => ({ k, name: MAPS[k].label, img: null, icon: MAPS[k].icon }));
+    let items;
+    if (cxCat === 'tribes') items = Object.keys(FACTIONS).map((k) => ({ k, name: FACTIONS[k].label, img: `assets/ui/crest-${k}.png`, icon: FACTIONS[k].icon }));
+    else if (cxCat === 'toys') items = Object.keys(UNITS).map((k) => ({ k, name: UNITS[k].name, img: PORTRAITS[k] || null, icon: '🪖' }));
+    else if (cxCat === 'buildings') items = Object.keys(BUILDINGS).map((k) => ({ k, name: BUILDINGS[k].name, img: PORTRAITS[k] || null, icon: '🏠' }));
+    else if (cxCat === 'maps') items = Object.keys(MAPS).map((k) => ({ k, name: MAPS[k].label, img: null, icon: MAPS[k].icon }));
+    else if (cxCat === 'techs') items = Object.keys(TECHS).map((k) => ({ k, name: TECHS[k].name, img: null, icon: '🔬' }));
+    else if (cxCat === 'modes') items = Object.keys(GAME_MODES).map((k) => ({ k, name: GAME_MODES[k].label, img: null, icon: GAME_MODES[k].icon }));
+    else if (cxCat === 'trophies') {
+      const earned = loadEarned();
+      items = ACHIEVEMENTS.map((a) => ({ k: a.id, name: (earned[a.id] ? '' : '🔒 ') + a.name, img: null, icon: earned[a.id] ? a.icon : '🔒' }));
+    } else items = [{ k: 'legend', name: 'Your Legend', img: null, icon: '📜' }];
+    if (cxQuery) items = items.filter((e) => e.name.toLowerCase().includes(cxQuery));
+    return items;
   };
+  // cross-link helpers: who trains it, who researches it, where it's made
+  const trainedAt = (uk) => Object.entries(BUILDINGS).filter(([, b]) => b.trains && b.trains.includes(uk)).map(([, b]) => b.name);
+  const researchedAt = (tk) => Object.entries(BUILDINGS).filter(([, b]) => b.techs && b.techs.includes(tk)).map(([, b]) => b.name);
   const chip = (l, v) => (v === undefined || v === null || v === '' ? '' : `<span class="cx-chip">${l} <b>${esc(String(v))}</b></span>`);
   const costOf = (def) => Object.entries(def.cost || {}).map(([r, v]) => `${v} ${r}`).join(' · ');
   function cxPage() {
@@ -869,26 +916,30 @@ const playIntro = (function initIntro() {
         + `<div class="cx-lore">${esc(LORE.factions[k] || '')}</div>`;
     } else if (cxCat === 'toys') {
       const d = UNITS[k];
+      const homes = trainedAt(k);
       page.innerHTML =
         `<div class="cx-hd">${PORTRAITS[k] ? `<img class="cx-art" src="${PORTRAITS[k]}" alt="">` : '<div class="cx-emoji-big">🪖</div>'}`
         + `<div><div class="cx-kind">${d.naval ? 'Ship of the Bath' : d.faction ? `${esc(FACTIONS[d.faction].label)} unique` : 'Toy of the Room'}</div>`
         + `<div class="cx-name">${esc(d.name)}</div></div></div>`
         + `<div class="cx-chips">${chip('❤️', d.hp)}${chip('⚔️', d.atk ? d.atk + ' ' + (d.atkType || '') : null)}`
         + `${chip('🏹', d.range > 1.6 ? d.range : null)}${chip('🏃', d.speed)}${chip('👥', d.pop)}`
-        + `${chip('🕰️', 'Age ' + (d.age || 1))}${chip('💰', costOf(d))}</div>`
+        + `${chip('🕰️', 'Age ' + (d.age || 1))}${chip('💰', costOf(d))}`
+        + `${homes.length ? chip('🏗️', homes.join(', ')) : ''}</div>`
         + `<div class="cx-desc">${esc(d.desc)}</div>`
         + `<div class="cx-lore">${esc(LORE.units[k] || '')}</div>`;
     } else if (cxCat === 'buildings') {
       const d = BUILDINGS[k];
+      const trains = (d.trains || []).map((t) => UNITS[t] && UNITS[t].name).filter(Boolean);
       page.innerHTML =
         `<div class="cx-hd">${PORTRAITS[k] ? `<img class="cx-art" src="${PORTRAITS[k]}" alt="">` : '<div class="cx-emoji-big">🏠</div>'}`
         + `<div><div class="cx-kind">${d.faction ? `${esc(FACTIONS[d.faction].label)} unique` : 'Building of the Room'}</div>`
         + `<div class="cx-name">${esc(d.name)}</div></div></div>`
         + `<div class="cx-chips">${chip('❤️', d.hp)}${chip('📐', d.size + '×' + d.size)}`
-        + `${chip('🕰️', 'Age ' + (d.age || 1))}${chip('💰', costOf(d))}</div>`
+        + `${chip('🕰️', 'Age ' + (d.age || 1))}${chip('💰', costOf(d))}`
+        + `${trains.length ? chip('🪖', trains.join(', ')) : ''}</div>`
         + `<div class="cx-desc">${esc(d.desc)}</div>`
         + `<div class="cx-lore">${esc(LORE.buildings[k] || '')}</div>`;
-    } else {
+    } else if (cxCat === 'maps') {
       const m = MAPS[k];
       page.innerHTML =
         `<div class="cx-hd"><div class="cx-emoji-big">${m.icon}</div>`
@@ -896,6 +947,55 @@ const playIntro = (function initIntro() {
         + `<div class="cx-chips">${chip('🌾', 'resources ×' + m.resourceMul)}${m.water ? chip('🌊', 'naval') : ''}</div>`
         + `<div class="cx-desc">${esc(m.desc)}</div>`
         + `<div class="cx-lore">${esc(LORE.maps[k] || '')}</div>`;
+    } else if (cxCat === 'techs') {
+      const t = TECHS[k];
+      const labs = researchedAt(k);
+      page.innerHTML =
+        `<div class="cx-hd"><div class="cx-emoji-big">🔬</div>`
+        + `<div><div class="cx-kind">${t.faction ? `${esc(FACTIONS[t.faction].label)} unique tech` : 'Technology'}</div>`
+        + `<div class="cx-name">${esc(t.name)}</div></div></div>`
+        + `<div class="cx-chips">${chip('🕰️', 'Age ' + (t.age || 1))}${chip('💰', costOf(t))}`
+        + `${chip('⏳', t.time ? t.time + 's' : null)}${labs.length ? chip('🏗️', labs.join(', ')) : ''}</div>`
+        + `<div class="cx-desc">${esc(t.desc)}</div>`;
+    } else if (cxCat === 'modes') {
+      const m = GAME_MODES[k];
+      page.innerHTML =
+        `<div class="cx-hd"><div class="cx-emoji-big">${m.icon}</div>`
+        + `<div><div class="cx-kind">Way of War</div><div class="cx-name">${esc(m.label)}</div></div></div>`
+        + `<div class="cx-desc">${esc(m.desc)}</div>`;
+    } else if (cxCat === 'trophies') {
+      const a = ACHIEVEMENTS.find((x) => x.id === k);
+      const earned = loadEarned();
+      const when = earned[k] ? new Date(earned[k]).toLocaleDateString() : null;
+      page.innerHTML =
+        `<div class="cx-hd"><div class="cx-emoji-big">${earned[k] ? a.icon : '🔒'}</div>`
+        + `<div><div class="cx-kind">${earned[k] ? 'Bedtime Story — earned ' + when : 'Bedtime Story — not yet earned'}</div>`
+        + `<div class="cx-name">${esc(a.name)}</div></div></div>`
+        + `<div class="cx-lore">${esc(a.desc)}</div>`;
+    } else {
+      const c = loadChronicle();
+      const favFac = Object.entries(c.gamesByFaction).sort((x, y) => y[1] - x[1])[0];
+      const hrs = Math.floor(c.playSec / 3600), mins = Math.floor((c.playSec % 3600) / 60);
+      const earnedCount = Object.keys(loadEarned()).length;
+      const rows = [
+        ['⚔️ Battles fought', c.games], ['🏆 Battles won', c.wins],
+        ['🕰️ Time in the room', `${hrs}h ${mins}m`],
+        ['💛 Favorite tribe', favFac ? (FACTIONS[favFac[0]] || {}).label || favFac[0] : '—'],
+        ['🗡️ Toys unmade', c.kills], ['🪦 Toys carried home', c.lost],
+        ['🌾 Resources gathered', c.gathered.toLocaleString()],
+        ['⚓ Ships launched', c.shipsBuilt], ['🐭 Mice befriended', c.mice],
+        ['⭐ Best score', c.bestScore.toLocaleString()],
+        ['📚 Bedtime Stories earned', earnedCount + ' / ' + ACHIEVEMENTS.length],
+      ];
+      page.innerHTML =
+        `<div class="cx-hd"><div class="cx-emoji-big">📜</div>`
+        + `<div><div class="cx-kind">The Chronicle keeps the score across every night</div>`
+        + `<div class="cx-name">Your Legend</div></div></div>`
+        + `<div class="cx-chips" style="flex-direction:column;align-items:stretch">`
+        + rows.map(([l, v]) => `<span class="cx-chip">${l}: <b>${v}</b></span>`).join('') + `</div>`
+        + `<div class="cx-lore">${c.games === 0
+          ? 'No battles yet. The room is waiting, Commander.'
+          : 'Somewhere in the toybox, every one of these numbers is a story a toy still tells.'}</div>`;
     }
   }
   function cxList() {
@@ -924,6 +1024,10 @@ const playIntro = (function initIntro() {
     $('codex').classList.add('show');
   });
   $('cx-close').addEventListener('click', () => $('codex').classList.remove('show'));
+  $('cx-search').addEventListener('input', (e) => {
+    cxQuery = e.target.value.trim().toLowerCase();
+    cxList();
+  });
 }
 
 // first night in the room: until any campaign mission is cleared, the story is
@@ -1153,6 +1257,13 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
         const art = $('go-art');
         if (art) { art.style.display = 'none'; art.removeAttribute('src'); }
       }
+      // the Chronicle remembers, and new Bedtime Stories get their moment
+      const newly = recordMatch(game, win);
+      if (newly.length) {
+        $('go-stats').insertAdjacentHTML('beforeend',
+          `<div class="go-awards">${newly.map((a) =>
+            `<span class="go-award" title="${a.desc}">🏆 ${a.icon} ${a.name}</span>`).join('')}</div>`);
+      }
     },
     age: () => ui.refreshSelection(),
     shake: (amt) => shakeCam(amt),
@@ -1189,6 +1300,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
       if (result === 'move' || result === 'rally') marker.ping(x, z, 0x66ff88);
       else if (result === 'attack') marker.ping(x, z, 0xff5544);
       else if (result === 'gather') marker.ping(x, z, 0xffd166);
+      if (result) ui.orderBark(result);
     },
   });
   ui.refreshSelection();
@@ -1506,6 +1618,7 @@ renderer.domElement.addEventListener('contextmenu', (e) => {
     const first = game.selected.find((s) => s.kind === 'unit' && s.owner === game.myId);
     if (first) sfx.voice(first.type);
     if (result === 'attack') sfx.play('charge'); // a little battle cry
+    ui.orderBark(result);
   }
   if (result === 'move' || result === 'rally') marker.ping(p.x, p.z, result === 'rally' ? 0x66aaff : 0x66ff88);
   else if (result === 'attack') marker.ping(p.x, p.z, 0xff5544);
