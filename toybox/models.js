@@ -1656,8 +1656,8 @@ export const mapRegistry = {};
 const MAP_MODEL_KEYS = ['snacks', 'blocks', 'buttons', 'marbles', 'book', 'pillow',
   // water-map themed resource piles (soap = blocks, ducks = buttons, pearls = marbles)
   'blocks-water', 'buttons-water', 'marbles-water',
-  // hero decor prop for water maps
-  'duck'];
+  // hero decor props for water maps
+  'duck', 'faucet'];
 
 export async function loadMapModels(onProgress) {
   const loader = makeGLTFLoader();
@@ -1990,22 +1990,28 @@ export function createWaterDecor() {
   }
   out.push({ key: 'duck', group: duck });
 
-  // --- chrome bathtub faucet (procedural) ---
+  // --- chrome bathtub faucet (generated GLB when present, else procedural) ---
   const faucet = new THREE.Group();
-  const chrome = mat(0xc8ccd2, 0.16, 0.9);
-  const base = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.4, 0.8), chrome);
-  base.position.y = 0.2; base.castShadow = true; faucet.add(base);
-  const riser = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 1.2, 16), chrome);
-  riser.position.set(0, 1.0, -0.1); riser.castShadow = true; faucet.add(riser);
-  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.95, 16), chrome);
-  arm.rotation.x = Math.PI / 2; arm.position.set(0, 1.55, 0.28); arm.castShadow = true; faucet.add(arm);
-  const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.4, 14), chrome);
-  spout.position.set(0, 1.35, 0.72); faucet.add(spout);
-  for (const hx of [-0.6, 0.6]) {
-    const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.2, 18), chrome);
-    knob.position.set(hx, 0.5, -0.1); knob.castShadow = true; faucet.add(knob);
-    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.26, 12), mat(hx < 0 ? 0xe5484d : 0x4d9bff, 0.4));
-    cap.position.set(hx, 0.66, -0.1); faucet.add(cap);
+  if (mapRegistry['faucet']) {
+    const f = mapRegistry['faucet'].clone(true);
+    f.scale.setScalar(2.6); // scaled up to a room-landmark fixture
+    faucet.add(f);
+  } else {
+    const chrome = mat(0xc8ccd2, 0.16, 0.9);
+    const base = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.4, 0.8), chrome);
+    base.position.y = 0.2; base.castShadow = true; faucet.add(base);
+    const riser = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 1.2, 16), chrome);
+    riser.position.set(0, 1.0, -0.1); riser.castShadow = true; faucet.add(riser);
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.95, 16), chrome);
+    arm.rotation.x = Math.PI / 2; arm.position.set(0, 1.55, 0.28); arm.castShadow = true; faucet.add(arm);
+    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.4, 14), chrome);
+    spout.position.set(0, 1.35, 0.72); faucet.add(spout);
+    for (const hx of [-0.6, 0.6]) {
+      const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.2, 18), chrome);
+      knob.position.set(hx, 0.5, -0.1); knob.castShadow = true; faucet.add(knob);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.26, 12), mat(hx < 0 ? 0xe5484d : 0x4d9bff, 0.4));
+      cap.position.set(hx, 0.66, -0.1); faucet.add(cap);
+    }
   }
   out.push({ key: 'faucet', group: faucet });
 
