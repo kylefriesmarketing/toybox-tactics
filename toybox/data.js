@@ -879,7 +879,7 @@ export const CAMPAIGN = [
       + 'every toy dreams of. Colonel Snug swears his people only want "a softer patch of '
       + 'rug." General Greenboots isn\'t buying it. Rally your Army Men, Commander, and '
       + 'take back the corner before the Kid wakes to find the room rearranged.',
-    objective: 'Tuck the Horde back in: destroy every enemy production building.',
+    objective: 'Tuck the Horde back in: raze every enemy building — leave them nothing to rebuild from.',
     victory: 'The corner is retaken. Colonel Snug withdraws into the toy box with great '
       + 'dignity, which is difficult while being dragged by one ear. But listen — out the '
       + 'window, engines. The yard has heard about the fighting, and the yard has wheels.',
@@ -897,7 +897,7 @@ export const CAMPAIGN = [
       + 'possible, because nobody ever thinks about how fast a brick can click. You drive '
       + 'for the RC Racers now, Commander. You have the one thing bricks cannot build: '
       + 'speed. Overrun the sandbox before the last wall clicks shut.',
-    objective: 'Outrun the masons: destroy every enemy production building.',
+    objective: 'Outrun the masons: raze every enemy building — leave them nothing to rebuild from.',
     victory: 'The fortress is a racetrack now, and Foreman Klik is exactly one wall short '
       + 'of a comeback. Word spreads down the garden hose before the engines cool: tonight '
       + 'is bath night. And in the tub, Commander, wheels don\'t float.',
@@ -913,7 +913,7 @@ export const CAMPAIGN = [
       + 'first, paddling out on rubber ducks with little flags stuck in their bills. '
       + 'General Greenboots gets seasick standing on a damp sponge, but orders are orders: '
       + 'raise a Dock, launch your boats, and take the bath back before the water goes cold.',
-    objective: 'Rule the waves: build a navy and destroy every enemy production building.',
+    objective: 'Rule the waves: build a navy and raze every enemy building — leave them nothing to rebuild from.',
     victory: 'The duck armada is scrap and soap. As the last bubble pops, a rumor drifts '
       + 'in on the steam: the Plushies have raised a golden Throne on the hill in the '
       + 'yard. At dusk, everything soft gets brave.',
@@ -969,7 +969,7 @@ export const CAMPAIGN = [
       + 'annexed the kitchen table and were harvesting crumbs with terrible efficiency. '
       + 'General Greenboots put down his tiny binoculars and sighed the sigh of a soldier '
       + 'whose war just came back from the dead. Go introduce yourself, Commander.',
-    objective: 'Contest the breakfast table: destroy every enemy production building.',
+    objective: 'Contest the breakfast table: raze every enemy building — leave them nothing to rebuild from.',
     victory: 'The table is cleared — and the strangest thing, Commander: the Tin Bots '
       + 'retreated in perfect formation, saluting as they went. Whoever wound them up '
       + 'taught them manners. Greenboots salutes back before he can stop himself. '
@@ -1004,7 +1004,7 @@ export const CAMPAIGN = [
       + 'want it for their marching columns; the RC Racers want it because it is, and '
       + 'this is the technical term, extremely fast. The bots have never lost a straight '
       + 'line in their lives, Commander. So don\'t give them one. Give them corners.',
-    objective: 'Win the canyon: destroy every enemy production building.',
+    objective: 'Win the canyon: raze every enemy building — leave them nothing to rebuild from.',
     victory: 'Checkered flag! The bots stand at the finish line studying their own tire '
       + 'tracks like scripture — they\'ve never been beaten by anything before, and they '
       + 'seem almost grateful. That night, scouts hear ticking under the bed. Not '
@@ -1345,6 +1345,7 @@ export const NARRATOR = {
   firstfleet: 'A hull touched the water, and the bath — which had only ever known splashing — learned the word "armada."',
   armylost: 'And then the floor went quiet. The terrible kind of quiet a room makes after it swallows an army whole.',
   wonderrace: 'Two wonders rose at once, brick by desperate brick — and every toy understood: the war would be decided by patience now.',
+  foothold: 'Their workshops are ash — but toys rebuild from a single standing wall. Raze every last building, or the story starts itself over.',
 };
 
 // ---------------- opening cutscene ----------------

@@ -2983,6 +2983,13 @@ export class Game {
               this.cmdMove([u], b.rally.x, b.rally.z, false, u.def.aggro > 0);
             }
           }
+          // teach the rally once: unless the rally points AT a resource, new
+          // workers walk to bare ground and idle there
+          if (u.type === 'worker' && b.owner === this.myId && !this._toldRally
+              && !(b.rally && b.rally.entityId)) {
+            this._toldRally = true;
+            this.alert('Tip: select the Toy Chest and right-click a Snack pile to set a rally — new Worker Buddies will head straight to work.', 'info', null, 30);
+          }
         }
       }
     }
@@ -3765,6 +3772,17 @@ export class Game {
           .filter((e) => e.kind === 'building' && !e.dead && e.type === 'wonder')
           .map((e) => this.players[e.owner].team));
         if (wTeams.size >= 2) this.narrate('wonderrace');
+        // a rival with no production is still in while a worker + any building
+        // stands — tell the player the job isn't finished (the objective says
+        // "raze every building"; this is the moment it matters)
+        for (const p of this.players) {
+          if (p.team === this.myTeam || !this.playerAlive(p)) continue;
+          const theirs = this.entities.filter((e) => e.owner === p.id && !e.dead && e.kind === 'building');
+          if (theirs.length && !theirs.some((e) => PRODUCTION_BUILDINGS.includes(e.type))) {
+            this.narrate('foothold');
+            break;
+          }
+        }
       }
     }
 

@@ -85,7 +85,7 @@ export class UI {
     $('go-sub').textContent = (epi && (win ? epi.win : epi.lose))
       || (win
         ? `The ${TEAM_NAMES[1]} have no toys left to fight with. The bedroom is yours.`
-        : 'Your last production building has fallen. Back in the toy box…');
+        : 'The last of your buildings has fallen. Back in the toy box…');
     const t = Math.floor(this.game.time);
     const g = this.game, me = g.myId;
     // columns: you first, then ally, then the rivals

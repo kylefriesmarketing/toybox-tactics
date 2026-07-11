@@ -926,6 +926,20 @@ const playIntro = (function initIntro() {
   $('cx-close').addEventListener('click', () => $('codex').classList.remove('show'));
 }
 
+// first night in the room: until any campaign mission is cleared, the story is
+// the front door — Quick Battle takes over as primary once the player has played
+{
+  let prog = {};
+  try { prog = JSON.parse(localStorage.getItem('tt-campaign') || '{}'); } catch (e) { /* fresh */ }
+  if (!Object.keys(prog).length) {
+    $('home-quick').classList.remove('primary');
+    const cb = $('campaign-btn');
+    cb.classList.add('primary');
+    const small = cb.querySelector('small');
+    if (small) small.textContent = '✦ Start here — the Bedroom Wars, a three-act storybook war';
+  }
+}
+
 // deep-links from the campaign game-over flow (full reload = clean teardown)
 {
   const params = new URLSearchParams(location.search);
