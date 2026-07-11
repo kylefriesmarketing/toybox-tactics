@@ -159,12 +159,12 @@ async function boot() {
   registryCache = registry;
   failuresCache = failures;
   // generated building models are optional — missing files fall back silently
-  const facHouseKeys = Object.keys(FACTIONS).map((f) => `house-${f}`); // per-tribe house GLBs
+  const facBldKeys = Object.keys(FACTIONS).flatMap((f) => [`house-${f}`, `chest-${f}`]); // per-tribe house + toy-chest GLBs
   setBuildingFootprints(Object.fromEntries([
     ...Object.entries(BUILDINGS).map(([k, d]) => [k, d.size]),
-    ...facHouseKeys.map((k) => [k, BUILDINGS.house.size]),
+    ...facBldKeys.map((k) => [k, BUILDINGS[k.split('-')[0]].size]),
   ]));
-  await loadBuildingModels([...Object.keys(BUILDINGS), 'pentower', ...facHouseKeys], (done, total) => {
+  await loadBuildingModels([...Object.keys(BUILDINGS), 'pentower', ...facBldKeys], (done, total) => {
     text.textContent = `Arranging the furniture… (${done}/${total})`;
   });
   await loadMapModels((done, total) => {
@@ -997,7 +997,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   const fMine = FACTIONS[game.factionKeys[game.myId]] || FACTIONS.classic;
   const fFoe = FACTIONS[game.factionKeys[1 - game.myId]] || FACTIONS.classic;
   // re-skin the build card's house/wall/gate icons to the local player's tribe
-  try { refreshFactionBuildingIcons(game.factionKeys[game.myId], ['house', 'wall', 'gate'], BUILDINGS); } catch { /* keep default icons */ }
+  try { refreshFactionBuildingIcons(game.factionKeys[game.myId], ['house', 'chest', 'wall', 'gate'], BUILDINGS); } catch { /* keep default icons */ }
   ui.alert(`${fMine.icon} Your ${fMine.label} take the field against the ${fFoe.icon} ${fFoe.label}!`, 'age');
   ui.alert('Night falls. Queue Worker Buddies and find the Snacks. (H = Toy Chest, WASD = camera, ESC = menu)', 'info');
   clock.start();
