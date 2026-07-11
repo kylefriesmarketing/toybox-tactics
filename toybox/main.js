@@ -3,7 +3,7 @@
 // ============================================================
 
 import * as THREE from 'three';
-import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, DIFFICULTIES, CAMPAIGN, generateRandomMap } from './data.js';
+import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, DIFFICULTIES, CAMPAIGN, INTRO, generateRandomMap } from './data.js';
 import {
   loadUnitModels, loadBuildingModels, loadMapModels, loadFurnitureModels, setBuildingFootprints,
   createGhostMesh, createMoveMarker, createLamp, renderPortraits, applyUnitTier, refreshFactionBuildingIcons,
@@ -443,8 +443,17 @@ function renderCivPanel(facKey) {
   const short = (s) => { const t = (s || '').split(/[—:]/).pop().trim(); return t.length > 64 ? t.slice(0, 61) + '…' : t; };
   const chip = (lbl, ttl, sub) => `<div class="civ-chip"><span class="lbl">${lbl}</span><span class="ttl">${esc(ttl)}</span>${sub ? ` <span class="sub">— ${esc(sub)}</span>` : ''}</div>`;
   const extra = uniqueUnits.length > 1 ? ` (+${uniqueUnits.length - 1} more)` : '';
+  const cmd = f.commander;
+  const cmdBlock = (cmd && facKey !== 'random')
+    ? `<div class="civ-cmd">`
+      + `<img class="civ-cmd-portrait" src="${cmd.portrait}" alt="" onerror="this.style.display='none'">`
+      + `<div class="civ-cmd-txt"><div class="civ-cmd-name">${esc(cmd.name)}</div>`
+      + `<div class="civ-cmd-title">${esc(cmd.title)}</div>`
+      + `<div class="civ-cmd-bio">${esc(cmd.bio)}</div></div></div>`
+    : '';
   panel.innerHTML =
     `<div class="civ-head">${FACTIONS[facKey] && facKey !== 'random' ? `<img class="civ-crest" src="assets/ui/crest-${facKey}.png" alt="" onerror="this.remove()">` : ''}<span class="civ-name">${esc(f.label)}</span></div>` +
+    cmdBlock +
     `<div class="civ-bonus">${esc(f.desc)}</div>` +
     `<div class="civ-uniques">` +
     (signature ? chip('⭐ Unique Unit' + extra, signature.name, short(signature.desc)) : '') +
@@ -724,6 +733,14 @@ function campaignGameOver(win) {
   const m = campaignMission;
   if (win) markCampaignDone(m.id);
   $('go-story').textContent = win ? m.victory : m.defeat;
+  const art = $('go-art');
+  if (art) {
+    if (win && m.endingArt) {
+      art.onerror = () => { art.style.display = 'none'; };
+      art.onload = () => { art.style.display = ''; };
+      art.src = m.endingArt;
+    } else { art.style.display = 'none'; art.removeAttribute('src'); }
+  }
   const idx = CAMPAIGN.findIndex((x) => x.id === m.id);
   const next = win && idx >= 0 && idx + 1 < CAMPAIGN.length ? CAMPAIGN[idx + 1] : null;
   $('go-restart').style.display = 'none'; // replaced by campaign-flow buttons
@@ -742,6 +759,58 @@ function campaignGameOver(win) {
 }
 $('campaign-btn').addEventListener('click', openCampaign);
 $('cm-close').addEventListener('click', () => $('campaign').classList.remove('show'));
+
+// ---------------- opening cutscene (Fable intro) ----------------
+const INTRO_KEY = 'tt-intro-seen';
+const playIntro = (function initIntro() {
+  const cine = $('intro-cine');
+  if (!cine || !Array.isArray(INTRO) || !INTRO.length) return () => {};
+  const stage = $('ic-stage'), txt = $('ic-text'), dots = $('ic-dots'), skip = $('ic-skip');
+  const BEAT_MS = 8200;
+  let layers = [], active = 1, idx = 0, timer = 0, capTimer = 0, onEnd = null, running = false;
+  const ensureLayers = () => {
+    if (layers.length) return;
+    for (let i = 0; i < 2; i++) { const d = document.createElement('div'); d.className = 'ic-layer'; stage.appendChild(d); layers.push(d); }
+  };
+  const buildDots = () => { dots.innerHTML = ''; INTRO.forEach(() => dots.appendChild(document.createElement('i'))); };
+  function showBeat(n) {
+    idx = n; const beat = INTRO[n];
+    const next = layers[active ^ 1], cur = layers[active];
+    next.style.backgroundImage = `url('${beat.img}')`;
+    next.classList.remove('kb'); void next.offsetWidth; next.classList.add('kb', 'on');
+    cur.classList.remove('on');
+    active ^= 1;
+    txt.classList.remove('in'); txt.textContent = beat.text;
+    clearTimeout(capTimer); capTimer = setTimeout(() => txt.classList.add('in'), 280);
+    Array.from(dots.children).forEach((el, i) => el.classList.toggle('on', i === n));
+    clearTimeout(timer); timer = setTimeout(advance, BEAT_MS);
+  }
+  function advance() { if (!running) return; if (idx + 1 < INTRO.length) showBeat(idx + 1); else finish(); }
+  function finish() {
+    if (!running) return; running = false;
+    clearTimeout(timer); clearTimeout(capTimer);
+    try { localStorage.setItem(INTRO_KEY, '1'); } catch (e) {}
+    cine.classList.add('fading');
+    setTimeout(() => {
+      cine.classList.remove('show', 'fading'); cine.setAttribute('aria-hidden', 'true');
+      layers.forEach((l) => l.classList.remove('on', 'kb'));
+      const cb = onEnd; onEnd = null; if (cb) cb();
+    }, 650);
+  }
+  function play(cb) {
+    onEnd = cb || null; running = true; idx = 0; active = 1;
+    ensureLayers(); buildDots();
+    layers.forEach((l) => { l.classList.remove('on', 'kb'); l.style.backgroundImage = ''; });
+    cine.classList.remove('fading'); cine.classList.add('show'); cine.setAttribute('aria-hidden', 'false');
+    showBeat(0);
+  }
+  cine.addEventListener('click', (e) => { if (e.target === skip) return; if (running) advance(); });
+  skip.addEventListener('click', (e) => { e.stopPropagation(); finish(); });
+  const replay = $('intro-replay');
+  if (replay) replay.addEventListener('click', () => play(null));
+  return play;
+})();
+
 // deep-links from the campaign game-over flow (full reload = clean teardown)
 {
   const params = new URLSearchParams(location.search);
@@ -752,6 +821,10 @@ $('cm-close').addEventListener('click', () => $('campaign').classList.remove('sh
     if (m) setTimeout(() => showBriefing(m), 60);
   } else if (params.get('campaign') === '1') {
     setTimeout(() => openCampaign(), 60);
+  } else {
+    // fresh landing on the menu: play the opening story once, ever
+    let seen = false; try { seen = !!localStorage.getItem(INTRO_KEY); } catch (e) {}
+    if (!seen) setTimeout(() => playIntro(null), 400);
   }
 }
 

@@ -880,6 +880,7 @@ export const CAMPAIGN = [
     defeat: 'Your King came apart at the seam. Stitch him up and go again — old bears '
       + 'keep their promises, and he promised the Kid he\'d be there in the morning.',
     enemyBoost: 1.5, // the finale enemy starts richer for a proper boss fight
+    endingArt: 'assets/campaign/end-act1.jpg', // Act I finale illustrated victory plate
   },
 
   // ---------------- ACT II: The Sleepover ----------------
@@ -981,6 +982,7 @@ export const CAMPAIGN = [
     defeat: 'Klik keeps his crown and the dictionary now has a moat. Wind your key '
       + 'tight, Commander — Sunday isn\'t over, and neither are you.',
     enemyBoost: 1.4, // the Shelf King starts entrenched
+    endingArt: 'assets/campaign/end-act2.jpg', // Act II finale illustrated victory plate
   },
 ];
 
@@ -1004,26 +1006,46 @@ export const FACTIONS = {
     label: 'Classic Toys', icon: '🎁',
     desc: 'The first toys, and the steadiest. No bonuses, no weaknesses — just discipline.',
     mods: {},
+    commander: {
+      name: 'General Greenboots', title: 'The First Soldier', portrait: 'assets/ui/cmdr-classic.jpg',
+      bio: 'Molded in the very first batch, boots already laced. He has stood at attention on windowsills through a hundred bedtimes and never once broken formation. Fights by the book because he wrote the book — in crayon, on the back of the box.',
+    },
   },
   bricks: {
     label: 'Snap-Bricks', icon: '🧱',
     desc: 'Builders to the last stud. Buildings +20% HP, workers build 25% faster — but infantry march 6% slower.',
     mods: { buildingHp: 1.2, buildRate: 1.25, speedInfantry: 0.94 },
+    commander: {
+      name: 'Foreman Klik', title: 'Master of the Stud', portrait: 'assets/ui/cmdr-bricks.jpg',
+      bio: 'Believes there is no problem a wall cannot solve, and no wall that cannot be one brick taller. Sorts his troops by color before every battle. To Klik, victory and good construction are the exact same thing — click, done.',
+    },
   },
   plush: {
     label: 'Plushie Horde', icon: '🧸',
     desc: 'Soft outside, unbeatable inside. All toys +12% HP, medics heal 50% more — but everyone waddles 6% slower.',
     mods: { unitHp: 1.12, healRate: 1.5, speedInfantry: 0.94, speedWheels: 0.94 },
+    commander: {
+      name: 'Colonel Snug', title: 'The Well-Loved', portrait: 'assets/ui/cmdr-plush.jpg',
+      bio: 'One button eye, one stitched-X, both kind. Lost the eye saving a smaller toy from under the bed and calls it the best trade he ever made. Counts every head twice after a battle. His only standing order: hugs are mandatory.',
+    },
   },
   racers: {
     label: 'RC Racers', icon: '🏎️',
     desc: 'Born at the finish line. Wheeled toys +15% speed and +1 attack — but workers gather 8% slower.',
     mods: { speedWheels: 1.15, atkVehicle: 1, gather: 0.92 },
+    commander: {
+      name: 'Chief Nitro', title: 'Boss of the Pit', portrait: 'assets/ui/cmdr-racers.jpg',
+      bio: 'Goggles up, wrench behind one ear, grease grin permanent. Has never met a battle he could not treat as a race, and never lost a race he could not treat as personal. Runs the whole war on fresh batteries and pure momentum.',
+    },
   },
   bots: {
     label: 'Tin Bots', icon: '🤖',
     desc: 'Factory-fresh precision. Ranged +1 attack, all toys attack 10% faster — but they trundle 8% slower on foot.',
     mods: { atkPierce: 1, atkSpeed: 0.9, speedInfantry: 0.92 },
+    commander: {
+      name: 'Captain Cogsworth', title: 'The Left-Behind', portrait: 'assets/ui/cmdr-bots.jpg',
+      bio: 'Wound tight, blue eyes warmer than spec allows. Was set on the pillow the morning the Kid drove away and chose to stay and hold the room. Runs on a mainspring and a promise, and counts down — tick, tick — to every rematch.',
+    },
   },
 };
 
@@ -1143,6 +1165,31 @@ export const NARRATOR = {
   mega: 'The floor itself seemed to hold its breath — somewhere, something enormous had just been wound up.',
   clock10: 'Ten minutes gone. Somewhere a music box began to count, and the night leaned in to watch.',
 };
+
+// ---------------- opening cutscene ----------------
+// four hand-painted plates + narration; plays once on first launch (skippable)
+export const INTRO = [
+  {
+    img: 'assets/intro/1.jpg',
+    text: 'Every night, when the last light clicks off and the house lets out its breath, '
+      + 'the toys of one small room wait for the door to close all the way.',
+  },
+  {
+    img: 'assets/intro/2.jpg',
+    text: 'Then, one by one, their eyes open. A soldier sits up. A bear stretches. '
+      + 'A little racer flicks on its lights. The room, quietly, wakes.',
+  },
+  {
+    img: 'assets/intro/3.jpg',
+    text: 'But a waking room is a divided one. Bricks claim the corners, racers claim the '
+      + 'open floor, robots march in from an open backpack — and every tribe wants the rug.',
+  },
+  {
+    img: 'assets/intro/4.jpg',
+    text: 'So the Kings gather at the attic war table, and the Bedroom Wars begin. '
+      + 'No grown-up will ever know. Take your tribe, Commander — and fight for the room.',
+  },
+];
 
 // per-match AI personality: same difficulty, different plan (adds replay variety)
 export const PERSONAS = {
