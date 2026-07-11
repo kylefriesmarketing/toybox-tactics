@@ -663,9 +663,14 @@ function openCampaign() {
 function renderCampaignList() {
   const doneCount = CAMPAIGN.filter((m) => campaignDone(m.id)).length;
   $('cm-progress').textContent = doneCount >= CAMPAIGN.length
-    ? '🏆 Campaign complete — the bedroom is united! Replay any mission below.'
+    ? '🏆 The trilogy is complete — every toy is home! Replay any mission below.'
     : `${doneCount} / ${CAMPAIGN.length} missions cleared`;
   const dm = { easy: 'Sleepy', normal: 'Playful', hard: 'Cranky' };
+  const ACT_HEADERS = {
+    0: '✦ Act I — The Bedroom Wars',
+    5: '✦ Act II — The Sleepover',
+    10: '✦ Act III — The Yard Sale',
+  };
   $('cm-list').innerHTML = CAMPAIGN.map((m, i) => {
     const unlocked = missionUnlocked(i), done = campaignDone(m.id);
     const cls = 'cm-mission' + (unlocked ? '' : ' locked') + (done ? ' done' : '');
@@ -674,7 +679,8 @@ function renderCampaignList() {
     const meta = unlocked
       ? `${mapName} · ${GAME_MODES[m.gameMode].label} · ${FACTIONS[m.faction].label} vs ${FACTIONS[m.enemy].label} · ${dm[m.difficulty]}`
       : 'Clear the previous mission to unlock.';
-    return `<button class="${cls}" data-i="${i}" ${unlocked ? '' : 'disabled'}>
+    const header = ACT_HEADERS[i] ? `<div class="cm-act">${ACT_HEADERS[i]}</div>` : '';
+    return `${header}<button class="${cls}" data-i="${i}" ${unlocked ? '' : 'disabled'}>
       <span class="cm-ic">${m.icon}</span>
       <span class="cm-body"><span class="cm-nm">${i + 1}. ${m.name}</span><span class="cm-meta">${meta}</span></span>
       <span class="cm-badge">${badge}</span></button>`;

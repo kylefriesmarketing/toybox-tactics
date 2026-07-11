@@ -1057,6 +1057,108 @@ export const CAMPAIGN = [
     enemyBoost: 1.4, // the Shelf King starts entrenched
     endingArt: 'assets/campaign/end-act2.jpg', // Act II finale illustrated victory plate
   },
+
+  // ---------------- ACT III: The Yard Sale ----------------
+  // Spring came, and with it the worst words a toy can hear: "we should
+  // really go through some of this stuff."
+  {
+    id: 'tagged', name: 'The Price Tags', icon: '🏷️',
+    map: 'playground', faction: 'classic', enemy: 'racers',
+    gameMode: 'standard', difficulty: 'normal', startRes: 'standard',
+    brief: 'Spring cleaning came on a Saturday, the way disasters do. By nine the '
+      + 'toybox was on the lawn, by ten there were folding tables, and by half past '
+      + 'there were stickers — little round suns of doom, priced to move. Commander, '
+      + 'the lawn belongs to the Yard Toys: sun-bleached, sprinkler-hardened, and '
+      + 'certain that everything the tables touch is theirs by right. Tear off your '
+      + 'tags. Take back the grass. Nobody is FOR SALE today.',
+    objective: 'Destroy the Yard Toys\' base before the sale opens.',
+    victory: 'The stickers come off easier than anyone dared hope — a little spit, a '
+      + 'lot of stubbornness. The Yard Toys retreat to their sprinkler and pretend the '
+      + 'whole thing was a misunderstanding. But the tables are still standing, '
+      + 'Commander, and the first cars are already pulling in...',
+    defeat: 'Tagged, tabled, and very nearly sold. Peel yourself off the felt, '
+      + 'Commander — the sale doesn\'t open till noon, and stubbornness is free.',
+  },
+  {
+    id: 'boxed', name: 'The Cardboard Dark', icon: '📦',
+    map: 'underbed', faction: 'plush', enemy: 'bots',
+    gameMode: 'koth', difficulty: 'normal', startRes: 'standard',
+    brief: 'Not everyone made it off the tables. Half the tribe went into a cardboard '
+      + 'box marked for the sale — and the box was TAPED. Inside, in the brown dark '
+      + 'between wads of newspaper, live the Forgotten: attic toys boxed so long ago '
+      + 'they wind themselves now, and they no longer remember what daylight is for. '
+      + 'There is one blade of light where the tape has lifted, Commander. Hold it. '
+      + 'Everything that stands in the light gets remembered.',
+    objective: 'Hold the light — keep the Throne for 2 minutes.',
+    victory: 'The flaps give. Light pours in like a bath being drawn, and the '
+      + 'Forgotten shade their little eyes and remember — birthdays, rug burns, the '
+      + 'smell of crayons. They hold the flap open themselves as your tribe climbs '
+      + 'out. "Send someone back for us," they whisper. You will, Commander. You will.',
+    defeat: 'The dark closed over the light like a lid. Wind tight, breathe slow, '
+      + 'find the blade of light again — no toy stays boxed while you\'re still '
+      + 'winding, Commander.',
+  },
+  {
+    id: 'bargain', name: 'The Bargain Bin', icon: '🪙',
+    map: 'kitchen', faction: 'bricks', enemy: 'classic',
+    gameMode: 'sudden', difficulty: 'hard', startRes: 'standard',
+    brief: 'Noon, and the sale is roaring. The worst place in it is the bargain bin: '
+      + 'a plastic tub where toys from three different houses lie jumbled leg-over-ear '
+      + 'under a sign that means EVERYTHING MUST GO. The strangers in the bin want out '
+      + 'the only way they can see — over your tribe. One bin, one exit, and nothing '
+      + 'the shoppers knock down gets rebuilt. Guard your Toy Chest like it\'s the '
+      + 'last seat in the lifeboat, Commander. Because it is.',
+    objective: 'Sudden Death: smash their Toy Chest. Yours cannot be rebuilt.',
+    victory: 'When the dust and pocket change settle, your tribe holds the bin. The '
+      + 'strangers\' chest lies in pieces, and the strangers surrender with surprising '
+      + 'grace — enemies one minute, bunkmates the next. "No hard feelings," their '
+      + 'sergeant shrugs. "Bins make animals of everyone."',
+    defeat: 'Fifty cents. Your whole chest went for fifty cents, Commander. Climb '
+      + 'back into the bin and make the next hour cost them everything they have.',
+  },
+  {
+    id: 'stranger', name: 'The Stranger\'s Wagon', icon: '🛒',
+    map: 'bookshelf', faction: 'racers', enemy: 'bots',
+    gameMode: 'regicide', difficulty: 'hard', startRes: 'standard',
+    brief: 'A buyer came with a red wagon and exact change, and now six of ours are '
+      + 'rolling away toward a stranger\'s display shelf. The wagon toys are not cruel '
+      + '— just chrome, mint-in-box, and led by a Prize Robot who has never once been '
+      + 'played with. He calls your friends "acquisitions." Get on that wagon, '
+      + 'Commander. Nobody who has been LOVED retires to a display shelf.',
+    objective: 'Protect your King. Topple the Prize Robot.',
+    victory: 'The Prize Robot topples with a sound like a cash register apologizing. '
+      + 'Freed from his gleam, the wagon toys turn their own scuffs to the light with '
+      + 'something like wonder. "We\'re... allowed to get dirty?" they ask. Load up, '
+      + 'Commander — everyone rides home in the wagon we just won.',
+    defeat: 'The wagon rolls on with our friends aboard. After it, Commander — a '
+      + 'display shelf is just a bookshelf that gave up, and NOTHING of ours retires '
+      + 'today.',
+    enemyBoost: 1.2, // mint-in-box means well-funded
+  },
+  {
+    id: 'wayhome', name: 'The Long Way Home', icon: '🏡',
+    map: 'canyon', faction: 'classic', enemy: 'racers',
+    gameMode: 'standard', difficulty: 'hard', startRes: 'marathon',
+    brief: 'Dusk. The sale is over, the tables are folded, and every toy we love is '
+      + 'out of the boxes and bins — but the yard between here and the bedroom window '
+      + 'is a wilderness. The sidewalk crack yawns like a canyon. The garden hose '
+      + 'winds like a river. The porch light burns impossibly far away, like a '
+      + 'lighthouse. And the Yard Toys have come out for one last word about '
+      + 'trespassing. This is the whole tribe, Commander — every toy we saved, '
+      + 'marching together. Get them home. Get every last one of them home.',
+    objective: 'Break the Yard Toys\' last blockade and clear the road home.',
+    victory: 'The window. The sill. The old bear\'s paw reaching down, and toy after '
+      + 'toy hauled up into the lamplight until the toybox is full — fuller, somehow, '
+      + 'than before the sale. Three wars, Commander: one for the room, one for '
+      + 'belonging, and one, at last, for home. The lid closes gently. The story '
+      + 'doesn\'t end — it just goes to sleep. And every kid in the world knows what '
+      + 'toys do while you\'re sleeping.',
+    defeat: 'The porch light went out before we reached it. Make camp in the '
+      + 'flowerpot, Commander — at first light we march again, and the window isn\'t '
+      + 'going anywhere.',
+    enemyBoost: 1.5, // the last blockade is the biggest
+    endingArt: 'assets/campaign/end-act3.jpg', // trilogy-closing homecoming plate
+  },
 ];
 
 // ---------------- AI difficulty profiles ----------------
