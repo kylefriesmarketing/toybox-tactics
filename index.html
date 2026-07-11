@@ -2,8 +2,25 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Age of Toys — After Bedtime</title>
+<meta name="description" content="A storybook real-time strategy game. When the lights go out, five toy tribes wage war across the bedroom — build, gather, sail the bathtub, and fight through a three-act illustrated campaign. Free in your browser.">
+<meta name="theme-color" content="#140f0a">
+<link rel="icon" type="image/png" href="assets/ui/favicon.png">
+<!-- link unfurls: Discord / iMessage / socials -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Age of Toys">
+<meta property="og:title" content="Age of Toys — After Bedtime, the Toys Go to War">
+<meta property="og:description" content="A storybook RTS in your browser: five toy tribes, a three-act illustrated campaign, bathtub navies, and a bedtime narrator who reads your battles aloud.">
+<meta property="og:url" content="https://kylefriesmarketing.github.io/toybox-tactics/">
+<meta property="og:image" content="https://kylefriesmarketing.github.io/toybox-tactics/assets/ui/og-card.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The toy kings gathered at the attic war table — Age of Toys">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Age of Toys — After Bedtime, the Toys Go to War">
+<meta name="twitter:description" content="A storybook RTS in your browser: five toy tribes, a three-act illustrated campaign, bathtub navies, and a bedtime narrator.">
+<meta name="twitter:image" content="https://kylefriesmarketing.github.io/toybox-tactics/assets/ui/og-card.jpg">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   /* ===== Refined Night theme — one place to tune the whole UI ===== */
@@ -496,6 +513,28 @@
     padding: 9px; background: #1e1409b0; border: 1px solid var(--line); border-radius: 12px; }
   .cx-cmd img { width: 88px; height: 88px; object-fit: cover; border-radius: 10px;
     border: 2px solid var(--gold-2, #ffb347); flex: none; }
+  /* ============ mobile + accessibility polish ============ */
+  html, body { overscroll-behavior: none; }
+  button, .diff-btn, .home-btn, .cx-tab, .cx-item, .cm-mission, .fac-btn {
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  @media (pointer: coarse) {
+    /* comfortable thumb targets on touch screens */
+    .diff-btn, .cx-tab { min-height: 44px; }
+    .cx-item, .cm-mission { min-height: 44px; }
+    #ic-skip { padding: 12px 24px; font-size: 15px; }
+    #intro-replay { padding: 10px 6px; }
+  }
+  /* iPhone notch / home-indicator safe areas on the fixed chrome */
+  #topbar { padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
+  #hud { padding-bottom: env(safe-area-inset-bottom); }
+  @media (prefers-reduced-motion: reduce) {
+    /* calm the storybook down for motion-sensitive players */
+    .ic-layer.kb { animation: none !important; }
+    #go-art { animation: none !important; }
+    #topbar #age-chip.aging { animation: none !important; }
+    #menu-bg { display: none; } /* looping menu cinematic: the static shade stays */
+    #ic-text, .ic-layer { transition-duration: 0.01ms !important; }
+  }
   .cm-mission { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 14px;
     background: var(--panel-3); border: 2px solid var(--line); text-align: left; cursor: pointer; transition: transform .1s, border-color .1s; }
   .cm-mission:hover:not(.locked) { transform: translateX(3px); border-color: #b8862e; }
