@@ -1076,6 +1076,74 @@ export const EPILOGUES = {
   },
 };
 
+// ---------------- AI table-talk (all UI-only, never touches the sim) ----------------
+// opening taunts: persona × the enemy's faction — a Cranky Plushie threatens
+// differently than a Cranky Tin Bot
+export const TAUNTS = {
+  rusher: {
+    classic: 'Greenboots skipped breakfast, Commander. His army men are already lacing their boots — expect them before your walls are dry.',
+    bricks: 'Foreman Klik is not building a base. He is building a battering ram with an address on it. Yours. Early.',
+    plush: 'Colonel Snug is done hugging. The Horde left home at dawn with their buttons polished — they mean to be on your rug by snack time.',
+    racers: 'Engines at the start line. The Racers are not planning an economy — they are planning your fences, at ninety miles an hour.',
+    bots: 'The Tin Bots cancelled their own parade. Keys wound, columns formed — the first march is aimed straight at your Toy Chest.',
+  },
+  balanced: {
+    classic: 'Greenboots plays it by the field manual: scout, build, strike. Leave one door open and he will find it.',
+    bricks: 'Klik measures twice and attacks once. Every quiet minute is another course of bricks between him and regret.',
+    plush: 'The Horde stirs slowly, patient as bedtime, gathering courage and crumbs in equal measure. When they come, they come together.',
+    racers: 'The Racers idle their engines and watch the pit board. The moment you look tired, Commander, the flag drops.',
+    bots: 'The Tin Bots compute the odds, then compute them again. When the arithmetic favors them, they will arrive precisely on time.',
+  },
+  boomer: {
+    classic: 'Greenboots is digging in — trenches, rations, reinforcements. He means to out-supply you, not out-swing you.',
+    bricks: 'Klik is stacking snacks like sandbags and bricks like ambitions. Break in early, or face the finished fortress.',
+    plush: 'The Horde naps, snacks, and stitches reinforcements. Every minute you wait, their pile of friends grows taller.',
+    racers: 'The Racers are tuning, not racing — bigger engines, fatter tires. Catch them in the garage, or race whatever rolls out.',
+    bots: 'The Tin Bots are building a factory that builds factories. Interrupt the assembly line, Commander, or be assembled into their plans.',
+  },
+};
+
+// mid-match event lines, spoken in the enemy faction's voice
+export const AI_LINES = {
+  raid: {
+    classic: '"Move out!" — Greenboots has loosed his raiders. Mind your workers, Commander.',
+    bricks: 'Klik has dispatched the wreckers. Bricks travel fast downhill, and these are aimed at your pockets.',
+    plush: 'Soft footsteps, moving fast — the Horde has sent hugs of the unfriendly kind toward your workers.',
+    racers: 'Engines scream across the mat — a Racer raid is inbound. Get the workers off the road!',
+    bots: 'Tick-tick-tick — a raiding column has left the enemy line, marching straight for your gatherers.',
+  },
+  ageup: {
+    classic: 'Bugles from the rival camp — Greenboots just found a bigger boot to drop.',
+    bricks: 'A new click echoes across the room — Klik\'s workshop has leveled up its ambitions.',
+    plush: 'The Horde grew up a little just now. Bigger bears. Braver buttons.',
+    racers: 'New engines on the wind — the Racers just rolled something faster out of the garage.',
+    bots: 'A chorus of fresh keys winding — the Tin Bots have upgraded the assembly line.',
+  },
+  wonder: {
+    classic: 'Greenboots is building his legend, Commander — tear it down before it earns a statue.',
+    bricks: 'Klik has begun his masterpiece, and he would dearly love for you to watch. Do not watch. Demolish.',
+    plush: 'The Horde is stitching a dream taller than the lamp. Unstitch it, quickly.',
+    racers: 'The Racers are raising a trophy for a race you have not lost yet. Object, loudly.',
+    bots: 'The Tin Bots are assembling something beautiful and terrible. The countdown is not a metaphor.',
+  },
+  king: {
+    classic: 'They\'ve found your King! Greenboots plays for keeps — get him behind walls!',
+    bricks: 'Klik\'s wreckers are at your King! A crown is just a hat unless you defend it!',
+    plush: 'The Horde is closing on your King — and those hugs will not be gentle. Pull him back!',
+    racers: 'Racers on your King! They will circle him like a finish line — move him NOW!',
+    bots: 'Enemy columns converging on your King. The arithmetic of regicide has begun — break their line!',
+  },
+};
+
+// the bedtime narrator: one-time story beats woven into the alert feed
+export const NARRATOR = {
+  firstblood: 'And so the first toy fell, and the room pretended not to notice. The war was real now.',
+  age2: 'Somewhere between one heartbeat and the next, the room grew older — the Playmat Age had begun.',
+  age3: 'The Fort Age, the storybooks say, is when toys stop playing at war and start meaning it.',
+  mega: 'The floor itself seemed to hold its breath — somewhere, something enormous had just been wound up.',
+  clock10: 'Ten minutes gone. Somewhere a music box began to count, and the night leaned in to watch.',
+};
+
 // per-match AI personality: same difficulty, different plan (adds replay variety)
 export const PERSONAS = {
   rusher: {

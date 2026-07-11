@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import {
   MAP_N, POP_MAX, RES_TYPES, RES_META, UNITS, BUILDINGS, TECHS, MARKET,
   AGES, AGE_UPS, PRODUCTION_BUILDINGS, START, AI, DIFFICULTIES, TEAM_NAMES, STICKER, WONDER, PERSONAS, MAPS, FACTIONS,
+  TAUNTS, AI_LINES, NARRATOR,
   CRITTERS, GAME_MODES, START_RES,
 } from './data.js';
 import {
@@ -317,7 +318,7 @@ export class Game {
       };
       // the first enemy AI's plan is the one hinted at in the opening taunt
       if (!this.personaTaunt && p.team !== (this.playerDefs[this.myId] || this.playerDefs[0]).team) {
-        this.personaTaunt = persona.taunt;
+        this.personaTaunt = (TAUNTS[personaKey] && TAUNTS[personaKey][this.factionKeys[p.id]]) || persona.taunt;
       }
     }
     this.time = 0;
@@ -955,6 +956,7 @@ export class Game {
     if (_tier && e.view) applyUnitTier(e.view, e.def, owner, _tier);
     if (fromBuilding) {
       p.stats.trained++;
+      if (def.tags && def.tags.includes('mega')) this.narrate('mega');
       this.fx && this.fx.spawnPop(x, z, def.color);
       if (owner === this.myId) this.sfx && this.sfx.play('train', 300);
     }
@@ -1866,6 +1868,8 @@ export class Game {
       this.sfx.play(spec.atkType === 'siege' ? 'thud' : spec.atkType === 'pierce' ? 'twang' : 'bonk', 90);
     }
     if (target.owner === this.myId) {
+      // your King under fire gets the enemy's own gloat, once
+      if (target.isKing && !this._toldKing) { this._toldKing = true; this.speakAI('king', attacker.owner); }
       this.alert(`${TEAM_NAMES[1]} are attacking!`, 'attack', { x: target.x, z: target.z }, 12);
     } else if (!this.isEnemy(this.myId, target.owner) && this.isEnemy(this.myId, attacker.owner)) {
       this.alert('Your ally is under attack!', 'warn', { x: target.x, z: target.z }, 15);
@@ -1910,7 +1914,7 @@ export class Game {
     if (this.selected.includes(e)) this.setSelection(this.selected.filter((s) => s !== e));
     if (killer && killer.owner >= 0 && killer.owner !== e.owner && e.kind !== 'resource') {
       const ks = this.players[killer.owner].stats;
-      if (e.kind === 'unit') ks.kills++; else ks.razed++;
+      if (e.kind === 'unit') { ks.kills++; this.narrate('firstblood'); } else ks.razed++;
       if (killer.kind === 'unit') {
         killer.kills = (killer.kills || 0) + 1;
         // veteran promotions: ⭐ at 3 (+1), ⭐⭐ at 6 (+2), 👑 Legend at 10 (+3)
@@ -3235,6 +3239,7 @@ export class Game {
           (e) => e.kind === 'unit' && e.type === 'worker');
         if (victim) {
           for (const r of raiders) this.setOrder(r, { type: 'amove', x: victim.x, z: victim.z }, false);
+          this.speakAI('raid', owner);
         }
       }
     }
@@ -3420,6 +3425,7 @@ export class Game {
         : `${TEAM_NAMES[1]} built an Imagination Wonder — destroy it before the countdown ends!`,
         'age', { x: wonder.x, z: wonder.z });
       this.fx && this.fx.confetti(wonder.x, wonder.z);
+      this.speakAI('wonder', wonder.owner);
     }
     this.wonderState.t -= dt;
     if (this.wonderState.t <= 60 && !this.wonderState.warned) {
@@ -3493,6 +3499,20 @@ export class Game {
       : null;
   }
 
+  // ---------- AI table-talk + bedtime narrator (UI-only, never touches the sim) ----------
+  speakAI(event, pid) {
+    if (!this.isEnemy(this.myId, pid)) return;
+    const line = AI_LINES[event] && AI_LINES[event][this.factionKeys[pid]];
+    if (line) this.alert(line, event === 'king' ? 'attack' : 'warn', null, 20);
+  }
+
+  narrate(key) {
+    const flag = '_told_' + key;
+    if (this[flag] || !NARRATOR[key]) return;
+    this[flag] = true;
+    this.alert(NARRATOR[key], 'story', null, 6);
+  }
+
   // ---------- main update ----------
   update(dt) {
     this.time += dt;
@@ -3500,6 +3520,7 @@ export class Game {
       this.taunted = true;
       this.alert(this.personaTaunt, 'warn'); // a hint at the rival's game plan
     }
+    if (this.time > 600) this.narrate('clock10');
 
     for (const p of this.players) {
       if (p.aging > 0) {
@@ -3514,9 +3535,11 @@ export class Game {
             this.sfx && this.sfx.play('age');
           } else if (p.team === this.myTeam) {
             this.alert(`Your ally reached the ${AGES[p.age - 1]}!`, 'info');
-          } else if (this.mp || this.players.length > 2) {
-            this.alert(`${TEAM_NAMES[1]} reached the ${AGES[p.age - 1]}!`, 'warn');
+          } else {
+            this.speakAI('ageup', p.id); // the rival's own voice carries the news
           }
+          if (p.age === 2) this.narrate('age2');
+          if (p.age === 3) this.narrate('age3');
           const chest = this.entities.find((e) => e.type === 'chest' && e.owner === p.id && !e.dead);
           if (chest && this.fx) this.fx.confetti(chest.x, chest.z);
           this.cb.age(p);
