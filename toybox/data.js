@@ -283,6 +283,16 @@ export const UNITS = {
     desc: 'Lobs sticker wads clear across the room. The splash punishes clumps and bases alike.',
   },
   // ---- naval toys (built at a Dock; sail only on water) ----
+  skimmer: {
+    name: 'Bath Skimmer', tags: ['ship'], age: 1, proc: 'tugboat', naval: true, targetHeight: 0.5,
+    gatherNaval: true, carry: 16, gatherRate: 1.6,
+    cost: { snacks: 50 }, trainTime: 13, pop: 1,
+    hp: 90, atk: 0, atkType: 'melee', interval: 2, range: 0.5,
+    armor: { melee: 0, pierce: 1 }, speed: 2.6, vision: 7, aggro: 0,
+    impact: 0.45, color: 0x58c4dd,
+    debris: { shapes: ['cube', 'disc'], colors: [0x58c4dd, 0xf2efe4], count: 5 },
+    desc: 'The harvest boat. The only toy that can net the floating bath treasures — soap, ducks and pearls — and ferry them home to the Dock. Unarmed and unbothered.',
+  },
   tugboat: {
     name: 'Tugboat Gunner', tags: ['ship'], age: 2, proc: 'tugboat', naval: true, targetHeight: 0.5,
     cost: { blocks: 70, buttons: 40 }, trainTime: 18, pop: 2,
@@ -462,6 +472,7 @@ export const MODEL_MANIFEST = {
   // static naval hulls, no rig — code-animated (bob on the water); proc fallback
   tugboat: { dir: 'assets/units/tugboat', model: 'model.glb', targetHeight: 0.55 },
   duckboat:{ dir: 'assets/units/duckboat',model: 'model.glb', targetHeight: 0.6 },
+  skimmer: { dir: 'assets/units/skimmer', model: 'model.glb', targetHeight: 0.5 },
   // faction-unique warships (one per tribe, built at the Dock)
   'navy-classic': { dir: 'assets/units/navy-classic', model: 'model.glb', targetHeight: 0.55 },
   'navy-bricks':  { dir: 'assets/units/navy-bricks',  model: 'model.glb', targetHeight: 0.6 },
@@ -502,10 +513,10 @@ export const BUILDINGS = {
   },
   dock: {
     name: 'Dock', tags: ['building'], size: 3, hp: 500, cost: { blocks: 120, snacks: 30 }, buildTime: 20,
-    armor: { melee: 1, pierce: 6 }, vision: 5, age: 2, height: 0.65, dock: true,
-    trains: ['tugboat', 'duckboat', 'navy-classic', 'navy-bricks', 'navy-plush', 'navy-racers', 'navy-bots'],
+    armor: { melee: 1, pierce: 6 }, vision: 5, age: 1, height: 0.65, dock: true,
+    trains: ['skimmer', 'tugboat', 'duckboat', 'navy-classic', 'navy-bricks', 'navy-plush', 'navy-racers', 'navy-bots'],
     debris: WOOD_DEBRIS,
-    desc: 'Shipyard — raise it at the water\'s edge, and teach the bath to fear you.',
+    desc: 'Shipyard and harbor — raise it at the water\'s edge. Bath Skimmers harvest the floating treasures from day one; the warships launch come the Playmat Age.',
   },
   tinker: {
     name: 'Tinker Bench', tags: ['building'], size: 2, hp: 520, cost: { blocks: 110, snacks: 40 }, buildTime: 20,

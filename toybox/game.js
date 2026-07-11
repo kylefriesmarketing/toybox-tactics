@@ -885,9 +885,8 @@ export class Game {
     return e;
   }
 
-  // Floating bath-toy resources: the ONLY piles that sit in the water. Placed on
-  // water tiles that touch a walkable shore, so a land worker can harvest them
-  // from the bank (gather is distance-based; 1-tile reach clears the waterline).
+  // Floating bath-toy resources: the ONLY piles that sit in the water, and only
+  // Bath Skimmers (def.gatherNaval) can harvest them — land workers can't reach.
   addWaterResourceNode(resType, i, j) {
     if (!inMap(i, j) || this.water[idx(i, j)] !== 1 || this.blocked[idx(i, j)]) return null;
     this.blocked[idx(i, j)] = 1;
@@ -895,7 +894,7 @@ export class Game {
     view.group.position.set(worldOf(i), this.heightAtWorld(worldOf(i), worldOf(j)), worldOf(j));
     this.scene.add(view.group);
     const e = {
-      id: this.nextId++, kind: 'resource', resType, owner: -1,
+      id: this.nextId++, kind: 'resource', resType, owner: -1, aquatic: true,
       x: worldOf(i), z: worldOf(j), ti: i, tj: j, radius: 0.55,
       amount: RES_META[resType].nodeAmount, def: { name: RES_META[resType].nodeName },
       view, dead: false,
@@ -1337,7 +1336,10 @@ export class Game {
   cmdGather(units, node, queued = false) {
     for (const u of units) {
       if (u.kind !== 'unit' || u.dead) continue;
-      if (u.type !== 'worker') { this.setOrder(u, { type: 'move', x: node.x, z: node.z }, queued); continue; }
+      // floating piles are skimmer-only; land piles and farms are worker-only
+      const aquatic = node.kind === 'resource' && node.aquatic;
+      const canHarvest = aquatic ? !!u.def.gatherNaval : u.type === 'worker';
+      if (!canHarvest) { this.setOrder(u, { type: 'move', x: node.x, z: node.z }, queued); continue; }
       const resType = node.kind === 'building' ? 'snacks' : node.resType;
       if (u.carryType !== resType) u.carry = 0;
       u.carryType = resType;
@@ -1629,6 +1631,7 @@ export class Game {
         this.scene.add(view.group);
         e = {
           id: se.id, kind: 'resource', resType: se.resType, owner: -1,
+          aquatic: this.water[idx(se.ti, se.tj)] === 1,
           x: worldOf(se.ti), z: worldOf(se.tj), ti: se.ti, tj: se.tj, radius: 0.55,
           amount: se.amount, def: { name: RES_META[se.resType].nodeName },
           view, dead: false,
@@ -2708,9 +2711,11 @@ export class Game {
     }
 
     if (o.phase === 'return') {
-      const drop = this.nearestDropoff(u.owner, u.x, u.z);
+      const drop = this.nearestDropoff(u.owner, u.x, u.z, !!u.def.gatherNaval);
       if (!drop || !u.carryType) { u.order = null; return; }
-      const reach = drop.radius + u.radius + 0.4;
+      // ships bank from the quay: the Dock's reach extends past the waterline,
+      // since the boat can never step onto the shore tile the dock sits on
+      const reach = drop.radius + u.radius + (u.def.gatherNaval ? 2.2 : 0.4);
       if (dist2(u, drop) <= reach * reach) {
         const p = this.players[u.owner];
         const st = this.aiState[u.owner];
@@ -2722,7 +2727,7 @@ export class Game {
         if (o.node && !o.node.dead) o.phase = 'to';
         else {
           u.order = null; // nothing left to gather anywhere nearby
-          if (u.owner === this.myId) this.alert('A worker ran out of resources to gather.', 'warn', { x: u.x, z: u.z }, 10);
+          if (u.owner === this.myId) this.alert(`A ${u.def.name} ran out of resources to gather.`, 'warn', { x: u.x, z: u.z }, 10);
         }
       } else {
         this.steer(u, drop.x, drop.z, dt, reach * 0.95);
@@ -2766,12 +2771,14 @@ export class Game {
   }
 
   nearestGatherSource(owner, resType, x, z, maxD, forUnit) {
+    // skimmers only see floating piles; workers (and default callers) only land
+    const wantAquatic = !!(forUnit && forUnit.def && forUnit.def.gatherNaval);
     let best = null, bd = maxD * maxD;
     for (const e of this.entities) {
       if (e.dead) continue;
       let ok = false;
-      if (e.kind === 'resource' && e.resType === resType) ok = true;
-      else if (resType === 'snacks' && e.kind === 'building' && e.owner === owner && e.def.farm && e.built >= 1) {
+      if (e.kind === 'resource' && e.resType === resType && !!e.aquatic === wantAquatic) ok = true;
+      else if (resType === 'snacks' && !wantAquatic && e.kind === 'building' && e.owner === owner && e.def.farm && e.built >= 1) {
         const g = e.gatherer;
         ok = !g || g === forUnit || g.dead || !g.order || g.order.node !== e;
       }
@@ -2799,10 +2806,12 @@ export class Game {
     }
     return best;
   }
-  nearestDropoff(owner, x, z) {
+  nearestDropoff(owner, x, z, navalOnly = false) {
+    // skimmers bank their haul at the Dock; land workers use the usual dropoffs
     let best = null, bd = Infinity;
     for (const e of this.entities) {
-      if (e.kind !== 'building' || e.dead || e.owner !== owner || !e.def.dropoff || e.built < 1) continue;
+      if (e.kind !== 'building' || e.dead || e.owner !== owner || e.built < 1) continue;
+      if (navalOnly ? !e.def.dock : !e.def.dropoff) continue;
       const d = (e.x - x) ** 2 + (e.z - z) ** 2;
       if (d < bd) { bd = d; best = e; }
     }
@@ -2941,7 +2950,7 @@ export class Game {
             spawn ? worldOf(spawn[0]) : b.x, spawn ? worldOf(spawn[1]) : b.z + b.def.size, true);
           if (b.rally) {
             const target = b.rally.entityId ? this.entities.find((e) => e.id === b.rally.entityId && !e.dead) : null;
-            if (target && u.type === 'worker'
+            if (target && (u.type === 'worker' || u.def.gatherNaval)
                 && (target.kind === 'resource' || (target.kind === 'building' && target.def.farm))) {
               this.cmdGather([u], target);
             } else if (target && this.isEnemy(b.owner, target.owner)) {
@@ -3120,10 +3129,21 @@ export class Game {
           this.aiPlace(fbKey, chest, workers);
         }
       }
-      // naval maps: raise a Dock at the shoreline and start launching boats
-      if (this.map.water && p.age >= 2 && !has('dock') && has('mat', true)
+      // naval maps: raise a Dock in Age 1 once the economy stands — skimmers
+      // start harvesting the bath early; warships come with the age-up
+      if (this.map.water && !has('dock') && has('mat', true)
           && this.canAfford(owner, BUILDINGS.dock.cost)) {
         this.aiPlace('dock', chest, workers);
+      }
+      // idle Bath Skimmers head for the nearest floating pile
+      for (const s of mine.filter((e) => e.kind === 'unit' && e.def.gatherNaval && !e.order)) {
+        let bestW = null, bwD = Infinity;
+        for (const e of this.entities) {
+          if (e.kind !== 'resource' || e.dead || !e.aquatic) continue;
+          const d = (e.x - s.x) ** 2 + (e.z - s.z) ** 2;
+          if (d < bwD) { bwD = d; bestW = e; }
+        }
+        if (bestW) this.cmdGather([s], bestW);
       }
       // a Tinker Bench once the army's rolling, to research blanket upgrades
       if (diff.usesTechs && p.age >= 2 && !has('tinker') && has('mat', true) && military.length >= 3
@@ -3245,9 +3265,12 @@ export class Game {
           if (affordAboveReserve(UNITS[type].cost)) this.trainUnit(b, type);
         } else if (b.def.trains) {
           // faction workshops: train whatever the tribe can field
+          // (skimmer fleet capped at 3 — enough to work the bath, not a navy)
+          const skimmers = mine.filter((e) => e.type === 'skimmer').length + b.queue.filter((q) => q.type === 'skimmer').length;
           const opts = b.def.trains.filter((t) => {
             const d = UNITS[t];
             return d && t !== 'cart' && (d.age || 1) <= p.age
+              && (t !== 'skimmer' || skimmers < 3)
               && (!d.faction || d.faction === this.factionKeys[owner]);
           });
           if (opts.length) {
