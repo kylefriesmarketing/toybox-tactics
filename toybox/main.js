@@ -1024,7 +1024,16 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   game = new Game(scene, registryCache, {
     alert: (msg, kind, pos) => ui.alert(msg, kind, pos),
     selection: () => ui.refreshSelection(),
-    gameOver: (win, stats, timeline) => { ui.gameOver(win, stats, timeline); if (campaignMission) campaignGameOver(win); },
+    gameOver: (win, stats, timeline) => {
+      ui.gameOver(win, stats, timeline);
+      if (campaignMission) campaignGameOver(win);
+      else {
+        // skirmish: the storyteller retells the match on the game-over card
+        $('go-story').textContent = game.matchStory(win);
+        const art = $('go-art');
+        if (art) { art.style.display = 'none'; art.removeAttribute('src'); }
+      }
+    },
     age: () => ui.refreshSelection(),
     shake: (amt) => shakeCam(amt),
   }, {

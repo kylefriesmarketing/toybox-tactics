@@ -1007,6 +1007,7 @@ export class Game {
     if (fromBuilding) {
       p.stats.trained++;
       if (def.tags && def.tags.includes('mega')) this.narrate('mega');
+      if (def.naval && def.aggro > 0) this.narrate('firstfleet');
       this.fx && this.fx.spawnPop(x, z, def.color);
       if (owner === this.myId) this.sfx && this.sfx.play('train', 300);
     }
@@ -3587,6 +3588,64 @@ export class Game {
     this.alert(NARRATOR[key], 'story', null, 6);
   }
 
+  // ---------- the storyteller: a bedtime retelling of the match ----------
+  // Reads the 10s timeline + stats and writes three short paragraphs for the
+  // game-over card. Deterministic (seeded by the match itself), pure UI.
+  matchStory(win) {
+    const t = Math.floor(this.time);
+    const me = this.players[this.myId];
+    const foes = this.players.filter((p) => this.isEnemy(this.myId, p.id));
+    if (!me || !foes.length) return '';
+    const myFac = FACTIONS[this.factionKeys[this.myId]] || FACTIONS.classic;
+    const foeFac = FACTIONS[this.factionKeys[foes[0].id]] || FACTIONS.classic;
+    const mapName = (this.map && this.map.label) || 'the bedroom floor';
+    let s = ((t * 2654435761) ^ (me.stats.kills * 97 + me.stats.lost * 31 + me.stats.gathered | 0)) >>> 0 || 7;
+    const pick = (arr) => arr[(s = (s * 16807) % 2147483647) % arr.length];
+
+    // the shape of the fight, read back from the timeline
+    const tl = this.timeline;
+    const mine = (i) => (tl[i] && tl[i].p[this.myId]) || { mil: 0, wrk: 0, score: 0 };
+    const theirs = (i) => Math.max(0, ...foes.map((p) => (tl[i] && tl[i].p[p.id] && tl[i].p[p.id].score) || 0));
+    let flips = 0, ahead = null, peakMil = 0, earlyLead = null;
+    for (let i = 0; i < tl.length; i++) {
+      const lead = mine(i).score >= theirs(i);
+      if (ahead !== null && lead !== ahead) flips++;
+      ahead = lead;
+      if (mine(i).mil > peakMil) peakMil = mine(i).mil;
+      if (earlyLead === null && tl[i].t >= Math.max(60, t * 0.25)) earlyLead = lead;
+    }
+
+    const quarrel = pick(['the rug', 'who owned the morning', 'a patch of floor no bigger than a picture book',
+      'everything and nothing, the way toys always do']);
+    const p1 = `Once upon a ${mapName}, the ${myFac.label} and the ${foeFac.label} quarreled over ${quarrel}.`;
+
+    const openBit = earlyLead === null
+      ? pick(['It was over almost before the room noticed.', 'It was short, and it was loud.'])
+      : earlyLead
+        ? pick([`The early hours belonged to you — ${pick(['tidy lines of gatherers', 'patient building', 'a snack-fed economy'])} while the rival was still lacing its boots.`,
+          'You struck the first blows and set the tempo of the whole affair.'])
+        : pick(['The rival owned the opening — for a while the room forgot your name.',
+          `The ${foeFac.label} started faster, and for a long time the floor tilted their way.`]);
+    const flipBit = flips === 0
+      ? 'The lead, once taken, was never given back.'
+      : flips <= 2
+        ? `The advantage changed hands ${flips === 1 ? 'once' : 'twice'} before the matter was settled.`
+        : `The lead changed hands ${flips} times, and nobody in the room dared blink.`;
+    const armyBit = peakMil >= 8
+      ? ` At its height your army numbered ${peakMil} toys; ${me.stats.kills} enemies were unmade, and ${me.stats.lost} of ours were carried home.`
+      : ` It was never about armies for you — ${me.stats.kills} enemies unmade, ${me.stats.lost} of ours carried home.`;
+    const p2 = `${openBit} ${flipBit}${armyBit}`;
+
+    const mm = Math.floor(t / 60), ss = String(t % 60).padStart(2, '0');
+    const p3 = win
+      ? pick([`And after ${mm}:${ss} of war, the room went quiet the good way — yours. ${pick(['The night filed it under famous victories.', 'Somewhere a music box played the toy anthem, badly, with feeling.', 'The Lost Stickers will tell this one for years.'])}`,
+        `At ${mm}:${ss} the last piece toppled, and the floor belonged to the ${myFac.label}. ${pick(['Sweet dreams, Commander.', 'The rug remembers its heroes.', 'Not bad for toys that were in a box this morning.'])}`])
+      : pick([`At ${mm}:${ss} the room went quiet the other way. ${pick(['Every toybox holds a few sad chapters — the good ones read them twice and march again.', 'The rival tells this story now. Make the next one yours.', 'Even the night lamp dimmed a little.'])}`,
+        `After ${mm}:${ss} the ${foeFac.label} held the floor. ${pick(['Rematches are a toy tradition older than bedtime.', 'The story is not over — it just needs a braver page.', 'Wind tight, Commander. Morning is a fresh map.'])}`]);
+
+    return `${p1}\n\n${p2}\n\n${p3}`;
+  }
+
   // ---------- main update ----------
   update(dt) {
     this.time += dt;
@@ -3659,6 +3718,23 @@ export class Game {
         };
       }
       this.timeline.push(sample);
+
+      // the bedtime narrator watches the tide of battle (UI-only, one-shot each)
+      const meS = sample.p[this.myId];
+      if (meS) {
+        const foeBest = Math.max(0, ...this.players
+          .filter((p) => this.isEnemy(this.myId, p.id))
+          .map((p) => (sample.p[p.id] && sample.p[p.id].score) || 0));
+        if (foeBest > 300 && meS.score < foeBest * 0.55) this._wasBehind = true;
+        else if (this._wasBehind && meS.score > foeBest * 1.05) { this._wasBehind = false; this.narrate('comeback'); }
+        if (this.time < 480 && meS.wrk >= 20) this.narrate('boom');
+        if ((this._lastMil || 0) >= 10 && meS.mil <= 2) this.narrate('armylost');
+        this._lastMil = meS.mil;
+        const wTeams = new Set(this.entities
+          .filter((e) => e.kind === 'building' && !e.dead && e.type === 'wonder')
+          .map((e) => this.players[e.owner].team));
+        if (wTeams.size >= 2) this.narrate('wonderrace');
+      }
     }
 
     this.sepT -= dt;

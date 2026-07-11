@@ -1339,6 +1339,12 @@ export const NARRATOR = {
   age3: 'The Fort Age, the storybooks say, is when toys stop playing at war and start meaning it.',
   mega: 'The floor itself seemed to hold its breath — somewhere, something enormous had just been wound up.',
   clock10: 'Ten minutes gone. Somewhere a music box began to count, and the night leaned in to watch.',
+  // reactive beats: the narrator watches the tide of battle (all UI-only)
+  comeback: 'Every good story has this part: the moment the beaten toy stands back up, dusts off its felt, and decides otherwise.',
+  boom: 'While the others sharpened swords, your corner of the room grew fat on snacks and industry — an empire of busy little hands.',
+  firstfleet: 'A hull touched the water, and the bath — which had only ever known splashing — learned the word "armada."',
+  armylost: 'And then the floor went quiet. The terrible kind of quiet a room makes after it swallows an army whole.',
+  wonderrace: 'Two wonders rose at once, brick by desperate brick — and every toy understood: the war would be decided by patience now.',
 };
 
 // ---------------- opening cutscene ----------------
