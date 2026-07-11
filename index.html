@@ -73,7 +73,16 @@
     box-shadow: 0 2px 6px #0007, inset 0 1px 0 #ffffff0d; transition: border-color .1s, color .1s; }
   #idle-btn.has-idle { color: var(--gold-2); border-color: var(--gold); animation: capblink 1.4s infinite; }
   #tech-btn:hover, #idle-btn:hover { color: var(--gold-2); border-color: var(--gold); }
-  #age-chip { color: #dcc9ff; text-shadow: var(--emboss); letter-spacing: .4px; font-family: var(--font-display); }
+  /* the Age name is the HUD's little masthead: gilded caps between flourishes */
+  #topbar #age-chip { letter-spacing: 1.3px; font-family: var(--font-display); font-weight: 800;
+    text-transform: uppercase; font-size: 12.5px; gap: 7px; }
+  #age-chip::before, #age-chip::after { content: '✦'; color: var(--gold); font-size: 9px;
+    text-shadow: 0 1px 1px #000a; }
+  #age-chip #age { background: linear-gradient(180deg, #ffe9ad 0%, var(--gold-2) 45%, var(--gold-deep) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 1px 1px #000c); }
+  #age-chip.aging #age { animation: agePulse 1.4s ease-in-out infinite; }
+  @keyframes agePulse { 50% { filter: drop-shadow(0 1px 1px #000c) drop-shadow(0 0 7px #ffca63cc); } }
   #clock { color: var(--dim); }
   #topbar .chip.res { gap: 6px; padding-left: 7px; }
   #topbar .chip .ric img { width: 16px; height: 16px; object-fit: contain; display: block; }

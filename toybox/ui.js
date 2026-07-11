@@ -617,6 +617,7 @@ export class UI {
       $('pop').textContent = `${p.popUsed}/${p.popCap}`;
       $('pop').parentElement.classList.toggle('capped', p.popUsed >= p.popCap);
       $('age').textContent = p.aging > 0 ? `${AGES[p.age - 1]} → ${AGES[p.age]}…` : AGES[p.age - 1];
+      $('age-chip').classList.toggle('aging', p.aging > 0);
       const t = Math.floor(this.game.time);
       $('clock').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
       // wonder countdown banner
