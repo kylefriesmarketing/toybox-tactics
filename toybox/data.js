@@ -305,6 +305,62 @@ export const UNITS = {
     debris: { shapes: ['disc'], colors: [0xffd23f, 0xf4802a], count: 5 },
     desc: 'Fast, cheap, unreasonably confident. Swarm the bath, harass their boats. Water only.',
   },
+  // ---- faction-unique warships (built at the Dock; each tribe sails its own) ----
+  'navy-classic': {
+    name: 'Toy Destroyer', tags: ['ship'], age: 2, proc: 'tugboat', naval: true, faction: 'classic', targetHeight: 0.55,
+    cost: { blocks: 65, buttons: 45 }, trainTime: 17, pop: 2,
+    hp: 155, atk: 11, atkType: 'pierce', interval: 1.7, range: 5.2,
+    bonus: { ship: 7, building: 5 },
+    armor: { melee: 2, pierce: 3 }, speed: 2.4, vision: 8, aggro: 8,
+    impact: 0.55, color: 0x6b7a4a,
+    projectile: { speed: 15, arc: true, color: 0xffe08a, size: 0.09, trail: 0xd9d08a },
+    debris: { shapes: ['cube', 'disc'], colors: [0x6b7a4a, 0xe8ddc0], count: 7 },
+    desc: 'Classic navy: a molded olive destroyer, deck gun forward, orders crisp. Steady in any bath, brave in the deep end. Water only.',
+  },
+  'navy-bricks': {
+    name: 'Brick Ironclad', tags: ['ship'], age: 2, proc: 'tugboat', naval: true, faction: 'bricks', targetHeight: 0.6,
+    cost: { blocks: 95, buttons: 35 }, trainTime: 22, pop: 3,
+    hp: 250, atk: 11, atkType: 'pierce', interval: 2.1, range: 5,
+    bonus: { ship: 9, building: 9 },
+    armor: { melee: 4, pierce: 5 }, speed: 1.5, vision: 8, aggro: 9,
+    impact: 0.7, color: 0xd6453f,
+    projectile: { speed: 14, arc: true, color: 0xffd23f, size: 0.11, trail: 0x4d9bff },
+    debris: { shapes: ['brick', 'brick', 'cube'], colors: [0xf94144, 0xf9c74f, 0x4d9bff, 0x90be6d], count: 9 },
+    desc: 'Snap-Brick navy: a floating fortress snapped stud by stud. Slow as Sunday, tough as the toy box. It does not dodge — it simply refuses to sink. Water only.',
+  },
+  'navy-plush': {
+    name: 'Pirate Plush Raft', tags: ['ship'], age: 2, proc: 'tugboat', naval: true, faction: 'plush', targetHeight: 0.62,
+    cost: { snacks: 55, buttons: 40 }, trainTime: 18, pop: 2,
+    hp: 200, atk: 8, atkType: 'pierce', interval: 1.8, range: 4.6,
+    bonus: { ship: 5, building: 4 },
+    armor: { melee: 2, pierce: 2 }, speed: 1.9, vision: 8, aggro: 7,
+    impact: 0.5, color: 0xd9a066,
+    projectile: { speed: 14, arc: true, color: 0xf4d19b, size: 0.08, trail: 0xd9a066 },
+    debris: { shapes: ['cube'], colors: [0xd9a066, 0xe8ddc0, 0xd88aa8], fluff: true, count: 7 },
+    desc: 'Plushie navy: a quilted felt raft with a teddy at the prow and a patchwork sail. Soft, stuffed and stubbornly seaworthy — it takes a licking and keeps on floating. Water only.',
+  },
+  'navy-racers': {
+    name: 'RC Speedboat', tags: ['ship'], age: 2, proc: 'duckboat', naval: true, faction: 'racers', targetHeight: 0.5,
+    cost: { snacks: 45, buttons: 40 }, trainTime: 12, pop: 1,
+    hp: 90, atk: 10, atkType: 'pierce', interval: 1.1, range: 4.2,
+    bonus: { ship: 4 },
+    armor: { melee: 0, pierce: 1 }, speed: 3.9, vision: 9, aggro: 8,
+    impact: 0.45, color: 0xe5484d,
+    projectile: { speed: 17, arc: false, color: 0xffffff, size: 0.06, trail: 0xe5484d },
+    debris: { shapes: ['disc', 'stick'], colors: [0xe5484d, 0xffffff], count: 6 },
+    desc: 'RC navy: a red hydroplane that treats the whole bath like a lap record. Blink and it has already crossed your bow twice. Glass-hulled — hit it if you can. Water only.',
+  },
+  'navy-bots': {
+    name: 'Tin Submarine', tags: ['ship', 'bot'], age: 2, proc: 'tugboat', naval: true, faction: 'bots', targetHeight: 0.5,
+    cost: { buttons: 55, marbles: 20 }, trainTime: 18, pop: 2,
+    hp: 125, atk: 10, atkType: 'pierce', interval: 1.15, range: 6.6,
+    bonus: { ship: 6, building: 4 },
+    armor: { melee: 1, pierce: 3 }, speed: 2.2, vision: 10, aggro: 9,
+    impact: 0.5, color: 0x9aa4b0,
+    projectile: { speed: 18, arc: false, color: 0x40c0e0, size: 0.07, trail: 0x40c0e0 },
+    debris: { shapes: ['cube', 'disc'], colors: [0x9aa4b0, 0x40c0e0], count: 7 },
+    desc: 'Tin Bot navy: a riveted wind-up submarine, periscope up, one blue porthole glowing. Outranges the room and never misses twice. It is patient down there. Water only.',
+  },
   // ---- MEGA UNITS: one colossal Age-3 signature per faction (its faction building) ----
   tank: {
     name: "General's Tank", tags: ['siege', 'vehicle', 'mega'], age: 3, faction: 'classic', gait: 'roll',
@@ -406,6 +462,12 @@ export const MODEL_MANIFEST = {
   // static naval hulls, no rig — code-animated (bob on the water); proc fallback
   tugboat: { dir: 'assets/units/tugboat', model: 'model.glb', targetHeight: 0.55 },
   duckboat:{ dir: 'assets/units/duckboat',model: 'model.glb', targetHeight: 0.6 },
+  // faction-unique warships (one per tribe, built at the Dock)
+  'navy-classic': { dir: 'assets/units/navy-classic', model: 'model.glb', targetHeight: 0.55 },
+  'navy-bricks':  { dir: 'assets/units/navy-bricks',  model: 'model.glb', targetHeight: 0.6 },
+  'navy-plush':   { dir: 'assets/units/navy-plush',   model: 'model.glb', targetHeight: 0.62 },
+  'navy-racers':  { dir: 'assets/units/navy-racers',  model: 'model.glb', targetHeight: 0.5 },
+  'navy-bots':    { dir: 'assets/units/navy-bots',    model: 'model.glb', targetHeight: 0.5 },
 };
 
 // ---------------- buildings ----------------
@@ -441,7 +503,7 @@ export const BUILDINGS = {
   dock: {
     name: 'Dock', tags: ['building'], size: 3, hp: 500, cost: { blocks: 120, snacks: 30 }, buildTime: 20,
     armor: { melee: 1, pierce: 6 }, vision: 5, age: 2, height: 0.65, dock: true,
-    trains: ['tugboat', 'duckboat'],
+    trains: ['tugboat', 'duckboat', 'navy-classic', 'navy-bricks', 'navy-plush', 'navy-racers', 'navy-bots'],
     debris: WOOD_DEBRIS,
     desc: 'Shipyard — raise it at the water\'s edge, and teach the bath to fear you.',
   },

@@ -1653,7 +1653,11 @@ export function setBuildingFootprints(map) { BUILDING_FOOTPRINT = map; }
 // map furniture (resource piles, obstacles): generated models drop into
 // assets/map/<key>.glb and are picked up automatically; procedural fallback.
 export const mapRegistry = {};
-const MAP_MODEL_KEYS = ['snacks', 'blocks', 'buttons', 'marbles', 'book', 'pillow'];
+const MAP_MODEL_KEYS = ['snacks', 'blocks', 'buttons', 'marbles', 'book', 'pillow',
+  // water-map themed resource piles (soap = blocks, ducks = buttons, pearls = marbles)
+  'blocks-water', 'buttons-water', 'marbles-water',
+  // hero decor prop for water maps
+  'duck'];
 
 export async function loadMapModels(onProgress) {
   const loader = makeGLTFLoader();
@@ -1904,13 +1908,16 @@ function passiveView(group, radius = 0.6) {
   };
 }
 
-export function createResourceView(resType, rngSeed = 1) {
+export function createResourceView(resType, rngSeed = 1, water = false) {
   let seed = rngSeed * 7919 + 13;
   const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  // on water maps, themed floating piles (soap/ducks/pearls) replace the default
+  const themed = water && mapRegistry[resType + '-water'] ? resType + '-water' : null;
+  const glbKey = themed || (mapRegistry[resType] ? resType : null);
   // generated pile model wins when present (random spin so clusters vary)
-  if (mapRegistry[resType]) {
+  if (glbKey) {
     const g2 = new THREE.Group();
-    const m = mapRegistry[resType].clone(true);
+    const m = mapRegistry[glbKey].clone(true);
     m.scale.setScalar(1.15);
     m.rotation.y = rng() * Math.PI * 2;
     g2.add(m);
@@ -1953,6 +1960,56 @@ export function createResourceView(resType, rngSeed = 1) {
     }
   }
   return passiveView(g);
+}
+
+// ---------------- water-map hero decor (giant duck + faucet) ----------------
+// Background scenery for bathtub / water maps. The duck is a generated GLB when
+// present (else a simple procedural stand-in); the faucet is always procedural.
+// Returns [{ key, group }] — game.js positions each at the basin rim. No collision.
+export function createWaterDecor() {
+  const out = [];
+  const mat = (c, r = 0.4, m = 0) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m });
+
+  // --- giant rubber duck ---
+  const duck = new THREE.Group();
+  if (mapRegistry['duck']) {
+    const d = mapRegistry['duck'].clone(true);
+    d.scale.setScalar(3.4); // hero-sized: a landmark bobbing in the bath
+    duck.add(d);
+  } else {
+    const body = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 14), mat(0xffd21e, 0.5));
+    body.scale.set(1.2, 0.9, 1.5); body.position.y = 0.9; body.castShadow = true; duck.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.62, 16, 12), mat(0xffd21e, 0.5));
+    head.position.set(0, 1.75, 0.85); head.castShadow = true; duck.add(head);
+    const bill = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.55, 12), mat(0xf47a20, 0.5));
+    bill.rotation.x = Math.PI / 2; bill.position.set(0, 1.62, 1.55); duck.add(bill);
+    for (const ex of [-0.24, 0.24]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), mat(0x1a1a1a, 0.3));
+      eye.position.set(ex, 1.95, 1.3); duck.add(eye);
+    }
+  }
+  out.push({ key: 'duck', group: duck });
+
+  // --- chrome bathtub faucet (procedural) ---
+  const faucet = new THREE.Group();
+  const chrome = mat(0xc8ccd2, 0.16, 0.9);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.4, 0.8), chrome);
+  base.position.y = 0.2; base.castShadow = true; faucet.add(base);
+  const riser = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 1.2, 16), chrome);
+  riser.position.set(0, 1.0, -0.1); riser.castShadow = true; faucet.add(riser);
+  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.95, 16), chrome);
+  arm.rotation.x = Math.PI / 2; arm.position.set(0, 1.55, 0.28); arm.castShadow = true; faucet.add(arm);
+  const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.4, 14), chrome);
+  spout.position.set(0, 1.35, 0.72); faucet.add(spout);
+  for (const hx of [-0.6, 0.6]) {
+    const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.2, 18), chrome);
+    knob.position.set(hx, 0.5, -0.1); knob.castShadow = true; faucet.add(knob);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.26, 12), mat(hx < 0 ? 0xe5484d : 0x4d9bff, 0.4));
+    cap.position.set(hx, 0.66, -0.1); faucet.add(cap);
+  }
+  out.push({ key: 'faucet', group: faucet });
+
+  return out;
 }
 
 // ---------------- ground / decor ----------------

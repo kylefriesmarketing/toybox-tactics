@@ -15,7 +15,7 @@ import {
   createUnitView, createBuildingView, createResourceView,
   createGround, createObstacleMesh, createDecorMesh, createStickerView, createRallyFlag,
   makeRankBadge, createCritterView, createMilkSpill, createKingCrown, createThroneView,
-  createWaterSurface, applyUnitTier,
+  createWaterSurface, createWaterDecor, applyUnitTier,
 } from './models.js';
 
 const N = MAP_N;
@@ -506,6 +506,17 @@ export class Game {
     if (this.map.water) {
       this.waterSurface = createWaterSurface(N, this.water);
       this.scene.add(this.waterSurface.group);
+      // hero decor: a giant rubber duck at the basin's edge + a faucet at the head end
+      const A = this.map.water.rx || 15, B = this.map.water.rz || 12;
+      const cx = N / 2, cz = N / 2;
+      for (const dec of createWaterDecor()) {
+        let ti, tj, ry = 0;
+        if (dec.key === 'duck') { ti = cx - A * 0.62; tj = cz + B * 0.28; ry = 0.5; }
+        else { ti = cx + A * 0.15; tj = cz - B - 2.2; ry = Math.PI; } // faucet just past the north rim
+        dec.group.position.set(worldOf(ti), 0.02, worldOf(tj));
+        dec.group.rotation.y = ry;
+        this.scene.add(dec.group);
+      }
     }
 
     for (let k = 0; k < this.map.obstacles; k++) {
@@ -858,7 +869,7 @@ export class Game {
     if (Math.abs(C[j * W + i] - h) > 0.01 || Math.abs(C[j * W + i + 1] - h) > 0.01
       || Math.abs(C[(j + 1) * W + i] - h) > 0.01 || Math.abs(C[(j + 1) * W + i + 1] - h) > 0.01) return null;
     this.blocked[idx(i, j)] = 1;
-    const view = createResourceView(resType, i * 131 + j);
+    const view = createResourceView(resType, i * 131 + j, !!this.map.water);
     view.group.position.set(worldOf(i), this.heightAtWorld(worldOf(i), worldOf(j)), worldOf(j));
     this.scene.add(view.group);
     const e = {
@@ -1573,7 +1584,7 @@ export class Game {
         view.setProgress(e.built);
         view.hpBar.set(e.hp / e.maxHp);
       } else if (se.k === 'r') {
-        const view = createResourceView(se.resType, se.ti * 131 + se.tj);
+        const view = createResourceView(se.resType, se.ti * 131 + se.tj, !!this.map.water);
         view.group.position.set(worldOf(se.ti), this.heightAtWorld(worldOf(se.ti), worldOf(se.tj)), worldOf(se.tj));
         this.scene.add(view.group);
         e = {
