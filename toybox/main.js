@@ -777,7 +777,8 @@ const playIntro = (function initIntro() {
   if (!cine || !Array.isArray(INTRO) || !INTRO.length) return () => {};
   const stage = $('ic-stage'), txt = $('ic-text'), dots = $('ic-dots'), skip = $('ic-skip');
   const BEAT_MS = 8200;
-  let layers = [], active = 1, idx = 0, timer = 0, capTimer = 0, onEnd = null, running = false;
+  let layers = [], active = 1, idx = 0, timer = 0, capTimer = 0, onEnd = null, running = false, voice = null;
+  const stopVoice = () => { if (voice) { try { voice.pause(); } catch (e) {} voice = null; } };
   const ensureLayers = () => {
     if (layers.length) return;
     for (let i = 0; i < 2; i++) { const d = document.createElement('div'); d.className = 'ic-layer'; stage.appendChild(d); layers.push(d); }
@@ -794,11 +795,23 @@ const playIntro = (function initIntro() {
     clearTimeout(capTimer); capTimer = setTimeout(() => txt.classList.add('in'), 280);
     Array.from(dots.children).forEach((el, i) => el.classList.toggle('on', i === n));
     clearTimeout(timer); timer = setTimeout(advance, BEAT_MS);
+    // the storyteller reads the plate aloud; the beat waits for him to finish.
+    // if autoplay is blocked (first visit, no gesture yet) the default pacing holds.
+    stopVoice();
+    try {
+      voice = new Audio(`assets/audio/vo/intro-${n + 1}.wav`);
+      voice.volume = 0.9;
+      voice.addEventListener('playing', () => {
+        clearTimeout(timer);
+        timer = setTimeout(advance, Math.max(BEAT_MS - 1200, voice.duration * 1000 + 1100));
+      });
+      voice.play().catch(() => {});
+    } catch (e) { /* silent storybook is still a storybook */ }
   }
   function advance() { if (!running) return; if (idx + 1 < INTRO.length) showBeat(idx + 1); else finish(); }
   function finish() {
     if (!running) return; running = false;
-    clearTimeout(timer); clearTimeout(capTimer);
+    clearTimeout(timer); clearTimeout(capTimer); stopVoice();
     try { localStorage.setItem(INTRO_KEY, '1'); } catch (e) {}
     cine.classList.add('fading');
     setTimeout(() => {

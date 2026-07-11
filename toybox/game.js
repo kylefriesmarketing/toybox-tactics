@@ -3586,6 +3586,14 @@ export class Game {
     if (this[flag] || !NARRATOR[key]) return;
     this[flag] = true;
     this.alert(NARRATOR[key], 'story', null, 6);
+    // the storyteller reads the beat aloud (respects the SFX mute; UI-only)
+    if (this.sfx && !this.sfx.muted) {
+      try {
+        const vo = new Audio('assets/audio/vo/' + key + '.wav');
+        vo.volume = Math.min(1, (this.sfx.volume || 0.5) * 1.4);
+        vo.play().catch(() => {});
+      } catch (e) { /* no audio support — the text alert already carries it */ }
+    }
   }
 
   // ---------- the storyteller: a bedtime retelling of the match ----------
