@@ -41,7 +41,7 @@ export const UNITS = {
     armor: { melee: 0, pierce: 0 }, speed: 1.5, vision: 5, aggro: 0,
     carry: 10, gatherRate: 1.35, impact: 0.45, color: 0xf9c74f, gait: 'walk',
     debris: { shapes: ['limb', 'peg', 'cube'], colors: [0xf9c74f, 0xe8b53e] },
-    desc: 'Gathers, builds and repairs. Protect them.',
+    desc: 'Small hands, whole war. Gathers, builds and repairs — every empire in this room stands on a Worker Buddy.',
   },
   scout: {
     name: 'Wind-Up Scout', tags: ['scout', 'vehicle'], age: 1,
@@ -50,7 +50,7 @@ export const UNITS = {
     armor: { melee: 1, pierce: 0 }, speed: 2.7, vision: 9, aggro: 0,
     impact: 0.45, color: 0x90be6d,
     debris: { shapes: ['peg', 'disc', 'cube'], colors: [0x90be6d, 0x7fa85f, 0xb8b8c0] },
-    desc: 'Fast eyes. Reveals the bedroom before the fight.',
+    desc: 'Wound tight and born curious. Sees the whole bedroom before anyone fights over it.',
   },
   soldier: {
     name: 'Block Soldier', tags: ['infantry', 'melee'], age: 1,
@@ -60,7 +60,7 @@ export const UNITS = {
     impact: 0.45, color: 0x577590, handWeapon: 'rifle',
     // classic army man: bursts into green plastic limbs
     debris: { shapes: ['limb', 'limb', 'peg'], colors: [0x4a7c40, 0x3e6b36, 0x5c8f4c], count: 8 },
-    desc: 'Cheap frontline. Loses to massed archers.',
+    desc: 'Brave, cheap and countless. Holds the line right up until massed archers say otherwise.',
   },
   spear: {
     name: 'Push-Pin Spear', tags: ['infantry', 'spear'], age: 2,
@@ -70,7 +70,7 @@ export const UNITS = {
     armor: { melee: 0, pierce: 0 }, speed: 1.5, vision: 6, aggro: 5,
     impact: 0.5, color: 0xf94144,
     debris: { shapes: ['peg', 'stick'], colors: [0xf94144, 0xd9d9d9] },
-    desc: 'Anti-raider. Skewers RC Raiders on contact.',
+    desc: 'A push-pin with a grudge. Skewers RC Raiders the moment they get clever.',
   },
   archer: {
     name: 'Button Archer', tags: ['ranged'], age: 2,
@@ -81,7 +81,7 @@ export const UNITS = {
     projectile: { speed: 13, arc: true, color: 0xffd166, size: 0.09, trail: 0xffd166 },
     // scatters its ammo: buttons everywhere
     debris: { shapes: ['disc', 'disc', 'limb'], colors: [0xf8961e, 0xffd166, 0xe8c352] },
-    desc: 'Ranged damage. Beats slow melee, dies to raiders.',
+    desc: 'Buttons fly true. Shreds slow melee from a polite distance — pray the raiders never arrive.',
   },
   flinger: {
     name: 'Rubber-Band Flinger', tags: ['ranged', 'skirmisher'], age: 2, proc: 'flinger', gait: 'roll',
@@ -92,7 +92,7 @@ export const UNITS = {
     impact: 0.5, color: 0x9b5de5,
     projectile: { speed: 15, arc: false, color: 0xc9b6f0, size: 0.08, band: true, trail: 0x9b5de5 },
     debris: { shapes: ['stick', 'peg'], colors: [0x9b5de5, 0xd9b38c] },
-    desc: 'Cheap anti-archer. Snaps rubber bands at ranged toys.',
+    desc: 'Snaps rubber bands with rude accuracy. Cheap medicine for enemy archers.',
   },
   medic: {
     name: 'Plush Medic', tags: ['support', 'plush'], age: 2, proc: 'medic',
@@ -102,7 +102,7 @@ export const UNITS = {
     armor: { melee: 0, pierce: 0 }, speed: 1.45, vision: 6, aggro: 0,
     impact: 0.5, color: 0xf28cb8,
     debris: { shapes: ['cube'], colors: [0xf2b8cc, 0xd98ca6], count: 4, fluff: true },
-    desc: 'Stuffed with love. Patches up nearby toys — keep it behind the line.',
+    desc: 'Stuffed with love and spare thread. Mends nearby toys — keep it safe behind the line.',
   },
   // ---- faction unique units (Fort Age, trained at the Toy Fort) ----
   bear: {
@@ -113,7 +113,7 @@ export const UNITS = {
     armor: { melee: 2, pierce: 3 }, speed: 1.15, vision: 5, aggro: 5,
     impact: 0.5, color: 0x9a6a42,
     debris: { shapes: ['cube', 'limb'], colors: [0xb08050, 0x9a6a42], count: 8, fluff: true },
-    desc: 'Plushie unique: a walking wall of hugs. Slow, enormous, refuses to fall over.',
+    desc: 'Plushie unique: a walking wall of hugs. Slow, enormous, and it simply refuses to fall over.',
   },
   golem: {
     name: 'Brick Golem', tags: ['infantry', 'heavy'], age: 3, proc: 'golem', faction: 'bricks', gait: 'stomp',
@@ -123,7 +123,7 @@ export const UNITS = {
     armor: { melee: 4, pierce: 5 }, speed: 1.0, vision: 5, aggro: 5,
     impact: 0.5, color: 0xf94144,
     debris: { shapes: ['brick', 'brick', 'cube'], colors: [0xf94144, 0xf9c74f, 0x4d9bff], count: 12 },
-    desc: 'Snap-Brick unique: armored stack of bricks. Shrugs off arrows, cracks walls.',
+    desc: 'Snap-Brick unique: bricks stacked into a temper. Shrugs off arrows, cracks walls open.',
   },
   dragster: {
     name: 'Nitro Dragster', tags: ['raider', 'vehicle'], age: 3, proc: 'dragster', faction: 'racers', gait: 'roll',
@@ -133,7 +133,7 @@ export const UNITS = {
     armor: { melee: 0, pierce: 0 }, speed: 4.2, vision: 8, aggro: 6,
     impact: 0.4, color: 0xffe14d,
     debris: { shapes: ['disc', 'disc', 'stick'], colors: [0x222222, 0xffe14d], count: 8 },
-    desc: 'RC Racer unique: fastest toy in the room. Deletes workers, dies to a stern look.',
+    desc: 'RC Racer unique: the fastest thing the room has ever seen. Deletes workers; dies to a stern look.',
   },
   bazooka: {
     name: 'Bazooka Man', tags: ['infantry', 'ranged'], age: 3, proc: 'bazooka', faction: 'classic',
@@ -144,7 +144,7 @@ export const UNITS = {
     impact: 0.55, color: 0x3f7a3a, handWeapon: 'bazooka',
     projectile: { speed: 11, arc: false, color: 0xff8f5a, size: 0.12, splash: 1.0, trail: 0xff8f5a },
     debris: { shapes: ['limb', 'stick'], colors: [0x3f7a3a, 0x2e5a2a] },
-    desc: 'Classic unique: army man with a spring bazooka. Splash damage vs buildings and vehicles.',
+    desc: 'Classic unique: an army man with a spring bazooka. The splash ruins buildings and vehicles alike.',
   },
   // ---- second faction uniques (unlocked by each faction's own building) ----
   grenadier: {
@@ -156,7 +156,7 @@ export const UNITS = {
     impact: 0.55, color: 0x4a7a44, handWeapon: 'grenade',
     projectile: { speed: 9, arc: true, color: 0x394d36, size: 0.1, splash: 0.9, trail: 0x88aa66 },
     debris: { shapes: ['limb', 'stick'], colors: [0x4a7a44, 0x2e5a2a] },
-    desc: 'Classic unique: army man lobbing toy grenades in an arc. Small splash.',
+    desc: 'Classic unique: lobs toy grenades in a lazy, terrible arc. Small splash, big opinions.',
   },
   lancer: {
     name: 'Pogo Lancer', tags: ['infantry', 'heavy'], age: 2, proc: 'lancer', faction: 'bricks', hop: true,
@@ -166,7 +166,7 @@ export const UNITS = {
     armor: { melee: 1, pierce: 1 }, speed: 2.6, vision: 6, aggro: 6,
     impact: 0.45, color: 0xf9c74f,
     debris: { shapes: ['brick', 'peg'], colors: [0xf9c74f, 0xf94144], count: 7 },
-    desc: 'Snap-Brick unique: a minifig on a pogo spring. Bounces down archers fast.',
+    desc: 'Snap-Brick unique: a minifig on a pogo spring. Boings down archers before they can blink.',
   },
   sockpuppet: {
     name: 'Sock Puppet', tags: ['infantry', 'plush'], age: 2, proc: 'sock', faction: 'plush', sway: true,
@@ -175,7 +175,7 @@ export const UNITS = {
     armor: { melee: 0, pierce: 0 }, speed: 1.7, vision: 5, aggro: 6,
     impact: 0.45, color: 0xd88aa8,
     debris: { shapes: ['cube'], colors: [0xd88aa8, 0xf2b8cc], count: 3, fluff: true },
-    desc: 'Plushie unique: dirt-cheap floppy swarmer. Bury them in socks.',
+    desc: 'Plushie unique: dirt-cheap and utterly floppy. Bury your problems in socks.',
   },
   drone: {
     name: 'Whirly Drone', tags: ['vehicle', 'ranged'], age: 2, proc: 'drone', faction: 'racers',
@@ -187,7 +187,7 @@ export const UNITS = {
     impact: 0.5, color: 0x59c9c9,
     projectile: { speed: 14, arc: false, color: 0xaef0f0, size: 0.06, trail: 0x59c9c9 },
     debris: { shapes: ['disc', 'stick'], colors: [0x59c9c9, 0x333333], count: 6 },
-    desc: 'RC Racer unique: FLIES over walls, cliffs and milk. Fragile, great scout-harasser.',
+    desc: 'RC Racer unique: FLIES over walls, cliffs and milk. Fragile as gossip and twice as fast.',
   },
   zapbot: {
     name: 'Zap Bot', tags: ['infantry', 'ranged', 'bot'], age: 2, proc: 'zapbot', faction: 'bots',
@@ -198,7 +198,7 @@ export const UNITS = {
     impact: 0.5, color: 0xb9c4d0,
     projectile: { speed: 16, arc: false, color: 0x9ff0ff, size: 0.07, trail: 0x40c0e0 },
     debris: { shapes: ['cube', 'peg'], colors: [0xb9c4d0, 0x40c0e0], count: 6 },
-    desc: 'Tin Bots unique: wind-up robot with a spark blaster. Outranges most toys, +2 vs infantry.',
+    desc: 'Tin Bots unique: a wind-up spark blaster, factory-calibrated. Outranges most toys, +2 vs infantry.',
   },
   titanbot: {
     name: 'Titan Bot', tags: ['infantry', 'heavy', 'bot'], age: 3, proc: 'titanbot', faction: 'bots', gait: 'stomp',
@@ -208,7 +208,7 @@ export const UNITS = {
     armor: { melee: 4, pierce: 5 }, speed: 1.35, vision: 6, aggro: 6,
     impact: 0.5, color: 0x7a828f,
     debris: { shapes: ['cube', 'disc', 'peg'], colors: [0x7a828f, 0xe0552a], count: 9 },
-    desc: 'Tin Bots unique: a hulking battle robot. Armored, cracks buildings, shrugs off arrows.',
+    desc: 'Tin Bots unique: a hulking battle robot. Armored, cracks buildings, files arrows under harmless.',
   },
   king: {
     name: 'The King', tags: ['infantry', 'heavy', 'royal'], age: 1, modelKey: 'hero', targetHeight: 0.66, cape: true, crown: true,
@@ -217,7 +217,7 @@ export const UNITS = {
     armor: { melee: 2, pierce: 2 }, speed: 1.5, vision: 7, aggro: 0,
     impact: 0.45, color: 0xffd94a,
     debris: { shapes: ['limb', 'cube'], colors: [0xffd94a, 0x4d9bff] },
-    desc: 'Regicide: protect your King at all costs. If he falls, your toybox is out.',
+    desc: 'Regicide: the whole toybox kneels to him. If he falls, the lid closes. Protect your King.',
   },
   cart: {
     name: 'Delivery Cart', tags: ['vehicle', 'trade'], age: 2, targetHeight: 0.5, gait: 'roll',
@@ -227,7 +227,7 @@ export const UNITS = {
     armor: { melee: 0, pierce: 1 }, speed: 2.3, vision: 5, aggro: 0,
     impact: 0.5, color: 0xf9a03f,
     debris: { shapes: ['disc', 'disc', 'cube'], colors: [0x333333, 0xf9a03f, 0x888888], count: 6 },
-    desc: 'Runs trade routes: right-click a Market, it shuttles to your Chest. Longer routes pay more Buttons.',
+    desc: 'Runs trade routes: right-click a Market and it shuttles home to your Chest. Longer roads, richer Buttons.',
   },
   hypno: {
     name: 'Hypno-Top', tags: ['support', 'magic'], age: 3, proc: 'hypno', spin: true,
@@ -237,7 +237,7 @@ export const UNITS = {
     armor: { melee: 0, pierce: 1 }, speed: 1.4, vision: 7, aggro: 0,
     impact: 0.5, color: 0xb14fe0,
     debris: { shapes: ['disc', 'peg'], colors: [0xb14fe0, 0xf9c74f], count: 6 },
-    desc: 'Spins a dazzling spiral. Target an enemy toy: after 5s it joins your side. Slow cooldown.',
+    desc: 'Spins a spiral no toy can look away from. Target an enemy: 5 seconds later it fights for you. Slow cooldown.',
   },
   raider: {
     name: 'RC Raider', tags: ['raider', 'vehicle'], age: 2, rigless: true, gait: 'roll',
@@ -248,7 +248,7 @@ export const UNITS = {
     impact: 0.4, color: 0x43aa8b,
     // wheels fly off
     debris: { shapes: ['disc', 'disc', 'cube'], colors: [0x333333, 0x43aa8b, 0x888888], count: 8 },
-    desc: 'Fast harassment. Punishes workers and archers, fears spears.',
+    desc: 'Fast, rude, and gone before the shouting starts. Punishes workers and archers; fears spears.',
   },
   hero: {
     name: 'Action Hero', tags: ['infantry', 'heavy'], age: 3,
@@ -258,7 +258,7 @@ export const UNITS = {
     armor: { melee: 2, pierce: 1 }, speed: 1.5, vision: 6, aggro: 6,
     impact: 0.45, color: 0x4d9bff,
     debris: { shapes: ['limb', 'cube'], colors: [0x4d9bff, 0xf9c74f] },
-    desc: 'Premium heavy melee. Wears the cape. Fears massed ranged.',
+    desc: 'Premium heavy with a licensed cape. Carves through melee; fears massed ranged.',
   },
   ram: {
     name: 'Pillow Ram', tags: ['siege'], age: 3, proc: 'ram', gait: 'roll',
@@ -269,7 +269,7 @@ export const UNITS = {
     impact: 0.5, color: 0xe8d8f0,
     // pillows burst into fluff
     debris: { shapes: ['cube'], colors: [0xe8e0f4], count: 4, fluff: true },
-    desc: 'Soaks arrows and flattens buildings. Escort it — melee eats it.',
+    desc: 'A pillow that studied siegecraft. Soaks arrows, flattens buildings — escort it, melee eats it.',
   },
   catapult: {
     name: 'Sticker Catapult', tags: ['siege'], age: 3, proc: 'catapult', gait: 'roll',
@@ -280,7 +280,7 @@ export const UNITS = {
     impact: 0.45, color: 0xc9a86a,
     projectile: { speed: 8, arc: true, color: 0xf3722c, size: 0.16, splash: 1.6, spin: true, trail: 0xf3722c },
     debris: { shapes: ['stick', 'stick', 'disc'], colors: [0xc9a86a, 0xb08050], count: 9 },
-    desc: 'Lobs sticker wads. Splash damage punishes clumps and bases.',
+    desc: 'Lobs sticker wads clear across the room. The splash punishes clumps and bases alike.',
   },
   // ---- naval toys (built at a Dock; sail only on water) ----
   tugboat: {
@@ -292,7 +292,7 @@ export const UNITS = {
     impact: 0.6, color: 0xc0392b,
     projectile: { speed: 15, arc: true, color: 0xffe08a, size: 0.09, trail: 0xffb703 },
     debris: { shapes: ['cube', 'disc'], colors: [0xc0392b, 0xe8ddc0], count: 7 },
-    desc: 'Heavy gunboat: rules the water and shells the shore. Sails only on water.',
+    desc: 'Heavy gunboat: rules the water and shells the shore. Sails only where it is wet.',
   },
   duckboat: {
     name: 'Rubber Duck Raider', tags: ['ship'], age: 2, proc: 'duckboat', naval: true, targetHeight: 0.44,
@@ -303,7 +303,7 @@ export const UNITS = {
     impact: 0.5, color: 0xffd23f,
     projectile: { speed: 16, arc: false, color: 0xf4a04a, size: 0.06, trail: 0xffd23f },
     debris: { shapes: ['disc'], colors: [0xffd23f, 0xf4802a], count: 5 },
-    desc: 'Fast, cheap skiff — swarm the bath and harass enemy boats. Water only.',
+    desc: 'Fast, cheap, unreasonably confident. Swarm the bath, harass their boats. Water only.',
   },
   // ---- MEGA UNITS: one colossal Age-3 signature per faction (its faction building) ----
   tank: {
@@ -315,7 +315,7 @@ export const UNITS = {
     impact: 0.5, color: 0x4a7a44,
     projectile: { speed: 9, arc: true, color: 0xffcf6a, size: 0.18, splash: 2.0, spin: true, trail: 0xf3722c },
     debris: { shapes: ['cube', 'disc', 'peg'], colors: [0x4a7a44, 0x333333], count: 12 },
-    desc: 'MEGA (Army Men): a rolling fortress. Lobs a heavy cannon shell with big splash. Crushes buildings.',
+    desc: 'MEGA (Army Men): a rolling fortress with one very loud opinion. Heavy shell, big splash, crushes buildings.',
   },
   colossus: {
     name: 'Brick Colossus', tags: ['infantry', 'heavy', 'mega'], age: 3, faction: 'bricks', proc: 'golem', gait: 'stomp',
@@ -325,7 +325,7 @@ export const UNITS = {
     armor: { melee: 9, pierce: 11 }, speed: 0.85, vision: 6, aggro: 6, radius: 0.6,
     impact: 0.5, color: 0x4d9bff,
     debris: { shapes: ['brick', 'cube'], colors: [0xf94144, 0x4d9bff, 0xf9c74f, 0x90be6d], count: 16 },
-    desc: 'MEGA (Snap-Bricks): an unstoppable brick titan. Its ground-slam smashes everything nearby. Wrecks bases.',
+    desc: 'MEGA (Snap-Bricks): a titan of studs and spite. Its ground-slam levels everything nearby. Wrecks bases.',
   },
   mamabear: {
     name: 'Mama Bear', tags: ['infantry', 'heavy', 'plush', 'mega'], age: 3, faction: 'plush', proc: 'bear', gait: 'waddle',
@@ -335,7 +335,7 @@ export const UNITS = {
     armor: { melee: 5, pierce: 7 }, speed: 0.9, vision: 7, aggro: 6, radius: 0.6,
     impact: 0.5, color: 0xd9a441,
     debris: { shapes: ['cube'], colors: [0xd9a441, 0xe05555], count: 8, fluff: true },
-    desc: 'MEGA (Plushies): a colossal teddy. Soaks enormous damage and mends nearby toys with a healing aura.',
+    desc: 'MEGA (Plushies): the biggest hug in the house. Soaks enormous damage and mends every toy in her shadow.',
   },
   monster: {
     name: 'Monster Truck', tags: ['raider', 'vehicle', 'mega'], age: 3, faction: 'racers', gait: 'roll',
@@ -344,7 +344,7 @@ export const UNITS = {
     armor: { melee: 4, pierce: 5 }, speed: 3.2, vision: 8, aggro: 6, radius: 0.55,
     impact: 0.5, color: 0xe5484d,
     debris: { shapes: ['disc', 'stick'], colors: [0xe5484d, 0xffd23f, 0x333333], count: 10 },
-    desc: 'MEGA (RC Racers): a flame-painted monster truck. Tramples every toy it drives through. Fast and huge.',
+    desc: 'MEGA (RC Racers): flame-painted thunder. Tramples whatever it drives through — which is everything.',
   },
   mecha: {
     name: 'Mecha-Titan', tags: ['vehicle', 'ranged', 'bot', 'mega'], age: 3, faction: 'bots', gait: 'stomp',
@@ -354,7 +354,7 @@ export const UNITS = {
     armor: { melee: 5, pierce: 5 }, speed: 1.1, vision: 9, aggro: 7, radius: 0.6,
     impact: 0.5, color: 0x8a1a2a,
     debris: { shapes: ['cube', 'disc', 'peg'], colors: [0x7a828f, 0x8a1a2a, 0x40c0e0], count: 12 },
-    desc: 'MEGA (Tin Bots): a giant tin robot. Fires a piercing laser beam that skewers everything in a line.',
+    desc: 'MEGA (Tin Bots): a giant of polished tin. Its laser skewers an entire battle line at once.',
   },
 };
 
@@ -424,33 +424,33 @@ export const BUILDINGS = {
     garrisonAttack: { atk: 5, atkType: 'pierce', interval: 1.9, range: 7,
       projectile: { speed: 13, arc: true, color: 0xffe28a, size: 0.09, trail: 0xffe28a } },
     debris: WOOD_DEBRIS,
-    desc: 'Main base: workers, drop-off, ages. Garrison up to 10 toys — it shoots while they hide!',
+    desc: 'Home. Workers, drop-off, and the road to new Ages. Garrison 10 toys — it shoots while they hide.',
   },
   house: {
     name: 'Block House', tags: ['building'], size: 2, hp: 200, cost: { blocks: 30 }, buildTime: 12,
     armor: { melee: 1, pierce: 6 }, pop: 5, vision: 3, height: 1.1,
     debris: BRICK_DEBRIS,
-    desc: '+5 toy box capacity.',
+    desc: 'Room under a little roof for five more toys. (+5 capacity)',
   },
   basket: {
     name: 'Storage Basket', tags: ['building'], size: 2, hp: 250, cost: { blocks: 50 }, buildTime: 10,
     armor: { melee: 1, pierce: 5 }, dropoff: true, vision: 3, height: 0.9,
     debris: WOOD_DEBRIS,
-    desc: 'Forward drop-off: workers bank resources here instead of hauling home.',
+    desc: 'A forward pantry: workers bank their haul here instead of trudging all the way home.',
   },
   dock: {
     name: 'Dock', tags: ['building'], size: 3, hp: 500, cost: { blocks: 120, snacks: 30 }, buildTime: 20,
     armor: { melee: 1, pierce: 6 }, vision: 5, age: 2, height: 0.65, dock: true,
     trains: ['tugboat', 'duckboat'],
     debris: WOOD_DEBRIS,
-    desc: 'Shipyard — build it at the water\'s edge to launch boats onto the basin.',
+    desc: 'Shipyard — raise it at the water\'s edge, and teach the bath to fear you.',
   },
   tinker: {
     name: 'Tinker Bench', tags: ['building'], size: 2, hp: 520, cost: { blocks: 110, snacks: 40 }, buildTime: 20,
     armor: { melee: 1, pierce: 6 }, vision: 4, age: 2, height: 0.9,
     techs: ['whetstone', 'quilting', 'reinforced', 'sugarrush', 'overwound', 'pentower', 'steelwork'],
     debris: WOOD_DEBRIS,
-    desc: 'Upgrade shop: research blanket boosts for toys AND buildings — sharper weapons, pen towers, steel walls.',
+    desc: 'The tinkering never stops: sharper weapons, pen towers, steel walls — boosts for toys AND buildings.',
   },
   // ---- faction buildings (each tribe's own workshop, Playmat Age) ----
   tent: {
@@ -458,41 +458,41 @@ export const BUILDINGS = {
     armor: { melee: 1, pierce: 6 }, vision: 4, age: 2, height: 1.2, faction: 'classic',
     trains: ['soldier', 'spear', 'grenadier', 'bazooka', 'tank'], techs: ['liveammo'],
     debris: { shapes: ['stick', 'cube'], colors: [0x4a7a44, 0x8a915a] },
-    desc: 'Classic unique: field HQ. Trains army men of every stripe, including Grenade Lobbers.',
+    desc: 'Classic unique: the field HQ. Every stripe of army man musters here, Grenade Lobbers included.',
   },
   brickshop: {
     name: 'Brick Foundry', tags: ['building'], size: 3, hp: 700, cost: { blocks: 160 }, buildTime: 22,
     armor: { melee: 2, pierce: 6 }, vision: 4, age: 2, height: 1.3, faction: 'bricks',
     trains: ['golem', 'lancer', 'colossus'], techs: ['plating', 'interlock'],
     debris: BRICK_DEBRIS,
-    desc: 'Snap-Brick unique: molds Brick Golems and Pogo Lancers, researches Plating.',
+    desc: 'Snap-Brick unique: molds Brick Golems and Pogo Lancers, researches Plating. Click. Done.',
   },
   nest: {
     name: 'Pillow Nest', tags: ['building'], size: 3, hp: 600, cost: { blocks: 130, snacks: 50 }, buildTime: 20,
     armor: { melee: 1, pierce: 6 }, vision: 4, age: 2, height: 1.0, faction: 'plush',
     trains: ['medic', 'sockpuppet', 'bear', 'mamabear'], techs: ['training', 'grouphug'],
     debris: { shapes: ['cube'], colors: [0xe8e0f4, 0xd88aa8], fluff: true },
-    desc: 'Plushie unique: a cozy nest that stitches Sock Puppets, Medics and Bears.',
+    desc: 'Plushie unique: a warm nest that stitches Sock Puppets, Medics and Bears into service.',
   },
   pitstop: {
     name: 'Pit Stop', tags: ['building'], size: 3, hp: 550, cost: { blocks: 150, buttons: 40 }, buildTime: 20,
     armor: { melee: 1, pierce: 6 }, vision: 4, age: 2, height: 1.0, faction: 'racers',
     trains: ['raider', 'dragster', 'drone', 'cart', 'monster'], techs: ['springs', 'nitro'],
     debris: { shapes: ['disc', 'stick'], colors: [0x666f7a, 0xe5484d] },
-    desc: 'RC Racer unique: fuels every wheeled and winged toy in the garage.',
+    desc: 'RC Racer unique: fuel, fresh tires and bad ideas for every wheeled and winged toy.',
   },
   robolab: {
     name: 'Robotics Bay', tags: ['building'], size: 3, hp: 600, cost: { blocks: 140, buttons: 30 }, buildTime: 21,
     armor: { melee: 1, pierce: 6 }, vision: 4, age: 2, height: 1.1, faction: 'bots',
     trains: ['zapbot', 'titanbot', 'mecha'], techs: ['overclock'],
     debris: { shapes: ['cube', 'disc'], colors: [0x8a95a2, 0x40c0e0] },
-    desc: 'Tin Bots unique: assembles Zap Bots and Titan Bots, researches Overclock.',
+    desc: 'Tin Bots unique: assembles Zap Bots and Titan Bots, researches Overclock. It hums at night.',
   },
   wall: {
     name: 'Block Wall', tags: ['building', 'wall'], size: 1, hp: 250, cost: { blocks: 5 }, buildTime: 4,
     armor: { melee: 2, pierce: 8 }, vision: 1, height: 0.85, wall: true,
     debris: RED_BRICK_DEBRIS,
-    desc: 'Cheap brick wall. Click and drag to place a line. Siege breaks it.',
+    desc: 'A cheap brick promise. Click and drag to draw the line. Siege breaks promises.',
   },
   gate: {
     name: 'Block Gate', tags: ['building', 'wall'], size: 1, hp: 400, cost: { blocks: 30 }, buildTime: 8,
@@ -504,34 +504,34 @@ export const BUILDINGS = {
     name: 'Snack Mat', tags: ['building'], size: 2, hp: 140, cost: { blocks: 45 }, buildTime: 9,
     armor: { melee: 0, pierce: 4 }, vision: 2, height: 0.3, farm: true, farmRate: 0.8,
     debris: { shapes: ['stick', 'cube'], colors: [0xf0e8d8, 0xe07070, 0xb5813f] },
-    desc: 'Renewable Snacks. One worker per mat, slow but never runs out.',
+    desc: 'A picnic that never ends. One worker per mat — slow, steady, eternal Snacks.',
   },
   mat: {
     name: 'Training Mat', tags: ['building'], size: 3, hp: 650, cost: { blocks: 150 }, buildTime: 22,
     armor: { melee: 1, pierce: 6 }, vision: 4, trains: ['soldier', 'spear', 'medic'],
     techs: ['pencils', 'tape', 'steel_soldier', 'steel_spear', 'elite_soldier', 'elite_spear'], height: 0.9,
     debris: WOOD_DEBRIS,
-    desc: 'Trains Block Soldiers, Push-Pin Spears and Plush Medics.',
+    desc: 'Where Block Soldiers, Push-Pin Spears and Plush Medics learn to be brave.',
   },
   bench: {
     name: 'Ranged Bench', tags: ['building'], size: 3, hp: 700, cost: { blocks: 175 }, buildTime: 22,
     armor: { melee: 1, pierce: 6 }, vision: 4, trains: ['archer', 'flinger'],
     techs: ['bands', 'steel_archer', 'elite_archer'], age: 2, height: 1.0,
     debris: WOOD_DEBRIS,
-    desc: 'Trains Button Archers and Rubber-Band Flingers.',
+    desc: 'Where Button Archers and Rubber-Band Flingers learn to aim before they boast.',
   },
   garage: {
     name: 'RC Garage', tags: ['building'], size: 3, hp: 600, cost: { blocks: 175, buttons: 50 }, buildTime: 22,
     armor: { melee: 1, pierce: 6 }, vision: 4, trains: ['raider'], techs: ['springs'], age: 2, height: 1.2,
     debris: { shapes: ['disc', 'brick', 'cube'], colors: [0x666f7a, 0x333333, 0x43aa8b] },
-    desc: 'Trains RC Raiders. Requires Playmat Age.',
+    desc: 'Where RC Raiders are born already speeding. Requires the Playmat Age.',
   },
   market: {
     name: 'Market Stall', tags: ['building'], size: 3, hp: 600, cost: { blocks: 140 }, buildTime: 20,
     armor: { melee: 1, pierce: 6 }, vision: 4, market: true, age: 2, height: 1.4,
     trains: ['cart'],
     debris: WOOD_DEBRIS,
-    desc: 'Buy and sell resources for Buttons. Trains Delivery Carts for trade routes.',
+    desc: 'Buttons for anything, anything for Buttons. Trains Delivery Carts for the long roads.',
   },
   tower: {
     name: 'Watch Tower', tags: ['building'], size: 2, hp: 600, cost: { blocks: 75, marbles: 75 }, buildTime: 18,
@@ -539,13 +539,13 @@ export const BUILDINGS = {
     attack: { atk: 6, atkType: 'pierce', interval: 1.9, range: 7,
               projectile: { speed: 13, arc: true, color: 0xffe28a, size: 0.09, trail: 0xffe28a } },
     debris: { shapes: ['peg', 'stick', 'cube'], colors: [0xf9c74f, 0xd9a066, 0xe98aa2] },
-    desc: 'Pencil tower. Shoots nearby enemies. Costs Marbles.',
+    desc: 'A pencil standing guard. Writes off nearby enemies. Costs Marbles.',
   },
   workshop: {
     name: 'Siege Workshop', tags: ['building'], size: 3, hp: 750, cost: { blocks: 175, buttons: 75 }, buildTime: 26,
     armor: { melee: 1, pierce: 7 }, vision: 4, trains: ['ram', 'catapult'], age: 3, height: 1.1,
     debris: WOOD_DEBRIS,
-    desc: 'Builds Pillow Rams and Sticker Catapults. Fort Age.',
+    desc: 'Where Pillow Rams and Sticker Catapults are dreamed up and bolted together. Fort Age.',
   },
   fort: {
     name: 'Toy Fort', tags: ['building'], size: 4, hp: 2400, cost: { blocks: 200, marbles: 180 }, buildTime: 45,
@@ -555,14 +555,14 @@ export const BUILDINGS = {
     attack: { atk: 10, atkType: 'pierce', interval: 1.6, range: 8,
               projectile: { speed: 14, arc: true, color: 0xffe28a, size: 0.11, trail: 0xffe28a } },
     debris: { shapes: ['cube', 'brick'], colors: [0xe8e0f0, 0xd8c8b8, 0xf0e8e0], fluff: true },
-    desc: 'Blanket fortress. Anchors territory, trains Action Heroes.',
+    desc: 'A blanket fortress that means it. Anchors your territory and trains Action Heroes.',
   },
   wonder: {
     name: 'Imagination Wonder', tags: ['building'], size: 4, hp: 3000,
     cost: { blocks: 600, snacks: 500, buttons: 350, marbles: 250 }, buildTime: 80,
     armor: { melee: 3, pierce: 8 }, vision: 6, age: 3, height: 3.0, wonder: true,
     debris: { shapes: ['cube', 'brick'], colors: [0xf0e4f4, 0xe8ddf2, 0xffd94a], fluff: true },
-    desc: 'Blanket castle. Defend it for 4 minutes to win the bedroom outright.',
+    desc: 'A castle of pure imagination. Defend it for 4 minutes and the bedroom is yours outright.',
   },
 };
 
@@ -577,25 +577,25 @@ export const MAPS = {
     label: 'Bedroom Playmat', icon: '🧸', ground: 'playmat', light: 'normal',
     obstacles: 5, canyon: false, resourceMul: 1, stickers: 2, plateaus: 3,
     features: { milk: 1, ranges: 2, forests: 2 },
-    desc: 'Open center, safe corners — the classic.',
+    desc: 'The classic. Open center, safe corners, and everything left to prove.',
   },
   canyon: {
     label: 'Toy Chest Canyon', icon: '🏔️', ground: 'playmat', light: 'normal',
     obstacles: 3, canyon: true, resourceMul: 1, stickers: 2, plateaus: 2,
     features: { milk: 1, ranges: 1, forests: 1 },
-    desc: 'A pillow barricade splits the room — fight for the gaps.',
+    desc: 'A pillow barricade splits the room, and the whole war squeezes through the gaps.',
   },
   underbed: {
     label: 'Under the Bed', icon: '🌑', ground: 'underbed', light: 'dark',
     obstacles: 11, canyon: false, resourceMul: 0.95, stickers: 3, plateaus: 2,
     features: { ranges: 2, forests: 2 },
-    desc: 'Dark, cluttered, dangerous. Bring a scout.',
+    desc: 'Dark, cluttered, and older than anyone admits. Bring a scout — and your courage.',
   },
   attic: {
     label: 'Attic War Table', icon: '📦', ground: 'attic', light: 'warm',
     obstacles: 4, canyon: false, resourceMul: 1.4, stickers: 2, plateaus: 3,
     features: { milk: 1, ranges: 2, forests: 1 },
-    desc: 'Wide open and rich — boom or be boomed.',
+    desc: 'Wide open, rich, and quiet as history. Boom, Commander — or be boomed.',
   },
   playground: {
     label: 'Backyard Playground', icon: '🛝', ground: 'playground', light: 'warm',
@@ -605,7 +605,7 @@ export const MAPS = {
     // hedge thickets carve the lanes. Rich sandbox center — grab and hold it.
     decor: ['swingset', 'slide', 'seesaw', 'sandbucket', 'ball'],
     decorCount: 18,
-    desc: 'Sunny backyard: sandbox center, swings and slides everywhere.',
+    desc: 'A sunny backyard: the sandbox in the middle, swings and slides all around it.',
   },
   kitchen: {
     label: 'Kitchen Table', icon: '🍽️', ground: 'kitchen', light: 'warm',
@@ -614,7 +614,7 @@ export const MAPS = {
     features: { milk: 3, ranges: 1, forests: 1 },
     decor: ['teacup', 'die', 'ball', 'crayon'],
     decorCount: 15,
-    desc: 'A crumb-strewn dinner table — rich, but mind the milk spills.',
+    desc: 'A crumb-strewn table of plenty — but mind the milk. Nothing marches through milk.',
   },
   bookshelf: {
     label: 'Bookshelf Heights', icon: '📚', ground: 'bookshelf', light: 'warm',
@@ -622,7 +622,7 @@ export const MAPS = {
     // but kept navigable (too many blockers wall armies out and stalemate).
     obstacles: 4, canyon: false, resourceMul: 1, stickers: 3, plateaus: 3,
     features: { ranges: 1, forests: 1 },
-    desc: 'Stacked shelves and ramps — seize and hold the high ground.',
+    desc: 'Shelves stacked like mountain country. Seize the high ground; do the reading later.',
   },
   livingroom: {
     label: 'Living Room', icon: '🎄', ground: 'livingroom', light: 'warm',
@@ -630,7 +630,7 @@ export const MAPS = {
     features: { forests: 1 },
     decor: ['ornament', 'gift', 'die', 'ball'],
     decorCount: 16,
-    desc: 'Holiday carpet: presents to grab, a tree skirt to hold.',
+    desc: 'The holiday carpet: presents worth claiming and a tree skirt worth holding.',
   },
   bathtub: {
     label: 'Bathtub Armada', icon: '🛁', ground: 'bathtub', light: 'normal',
@@ -642,7 +642,7 @@ export const MAPS = {
     water: { rx: 14, rz: 11 },
     decor: ['duckling', 'ball', 'die'],
     decorCount: 12,
-    desc: 'Bath-time battle: a lake in the middle — build Docks and go naval!',
+    desc: 'A warm sea in the middle of everything. Raise your Docks and rule the waves!',
   },
 };
 
@@ -734,16 +734,16 @@ export const PRODUCTION_BUILDINGS = ['chest', 'mat', 'bench', 'garage', 'worksho
 
 // ---------------- techs (researched at buildings, apply stat modifiers) ----------------
 export const TECHS = {
-  pockets:  { name: 'Bigger Pockets',    age: 1, cost: { snacks: 75, blocks: 50 },    time: 25, desc: 'Workers carry +4 resources.' },
-  sorting:  { name: 'Snack Sorting',     age: 1, cost: { snacks: 50, blocks: 25 },    time: 20, desc: 'Snacks gather +20% (mats too).' },
-  scissors: { name: 'Sharper Scissors',  age: 2, cost: { snacks: 100, blocks: 75 },   time: 30, desc: 'All gathering +15%.' },
-  shoes:    { name: 'Toy Shoes',         age: 2, cost: { snacks: 100, buttons: 50 },  time: 25, desc: 'Workers and infantry +10% speed.' },
-  pencils:  { name: 'Pointy Pencils',    age: 2, cost: { blocks: 100, buttons: 100 }, time: 30, desc: 'Melee infantry +1 attack.' },
-  bands:    { name: 'Better Rubber Bands', age: 2, cost: { blocks: 100, buttons: 125 }, time: 30, desc: 'Ranged toys +1 attack.' },
-  springs:  { name: 'Turbo Springs',     age: 3, cost: { snacks: 150, buttons: 150 }, time: 30, desc: 'Wheeled toys +12% speed.' },
-  tape:     { name: 'Tape Reinforcement', age: 3, cost: { blocks: 150, marbles: 125 }, time: 35, desc: 'Infantry armor +1/+1.' },
-  plating:  { name: 'Cardboard Plating', age: 3, cost: { blocks: 200, marbles: 150 }, time: 40, desc: 'Buildings +20% HP.' },
-  training: { name: 'Elite Toy Training', age: 3, cost: { snacks: 300, buttons: 300 }, time: 45, desc: 'Military toys +15% HP.' },
+  pockets:  { name: 'Bigger Pockets',    age: 1, cost: { snacks: 75, blocks: 50 },    time: 25, desc: 'Deeper pockets, fewer trips: workers carry +4.' },
+  sorting:  { name: 'Snack Sorting',     age: 1, cost: { snacks: 50, blocks: 25 },    time: 20, desc: 'A place for every crumb: Snacks gather +20% (mats too).' },
+  scissors: { name: 'Sharper Scissors',  age: 2, cost: { snacks: 100, blocks: 75 },   time: 30, desc: 'Everything cuts cleaner: all gathering +15%.' },
+  shoes:    { name: 'Toy Shoes',         age: 2, cost: { snacks: 100, buttons: 50 },  time: 25, desc: 'Tiny shoes, big hurry: workers and infantry +10% speed.' },
+  pencils:  { name: 'Pointy Pencils',    age: 2, cost: { blocks: 100, buttons: 100 }, time: 30, desc: 'Freshly sharpened: melee infantry +1 attack.' },
+  bands:    { name: 'Better Rubber Bands', age: 2, cost: { blocks: 100, buttons: 125 }, time: 30, desc: 'Stretchier and meaner: ranged toys +1 attack.' },
+  springs:  { name: 'Turbo Springs',     age: 3, cost: { snacks: 150, buttons: 150 }, time: 30, desc: 'Wound past the warranty: wheeled toys +12% speed.' },
+  tape:     { name: 'Tape Reinforcement', age: 3, cost: { blocks: 150, marbles: 125 }, time: 35, desc: 'Wrapped twice for luck: infantry armor +1/+1.' },
+  plating:  { name: 'Cardboard Plating', age: 3, cost: { blocks: 200, marbles: 150 }, time: 40, desc: 'Cardboard, applied with conviction: buildings +20% HP.' },
+  training: { name: 'Elite Toy Training', age: 3, cost: { snacks: 300, buttons: 300 }, time: 45, desc: 'Drilled until brave: military toys +15% HP.' },
   // ---- unit-line VISUAL upgrade tiers (AoE-style: the toys re-gear as they upgrade) ----
   // tier 1: steel armor (helmet + pauldrons) at the Playmat Age
   steel_soldier: { name: 'Armored Soldiers', age: 2, cost: { snacks: 90, blocks: 70 },  time: 28, desc: 'Block Soldiers strap on a steel helmet & pauldrons: +1/+1 armor — upgrades the living too.' },
@@ -754,11 +754,11 @@ export const TECHS = {
   elite_spear:   { name: 'Champion Spears',   age: 3, cost: { snacks: 175, buttons: 125 }, time: 35, desc: 'Push-Pin Spears become gold Champions: +25% HP, +2 attack, +1/+1 armor — upgrades the living too.' },
   elite_archer:  { name: 'Champion Archers',  age: 3, cost: { snacks: 175, buttons: 150 }, time: 35, desc: 'Button Archers become gold Champions: +25% HP, +2 attack, +1/+1 armor — upgrades the living too.' },
   // ---- Tinker Bench unit upgrades (blanket boosts to your whole army) ----
-  whetstone:  { name: 'Whetstone',        age: 2, cost: { snacks: 120, blocks: 60 },   time: 30, desc: 'All military toys +1 attack (melee, ranged and wheeled).' },
-  quilting:   { name: 'Quilted Padding',  age: 2, cost: { blocks: 100, buttons: 60 },  time: 30, desc: 'Ranged and wheeled toys +1/+1 armor (tape already covers infantry).' },
-  reinforced: { name: 'Reinforced Cores', age: 3, cost: { snacks: 200, marbles: 100 }, time: 40, desc: 'All military toys +15% HP — upgrades the living, stacks with Training.' },
-  sugarrush:  { name: 'Sugar Rush',       age: 3, cost: { snacks: 150, buttons: 150 }, time: 35, desc: 'Every toy scoots 8% faster — infantry and wheels alike.' },
-  overwound:  { name: 'Overwound Springs',age: 3, cost: { buttons: 200, marbles: 120 }, time: 40, desc: 'Military toys attack 12% faster.' },
+  whetstone:  { name: 'Whetstone',        age: 2, cost: { snacks: 120, blocks: 60 },   time: 30, desc: 'Every edge in the room attended to: all military toys +1 attack.' },
+  quilting:   { name: 'Quilted Padding',  age: 2, cost: { blocks: 100, buttons: 60 },  time: 30, desc: 'Padded where it counts: ranged and wheeled +1/+1 armor (tape covers infantry).' },
+  reinforced: { name: 'Reinforced Cores', age: 3, cost: { snacks: 200, marbles: 100 }, time: 40, desc: 'Sturdier hearts installed: all military +15% HP (upgrades the living, stacks with Training).' },
+  sugarrush:  { name: 'Sugar Rush',       age: 3, cost: { snacks: 150, buttons: 150 }, time: 35, desc: 'One cookie too many: every toy scoots 8% faster, infantry and wheels alike.' },
+  overwound:  { name: 'Overwound Springs',age: 3, cost: { buttons: 200, marbles: 120 }, time: 40, desc: 'Springs wound to the very limit: military toys attack 12% faster.' },
   // ---- Tinker Bench BUILDING upgrades (level up your structures) ----
   pentower:   { name: 'Pen Towers',       age: 3, cost: { blocks: 150, buttons: 120 }, time: 40, building: true, desc: 'Pencil Towers become Pen Towers: +8 attack, +1.5 range, +80% HP.' },
   steelwork:  { name: 'Steelworks',       age: 3, cost: { blocks: 200, marbles: 120 }, time: 45, building: true, desc: 'Block Walls and Gates go steel: +2 armor and much tougher (+150% HP).' },
@@ -785,10 +785,10 @@ export const START_RES = {
 
 // game modes: how a match is won
 export const GAME_MODES = {
-  standard: { label: 'Conquest', icon: '⚔️', desc: 'Destroy every enemy base to win.' },
-  regicide: { label: 'Regicide', icon: '👑', desc: 'Each toybox gets a King. Guard yours; defeat all enemy Kings.' },
-  koth:     { label: 'King of the Hill', icon: '🏔️', desc: 'Hold the golden Throne at the center for 2 minutes.' },
-  sudden:   { label: 'Sudden Death', icon: '💥', desc: 'Lose your Toy Chest and you\'re out. No rebuilding.' },
+  standard: { label: 'Conquest', icon: '⚔️', desc: 'Destroy every enemy base. The oldest argument in the room.' },
+  regicide: { label: 'Regicide', icon: '👑', desc: 'Every toybox crowns a King. Guard yours; unseat theirs.' },
+  koth:     { label: 'King of the Hill', icon: '🏔️', desc: 'Hold the golden Throne for 2 minutes. Thrones do not stay empty.' },
+  sudden:   { label: 'Sudden Death', icon: '💥', desc: 'One Toy Chest each, no rebuilding. Lose it, and the lid closes.' },
 };
 
 // ---------------- campaign: "The Bedroom Wars" ----------------
@@ -1002,27 +1002,27 @@ export const CRITTERS = { count: 6, snack: 60, captureRadius: 1.8 };
 export const FACTIONS = {
   classic: {
     label: 'Classic Toys', icon: '🎁',
-    desc: 'The all-rounders. No bonuses, no weaknesses.',
+    desc: 'The first toys, and the steadiest. No bonuses, no weaknesses — just discipline.',
     mods: {},
   },
   bricks: {
     label: 'Snap-Bricks', icon: '🧱',
-    desc: 'Buildings +20% HP, workers build 25% faster — but infantry march 6% slower.',
+    desc: 'Builders to the last stud. Buildings +20% HP, workers build 25% faster — but infantry march 6% slower.',
     mods: { buildingHp: 1.2, buildRate: 1.25, speedInfantry: 0.94 },
   },
   plush: {
     label: 'Plushie Horde', icon: '🧸',
-    desc: 'All toys +12% HP, medics heal 50% more — but everyone waddles 6% slower.',
+    desc: 'Soft outside, unbeatable inside. All toys +12% HP, medics heal 50% more — but everyone waddles 6% slower.',
     mods: { unitHp: 1.12, healRate: 1.5, speedInfantry: 0.94, speedWheels: 0.94 },
   },
   racers: {
     label: 'RC Racers', icon: '🏎️',
-    desc: 'Wheeled toys +15% speed and +1 attack — but workers gather 8% slower.',
+    desc: 'Born at the finish line. Wheeled toys +15% speed and +1 attack — but workers gather 8% slower.',
     mods: { speedWheels: 1.15, atkVehicle: 1, gather: 0.92 },
   },
   bots: {
     label: 'Tin Bots', icon: '🤖',
-    desc: 'Ranged toys +1 attack and every toy attacks 10% faster — but they trundle 8% slower on foot.',
+    desc: 'Factory-fresh precision. Ranged +1 attack, all toys attack 10% faster — but they trundle 8% slower on foot.',
     mods: { atkPierce: 1, atkSpeed: 0.9, speedInfantry: 0.92 },
   },
 };

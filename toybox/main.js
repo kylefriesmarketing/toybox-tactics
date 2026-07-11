@@ -675,6 +675,13 @@ function showBriefing(mission) {
   const dm = { easy: 'Sleepy', normal: 'Playful', hard: 'Cranky' };
   const mapName = (MAPS[mission.map] && MAPS[mission.map].label) || mission.map;
   $('bf-title').textContent = `${mission.icon} ${mission.name}`;
+  // the mission's storybook plate (hidden gracefully if the file is missing)
+  const art = $('bf-art');
+  if (art) {
+    art.hidden = false;
+    art.onerror = () => { art.hidden = true; };
+    art.src = `assets/campaign/${mission.id}.jpg`;
+  }
   $('bf-tags').innerHTML = `${mapName} · ${GAME_MODES[mission.gameMode].label} · ${dm[mission.difficulty]}`
     + `<div class="bf-versus">`
     + `<span class="vs-side"><img class="vs-crest" src="assets/ui/crest-${mission.faction}.png" alt="" onerror="this.remove()">${FACTIONS[mission.faction].label}</span>`

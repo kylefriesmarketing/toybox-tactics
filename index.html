@@ -452,6 +452,10 @@
   #bf-title { font-size: 26px; font-weight: 800; color: #ffd97a; letter-spacing: .5px; }
   #bf-tags { color: #b6a9dd; font-size: 12px; margin: 4px 0 12px; }
   #bf-brief { color: #e8e0ff; font-size: 14px; line-height: 1.5; margin-bottom: 12px; }
+  /* storybook plate: one painted illustration per mission */
+  #bf-art { display: block; width: 100%; max-height: 240px; object-fit: cover; margin: 10px 0;
+    border-radius: 8px; border: 2px solid var(--gold-deep); box-shadow: 0 4px 14px #000a; }
+  #bf-art[hidden] { display: none; }
   #bf-obj { color: #ffd166; font-size: 13px; font-weight: 700; margin-bottom: 16px; }
   #bf-row, #go-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
   #go-row { margin-top: 10px; }
@@ -746,6 +750,7 @@
     <div id="bf-card">
       <div id="bf-title"></div>
       <div id="bf-tags"></div>
+      <img id="bf-art" alt="">
       <div id="bf-brief"></div>
       <div id="bf-obj"></div>
       <div id="bf-row">
