@@ -644,7 +644,10 @@ export class UI {
         wt.className = '';
       }
       const idle = this.game.getIdleWorkers(this.game.myId).length;
-      $('idle-btn').textContent = `🔧 ${idle}`;
+      // update just the count span so the painted wrench icon survives
+      const idleN = $('idle-n');
+      if (idleN) idleN.textContent = idle;
+      else $('idle-btn').textContent = `🔧 ${idle}`;
       $('idle-btn').classList.toggle('has-idle', idle > 0);
       for (const { el, def } of this.cardButtons) {
         if (def.isHint) { el.disabled = true; continue; }

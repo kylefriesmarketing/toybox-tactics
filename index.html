@@ -76,6 +76,11 @@
   #age-chip { color: #dcc9ff; text-shadow: var(--emboss); letter-spacing: .4px; font-family: var(--font-display); }
   #clock { color: var(--dim); }
   #topbar .chip.res { gap: 6px; padding-left: 7px; }
+  #topbar .chip .ric img { width: 16px; height: 16px; object-fit: contain; display: block; }
+  .hud-ic { width: 18px; height: 18px; object-fit: contain; vertical-align: -4px;
+    filter: drop-shadow(0 1px 1px #0008); }
+  #mute-btn { background: none; border: none; cursor: pointer; padding: 0; display: flex; }
+  #mute-btn.muted img { filter: grayscale(1) opacity(.4); }
   #topbar .chip .ric { font-size: 14px; width: 22px; height: 22px; flex: none;
     display: flex; align-items: center; justify-content: center; border-radius: 50%;
     background: radial-gradient(circle at 40% 32%, #4a3a28, #1e1409);
@@ -271,6 +276,8 @@
     background: linear-gradient(180deg, var(--prim-a), var(--prim-b));
     box-shadow: 0 6px 18px #0009, inset 0 1px 0 #ffffff66; }
   .home-btn.primary:hover { border-color: var(--gold-2); box-shadow: 0 8px 22px #000a, 0 0 0 1px var(--gold-2), inset 0 1px 0 #ffffff77; }
+  .home-btn .hb-ic img { width: 36px; height: 36px; object-fit: contain; display: block;
+    margin: 0 auto; filter: drop-shadow(0 2px 2px #0007); }
   .home-btn .hb-ic { font-size: 26px; width: 38px; text-align: center; flex: none;
     filter: drop-shadow(0 2px 2px #0007); }
   .home-btn .hb-txt { display: flex; flex-direction: column; line-height: 1.25; }
@@ -498,18 +505,18 @@
   <div id="view"></div>
 
   <div id="topbar">
-    <div class="chip res"><span class="ric">🍪</span><span id="res-snacks">0</span><small class="rate" id="rate-snacks"></small></div>
-    <div class="chip res"><span class="ric">🧱</span><span id="res-blocks">0</span><small class="rate" id="rate-blocks"></small></div>
-    <div class="chip res"><span class="ric">🔘</span><span id="res-buttons">0</span><small class="rate" id="rate-buttons"></small></div>
-    <div class="chip res"><span class="ric">🔮</span><span id="res-marbles">0</span><small class="rate" id="rate-marbles"></small></div>
-    <div class="chip">👥 <span id="pop">0/0</span></div>
-    <button id="idle-btn" title="Select idle worker ( . )">🔧 0</button>
-    <button id="tech-btn" title="Tech tree (T)">📜 Tech</button>
+    <div class="chip res"><span class="ric"><img src="assets/ui/ic-res-snacks.png" alt="" onerror="this.replaceWith(document.createTextNode('🍪'))"></span><span id="res-snacks">0</span><small class="rate" id="rate-snacks"></small></div>
+    <div class="chip res"><span class="ric"><img src="assets/ui/ic-res-blocks.png" alt="" onerror="this.replaceWith(document.createTextNode('🧱'))"></span><span id="res-blocks">0</span><small class="rate" id="rate-blocks"></small></div>
+    <div class="chip res"><span class="ric"><img src="assets/ui/ic-res-buttons.png" alt="" onerror="this.replaceWith(document.createTextNode('🔘'))"></span><span id="res-buttons">0</span><small class="rate" id="rate-buttons"></small></div>
+    <div class="chip res"><span class="ric"><img src="assets/ui/ic-res-marbles.png" alt="" onerror="this.replaceWith(document.createTextNode('🔮'))"></span><span id="res-marbles">0</span><small class="rate" id="rate-marbles"></small></div>
+    <div class="chip"><img class="hud-ic" src="assets/ui/ic-hud-pop.png" alt="" onerror="this.replaceWith(document.createTextNode('👥'))"> <span id="pop">0/0</span></div>
+    <button id="idle-btn" title="Select idle worker ( . )"><img class="hud-ic" src="assets/ui/ic-hud-idle.png" alt="" onerror="this.replaceWith(document.createTextNode('🔧'))"> <span id="idle-n">0</span></button>
+    <button id="tech-btn" title="Tech tree (T)"><img class="hud-ic" src="assets/ui/ic-hud-tech.png" alt="" onerror="this.replaceWith(document.createTextNode('📜'))"> Tech</button>
     <div class="spring"></div>
-    <div class="chip" id="age-chip"><span id="age">Bedtime Age</span></div>
-    <div class="chip"><span id="clock">0:00</span></div>
+    <div class="chip" id="age-chip"><img class="hud-ic" src="assets/ui/ic-hud-age.png" alt="" onerror="this.remove()"> <span id="age">Bedtime Age</span></div>
+    <div class="chip"><img class="hud-ic" src="assets/ui/ic-hud-timer.png" alt="" onerror="this.remove()"> <span id="clock">0:00</span></div>
     <div class="chip" id="sound-chip" title="Volume (M mutes)">
-      <button id="mute-btn">🔊</button>
+      <button id="mute-btn"><img class="hud-ic" src="assets/ui/ic-hud-volume.png" alt="" onerror="this.replaceWith(document.createTextNode('🔊'))"></button>
       <input id="vol" type="range" min="0" max="100" value="50">
     </div>
   </div>
@@ -559,11 +566,11 @@
     <!-- ============ LANDING ============ -->
     <div id="menu-home">
       <div class="home-buttons">
-        <button id="home-quick" class="home-btn primary"><span class="hb-ic">▶</span><span class="hb-txt"><b>Quick Battle</b><small>Jump right in with the last settings</small></span></button>
-        <button id="home-custom" class="home-btn"><span class="hb-ic">⚔️</span><span class="hb-txt"><b>Custom Skirmish</b><small>Choose map, mode, civilization &amp; difficulty</small></span></button>
-        <button id="campaign-btn" class="home-btn"><span class="hb-ic">🎖️</span><span class="hb-txt"><b>Campaign</b><small>The Bedroom Wars — a 5-mission story</small></span></button>
-        <button id="tutorial-btn" class="home-btn"><span class="hb-ic">📖</span><span class="hb-txt"><b>How to Play</b><small>Learn the ropes in a guided match</small></span></button>
-        <button id="home-mp" class="home-btn"><span class="hb-ic">🌐</span><span class="hb-txt"><b>Multiplayer</b><small>Host or join a 1v1 online</small></span></button>
+        <button id="home-quick" class="home-btn primary"><span class="hb-ic"><img src="assets/ui/ic-menu-quick.png" alt="" onerror="this.replaceWith(document.createTextNode('▶'))"></span><span class="hb-txt"><b>Quick Battle</b><small>Jump right in with the last settings</small></span></button>
+        <button id="home-custom" class="home-btn"><span class="hb-ic"><img src="assets/ui/ic-menu-skirmish.png" alt="" onerror="this.replaceWith(document.createTextNode('⚔️'))"></span><span class="hb-txt"><b>Custom Skirmish</b><small>Choose map, mode, civilization &amp; difficulty</small></span></button>
+        <button id="campaign-btn" class="home-btn"><span class="hb-ic"><img src="assets/ui/ic-menu-campaign.png" alt="" onerror="this.replaceWith(document.createTextNode('🎖️'))"></span><span class="hb-txt"><b>Campaign</b><small>The Bedroom Wars — a 5-mission story</small></span></button>
+        <button id="tutorial-btn" class="home-btn"><span class="hb-ic"><img src="assets/ui/ic-menu-howto.png" alt="" onerror="this.replaceWith(document.createTextNode('📖'))"></span><span class="hb-txt"><b>How to Play</b><small>Learn the ropes in a guided match</small></span></button>
+        <button id="home-mp" class="home-btn"><span class="hb-ic"><img src="assets/ui/ic-menu-multiplayer.png" alt="" onerror="this.replaceWith(document.createTextNode('🌐'))"></span><span class="hb-txt"><b>Multiplayer</b><small>Host or join a 1v1 online</small></span></button>
       </div>
       <details id="controls-ref">
         <summary>⌨️ Controls &amp; tips</summary>

@@ -335,17 +335,19 @@ $('gm-speed').addEventListener('input', (e) => {
 });
 
 // sound controls live outside the game so they work from the menu onward
+// the painted speaker icon stays put; muting greys it out via a class
+const setMuteVisual = (m) => $('mute-btn').classList.toggle('muted', m);
 $('mute-btn').addEventListener('click', () => {
   sfx.init(); // clicking sound controls is a gesture — safe to unlock audio
   sfx.setMuted(!sfx.muted);
-  $('mute-btn').textContent = sfx.muted ? '🔇' : '🔊';
+  setMuteVisual(sfx.muted);
 });
 $('vol').addEventListener('input', (e) => {
   sfx.init();
   sfx.setVolume(e.target.value / 100);
   if (sfx.muted && e.target.value > 0) {
     sfx.setMuted(false);
-    $('mute-btn').textContent = '🔊';
+    setMuteVisual(false);
   }
 });
 
@@ -1353,7 +1355,7 @@ addEventListener('keydown', (e) => {
   }
   if (k === 'm') {
     sfx.setMuted(!sfx.muted);
-    $('mute-btn').textContent = sfx.muted ? '🔇' : '🔊';
+    setMuteVisual(sfx.muted);
   }
   // game speed (single-player perk; lockstep runs realtime)
   if (!net) {
