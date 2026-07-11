@@ -7,6 +7,7 @@ import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, DIFFICULTIE
 import {
   loadUnitModels, loadBuildingModels, loadMapModels, loadFurnitureModels, setBuildingFootprints,
   createGhostMesh, createMoveMarker, createLamp, renderPortraits, applyUnitTier, refreshFactionBuildingIcons,
+  PORTRAITS,
 } from './models.js';
 import { Game } from './game.js';
 import { UI } from './ui.js';
@@ -819,6 +820,98 @@ const playIntro = (function initIntro() {
   if (replay) replay.addEventListener('click', () => play(null));
   return play;
 })();
+
+// ---------------- storybook codex (lore loads lazily on first open) ----------------
+{
+  const CX_CATS = [
+    { id: 'tribes', label: '🏰 Tribes' },
+    { id: 'toys', label: '🪖 Toys' },
+    { id: 'buildings', label: '🏠 Buildings' },
+    { id: 'maps', label: '🗺️ Battlefields' },
+  ];
+  let LORE = null, cxCat = 'tribes', cxKey = null;
+  const esc = (t) => (t || '').replace(/</g, '&lt;');
+  const cxEntries = () => {
+    if (cxCat === 'tribes') return Object.keys(FACTIONS).map((k) => ({ k, name: FACTIONS[k].label, img: `assets/ui/crest-${k}.png`, icon: FACTIONS[k].icon }));
+    if (cxCat === 'toys') return Object.keys(UNITS).map((k) => ({ k, name: UNITS[k].name, img: PORTRAITS[k] || null, icon: '🪖' }));
+    if (cxCat === 'buildings') return Object.keys(BUILDINGS).map((k) => ({ k, name: BUILDINGS[k].name, img: PORTRAITS[k] || null, icon: '🏠' }));
+    return Object.keys(MAPS).map((k) => ({ k, name: MAPS[k].label, img: null, icon: MAPS[k].icon }));
+  };
+  const chip = (l, v) => (v === undefined || v === null || v === '' ? '' : `<span class="cx-chip">${l} <b>${esc(String(v))}</b></span>`);
+  const costOf = (def) => Object.entries(def.cost || {}).map(([r, v]) => `${v} ${r}`).join(' · ');
+  function cxPage() {
+    const page = $('cx-page');
+    const k = cxKey;
+    if (!k) { page.innerHTML = ''; return; }
+    if (cxCat === 'tribes') {
+      const f = FACTIONS[k], cmd = f.commander;
+      page.innerHTML =
+        `<div class="cx-hd"><img class="cx-art" src="assets/ui/crest-${k}.png" alt="" onerror="this.remove()">`
+        + `<div><div class="cx-kind">Tribe of the Room</div><div class="cx-name">${esc(f.label)}</div></div></div>`
+        + `<div class="cx-desc">${esc(f.desc)}</div>`
+        + (cmd ? `<div class="cx-cmd"><img src="${cmd.portrait}" alt="" onerror="this.remove()">`
+          + `<div><div class="cx-name" style="font-size:15px">${esc(cmd.name)}</div>`
+          + `<div class="cx-kind">${esc(cmd.title)}</div>`
+          + `<div class="cx-lore" style="font-size:12px">${esc(cmd.bio)}</div></div></div>` : '')
+        + `<div class="cx-lore">${esc(LORE.factions[k] || '')}</div>`;
+    } else if (cxCat === 'toys') {
+      const d = UNITS[k];
+      page.innerHTML =
+        `<div class="cx-hd">${PORTRAITS[k] ? `<img class="cx-art" src="${PORTRAITS[k]}" alt="">` : '<div class="cx-emoji-big">🪖</div>'}`
+        + `<div><div class="cx-kind">${d.naval ? 'Ship of the Bath' : d.faction ? `${esc(FACTIONS[d.faction].label)} unique` : 'Toy of the Room'}</div>`
+        + `<div class="cx-name">${esc(d.name)}</div></div></div>`
+        + `<div class="cx-chips">${chip('❤️', d.hp)}${chip('⚔️', d.atk ? d.atk + ' ' + (d.atkType || '') : null)}`
+        + `${chip('🏹', d.range > 1.6 ? d.range : null)}${chip('🏃', d.speed)}${chip('👥', d.pop)}`
+        + `${chip('🕰️', 'Age ' + (d.age || 1))}${chip('💰', costOf(d))}</div>`
+        + `<div class="cx-desc">${esc(d.desc)}</div>`
+        + `<div class="cx-lore">${esc(LORE.units[k] || '')}</div>`;
+    } else if (cxCat === 'buildings') {
+      const d = BUILDINGS[k];
+      page.innerHTML =
+        `<div class="cx-hd">${PORTRAITS[k] ? `<img class="cx-art" src="${PORTRAITS[k]}" alt="">` : '<div class="cx-emoji-big">🏠</div>'}`
+        + `<div><div class="cx-kind">${d.faction ? `${esc(FACTIONS[d.faction].label)} unique` : 'Building of the Room'}</div>`
+        + `<div class="cx-name">${esc(d.name)}</div></div></div>`
+        + `<div class="cx-chips">${chip('❤️', d.hp)}${chip('📐', d.size + '×' + d.size)}`
+        + `${chip('🕰️', 'Age ' + (d.age || 1))}${chip('💰', costOf(d))}</div>`
+        + `<div class="cx-desc">${esc(d.desc)}</div>`
+        + `<div class="cx-lore">${esc(LORE.buildings[k] || '')}</div>`;
+    } else {
+      const m = MAPS[k];
+      page.innerHTML =
+        `<div class="cx-hd"><div class="cx-emoji-big">${m.icon}</div>`
+        + `<div><div class="cx-kind">Battlefield</div><div class="cx-name">${esc(m.label)}</div></div></div>`
+        + `<div class="cx-chips">${chip('🌾', 'resources ×' + m.resourceMul)}${m.water ? chip('🌊', 'naval') : ''}</div>`
+        + `<div class="cx-desc">${esc(m.desc)}</div>`
+        + `<div class="cx-lore">${esc(LORE.maps[k] || '')}</div>`;
+    }
+  }
+  function cxList() {
+    const list = $('cx-list');
+    const items = cxEntries();
+    if (!items.find((e) => e.k === cxKey)) cxKey = items[0] && items[0].k;
+    list.innerHTML = items.map((e) =>
+      `<button class="cx-item${e.k === cxKey ? ' on' : ''}" data-k="${e.k}">`
+      + (e.img ? `<img src="${e.img}" alt="" onerror="this.outerHTML='<span class=cx-emoji>${e.icon}</span>'">` : `<span class="cx-emoji">${e.icon}</span>`)
+      + `<span>${esc(e.name)}</span></button>`).join('');
+    for (const b of list.querySelectorAll('.cx-item')) {
+      b.addEventListener('click', () => { cxKey = b.dataset.k; cxList(); cxPage(); });
+    }
+    cxPage();
+  }
+  function cxTabs() {
+    $('cx-tabs').innerHTML = CX_CATS.map((c) =>
+      `<button class="cx-tab${c.id === cxCat ? ' on' : ''}" data-c="${c.id}">${c.label}</button>`).join('');
+    for (const b of $('cx-tabs').querySelectorAll('.cx-tab')) {
+      b.addEventListener('click', () => { cxCat = b.dataset.c; cxKey = null; cxTabs(); cxList(); });
+    }
+  }
+  $('codex-btn').addEventListener('click', async () => {
+    if (!LORE) LORE = (await import('./lore.js')).LORE;
+    cxTabs(); cxList();
+    $('codex').classList.add('show');
+  });
+  $('cx-close').addEventListener('click', () => $('codex').classList.remove('show'));
+}
 
 // deep-links from the campaign game-over flow (full reload = clean teardown)
 {

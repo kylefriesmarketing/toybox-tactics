@@ -455,6 +455,47 @@
     text-transform: uppercase; color: var(--gold, #e8a83c); text-shadow: var(--emboss);
     margin: 10px 2px 0; padding-bottom: 3px; border-bottom: 1px solid #e8a83c3a; }
   .cm-act:first-child { margin-top: 0; }
+  /* ============ storybook codex ============ */
+  #codex { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center;
+    background: #0a0704d9; backdrop-filter: blur(3px); }
+  #codex.show { display: flex; }
+  #cx-card { width: min(880px, 94vw); height: min(640px, 90vh); display: flex; flex-direction: column;
+    background: var(--panel-2, #3a2814); border-style: solid; border-width: 22px;
+    border-image: url('assets/ui/panel-frame.png') 130 stretch; padding: 10px 14px; }
+  #cx-tabs { display: flex; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+  .cx-tab { cursor: pointer; font-family: var(--font-display); font-size: 12.5px; font-weight: 700;
+    letter-spacing: .8px; color: #d7c9a6; background: #1e1409b0; border: 1px solid var(--line);
+    border-radius: 20px; padding: 6px 15px; transition: all .15s; }
+  .cx-tab:hover { color: var(--ink); border-color: var(--gold-2, #ffb347); }
+  .cx-tab.on { color: #2a1c0c; background: var(--gold, #e8a83c); border-color: var(--gold, #e8a83c); }
+  #cx-body { flex: 1; display: flex; gap: 12px; min-height: 0; }
+  #cx-list { width: 218px; flex: none; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 4px; }
+  .cx-item { cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 5px 8px;
+    border-radius: 9px; border: 1px solid transparent; color: #d7c9a6; font-size: 12.5px; text-align: left;
+    background: none; }
+  .cx-item:hover { background: #1e1409b0; color: var(--ink); }
+  .cx-item.on { background: #1e1409; border-color: var(--gold-2, #ffb347); color: var(--ink); }
+  .cx-item img { width: 26px; height: 26px; object-fit: contain; flex: none; }
+  .cx-item .cx-emoji { width: 26px; text-align: center; font-size: 17px; flex: none; }
+  #cx-page { flex: 1; overflow-y: auto; background: #1a1007a8; border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px 20px; }
+  .cx-hd { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+  .cx-hd img.cx-art { width: 84px; height: 84px; object-fit: contain; flex: none;
+    filter: drop-shadow(0 3px 8px #000a); }
+  .cx-hd .cx-emoji-big { font-size: 56px; line-height: 1; }
+  .cx-name { font-family: var(--font-display); font-size: 21px; font-weight: 800; color: #ffd97a;
+    text-shadow: var(--emboss); }
+  .cx-kind { font-size: 10px; letter-spacing: 1.6px; text-transform: uppercase; color: #ffb347; }
+  .cx-desc { color: #cfe8b0; font-size: 12.5px; margin: 6px 0 10px; }
+  .cx-lore { color: #e6d9b8; font-size: 13.5px; line-height: 1.62; font-style: italic; white-space: pre-line; }
+  .cx-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 2px; }
+  .cx-chip { background: #1e1409b0; border: 1px solid var(--line); border-radius: 9px;
+    padding: 3px 9px; font-size: 11px; color: #d7c9a6; }
+  .cx-chip b { color: var(--ink); }
+  .cx-cmd { display: flex; gap: 12px; align-items: flex-start; margin: 10px 0;
+    padding: 9px; background: #1e1409b0; border: 1px solid var(--line); border-radius: 12px; }
+  .cx-cmd img { width: 88px; height: 88px; object-fit: cover; border-radius: 10px;
+    border: 2px solid var(--gold-2, #ffb347); flex: none; }
   .cm-mission { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 14px;
     background: var(--panel-3); border: 2px solid var(--line); text-align: left; cursor: pointer; transition: transform .1s, border-color .1s; }
   .cm-mission:hover:not(.locked) { transform: translateX(3px); border-color: #b8862e; }
@@ -650,6 +691,7 @@
         <button id="home-custom" class="home-btn"><span class="hb-ic"><img src="assets/ui/ic-menu-skirmish.png" alt="" onerror="this.replaceWith(document.createTextNode('⚔️'))"></span><span class="hb-txt"><b>Custom Skirmish</b><small>Choose map, mode, civilization &amp; difficulty</small></span></button>
         <button id="campaign-btn" class="home-btn"><span class="hb-ic"><img src="assets/ui/ic-menu-campaign.png" alt="" onerror="this.replaceWith(document.createTextNode('🎖️'))"></span><span class="hb-txt"><b>Campaign</b><small>The Bedroom Wars — a 5-mission story</small></span></button>
         <button id="tutorial-btn" class="home-btn"><span class="hb-ic"><img src="assets/ui/ic-menu-howto.png" alt="" onerror="this.replaceWith(document.createTextNode('📖'))"></span><span class="hb-txt"><b>How to Play</b><small>Learn the ropes in a guided match</small></span></button>
+        <button id="codex-btn" class="home-btn"><span class="hb-ic">📔</span><span class="hb-txt"><b>Storybook</b><small>Every toy, tribe &amp; battlefield — the lore of the room</small></span></button>
         <button id="home-mp" class="home-btn"><span class="hb-ic"><img src="assets/ui/ic-menu-multiplayer.png" alt="" onerror="this.replaceWith(document.createTextNode('🌐'))"></span><span class="hb-txt"><b>Multiplayer</b><small>Host or join a 1v1 online</small></span></button>
       </div>
       <details id="controls-ref">
@@ -810,6 +852,21 @@
         Five battles, one day, ending at bedtime — as told by the toys who won them.</div>
       <div id="cm-progress"></div>
       <div id="cm-list"></div>
+    </div>
+  </div>
+
+  <!-- ============ STORYBOOK CODEX ============ -->
+  <div id="codex">
+    <div id="cx-card">
+      <div id="cx-top" style="display:flex;align-items:center;justify-content:space-between">
+        <span class="menu-label" style="margin:0">📖 The Storybook — Lore of the Room</span>
+        <button id="cx-close" class="diff-btn">✕ Back</button>
+      </div>
+      <div id="cx-tabs"></div>
+      <div id="cx-body">
+        <div id="cx-list"></div>
+        <div id="cx-page"></div>
+      </div>
     </div>
   </div>
 
