@@ -1126,7 +1126,13 @@ function makeBoxView(def, owner) {
   return view;
 }
 
+// Toy Box Zero: the prequel renders every toy the old procedural way — the
+// room as it looked before anyone painted it. Flip on for that mission only.
+let proceduralEra = false;
+export function setProceduralEra(on) { proceduralEra = !!on; }
+
 export function createUnitView(registry, key, def, owner, faction = null) {
+  if (proceduralEra) registry = {}; // no generated models in the before-times
   let view;
   // workers are faction-unique when their tribe's model is loaded, else default
   const facWorker = (key === 'worker' && faction && registry['worker-' + faction]) ? 'worker-' + faction : null;
@@ -1837,9 +1843,9 @@ export function createBuildingView(key, def, owner, rngSeed = 1, up = false, age
   // house & chest are faction-unique: prefer a generated <key>-<faction>.glb.
   // house also has a procedural fallback; chest falls back to the generic chest.glb.
   // (tower joins house/chest, but only unupgraded — the Pen Tower upgrade must stay readable)
-  const facKey = ((key === 'house' || key === 'chest' || (key === 'tower' && !wantPen)) && faction && buildingRegistry[key + '-' + faction]) ? key + '-' + faction : null;
+  const facKey = (!proceduralEra && (key === 'house' || key === 'chest' || (key === 'tower' && !wantPen)) && faction && buildingRegistry[key + '-' + faction]) ? key + '-' + faction : null;
   const modelKey = facKey || ((wantPen && buildingRegistry.pentower) ? 'pentower' : key);
-  const proceduralOnly = key === 'wall' || key === 'gate' || (key === 'house' && !facKey);
+  const proceduralOnly = proceduralEra || key === 'wall' || key === 'gate' || (key === 'house' && !facKey);
   const useGlb = proceduralOnly ? false : (facKey ? true : (wantPen ? !!buildingRegistry.pentower : !!buildingRegistry[modelKey]));
   if (useGlb) {
     meshes = buildingRegistry[modelKey].clone(true);

@@ -7,7 +7,7 @@ import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, DIFFICULTIE
 import {
   loadUnitModels, loadBuildingModels, loadMapModels, loadFurnitureModels, setBuildingFootprints,
   createGhostMesh, createMoveMarker, createLamp, renderPortraits, applyUnitTier, refreshFactionBuildingIcons,
-  PORTRAITS,
+  PORTRAITS, setProceduralEra,
 } from './models.js';
 import { Game } from './game.js';
 import { UI } from './ui.js';
@@ -644,6 +644,16 @@ renderMpLobby(); // initial
 
 // per-theme room lighting (fog near/far go through fogBase so zoom can scale them)
 function applyMapLighting(mode) {
+  if (mode === 'sepia') {
+    // Toy Box Zero: the room as an old photograph — amber light, faded corners
+    hemi.intensity = 0.55; lamp.intensity = 1.9; moon.intensity = 0.1;
+    hemi.color.set(0xd8b98a); lamp.color.set(0xffd9a0);
+    scene.background = new THREE.Color(0x2a2016);
+    scene.fog.color.set(0x2a2016);
+    fogBase.near = 42; fogBase.far = 100;
+    return;
+  }
+  hemi.color.set(0xfff2dd); lamp.color.set(0xffdfae); // restore the usual bulbs
   if (mode === 'dark') {
     hemi.intensity = 0.4; lamp.intensity = 1.1; moon.intensity = 0.55;
     scene.background = new THREE.Color(0x0d0a1c);
@@ -695,14 +705,20 @@ function loadCampaignProgress(baseTable = false) {
 }
 function baseCampaignAllDone() {
   const p = loadCampaignProgress(true);
-  return CAMPAIGN.every((m) => p[m.id]);
+  return CAMPAIGN.every((m) => m.needsAllStories || p[m.id]); // page zero never gates NG+
 }
 function campaignDone(id) { return !!loadCampaignProgress()[id]; }
 function markCampaignDone(id) {
   const p = loadCampaignProgress(); p[id] = true;
   localStorage.setItem(ngActive ? 'tt-campaign-ng' : 'tt-campaign', JSON.stringify(p));
 }
-function missionUnlocked(i) { return i === 0 || campaignDone(CAMPAIGN[i - 1].id); }
+function allStoriesEarned() {
+  try { return Object.keys(loadEarned()).length >= ACHIEVEMENTS.length; } catch { return false; }
+}
+function missionUnlocked(i) {
+  if (CAMPAIGN[i].needsAllStories && !allStoriesEarned()) return false;
+  return i === 0 || campaignDone(CAMPAIGN[i - 1].id);
+}
 function openCampaign() {
   renderCampaignList();
   $('campaign').classList.add('show');
@@ -712,7 +728,10 @@ function renderCampaignList() {
   if (ngActive && !ngUnlocked) setNgActive(false); // never a second night before the first
   const open = CAMPAIGN.filter((m) => !m.secret);
   const openDone = open.filter((m) => campaignDone(m.id)).length;
-  const allDone = CAMPAIGN.every((m) => campaignDone(m.id));
+  const allDone = CAMPAIGN.every((m) => m.needsAllStories || campaignDone(m.id));
+  const zeroTease = allDone && !allStoriesEarned()
+    ? '<div style="margin-top:6px;font-size:11px;opacity:.75">…though the very first page is still stuck to the cover. The room only peels it for a keeper of every Bedtime Story.</div>'
+    : '';
   const progressText = ngActive
     ? (allDone
       ? '🌒 The Second Night is told twice over. The room knows this story by heart now.'
@@ -722,7 +741,7 @@ function renderCampaignList() {
       : openDone >= open.length
         ? '🌙 The trilogy is complete… and at the bottom of the book, a sixteenth page has appeared.'
         : `${openDone} / ${open.length} missions cleared`;
-  $('cm-progress').innerHTML = progressText + (ngUnlocked
+  $('cm-progress').innerHTML = progressText + zeroTease + (ngUnlocked
     ? `<div style="margin-top:8px"><button id="ng-toggle" class="diff-btn" style="font-size:12px;padding:6px 14px">${ngActive ? '📖 Back to the First Night' : '🌒 Begin the Second Night (NG+)'}</button></div>`
     : '');
   const ngBtn = $('ng-toggle');
@@ -1368,7 +1387,9 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
     map = generateRandomMap(rndSeed, rndOpts);
     seedVal = rndSeed | 0;
   }
-  applyMapLighting((typeof map === 'object' ? map : (MAPS[map] || MAPS.playmat)).light);
+  const zeroEra = !!(campaignMission && campaignMission.zeroEra && !mpOpts);
+  setProceduralEra(zeroEra); // Toy Box Zero: the room before anyone painted it
+  applyMapLighting(zeroEra ? 'sepia' : (typeof map === 'object' ? map : (MAPS[map] || MAPS.playmat)).light);
   vfx = new VFX(scene);
   net = mpOpts ? mpOpts.net : null;
   // team roster: single-player skirmish comes from the lobby (2–4 seats, teams);

@@ -3579,17 +3579,21 @@ export class Game {
     }
     if (!this.wonderState || this.wonderState.owner !== wonder.owner) {
       this.wonderState = { owner: wonder.owner, t: WONDER.countdown };
-      this.alert(this.teamOf(wonder.owner) === this.myTeam
+      const mine = this.teamOf(wonder.owner) === this.myTeam;
+      // fog integrity: the news travels, but the map ping only lands if we can see it
+      const ping = (mine || this.seenByMyTeam(wonder.x, wonder.z)) ? { x: wonder.x, z: wonder.z } : null;
+      this.alert(mine
         ? 'Your team\'s Imagination Wonder stands! Defend it to win.'
         : `${TEAM_NAMES[1]} built an Imagination Wonder — destroy it before the countdown ends!`,
-        'age', { x: wonder.x, z: wonder.z });
-      this.fx && this.fx.confetti(wonder.x, wonder.z);
+        'age', ping);
+      if (ping) this.fx && this.fx.confetti(wonder.x, wonder.z);
       this.speakAI('wonder', wonder.owner);
     }
     this.wonderState.t -= dt;
     if (this.wonderState.t <= 60 && !this.wonderState.warned) {
       this.wonderState.warned = true;
-      this.alert('One minute left on the Wonder countdown!', 'attack', { x: wonder.x, z: wonder.z });
+      const ping2 = (this.teamOf(this.wonderState.owner) === this.myTeam || this.seenByMyTeam(wonder.x, wonder.z)) ? { x: wonder.x, z: wonder.z } : null;
+      this.alert('One minute left on the Wonder countdown!', 'attack', ping2);
     }
     if (this.wonderState.t <= 0) {
       this.endGame(this.teamOf(this.wonderState.owner));
@@ -3656,6 +3660,18 @@ export class Game {
     this.kothState = throne.holdTime > 0
       ? { team: throne.holdTeam, t: Math.max(0, KOTH_HOLD - throne.holdTime), contested: holder < 0 }
       : null;
+  }
+
+  // does my team have honest eyes on (x, z)? Sim-side check so alerts can't
+  // leak positions through the fog (each client computes its own answer).
+  seenByMyTeam(x, z) {
+    for (const e of this.entities) {
+      if (e.dead || this.teamOf(e.owner) !== this.myTeam) continue;
+      const vis = (e.def.vision || 0) + (e.kind === 'building' ? 1 : 0.5);
+      const dx = e.x - x, dz = e.z - z;
+      if (dx * dx + dz * dz <= vis * vis) return true;
+    }
+    return false;
   }
 
   // ---------- AI table-talk + bedtime narrator (UI-only, never touches the sim) ----------

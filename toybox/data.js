@@ -1342,6 +1342,34 @@ export const CAMPAIGN = [
       + 'and that is not a consolation, Commander. That is a headstart.',
     enemyBoost: 1.15,
   },
+  {
+    id: 'zero', name: 'Toy Box Zero', icon: '📦', secret: true, zeroEra: true,
+    needsAllStories: true, // every Bedtime Story earned — the room trusts you with page one
+    map: 'playmat', faction: 'classic', enemy: 'plush',
+    gameMode: 'sudden', difficulty: 'hard', startRes: 'lean',
+    brief: 'This is the page under all the other pages, from before the room had '
+      + 'colors. One rug. One box. Two toys who loved the same Kid: a green private '
+      + 'named Greenboots, first of his batch, and a soft new bear called Snug with '
+      + 'both button eyes still on. The Kid could only carry one to grandma\'s house. '
+      + 'The bear got the suitcase. The soldier got the windowsill — and a whole '
+      + 'week to decide what kind of toy he was going to be about it. He decided '
+      + 'wrong first. This is that war: one chest each, no rebuilding, no tribes, '
+      + 'no names for what they were feeling yet. The room watched, and learned '
+      + 'everything it knows.',
+    objective: 'The first war: one Toy Chest each, no rebuilding. Take theirs.',
+    victory: 'The bear\'s box closes and the rug goes quiet, and Greenboots stands '
+      + 'in the sepia light feeling — nothing like victory. A week later the '
+      + 'suitcase came home, and Snug walked straight past the windowsill garrison '
+      + 'and hugged him, one button eye already loose from missing everyone. They '
+      + 'never spoke of the war. They built the toybox rules instead, together: no '
+      + 'toy left boxed, every quarrel ends by morning, and the room remembers so '
+      + 'the toys can forgive. You have read every page now, Commander. This was '
+      + 'the first one. It was always about the two of them.',
+    defeat: 'The soldier\'s chest closes with him inside it — and that, the old '
+      + 'toys say, is where the vow began: the bear who won sat on the lid all '
+      + 'night so his rival would not be alone in the dark. Open the page again, '
+      + 'Commander. First wars deserve second tellings.',
+  },
 ];
 
 // ---------------- scripted mission moments ----------------
@@ -1468,6 +1496,12 @@ export const MISSION_EVENTS = {
     { at: 900, type: 'boost', owner: 2, res: { blocks: 200, buttons: 150 }, kind: 'attack',
       text: 'The rival pact pools its pockets — one assembly line, two armies, zero sentiment.' },
     { at: 1200, text: 'A knight falls covering an army man he met tonight. The room writes the word "allies" in its book and underlines it twice.' },
+  ],
+  zero: [
+    { at: 45, text: 'The rug is smaller than you remember. Everything was, back then — except the feelings.' },
+    { at: 240, text: 'Across the mat, the bear drills his stuffing into ranks. He is not angry. That is what makes him terrifying.' },
+    { at: 540, text: 'No medics yet. No walls yet. Nobody has invented mercy rules for toy wars — that comes after tonight, because of tonight.' },
+    { at: 900, text: 'The lamp holds its light very still, the way you hold your breath at the part of the story where the friends fight.' },
   ],
 };
 
