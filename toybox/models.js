@@ -1479,14 +1479,40 @@ function buildingGeometry(key, def, owner, rng, up = false, age = 1, faction = n
   } else if (key === 'wall') {
     factionWall(faction, add, box, cyl, teamCol, rng, up, age);
   } else if (key === 'gate') {
-    // single-tile doorway: two slim posts flanking a lifting bar (opening runs in Z)
-    const postC = up ? 0x9aa3ad : 0xc95555, barC = up ? 0x868e98 : 0xd9a066;
-    add(box(0.18, 1.0, 0.5, postC), -0.45, 0.5, 0);   // posts
-    add(box(0.18, 1.0, 0.5, postC), 0.45, 0.5, 0);
-    add(box(0.24, 0.14, 0.56, teamCol), -0.45, 1.06, 0); // team caps
-    add(box(0.24, 0.14, 0.56, teamCol), 0.45, 1.06, 0);
-    const bar = add(box(0.72, 0.5, 0.18, barC), 0, 0.45, 0); // the lifting bar
-    g.userData.gateBar = bar;
+    if (faction === 'knights') {
+      // castle gatehouse: stone posts with merlon caps and a lifting iron portcullis
+      const stone = up ? 0xb2b7c0 : 0x9a9fa8, iron = up ? 0x6a6e78 : 0x4a4e56;
+      for (const px of [-0.45, 0.45]) {
+        add(box(0.22, 1.1, 0.52, stone), px, 0.55, 0);            // stone posts
+        add(box(0.26, 0.16, 0.2, stone), px, 1.18, -0.15);        // merlons
+        add(box(0.26, 0.16, 0.2, stone), px, 1.18, 0.15);
+        add(box(0.24, 0.1, 0.56, teamCol), px, 1.32, 0);          // team caps
+      }
+      // the grille lifts as one piece — same gateBar contract as the plain bar
+      const grille = new THREE.Group();
+      for (let i = 0; i < 4; i++) {
+        const vbar = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.6, 0.06), toyMat(iron, 0.5));
+        vbar.position.set(-0.27 + i * 0.18, 0, 0); vbar.castShadow = true; grille.add(vbar);
+        const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.09, 4), toyMat(iron, 0.5));
+        tooth.rotation.x = Math.PI; tooth.position.set(-0.27 + i * 0.18, -0.33, 0); grille.add(tooth);
+      }
+      for (const ry of [-0.18, 0.18]) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.05, 0.07), toyMat(iron, 0.5));
+        rail.position.set(0, ry, 0); grille.add(rail);
+      }
+      grille.position.set(0, 0.45, 0);
+      g.add(grille);
+      g.userData.gateBar = grille;
+    } else {
+      // single-tile doorway: two slim posts flanking a lifting bar (opening runs in Z)
+      const postC = up ? 0x9aa3ad : 0xc95555, barC = up ? 0x868e98 : 0xd9a066;
+      add(box(0.18, 1.0, 0.5, postC), -0.45, 0.5, 0);   // posts
+      add(box(0.18, 1.0, 0.5, postC), 0.45, 0.5, 0);
+      add(box(0.24, 0.14, 0.56, teamCol), -0.45, 1.06, 0); // team caps
+      add(box(0.24, 0.14, 0.56, teamCol), 0.45, 1.06, 0);
+      const bar = add(box(0.72, 0.5, 0.18, barC), 0, 0.45, 0); // the lifting bar
+      g.userData.gateBar = bar;
+    }
   } else if (key === 'wonder') {
     // pillow mountain with a draped blanket and a golden star
     for (const [sx, sz, s] of [[-1.1, -0.9, 0.9], [1.1, -0.8, 0.85], [-0.9, 1.0, 0.8], [1.0, 1.0, 0.9]]) {
