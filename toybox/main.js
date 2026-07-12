@@ -679,6 +679,7 @@ window.__ttTier = (u, t) => applyUnitTier(u.view, u.def, u.owner, t); // preview
 
 // ---------------- campaign: "The Bedroom Wars" ----------------
 let campaignMission = null; // the active mission during a campaign game (null = skirmish)
+let watchMode = false;      // Tonight's Story: both seats AI, the player spectates
 function loadCampaignProgress() {
   try { return JSON.parse(localStorage.getItem('tt-campaign') || '{}'); } catch { return {}; }
 }
@@ -1046,6 +1047,32 @@ const playIntro = (function initIntro() {
   }
 }
 
+// ---------------- Tonight's Story: AI-vs-AI spectator with a camera director ----------------
+$('watch-btn').addEventListener('click', () => {
+  watchMode = true;
+  const maps = ['playmat', 'bathtub', 'bookshelf', 'kitchen', 'playground', 'livingroom', 'attic', 'canyon', 'underbed'];
+  startGame('hard', maps[(Math.random() * maps.length) | 0]);
+  setTimeout(() => {
+    if (!game) return;
+    const a = FACTIONS[game.factionKeys[0]] || FACTIONS.classic;
+    const b = FACTIONS[game.factionKeys[1]] || FACTIONS.classic;
+    ui.alert(`🌙 Tonight's Story: the ${a.label} meet the ${b.label}. The room is watching.`, 'story', null, 0);
+    // the director: every few seconds, glide the camera to wherever the story is
+    const director = setInterval(() => {
+      if (!watchMode || !game || game.over) { clearInterval(director); return; }
+      const units = game.entities.filter((e) => e.kind === 'unit' && !e.dead);
+      const fighting = units.filter((u) => u.swing || (u.order && u.order.type === 'attack'));
+      const focus = fighting.length ? fighting : units.filter((u) => u.def.aggro > 0);
+      const cast = focus.length ? focus : units;
+      if (!cast.length) return;
+      let fx = 0, fz = 0;
+      for (const u of cast) { fx += u.x; fz += u.z; }
+      cam.tx = fx / cast.length; cam.tz = fz / cast.length;
+      clampCam();
+    }, 3500);
+  }, 1500);
+});
+
 // deep-links from the campaign game-over flow (full reload = clean teardown)
 {
   const params = new URLSearchParams(location.search);
@@ -1240,7 +1267,10 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   // team roster: single-player skirmish comes from the lobby (2–4 seats, teams);
   // campaign fixes its own 1v1 matchup; MP co-op spells out four seats
   let playerDefs = resume ? resume.opts.playerDefs || null : null;
-  if (!playerDefs && !mpOpts && !campaignMission) {
+  if (!playerDefs && watchMode && !mpOpts && !campaignMission) {
+    // Tonight's Story: two AI tribes, the player just watches (random civs)
+    playerDefs = [{ team: 0, isAI: true, faction: null }, { team: 1, isAI: true, faction: null }];
+  } else if (!playerDefs && !mpOpts && !campaignMission) {
     playerDefs = buildLobbyDefs();
   } else if (!playerDefs && mpOpts && mpOpts.playerDefs) {
     playerDefs = mpOpts.playerDefs; // networked lobby: host's roster (both clients identical)
