@@ -1130,6 +1130,23 @@ $('watch-btn').addEventListener('click', () => {
   }, 1500);
 });
 
+// ---------------- The Bottled Story: replay the last finished skirmish ----------------
+{
+  const rb = $('replay-btn');
+  if (rb) {
+    let has = false;
+    try { has = !!JSON.parse(localStorage.getItem('tt-replay-last') || 'null'); } catch { /* corrupt */ }
+    rb.hidden = !has;
+    rb.addEventListener('click', () => {
+      startReplay();
+      setTimeout(() => {
+        if (!game || !game.replayFeed) return;
+        ui.alert('📼 The Bottled Story: the toys remember every move. Sit back — or fly the camera yourself.', 'story', null, 0);
+      }, 1500);
+    });
+  }
+}
+
 // deep-links from the campaign game-over flow (full reload = clean teardown)
 {
   const params = new URLSearchParams(location.search);
@@ -1297,6 +1314,33 @@ window.__ttDebug = () => ({
 
 let net = null;      // set for multiplayer matches
 let mpAccum = 0;
+let spAccum = 0;     // single-player fixed-step accumulator (20Hz, replay-grade)
+
+// ---------------- replays: "Bottled Stories" ----------------
+// a finished SP match is {seed, setup, command log}; the deterministic sim
+// replays it move-for-move. Version-stamped: a rebalanced data.js would tell
+// a different story from the same log, so mismatched bottles stay corked.
+let dataHash = 'dev';
+fetch('toybox/data.js').then((r) => r.text()).then((t) => {
+  let h = 5381;
+  for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+  dataHash = h.toString(36);
+}).catch(() => { /* file:// dev — replays stay 'dev'-stamped */ });
+let replayLaunch = null; // set just before startGame() to play a bottle back
+
+function startReplay() {
+  let rec = null;
+  try { rec = JSON.parse(localStorage.getItem('tt-replay-last') || 'null'); } catch { /* corrupt */ }
+  if (!rec || !rec.log) return;
+  if (rec.v !== dataHash) {
+    alert('This bottled story was recorded under an older balance of the room — after an update, the toys would tell it differently. Play a new match to bottle a fresh one.');
+    return;
+  }
+  campaignMission = null;
+  watchMode = false;
+  replayLaunch = rec;
+  startGame(rec.diff, rec.map);
+}
 
 function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = false) {
   if (game) return;
@@ -1309,9 +1353,10 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
     setTimeout(() => menuEl.remove(), 600);
   }
 
+  const rep = replayLaunch; replayLaunch = null; // consume the bottle, if any
   let map = (mpOpts && mpOpts.map) || mapKey || chosenMap;
-  // seed: MP/resume carry theirs; fresh games roll a new one
-  let seedVal = mpOpts ? mpOpts.seed : (resume ? resume.opts.seed : (Math.random() * 2 ** 31) | 0);
+  // seed: MP/resume/replay carry theirs; fresh games roll a new one
+  let seedVal = mpOpts ? mpOpts.seed : (resume ? resume.opts.seed : (rep ? rep.seed : (Math.random() * 2 ** 31) | 0));
   // a fresh single-player random map: build the config from the seed panel and
   // tie the whole match seed to it, so a given seed reproduces the exact board
   if (map === 'random' && !mpOpts && !resume) {
@@ -1324,6 +1369,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   // team roster: single-player skirmish comes from the lobby (2–4 seats, teams);
   // campaign fixes its own 1v1 matchup; MP co-op spells out four seats
   let playerDefs = resume ? resume.opts.playerDefs || null : null;
+  if (!playerDefs && rep) playerDefs = rep.playerDefs; // replay: the original roster, civs pinned
   if (!playerDefs && watchMode && !mpOpts && !campaignMission) {
     // Tonight's Story: two AI tribes, the player just watches (random civs)
     playerDefs = [{ team: 0, isAI: true, faction: null }, { team: 1, isAI: true, faction: null }];
@@ -1353,18 +1399,32 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
           `<div class="go-awards">${newly.map((a) =>
             `<span class="go-award" title="${a.desc}">🏆 ${a.icon} ${a.name}</span>`).join('')}</div>`);
       }
+      // bottle the story: fresh SP skirmishes only (campaign/MP/resume/replay can't)
+      if (!mpOpts && !resume && !tutorial && !campaignMission && game.cmdLog) {
+        try {
+          localStorage.setItem('tt-replay-last', JSON.stringify({
+            v: dataHash, when: Date.now(), win, seed: seedVal, map,
+            diff: difficulty, gameMode: game.gameMode, startRes: game.startResKey,
+            faction: game.factionKeys[game.myId],
+            factions: [...game.factionKeys],
+            playerDefs: game.playerDefs.map((d, i) => ({ ...d, faction: game.factionKeys[i] })),
+            log: game.cmdLog,
+          }));
+        } catch (e) { /* storage full — this story goes untold */ }
+      }
     },
     age: () => ui.refreshSelection(),
     shake: (amt) => shakeCam(amt),
   }, {
     fx: vfx, sfx, difficulty, map, playerDefs, tutorial,
-    gameMode: mpOpts ? mpOpts.gameMode : (resume ? resume.opts.gameMode : chosenMode),
-    startRes: mpOpts ? mpOpts.startRes : (resume ? resume.opts.startRes : chosenStartRes),
+    gameMode: mpOpts ? mpOpts.gameMode : (resume ? resume.opts.gameMode : (rep ? rep.gameMode : chosenMode)),
+    startRes: mpOpts ? mpOpts.startRes : (resume ? resume.opts.startRes : (rep ? rep.startRes : chosenStartRes)),
     // resumed games must rebuild the identical map shell before restoring
     seed: seedVal,
     mp: !!mpOpts, myId: mpOpts ? mpOpts.myId : 0, net,
-    faction: chosenFaction,
-    factions: mpOpts ? mpOpts.factions : (resume ? resume.opts.factions : campFactions),
+    faction: rep ? rep.faction : chosenFaction,
+    factions: mpOpts ? mpOpts.factions : (resume ? resume.opts.factions : (rep ? rep.factions : campFactions)),
+    replayLog: rep ? rep.log : null,
   });
   if (net) {
     net.onDrop = () => { ui.alert('Connection lost — the other player left.', 'attack'); };
@@ -1570,8 +1630,36 @@ function setClickMode(m) {
 }
 const setAttackMove = (v) => setClickMode(v ? 'amove' : null);
 
+// ---------------- touch scheme (phones & tablets, pointer: coarse) ----------------
+// tap = select · quick swipe = pan · hold 150ms then drag = selection box ·
+// long-press 500ms = the contextual command (touch's right-click) · pinch = zoom
+const touchPts = new Map(); // active touch pointers, for pinch
+let pinch = null;           // { d0, dist0 } while two fingers are down
+let longPress = null;       // pending long-press timer
+let lastPtrType = 'mouse';  // coarse pointers turn edge-scroll off
+
 renderer.domElement.addEventListener('pointerdown', (e) => {
   if (!game) return;
+  lastPtrType = e.pointerType || 'mouse';
+  if (e.pointerType === 'touch') {
+    touchPts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touchPts.size === 2) {
+      // second finger: whatever the first was doing becomes a pinch
+      clearTimeout(longPress); longPress = null;
+      const [a, b] = [...touchPts.values()];
+      pinch = { d0: Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)), dist0: cam.tdist };
+      down = null; dragBox.style.display = 'none';
+      return;
+    }
+    if (!clickMode && !placing) {
+      clearTimeout(longPress);
+      const px = e.clientX, py = e.clientY;
+      longPress = setTimeout(() => {
+        longPress = null;
+        if (down && !down.moved && !down.pan) { down = null; contextualAt(px, py, false); }
+      }, 500);
+    }
+  }
   if (e.button === 1) { down = { pan: true, x: e.clientX, y: e.clientY }; e.preventDefault(); return; }
   if (e.button === 0) {
     if (clickMode) {
@@ -1599,17 +1687,34 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
       confirmPlacement(e.shiftKey);
       return;
     }
-    down = { x: e.clientX, y: e.clientY, moved: false };
+    down = { x: e.clientX, y: e.clientY, moved: false, t0: performance.now(), touch: e.pointerType === 'touch' };
   }
 });
 
 addEventListener('pointermove', (e) => {
   mouseX = e.clientX; mouseY = e.clientY;
+  if (e.pointerType === 'touch' && touchPts.has(e.pointerId)) {
+    touchPts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && touchPts.size >= 2) {
+      const [a, b] = [...touchPts.values()];
+      const d = Math.max(20, Math.hypot(a.x - b.x, a.y - b.y));
+      cam.tdist = pinch.dist0 * (pinch.d0 / d); // spread fingers = closer
+      clampCam();
+      return;
+    }
+  }
   if (placing) {
     updatePlacement(e.clientX, e.clientY);
     if (wallDrag) updateWallLine();
   }
   if (!down) return;
+  const drift = Math.abs(e.clientX - down.x) + Math.abs(e.clientY - down.y);
+  // a finger that starts moving right away means "pan the camera";
+  // held 150ms first, the same drag draws a selection box instead
+  if (down.touch && !down.pan && !down.moved && drift > 8) {
+    clearTimeout(longPress); longPress = null;
+    if (performance.now() - down.t0 < 150) down.pan = true;
+  }
   if (down.pan) {
     const k = cam.dist / 500;
     cam.tx -= (e.clientX - down.x) * k;
@@ -1618,7 +1723,7 @@ addEventListener('pointermove', (e) => {
     clampCam();
     return;
   }
-  if (Math.abs(e.clientX - down.x) + Math.abs(e.clientY - down.y) > 8) down.moved = true;
+  if (drift > 8) down.moved = true;
   if (down.moved) {
     dragBox.style.display = 'block';
     dragBox.style.left = `${Math.min(down.x, e.clientX)}px`;
@@ -1631,6 +1736,11 @@ document.addEventListener('mouseleave', () => { mouseInside = false; });
 document.addEventListener('mouseenter', () => { mouseInside = true; });
 
 addEventListener('pointerup', (e) => {
+  if (e.pointerType === 'touch') {
+    touchPts.delete(e.pointerId);
+    clearTimeout(longPress); longPress = null;
+    if (pinch) { if (touchPts.size < 2) pinch = null; return; }
+  }
   if (wallDrag && e.button === 0) { finishWallLine(e.shiftKey); return; }
   if (!down) return;
   const wasPan = down.pan, moved = down.moved;
@@ -1697,15 +1807,15 @@ addEventListener('pointerup', (e) => {
 });
 let lastClick = { id: null, t: 0 };
 
-renderer.domElement.addEventListener('contextmenu', (e) => {
-  e.preventDefault();
+// the contextual command (right-click on desktop, long-press on touch)
+function contextualAt(cx, cy, shift) {
   if (!game) return;
   if (clickMode) { setClickMode(null); return; }
   if (placing) { cancelPlacement(); return; }
-  const p = groundPoint(e.clientX, e.clientY);
+  const p = groundPoint(cx, cy);
   if (!p) return;
   const ent = game.entityAt(p.x, p.z);
-  const result = game.rightClick(p.x, p.z, ent, e.shiftKey);
+  const result = game.rightClick(p.x, p.z, ent, shift);
   if (result) {
     sfx.play('command');
     const first = game.selected.find((s) => s.kind === 'unit' && s.owner === game.myId);
@@ -1716,6 +1826,10 @@ renderer.domElement.addEventListener('contextmenu', (e) => {
   if (result === 'move' || result === 'rally') marker.ping(p.x, p.z, result === 'rally' ? 0x66aaff : 0x66ff88);
   else if (result === 'attack') marker.ping(p.x, p.z, 0xff5544);
   else if (result === 'gather') marker.ping(p.x, p.z, 0xffd166);
+}
+renderer.domElement.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  contextualAt(e.clientX, e.clientY, e.shiftKey);
 });
 
 renderer.domElement.addEventListener('wheel', (e) => {
@@ -2189,8 +2303,8 @@ function loop() {
   if (keys.arrowdown || keys.s) cam.tz += panSpeed;
   if (keys.arrowleft || keys.a) cam.tx -= panSpeed;
   if (keys.arrowright || keys.d) cam.tx += panSpeed;
-  // edge scrolling
-  if (mouseInside && !down && settings.edge) {
+  // edge scrolling (fingers never hover, so coarse pointers skip it)
+  if (mouseInside && !down && settings.edge && lastPtrType !== 'touch') {
     const m = 14;
     if (mouseX < m) cam.tx -= panSpeed;
     else if (mouseX > innerWidth - m) cam.tx += panSpeed;
@@ -2209,7 +2323,10 @@ function loop() {
       ui.update(dt);
     } catch (err) { console.error('[toybox] mp tick error', err); }
   } else if (!gamePaused) {
-    tick(dt * gameSpeed);
+    // SP runs the same fixed 20Hz quantum as MP lockstep, so every match is
+    // deterministic — which is what makes replays possible at all
+    spAccum = Math.min(spAccum + dt * gameSpeed, 0.4);
+    while (spAccum >= TICK) { tick(TICK); spAccum -= TICK; }
   }
   vfx.ambient(cam.x, cam.z, dt); // dust motes drifting in the lamp light
   updateAmbient(dt);            // moths, headlights, the cat
@@ -2230,9 +2347,10 @@ setInterval(() => {
     if (net) {
       stepMP(elapsed);
     } else if (!gamePaused) {
-      const steps = Math.max(1, Math.ceil(elapsed / 0.1));
-      const dt = elapsed / steps;
-      for (let i = 0; i < steps; i++) game.update(dt);
+      // hidden tab: same fixed quantum, capped so a long sleep can't stall the UI
+      spAccum = Math.min(spAccum + elapsed * gameSpeed, 2);
+      let steps = 0;
+      while (spAccum >= TICK && steps++ < 48) { game.update(TICK); spAccum -= TICK; }
     }
     vfx.update(elapsed);
     marker.update(elapsed);

@@ -609,11 +609,12 @@
     background: #00000066; border: 1px solid #ffffff33; border-radius: 20px; padding: 7px 16px;
     backdrop-filter: blur(3px); transition: background .2s, border-color .2s; }
   #ic-skip:hover { background: #000000a0; border-color: var(--gold, #e8a83c); color: var(--gold, #e8a83c); }
-  #intro-replay, #watch-btn { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; cursor: pointer;
+  #intro-replay, #watch-btn, #replay-btn { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; cursor: pointer;
     background: none; border: none; color: #d7c9a6cc; font-size: 12px; letter-spacing: .5px;
     font-family: var(--font-display, Georgia, serif); font-style: italic; transition: color .2s; }
-  #intro-replay:hover, #watch-btn:hover { color: var(--gold, #e8a83c); }
-  #watch-btn { margin-left: 14px; }
+  #intro-replay:hover, #watch-btn:hover, #replay-btn:hover { color: var(--gold, #e8a83c); }
+  #watch-btn, #replay-btn { margin-left: 14px; }
+  #replay-btn[hidden] { display: none; }
   #go-next { font-size: 17px; font-weight: 800; letter-spacing: .5px; padding: 9px 20px; border-radius: 14px;
     cursor: pointer; color: #201206; border: 2px solid #b8862e; background: linear-gradient(180deg,#ffd97a,#e5a83a); }
 
@@ -742,6 +743,7 @@
     <div class="sub">After Bedtime — the toys wake up and go to war</div>
     <button id="intro-replay" title="Watch the opening story">✦ Watch the opening story</button>
     <button id="watch-btn" title="An AI-vs-AI battle, narrated — just watch">🌙 Tonight's Story — watch the toys fight one</button>
+    <button id="replay-btn" title="Replay your last finished skirmish, move for move" hidden>📼 The Bottled Story — replay your last match</button>
 
     <!-- ============ LANDING ============ -->
     <div id="menu-home">

@@ -240,6 +240,12 @@ export class Game {
     this.myId = opts.myId ?? 0;   // which side this client plays
     this.mp = !!opts.mp;          // multiplayer: no AI, commands via lockstep
     this.net = opts.net || null;
+    // replays: the sim is deterministic at fixed ticks, so a finished match is
+    // just {seed, opts, player commands by frame}. Recording is free in SP;
+    // playback feeds the log back through the same issue() funnel.
+    this.frame = 0;                                     // completed update() count
+    this.replayFeed = opts.replayLog ? opts.replayLog.map((r) => ({ k: r.k, c: r.c })) : null;
+    this.cmdLog = (this.replayFeed || this.mp) ? null : []; // record fresh SP games only
     this.rng = makeRng(opts.seed || 20260703);
     // opts.map may be a MAPS key or a full config object (e.g. a random map)
     this.map = (opts.map && typeof opts.map === 'object') ? opts.map : (MAPS[opts.map] || MAPS.playmat);
@@ -1387,8 +1393,12 @@ export class Game {
 
   // ---------- command routing (SP: immediate; MP: lockstep-scheduled) ----------
   issue(cmd) {
+    if (this.replayFeed) return; // playback: the log is the only commander
     if (this.mp && this.net) this.net.queueLocal(cmd);
-    else this.execCommand(this.myId, cmd);
+    else {
+      if (this.cmdLog) this.cmdLog.push({ k: this.frame, c: JSON.parse(JSON.stringify(cmd)) });
+      this.execCommand(this.myId, cmd);
+    }
   }
 
   execCommand(pid, c) {
@@ -1602,6 +1612,7 @@ export class Game {
     for (const e of this.entities) e.view && this.scene.remove(e.view.group);
     this.entities.length = 0;
     this.selected = [];
+    this.cmdLog = null; // resumed games have a gap in the log — no replay for them
     for (const pr of this.projectiles) this.scene.remove(pr.mesh);
     this.projectiles.length = 0;
     this.blocked.set(snap.blocked);
@@ -3769,6 +3780,13 @@ export class Game {
 
   // ---------- main update ----------
   update(dt) {
+    // replay playback: re-issue the recorded commands at their exact frames
+    if (this.replayFeed) {
+      while (this.replayFeed.length && this.replayFeed[0].k <= this.frame) {
+        try { this.execCommand(this.myId, this.replayFeed.shift().c); } catch (e) { /* stale ids: skip */ }
+      }
+    }
+    this.frame++;
     this.time += dt;
     if (!this.taunted && this.time > 18 && !this.mp) {
       this.taunted = true;
