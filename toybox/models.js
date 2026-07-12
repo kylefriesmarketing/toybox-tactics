@@ -1690,7 +1690,8 @@ export async function loadMapModels(onProgress) {
 // bedroom furniture: generated models drop into assets/furniture/<key>.glb and
 // replace the procedural boxes in addBedroom; procedural stays as the fallback.
 export const furnitureRegistry = {};
-const FURNITURE_KEYS = ['bed', 'dresser', 'bookshelf', 'toychest'];
+const FURNITURE_KEYS = ['bed', 'dresser', 'bookshelf', 'toychest',
+  'prop-cereal', 'prop-sneaker', 'prop-clock', 'prop-beachball'];
 export async function loadFurnitureModels(onProgress) {
   const loader = makeGLTFLoader();
   let done = 0;
@@ -2446,7 +2447,8 @@ export function createGround(N, style = 'playmat') {
   else if (style === 'bookshelf') addStudySurround(g, N);
   else if (style === 'livingroom') addLivingroomSurround(g, N);
   else if (style === 'attic') addAtticSurround(g, N);
-  else if (style !== 'underbed') addBedroom(g, N, style);
+  else if (style === 'underbed') addUnderbedProps(g, N);
+  else addBedroom(g, N, style);
   return g;
 }
 
@@ -2475,7 +2477,22 @@ function surroundKit(g, N) {
       new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: intensity, roughness: 0.5 }));
     m.position.set(0, y, -half - 29.6); g.add(m); return m;
   };
-  return { half, M, box, cyl, sph, put, ring, glow };
+  // place a generated prop GLB (same contract as addBedroom's placeFurn):
+  // scaled to a target height, grounded at y=0; false = fall back to procedural
+  const furn = (key, x, z, targetH, ry = 0) => {
+    const proto = furnitureRegistry[key];
+    if (!proto) return false;
+    const m = proto.clone(true);
+    const b = new THREE.Box3().setFromObject(m);
+    const sz = new THREE.Vector3(); b.getSize(sz);
+    m.scale.setScalar(targetH / Math.max(sz.y, 1e-6));
+    m.position.set(x, 0, z);
+    m.rotation.y = ry;
+    m.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
+    g.add(m);
+    return true;
+  };
+  return { half, M, box, cyl, sph, put, ring, glow, furn };
 }
 
 // bathroom: pedestal sink, towels, shampoo regiment, laundry basket, duckies
@@ -2513,7 +2530,7 @@ function addBathroomSurround(g, N) {
 
 // kitchen: cabinet fronts, a looming fridge, fallen cutlery, cereal box
 function addKitchenSurround(g, N) {
-  const { half, box, cyl, put, ring, glow } = surroundKit(g, N);
+  const { half, box, cyl, put, ring, glow, furn } = surroundKit(g, N);
   ring(['#d8b46a', '#b08a44', '#8a6a30'], 1); // woven placemat under the arena
   // fridge looming at the north wall
   put(box(20, 46, 14, 0xeef0f0, 0.35), -14, 23, -half - 20);
@@ -2530,14 +2547,16 @@ function addKitchenSurround(g, N) {
   const spoon = cyl(0.9, 0.9, 18, 0xd8dce0, 8); spoon.rotation.z = Math.PI / 2; put(spoon, fx + 2, 0.9, -12, -0.3);
   put(new THREE.Mesh(new THREE.SphereGeometry(3.2, 12, 8), new THREE.MeshStandardMaterial({ color: 0xd8dce0, roughness: 0.3 })), fx + 11, 1.2, -14.5).scale.set(1, 0.4, 1.4);
   // cereal box leaning on the south wall
-  put(box(16, 24, 6, 0xe05555, 0.8), 8, 12, half + 22, 0.3);
-  put(box(13, 8, 0.6, 0xf0d24a, 0.8), 8, 15, half + 18.6, 0.3);
+  if (!furn('prop-cereal', 8, half + 22, 26, 0.3)) {
+    put(box(16, 24, 6, 0xe05555, 0.8), 8, 12, half + 22, 0.3);
+    put(box(13, 8, 0.6, 0xf0d24a, 0.8), 8, 15, half + 18.6, 0.3);
+  }
   glow(20, 13, 31, 0xfff2c8, 0.6); // warm kitchen window
 }
 
 // backyard: picket fence, hedges, flowers, garden hose, watering can, the sun
 function addYardSurround(g, N) {
-  const { half, box, cyl, sph, put, ring, glow } = surroundKit(g, N);
+  const { half, box, cyl, sph, put, ring, glow, furn } = surroundKit(g, N);
   ring(['#6aaa50', '#4a8a3a', '#8aba60'], 1); // mowed ring around the sand arena
   // picket fence just inside every wall
   const P = half + 26;
@@ -2567,6 +2586,10 @@ function addYardSurround(g, N) {
   const wc = -half - 16;
   put(cyl(4.5, 5, 9, 0x59a0e0), wc, 4.5, -10);
   const spout = cyl(0.9, 1.4, 9, 0x59a0e0, 8); spout.rotation.z = 0.9; put(spout, wc + 6, 6.5, -10);
+  // beach ball left behind by the sandbox, south side
+  if (!furn('prop-beachball', -14, half + 19, 12, 0.7)) {
+    put(sph(6, 0xe05555, 0.55), -14, 6, half + 19);
+  }
   glow(16, 16, 34, 0xffe9a0, 0.9); // the sun, high on the north sky-wall
 }
 
@@ -2640,7 +2663,7 @@ function addLivingroomSurround(g, N) {
 
 // attic: box mountains, a steamer trunk, sheet-ghost coat rack, cobwebs
 function addAtticSurround(g, N) {
-  const { half, M, box, cyl, sph, put, ring, glow } = surroundKit(g, N);
+  const { half, M, box, cyl, sph, put, ring, glow, furn } = surroundKit(g, N);
   ring(['#7a5a3a', '#a5824f', '#5f4327'], 1); // the old attic rug
   // cardboard box mountains with tape stripes
   const cardboard = (x, z, w, h, ry) => {
@@ -2667,7 +2690,20 @@ function addAtticSurround(g, N) {
   // leaning picture frames
   put(box(14, 18, 1, 0x6a4526, 0.8), -26, 9, -half - 25, 0.1).rotation.x = -0.12;
   put(box(10, 13, 1, 0x8a6a3a, 0.8), -38, 6.5, -half - 25, -0.06).rotation.x = -0.12;
+  // a retired alarm clock, stopped at some ancient bedtime, west side
+  furn('prop-clock', -half - 17, 34, 13, 0.5);
   glow(12, 10, 34, 0xa8b8d8, 0.35); // small dusty gable window
+}
+
+// under the bed stays a walless void — just the things that got lost down here
+function addUnderbedProps(g, N) {
+  const { half, sph, put, furn } = surroundKit(g, N);
+  // the lost sneaker, toe to the arena, big as a cathedral to a toy
+  if (furn('prop-sneaker', -half - 20, 6, 16, 1.1)) {
+    // a couple of dust bunnies sheltering in its shadow
+    put(sph(2.6, 0x8a8ca0, 1), -half - 12, 1.6, 16).scale.set(1.3, 0.7, 1);
+    put(sph(1.8, 0x7a7c90, 1), -half - 15, 1.1, 24).scale.set(1.2, 0.65, 1);
+  }
 }
 
 // A cozy kid's bedroom that frames the battlefield so the world never ends at a

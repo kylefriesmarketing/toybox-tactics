@@ -315,6 +315,18 @@ export const UNITS = {
     debris: { shapes: ['disc'], colors: [0xffd23f, 0xf4802a], count: 5 },
     desc: 'Fast, cheap, unreasonably confident. Swarm the bath, harass their boats. Water only.',
   },
+  // ---- the Galleon: shared Age-3 capital ship (the bath's answer to megas) ----
+  galleon: {
+    name: 'Toy Galleon', tags: ['ship'], age: 3, proc: 'tugboat', naval: true, targetHeight: 0.85,
+    cost: { blocks: 180, buttons: 140 }, trainTime: 45, pop: 4,
+    hp: 420, atk: 16, atkType: 'pierce', interval: 2.4, range: 6.5,
+    bonus: { ship: 10, building: 12 },
+    armor: { melee: 3, pierce: 4 }, speed: 1.6, vision: 9, aggro: 9,
+    impact: 0.8, color: 0x8a5a34,
+    projectile: { speed: 13, arc: true, splash: 1.6, color: 0xffd166, size: 0.12, trail: 0xff9a3a },
+    debris: { shapes: ['stick', 'cube', 'disc'], colors: [0x8a5a34, 0xf2efe4, 0xd8b45a], count: 12 },
+    desc: 'The pride of the bath: three sails, a broadside of cork cannon, and a crow\'s nest with a view of the whole war. Splash damage, in every sense.',
+  },
   // ---- faction-unique warships (built at the Dock; each tribe sails its own) ----
   'navy-classic': {
     name: 'Toy Destroyer', tags: ['ship'], age: 2, proc: 'tugboat', naval: true, faction: 'classic', targetHeight: 0.55,
@@ -370,6 +382,25 @@ export const UNITS = {
     projectile: { speed: 18, arc: false, color: 0x40c0e0, size: 0.07, trail: 0x40c0e0 },
     debris: { shapes: ['cube', 'disc'], colors: [0x9aa4b0, 0x40c0e0], count: 7 },
     desc: 'Tin Bot navy: a riveted wind-up submarine, periscope up, one blue porthole glowing. Outranges the room and never misses twice. It is patient down there. Water only.',
+  },
+  // ---- the Forgotten: attic wraiths, event-spawned only (the Midnight Chapter) ----
+  forgotten: {
+    name: 'Forgotten One', tags: ['infantry', 'heavy', 'bot'], age: 3, proc: 'titanbot', gait: 'stomp', targetHeight: 0.6,
+    cost: { snacks: 100 }, trainTime: 30, pop: 2,
+    hp: 190, atk: 13, atkType: 'melee', interval: 1.5, range: 0.6,
+    armor: { melee: 3, pierce: 3 }, speed: 1.6, vision: 7, aggro: 9,
+    impact: 0.7, color: 0x6a6f78,
+    debris: { shapes: ['cube', 'disc'], colors: [0x6a6f78, 0x4a5058], count: 8 },
+    desc: 'A toy boxed so long it winds itself. It does not hate you. It only remembers being left, and it is done waiting quietly.',
+  },
+  forgottenking: {
+    name: 'The First Forgotten', tags: ['infantry', 'heavy', 'mega'], age: 3, proc: 'golem', gait: 'stomp', targetHeight: 1.1,
+    cost: { snacks: 400 }, trainTime: 50, pop: 5, slam: 2.4,
+    hp: 850, atk: 26, atkType: 'melee', interval: 2.0, range: 0.9,
+    armor: { melee: 4, pierce: 5 }, speed: 1.3, vision: 9, aggro: 10,
+    impact: 1.0, color: 0x7a7f88,
+    debris: { shapes: ['cube', 'disc', 'stick'], colors: [0x7a7f88, 0x4a5058, 0xc0a860], count: 14 },
+    desc: 'A king with no scuffs, no name, and no one\'s initials on his foot. Every tick of his great key is a year nobody came.',
   },
   // ---- MEGA UNITS: one colossal Age-3 signature per faction (its faction building) ----
   tank: {
@@ -473,6 +504,9 @@ export const MODEL_MANIFEST = {
   tugboat: { dir: 'assets/units/tugboat', model: 'model.glb', targetHeight: 0.55 },
   duckboat:{ dir: 'assets/units/duckboat',model: 'model.glb', targetHeight: 0.6 },
   skimmer: { dir: 'assets/units/skimmer', model: 'model.glb', targetHeight: 0.5 },
+  galleon: { dir: 'assets/units/galleon', model: 'model.glb', targetHeight: 0.85 },
+  forgotten: { dir: 'assets/units/forgotten', model: 'model.glb', targetHeight: 0.6 },
+  forgottenking: { dir: 'assets/units/forgottenking', model: 'model.glb', targetHeight: 1.1 },
   // faction-unique warships (one per tribe, built at the Dock)
   'navy-classic': { dir: 'assets/units/navy-classic', model: 'model.glb', targetHeight: 0.55 },
   'navy-bricks':  { dir: 'assets/units/navy-bricks',  model: 'model.glb', targetHeight: 0.6 },
@@ -514,7 +548,7 @@ export const BUILDINGS = {
   dock: {
     name: 'Dock', tags: ['building'], size: 3, hp: 500, cost: { blocks: 120, snacks: 30 }, buildTime: 20,
     armor: { melee: 1, pierce: 6 }, vision: 5, age: 1, height: 0.65, dock: true,
-    trains: ['skimmer', 'tugboat', 'duckboat', 'navy-classic', 'navy-bricks', 'navy-plush', 'navy-racers', 'navy-bots'],
+    trains: ['skimmer', 'tugboat', 'duckboat', 'navy-classic', 'navy-bricks', 'navy-plush', 'navy-racers', 'navy-bots', 'galleon'],
     debris: WOOD_DEBRIS,
     desc: 'Shipyard and harbor — raise it at the water\'s edge. Bath Skimmers harvest the floating treasures from day one; the warships launch come the Playmat Age.',
   },
@@ -1293,14 +1327,20 @@ export const MISSION_EVENTS = {
       text: 'The Snap-Bricks answer the one flag: a Golem assembles itself from the trilogy\'s spare pieces.' },
     { at: 400, type: 'spawn', unit: 'bear', n: 1, owner: 0, kind: 'info',
       text: 'Colonel Snug sends his best hug up the ladder. It has never once missed.' },
+    { at: 500, type: 'spawn', unit: 'forgotten', n: 3, owner: 1, kind: 'attack',
+      text: 'Three Forgotten Ones step out of the shadow between boxes, keys turning all by themselves.' },
     { at: 560, type: 'spawn', unit: 'dragster', n: 1, owner: 0, kind: 'info',
       text: 'Chief Nitro donates the tribe\'s fastest bad idea to the cause.' },
     { at: 700, type: 'spawn', unit: 'zapbot', n: 2, owner: 0, kind: 'info',
       text: 'Two Tin Bots climb to face the Forgotten — their own oldest fear — with their little eyes glowing steady.' },
+    { at: 800, type: 'spawn', unit: 'forgotten', n: 4, owner: 1, kind: 'attack',
+      text: 'More of them. The attic has been saving toys the way winter saves snow.' },
     { at: 850, type: 'boost', owner: 1, res: { snacks: 300, blocks: 300, buttons: 200 }, kind: 'attack',
       text: 'The First Forgotten opens a box that was never unpacked. A hundred years of birthday presents answer to him now.' },
     { at: 1000, type: 'spawn', unit: 'hero', n: 1, owner: 0, kind: 'info',
       text: 'And at the darkest tick, a hero climbs the ladder last — the way heroes always do, so no one is behind them.' },
+    { at: 1100, type: 'spawn', unit: 'forgottenking', n: 1, owner: 1, kind: 'attack',
+      text: 'The throne of boxes stands empty. The First Forgotten walks. Every tick of his key is a year nobody came — and he is done counting.' },
   ],
 };
 

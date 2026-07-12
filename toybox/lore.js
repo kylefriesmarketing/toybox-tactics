@@ -51,6 +51,9 @@ export const LORE = {
     'navy-plush': 'The Pirate Plush Raft should not float, and knows it, and floats anyway — buoyed by cork, stubbornness, and a teddy figurehead who has claimed every puddle from here to the sink for the Horde.',
     'navy-racers': 'The RC Speedboat treats the bath as one long finish line photo. It has capsized four times, all of which it counts as podium finishes.',
     'navy-bots': 'The Tin Submarine runs silent, runs deep, and runs on a key it cannot reach by itself — which is why no submarine of the Bots ever sails alone. Listen at the drain some night. Tick. Tick.',
+    galleon: 'The Toy Galleon is the bath\'s only capital ship, and it knows it — three sails of real cloth, a broadside of cork cannon, and a crow\'s nest from which, on a clear night, you can see the faucet at the edge of the world.',
+    forgotten: 'The storybooks do not like this page. Toys boxed long enough learn to wind themselves, and what winds itself answers to no bedtime. They are not wicked. They are what waiting becomes when nobody says goodnight to it.',
+    forgottenking: 'Before the tribes, before the room, a king was boxed with his crown still on. No scuffs. No name. No initials on his foot — because no one ever loved him carelessly enough to mark him. Everything he does, he does so that someone, anyone, will remember he was here.',
   },
 
   buildings: {

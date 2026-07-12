@@ -3451,7 +3451,9 @@ export class Game {
           }
         }
       }
-    } else if (military.length >= ai.wave) {
+    } else if (military.length >= Math.max(4, Math.ceil(ai.wave * Math.pow(0.75, Math.max(0, this.time - 720) / 60)))) {
+      // past bedtime, nobody turtles: after minute 12 the wave threshold shrinks
+      // 25% per minute, so late games always come to blows instead of stalling
       ai.attacking = true;
       ai.attackTarget = this.nearestEnemyOf(owner, home ? home.x : 0, home ? home.z : 0, 999,
         (e) => e.kind === 'building' && PRODUCTION_BUILDINGS.includes(e.type))
