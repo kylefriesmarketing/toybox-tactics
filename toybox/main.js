@@ -740,8 +740,9 @@ function renderCampaignList() {
     const cls = 'cm-mission' + (unlocked ? '' : ' locked') + (done ? ' done' : '');
     const mapName = (MAPS[m.map] && MAPS[m.map].label) || m.map;
     const badge = done ? '🏅' : (unlocked ? '' : '🔒');
+    const side = (f, extra) => [FACTIONS[f].label, ...(extra || []).map((x) => FACTIONS[x.faction].label)].join(' & ');
     const meta = unlocked
-      ? `${mapName} · ${GAME_MODES[m.gameMode].label} · ${FACTIONS[m.faction].label} vs ${FACTIONS[m.enemy].label} · ${dm[m.difficulty]}`
+      ? `${mapName} · ${GAME_MODES[m.gameMode].label} · ${side(m.faction, m.allies)} vs ${side(m.enemy, m.foes)} · ${dm[m.difficulty]}`
       : 'Clear the previous mission to unlock.';
     const header = ACT_HEADERS[i] ? `<div class="cm-act">${ACT_HEADERS[i]}</div>` : '';
     return `${header}<button class="${cls}" data-i="${i}" ${unlocked ? '' : 'disabled'}>
@@ -764,11 +765,14 @@ function showBriefing(mission) {
     art.onerror = () => { art.hidden = true; };
     art.src = `assets/campaign/${mission.id}.jpg`;
   }
+  const crestSide = (f, extra) => [f, ...(extra || []).map((x) => x.faction)]
+    .map((k) => `<span class="vs-side"><img class="vs-crest" src="assets/ui/crest-${k}.png" alt="" onerror="this.remove()">${FACTIONS[k].label}</span>`)
+    .join('<span class="vs-mid">+</span>');
   $('bf-tags').innerHTML = `${ngActive ? '🌒 Second Night · ' : ''}${mapName} · ${GAME_MODES[mission.gameMode].label} · ${dm[mission.difficulty]}`
     + `<div class="bf-versus">`
-    + `<span class="vs-side"><img class="vs-crest" src="assets/ui/crest-${mission.faction}.png" alt="" onerror="this.remove()">${FACTIONS[mission.faction].label}</span>`
+    + crestSide(mission.faction, mission.allies)
     + `<span class="vs-mid">VS</span>`
-    + `<span class="vs-side"><img class="vs-crest" src="assets/ui/crest-${mission.enemy}.png" alt="" onerror="this.remove()">${FACTIONS[mission.enemy].label}</span>`
+    + crestSide(mission.enemy, mission.foes)
     + `</div>`;
   $('bf-brief').textContent = mission.brief;
   $('bf-obj').textContent = '🎯 ' + mission.objective;
@@ -798,11 +802,12 @@ function applyMissionMods(g, mission) {
       for (let c = 0; c < n; c++) { g.spawnUnit(type, 0, h.x + 2.5 + (k % 3) * 0.9, h.z + 2.6 + Math.floor(k / 3) * 0.9); k++; }
     }
   }
-  // NG+ stacks +0.3 onto whatever boost the mission already carries
+  // NG+ stacks +0.3 onto whatever boost the mission already carries.
+  // Boost only the RIVAL team — allied AI seats fight with honest pockets.
   const boost = (mission.enemyBoost || 1) + (ngActive ? 0.3 : 0);
   if (boost !== 1) {
     for (const p of g.players) {
-      if (p.id !== 0) for (const key in p.res) p.res[key] = Math.round(p.res[key] * boost);
+      if (p.team !== g.players[0].team) for (const key in p.res) p.res[key] = Math.round(p.res[key] * boost);
     }
   }
   g.ngPlus = ngActive; // the narrator retells the beats from memory
@@ -1378,8 +1383,17 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   } else if (!playerDefs && mpOpts && mpOpts.playerDefs) {
     playerDefs = mpOpts.playerDefs; // networked lobby: host's roster (both clients identical)
   }
-  // campaign missions fix the matchup (you vs a scripted enemy tribe)
-  const campFactions = campaignMission ? [campaignMission.faction, campaignMission.enemy] : null;
+  // campaign missions fix the matchup (you vs a scripted enemy tribe);
+  // missions with allies/foes spell out the full seating chart instead
+  if (!playerDefs && campaignMission && (campaignMission.allies || campaignMission.foes)) {
+    playerDefs = [
+      { team: 0, isAI: false, faction: campaignMission.faction },
+      ...(campaignMission.allies || []).map((a) => ({ team: 0, isAI: true, faction: a.faction })),
+      { team: 1, isAI: true, faction: campaignMission.enemy },
+      ...(campaignMission.foes || []).map((f) => ({ team: 1, isAI: true, faction: f.faction })),
+    ];
+  }
+  const campFactions = (campaignMission && !playerDefs) ? [campaignMission.faction, campaignMission.enemy] : null;
   game = new Game(scene, registryCache, {
     alert: (msg, kind, pos) => ui.alert(msg, kind, pos),
     selection: () => ui.refreshSelection(),

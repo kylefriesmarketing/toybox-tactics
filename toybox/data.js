@@ -1317,6 +1317,31 @@ export const CAMPAIGN = [
     enemyBoost: 1.7, // a hundred years of stored patience
     endingArt: 'assets/campaign/end-midnight.jpg',
   },
+  {
+    id: 'alliance', name: 'The Toybox Alliance', icon: '🤝', secret: true,
+    map: 'livingroom', faction: 'classic', enemy: 'bots',
+    allies: [{ faction: 'knights' }], foes: [{ faction: 'bricks' }],
+    gameMode: 'standard', difficulty: 'hard', startRes: 'high',
+    brief: 'After the Midnight Chapter, the room tried something it had never tried '
+      + 'in all its wars: trusting. General Greenboots sends a runner to the Castle '
+      + 'Kingdom with three words in crayon — WITH US, TONIGHT? — and by lights-out '
+      + 'Sir Hector\'s knights are camped on your rug, banners up, kettles on. '
+      + 'Across the living room, Captain Cogsworth and Foreman Klik have made their '
+      + 'own arithmetic: two armies, one assembly line, no sentiment. The first '
+      + 'alliance war. Two flags on each side of the holiday rug, and one lesson '
+      + 'nobody has learned yet: how to share a victory.',
+    objective: 'You and the Castle Kingdom against Bots and Bricks — raze every rival building, together.',
+    victory: 'When the last rival wall comes down, nobody is sure whose cheer goes '
+      + 'first — so they go together, which was the whole point. Greenboots pins his '
+      + 'own medal on a knight. Sir Hector knights a plastic private with the flat '
+      + 'of his half-painted sword. Somewhere in the wreckage, Klik and Cogsworth '
+      + 'shake on a rematch, and the room files the night under a brand-new word: '
+      + 'allies. Some wars end with a winner, Commander. The best ones end with a team.',
+    defeat: 'The alliance holds even in defeat — knights carrying army men off the '
+      + 'rug, army men carrying knights. "Same side next time too," Sir Hector says, '
+      + 'and that is not a consolation, Commander. That is a headstart.',
+    enemyBoost: 1.15,
+  },
 ];
 
 // ---------------- scripted mission moments ----------------
@@ -1434,6 +1459,15 @@ export const MISSION_EVENTS = {
       text: 'And at the darkest tick, a hero climbs the ladder last — the way heroes always do, so no one is behind them.' },
     { at: 1100, type: 'spawn', unit: 'forgottenking', n: 1, owner: 1, kind: 'attack',
       text: 'The throne of boxes stands empty. The First Forgotten walks. Every tick of his key is a year nobody came — and he is done counting.' },
+  ],
+  alliance: [
+    { at: 60, text: 'Two camps, one rug. The knights keep saluting your army men; your army men keep saluting back. Nobody has told either side they can stop.' },
+    { at: 300, type: 'spawn', unit: 'knight', n: 2, owner: 1, kind: 'info',
+      text: 'Sir Hector sends two of his own to stand your wall — "borrowed vows," he calls it.' },
+    { at: 600, text: 'Across the rug, Klik is building and Cogsworth is counting. An alliance of ledgers against an alliance of promises.' },
+    { at: 900, type: 'boost', owner: 2, res: { blocks: 200, buttons: 150 }, kind: 'attack',
+      text: 'The rival pact pools its pockets — one assembly line, two armies, zero sentiment.' },
+    { at: 1200, text: 'A knight falls covering an army man he met tonight. The room writes the word "allies" in its book and underlines it twice.' },
   ],
 };
 
