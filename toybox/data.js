@@ -977,6 +977,7 @@ export const START = {
 
 // match-setup starting-resource presets (multiplies the base bank)
 export const START_RES = {
+  lean:     { label: 'Lean',     icon: '🕯️', mult: 0.5 },
   standard: { label: 'Standard', icon: '🎒', mult: 1 },
   high:     { label: 'High',     icon: '💰', mult: 3 },
   marathon: { label: 'Marathon', icon: '🏰', mult: 8 },
@@ -1647,6 +1648,23 @@ export const NARRATOR = {
   armylost: 'And then the floor went quiet. The terrible kind of quiet a room makes after it swallows an army whole.',
   wonderrace: 'Two wonders rose at once, brick by desperate brick — and every toy understood: the war would be decided by patience now.',
   foothold: 'Their workshops are ash — but toys rebuild from a single standing wall. Raze every last building, or the story starts itself over.',
+};
+
+// The Second Night (NG+): the same beats, told the second time through —
+// the narrator knows the story now, and so does the room. Keys missing here
+// simply fall back to the first-night line.
+export const NARRATOR_NG = {
+  firstblood: 'The first toy fell, and this time the room did not pretend. It had read this page before. It turned it anyway.',
+  age2: 'The Playmat Age came again, the way a dream comes back the second night — familiar, and somehow bigger in the dark.',
+  age3: 'The Fort Age, again. The storybooks say a war fought twice is not a war anymore. It is a promise being kept.',
+  mega: 'Something enormous wound itself up in the dark — and the room sighed, because it remembered exactly how loud this part gets.',
+  clock10: 'Ten minutes into the second night. The music box counted along from memory, a half-beat ahead of the clock.',
+  comeback: 'The beaten toy stood back up, same as last time. Some pages, the room whispered, are the whole reason the book gets reread.',
+  boom: 'Your corner grew fat on snacks and industry again — but faster now, the way hands move when they already know the recipe.',
+  armylost: 'The floor went quiet, and the quiet was worse the second time, because now the room knew precisely what it had swallowed.',
+  firstfleet: 'A hull touched the water, and the bath said "armada" before the ripples even settled. It had been practicing the word all day.',
+  wonderrace: 'Two wonders rose at once — again — and the room leaned in close, hoping this telling would end a different way.',
+  foothold: 'They rebuilt from one standing wall last night too. The room has seen this trick. Raze everything, and mean it this time.',
 };
 
 // ---------------- opening cutscene ----------------

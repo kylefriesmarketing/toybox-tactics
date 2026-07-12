@@ -193,7 +193,8 @@ async function boot() {
   // (bricks skips the GLB house on purpose: the procedural stud-brick cottage
   // reads better for the lego men, per Kyle)
   const facBldKeys = Object.keys(FACTIONS).flatMap((f) => [`house-${f}`, `chest-${f}`])
-    .filter((k) => k !== 'house-bricks');
+    .filter((k) => k !== 'house-bricks')
+    .concat(['tower-knights']); // castle watchtower — only the Kingdom re-skins the shared tower
   setBuildingFootprints(Object.fromEntries([
     ...Object.entries(BUILDINGS).map(([k, d]) => [k, d.size]),
     ...facBldKeys.map((k) => [k, BUILDINGS[k.split('-')[0]].size]),
@@ -680,13 +681,26 @@ window.__ttTier = (u, t) => applyUnitTier(u.view, u.def, u.owner, t); // preview
 // ---------------- campaign: "The Bedroom Wars" ----------------
 let campaignMission = null; // the active mission during a campaign game (null = skirmish)
 let watchMode = false;      // Tonight's Story: both seats AI, the player spectates
-function loadCampaignProgress() {
-  try { return JSON.parse(localStorage.getItem('tt-campaign') || '{}'); } catch { return {}; }
+// NG+ — "The Second Night": once every page of the book is told (secret included),
+// the campaign can be reopened harder. Its progress lives in its own shelf slot.
+let ngActive = false;
+try { ngActive = localStorage.getItem('tt-ng-active') === '1'; } catch { /* fresh */ }
+function setNgActive(on) {
+  ngActive = !!on;
+  try { localStorage.setItem('tt-ng-active', on ? '1' : '0'); } catch { /* private mode */ }
+}
+function loadCampaignProgress(baseTable = false) {
+  const key = (!baseTable && ngActive) ? 'tt-campaign-ng' : 'tt-campaign';
+  try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch { return {}; }
+}
+function baseCampaignAllDone() {
+  const p = loadCampaignProgress(true);
+  return CAMPAIGN.every((m) => p[m.id]);
 }
 function campaignDone(id) { return !!loadCampaignProgress()[id]; }
 function markCampaignDone(id) {
   const p = loadCampaignProgress(); p[id] = true;
-  localStorage.setItem('tt-campaign', JSON.stringify(p));
+  localStorage.setItem(ngActive ? 'tt-campaign-ng' : 'tt-campaign', JSON.stringify(p));
 }
 function missionUnlocked(i) { return i === 0 || campaignDone(CAMPAIGN[i - 1].id); }
 function openCampaign() {
@@ -694,14 +708,25 @@ function openCampaign() {
   $('campaign').classList.add('show');
 }
 function renderCampaignList() {
+  const ngUnlocked = baseCampaignAllDone();
+  if (ngActive && !ngUnlocked) setNgActive(false); // never a second night before the first
   const open = CAMPAIGN.filter((m) => !m.secret);
   const openDone = open.filter((m) => campaignDone(m.id)).length;
   const allDone = CAMPAIGN.every((m) => campaignDone(m.id));
-  $('cm-progress').textContent = allDone
-    ? '🏆 Every story is told — even the secret one. The room sleeps soundly. Replay any page below.'
-    : openDone >= open.length
-      ? '🌙 The trilogy is complete… and at the bottom of the book, a sixteenth page has appeared.'
-      : `${openDone} / ${open.length} missions cleared`;
+  const progressText = ngActive
+    ? (allDone
+      ? '🌒 The Second Night is told twice over. The room knows this story by heart now.'
+      : `🌒 The Second Night — ${openDone} / ${open.length} pages retold, harder. Lean pockets, cranky rivals.`)
+    : allDone
+      ? '🏆 Every story is told — even the secret one. The room sleeps soundly. Replay any page below.'
+      : openDone >= open.length
+        ? '🌙 The trilogy is complete… and at the bottom of the book, a sixteenth page has appeared.'
+        : `${openDone} / ${open.length} missions cleared`;
+  $('cm-progress').innerHTML = progressText + (ngUnlocked
+    ? `<div style="margin-top:8px"><button id="ng-toggle" class="diff-btn" style="font-size:12px;padding:6px 14px">${ngActive ? '📖 Back to the First Night' : '🌒 Begin the Second Night (NG+)'}</button></div>`
+    : '');
+  const ngBtn = $('ng-toggle');
+  if (ngBtn) ngBtn.onclick = () => { setNgActive(!ngActive); renderCampaignList(); };
   const dm = { easy: 'Sleepy', normal: 'Playful', hard: 'Cranky' };
   const ACT_HEADERS = {
     0: '✦ Act I — The Bedroom Wars',
@@ -739,7 +764,7 @@ function showBriefing(mission) {
     art.onerror = () => { art.hidden = true; };
     art.src = `assets/campaign/${mission.id}.jpg`;
   }
-  $('bf-tags').innerHTML = `${mapName} · ${GAME_MODES[mission.gameMode].label} · ${dm[mission.difficulty]}`
+  $('bf-tags').innerHTML = `${ngActive ? '🌒 Second Night · ' : ''}${mapName} · ${GAME_MODES[mission.gameMode].label} · ${dm[mission.difficulty]}`
     + `<div class="bf-versus">`
     + `<span class="vs-side"><img class="vs-crest" src="assets/ui/crest-${mission.faction}.png" alt="" onerror="this.remove()">${FACTIONS[mission.faction].label}</span>`
     + `<span class="vs-mid">VS</span>`
@@ -756,7 +781,9 @@ function startCampaignMission(mission) {
   // drive the normal launch path through the mission's curated config
   chosenFaction = mission.faction;
   chosenMode = mission.gameMode;
-  chosenStartRes = mission.startRes;
+  // the Second Night starts every mission one purse-tier poorer
+  const NG_RES_DOWN = { marathon: 'high', high: 'standard', standard: 'lean', lean: 'lean' };
+  chosenStartRes = ngActive ? (NG_RES_DOWN[mission.startRes] || 'lean') : mission.startRes;
   chosenSize = '1v1';
   $('campaign').classList.remove('show');
   $('briefing').classList.remove('show');
@@ -771,11 +798,14 @@ function applyMissionMods(g, mission) {
       for (let c = 0; c < n; c++) { g.spawnUnit(type, 0, h.x + 2.5 + (k % 3) * 0.9, h.z + 2.6 + Math.floor(k / 3) * 0.9); k++; }
     }
   }
-  if (mission.enemyBoost) {
+  // NG+ stacks +0.3 onto whatever boost the mission already carries
+  const boost = (mission.enemyBoost || 1) + (ngActive ? 0.3 : 0);
+  if (boost !== 1) {
     for (const p of g.players) {
-      if (p.id !== 0) for (const key in p.res) p.res[key] = Math.round(p.res[key] * mission.enemyBoost);
+      if (p.id !== 0) for (const key in p.res) p.res[key] = Math.round(p.res[key] * boost);
     }
   }
+  g.ngPlus = ngActive; // the narrator retells the beats from memory
   // scripted moments: hand the game its own copy so retries start fresh
   g.missionEvents = (MISSION_EVENTS[mission.id] || []).map((e) => ({ ...e }));
 }
@@ -1344,6 +1374,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   // resumed campaign saves need their event list in place BEFORE restore, so the
   // snapshot's done-flags land on it (fired moments must not replay on load)
   if (campaignMission && resume) game.missionEvents = (MISSION_EVENTS[campaignMission.id] || []).map((e) => ({ ...e }));
+  if (campaignMission) game.ngPlus = ngActive; // NG narrator voice survives resume too
   if (resume) game.restore(resume);
   if (campaignMission && !resume) applyMissionMods(game, campaignMission);
   window.game = game;
@@ -1382,7 +1413,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   const fMine = FACTIONS[game.factionKeys[game.myId]] || FACTIONS.classic;
   const fFoe = FACTIONS[game.factionKeys[1 - game.myId]] || FACTIONS.classic;
   // re-skin the build card's house/wall/gate icons to the local player's tribe
-  try { refreshFactionBuildingIcons(game.factionKeys[game.myId], ['house', 'chest', 'wall', 'gate'], BUILDINGS); } catch { /* keep default icons */ }
+  try { refreshFactionBuildingIcons(game.factionKeys[game.myId], ['house', 'chest', 'tower', 'wall', 'gate'], BUILDINGS); } catch { /* keep default icons */ }
   ui.alert(`${fMine.icon} Your ${fMine.label} take the field against the ${fFoe.icon} ${fFoe.label}!`, 'age');
   ui.alert('Night falls. Queue Worker Buddies and find the Snacks. (H = Toy Chest, WASD = camera, ESC = menu)', 'info');
   clock.start();

@@ -1789,7 +1789,7 @@ function makeIconSnapper() {
 // clean building mesh for an icon: the generated GLB when we have one, else the
 // procedural mesh (faction-aware, so faction houses/walls get their own icon)
 function buildingIconMesh(k, def, factionKey) {
-  if ((k === 'house' || k === 'chest') && factionKey && buildingRegistry[k + '-' + factionKey]) return buildingRegistry[k + '-' + factionKey].clone(true);
+  if ((k === 'house' || k === 'chest' || k === 'tower') && factionKey && buildingRegistry[k + '-' + factionKey]) return buildingRegistry[k + '-' + factionKey].clone(true);
   const proceduralKey = (k === 'house' || k === 'wall' || k === 'gate'); // faction-drawn, never the generic house.glb
   if (!proceduralKey && buildingRegistry[k]) return buildingRegistry[k].clone(true);
   let seed = 7;
@@ -1836,7 +1836,8 @@ export function createBuildingView(key, def, owner, rngSeed = 1, up = false, age
   // procedural tent/cottage/etc. wall & gate always render procedurally.
   // house & chest are faction-unique: prefer a generated <key>-<faction>.glb.
   // house also has a procedural fallback; chest falls back to the generic chest.glb.
-  const facKey = ((key === 'house' || key === 'chest') && faction && buildingRegistry[key + '-' + faction]) ? key + '-' + faction : null;
+  // (tower joins house/chest, but only unupgraded — the Pen Tower upgrade must stay readable)
+  const facKey = ((key === 'house' || key === 'chest' || (key === 'tower' && !wantPen)) && faction && buildingRegistry[key + '-' + faction]) ? key + '-' + faction : null;
   const modelKey = facKey || ((wantPen && buildingRegistry.pentower) ? 'pentower' : key);
   const proceduralOnly = key === 'wall' || key === 'gate' || (key === 'house' && !facKey);
   const useGlb = proceduralOnly ? false : (facKey ? true : (wantPen ? !!buildingRegistry.pentower : !!buildingRegistry[modelKey]));

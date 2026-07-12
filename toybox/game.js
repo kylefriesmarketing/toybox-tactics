@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import {
   MAP_N, POP_MAX, RES_TYPES, RES_META, UNITS, BUILDINGS, TECHS, MARKET,
   AGES, AGE_UPS, PRODUCTION_BUILDINGS, START, AI, DIFFICULTIES, TEAM_NAMES, STICKER, WONDER, PERSONAS, MAPS, FACTIONS,
-  TAUNTS, AI_LINES, NARRATOR,
+  TAUNTS, AI_LINES, NARRATOR, NARRATOR_NG,
   CRITTERS, GAME_MODES, START_RES,
 } from './data.js';
 import {
@@ -3694,9 +3694,11 @@ export class Game {
 
   narrate(key) {
     const flag = '_told_' + key;
-    if (this[flag] || !NARRATOR[key]) return;
+    // second night (NG+): the narrator retells the beat from memory
+    const line = (this.ngPlus && NARRATOR_NG[key]) || NARRATOR[key];
+    if (this[flag] || !line) return;
     this[flag] = true;
-    this.alert(NARRATOR[key], 'story', null, 6);
+    this.alert(line, 'story', null, 6);
     // the storyteller reads the beat aloud (respects the SFX mute; UI-only)
     if (this.sfx && !this.sfx.muted) {
       try {
