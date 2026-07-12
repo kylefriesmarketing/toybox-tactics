@@ -38,6 +38,11 @@ export const BARKS = {
     move: ['Recalculating… done. Walking.', 'Tick, tick, tick.'],
     atk: ['Applying percussive maintenance.', 'Warranty: voided.'],
   },
+  'worker@knights': {
+    sel: ['Squire, at your service.', 'The quarry never sleeps.', 'For the castle!'],
+    move: ['Hauling stone, sire.', 'The long way is the safe way.'],
+    atk: ['A bucket is ALSO a weapon.', 'For the little kingdom!'],
+  },
 
   // ---- shared army: each tribe drills its own recruits ----
   'soldier@bricks': {
@@ -283,5 +288,42 @@ export const BARKS = {
     sel: ['Running silent. Saying this quietly.', 'Periscope sees all.', 'Tick… tick… ready.'],
     move: ['Diving to cruising depth.', 'Plotting the quiet way.'],
     atk: ['CALCULATED SPLASH!', 'Torpedo, with regards.'],
+  },
+
+  // ---- Castle Kingdom (knights & dragons) ----
+  knight: {
+    sel: ['Sworn and standing.', 'My shield is your shield.', 'Command me, sire.'],
+    move: ['For the castle!', 'Marching, honorably.'],
+    atk: ['Have at thee!', 'The Kingdom remembers!'],
+  },
+  crossbow: {
+    sel: ['String is wound.', 'Wall duty? Gladly.', 'Bolt loaded, breath held.'],
+    move: ['Finding my parapet.', 'Quietly, quietly.'],
+    atk: ['Loose!', 'Mind the bolt. Or don\'t.'],
+  },
+  charger: {
+    sel: ['Two hearts, one charge.', 'Steady, girl. Steady.', 'Lance couched.'],
+    move: ['At the canter!', 'Hooves on the playmat!'],
+    atk: ['FULL GALLOP!', 'For the roost and the room!'],
+  },
+  paladin: {
+    sel: ['Gold outside. Vows inside.', 'I have knelt. Now I stand.', 'Point me at the biggest one.'],
+    move: ['Walking the oath.', 'The cape follows.'],
+    atk: ['By crown and candlelight!', 'This sword remembers every bedtime.'],
+  },
+  trebuchet: {
+    sel: ['Counterweight ready.', 'Physics, at your service.', 'We brought a marble.'],
+    move: ['Rolling the long argument forward.', 'Slowly. It\'s worth it.'],
+    atk: ['LOOSE THE MARBLE!', 'Superior firepower, medieval edition.'],
+  },
+  dragon: {
+    sel: ['Mrrrh. The little king calls?', 'Awake. Annoyed. Available.', 'The egg was me, you know.'],
+    move: ['The floor trembles politely.', 'Wings folded. For now.'],
+    atk: ['FIRE — the birthday-candle kind!', 'The Kingdom does not kneel!'],
+  },
+  wargalley: {
+    sel: ['Oars in, shields up.', 'The bath is our moat.', 'Dragon-prow, reporting.'],
+    move: ['Row, row, ROW.', 'Heraldry on the high seas!'],
+    atk: ['Fire arrows — nocked!', 'Board them? No. Burn them.'],
   },
 };

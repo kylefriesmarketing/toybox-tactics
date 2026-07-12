@@ -210,6 +210,59 @@ export const UNITS = {
     debris: { shapes: ['cube', 'disc', 'peg'], colors: [0x7a828f, 0xe0552a], count: 9 },
     desc: 'Tin Bots unique: a hulking battle robot. Armored, cracks buildings, files arrows under harmless.',
   },
+  // ---- Castle Kingdom uniques (knights & dragons: the sixth tribe) ----
+  knight: {
+    name: 'Castle Knight', tags: ['infantry', 'heavy'], age: 2, proc: 'lancer', faction: 'knights',
+    cost: { snacks: 65, blocks: 45 }, trainTime: 14,
+    hp: 95, atk: 9, atkType: 'melee', interval: 1.3, range: 0.85,
+    bonus: { ranged: 4 },
+    armor: { melee: 2, pierce: 3 }, speed: 1.35, vision: 5, aggro: 6,
+    impact: 0.5, color: 0xc8ccd6,
+    debris: { shapes: ['limb', 'stick'], colors: [0xc8ccd6, 0xd6453f], count: 6 },
+    desc: 'Kingdom unique: silver-painted plastic, sworn to the toy box. Shield up, arrows shrug off, vows hold.',
+  },
+  crossbow: {
+    name: 'Crossbow Guard', tags: ['infantry', 'ranged'], age: 2, proc: 'grenadier', faction: 'knights',
+    cost: { snacks: 50, buttons: 45 }, trainTime: 13,
+    hp: 55, atk: 7, atkType: 'pierce', interval: 1.6, range: 4.8,
+    bonus: { heavy: 3 },
+    armor: { melee: 0, pierce: 1 }, speed: 1.45, vision: 7, aggro: 6,
+    impact: 0.55, color: 0x4a6a9a,
+    projectile: { speed: 16, arc: false, color: 0xd8c8a0, size: 0.08, trail: 0x8a7a5a },
+    debris: { shapes: ['limb', 'stick'], colors: [0x4a6a9a, 0xc8ccd6], count: 6 },
+    desc: 'Kingdom unique: a wall-top marksman with a wind-up crossbow. Bolts punch through the heaviest toys.',
+  },
+  charger: {
+    name: 'Mounted Charger', tags: ['raider', 'heavy'], age: 2, proc: 'raider', faction: 'knights',
+    cost: { snacks: 80, blocks: 40 }, trainTime: 16,
+    hp: 110, atk: 10, atkType: 'melee', interval: 1.4, range: 0.9,
+    bonus: { ranged: 6, worker: 3 },
+    armor: { melee: 2, pierce: 2 }, speed: 2.9, vision: 7, aggro: 6,
+    impact: 0.5, color: 0x3a5a8a,
+    debris: { shapes: ['limb', 'stick'], colors: [0x3a5a8a, 0xd9a441], count: 8 },
+    desc: 'Kingdom unique: knight and horse molded as one, lance first. Runs down archers like a closing storybook.',
+  },
+  paladin: {
+    name: 'Golden Paladin', tags: ['infantry', 'heavy'], age: 3, proc: 'golem', faction: 'knights',
+    cost: { snacks: 130, marbles: 80 }, trainTime: 26,
+    hp: 230, atk: 16, atkType: 'melee', interval: 1.6, range: 0.9,
+    bonus: { heavy: 6 },
+    armor: { melee: 4, pierce: 4 }, speed: 1.25, vision: 6, aggro: 6,
+    impact: 0.5, color: 0xd9a441,
+    debris: { shapes: ['limb', 'cube'], colors: [0xd9a441, 0xd6453f], count: 8 },
+    desc: 'Kingdom unique: gold armor, red cape, greatsword taller than a domino. Duels the big toys and wins.',
+  },
+  trebuchet: {
+    name: 'Toy Trebuchet', tags: ['siege'], age: 3, proc: 'catapult', faction: 'knights', gait: 'roll',
+    cost: { blocks: 170, marbles: 70 }, trainTime: 30,
+    hp: 90, atk: 42, atkType: 'siege', interval: 5.0, range: 8.5, minRange: 2.5,
+    bonus: { building: 26 },
+    armor: { melee: 0, pierce: 1 }, speed: 0.8, vision: 8, aggro: 4,
+    impact: 0.5, color: 0xc0a06a,
+    projectile: { speed: 8, arc: true, color: 0x9a8a6a, size: 0.16, splash: 1.4, spin: true, trail: 0xc0b090 },
+    debris: { shapes: ['stick', 'stick', 'disc'], colors: [0xc0a06a, 0x8a6a3a], count: 9 },
+    desc: 'Kingdom unique: a marble-slinging counterweight engine. Outranges towers and files castles under rubble.',
+  },
   king: {
     name: 'The King', tags: ['infantry', 'heavy', 'royal'], age: 1, modelKey: 'hero', targetHeight: 0.66, cape: true, crown: true,
     cost: { snacks: 0 }, trainTime: 1,
@@ -383,6 +436,17 @@ export const UNITS = {
     debris: { shapes: ['cube', 'disc'], colors: [0x9aa4b0, 0x40c0e0], count: 7 },
     desc: 'Tin Bot navy: a riveted wind-up submarine, periscope up, one blue porthole glowing. Outranges the room and never misses twice. It is patient down there. Water only.',
   },
+  wargalley: {
+    name: 'War Galley', tags: ['ship'], age: 2, proc: 'tugboat', naval: true, faction: 'knights', targetHeight: 0.6,
+    cost: { blocks: 80, snacks: 45 }, trainTime: 19, pop: 2,
+    hp: 190, atk: 10, atkType: 'pierce', interval: 1.6, range: 5.0,
+    bonus: { ship: 7, building: 6 },
+    armor: { melee: 3, pierce: 3 }, speed: 2.0, vision: 8, aggro: 8,
+    impact: 0.55, color: 0x8a5a34,
+    projectile: { speed: 13, arc: true, color: 0xffb066, size: 0.1, trail: 0xff8a3a },
+    debris: { shapes: ['stick', 'cube'], colors: [0x8a5a34, 0xd6453f], count: 8 },
+    desc: 'Kingdom navy: a dragon-prowed galley with shields down the rail and fire arrows nocked. The bath has never seen heraldry before. Water only.',
+  },
   // ---- the Forgotten: attic wraiths, event-spawned only (the Midnight Chapter) ----
   forgotten: {
     name: 'Forgotten One', tags: ['infantry', 'heavy', 'bot'], age: 3, proc: 'titanbot', gait: 'stomp', targetHeight: 0.6,
@@ -453,6 +517,17 @@ export const UNITS = {
     debris: { shapes: ['cube', 'disc', 'peg'], colors: [0x7a828f, 0x8a1a2a, 0x40c0e0], count: 12 },
     desc: 'MEGA (Tin Bots): a giant of polished tin. Its laser skewers an entire battle line at once.',
   },
+  dragon: {
+    name: 'The Toy Dragon', tags: ['heavy', 'mega'], age: 3, faction: 'knights', gait: 'stomp',
+    cost: { snacks: 280, marbles: 180 }, trainTime: 50,
+    hp: 640, atk: 22, atkType: 'siege', interval: 2.4, range: 2.2,
+    bonus: { building: 14 },
+    armor: { melee: 5, pierce: 6 }, speed: 1.5, vision: 9, aggro: 7, radius: 0.6,
+    impact: 0.6, color: 0xc03028,
+    projectile: { speed: 10, arc: false, color: 0xff8a3a, size: 0.14, splash: 1.6, trail: 0xff6a1a },
+    debris: { shapes: ['limb', 'cube', 'stick'], colors: [0xc03028, 0xff8a3a, 0xd9a441], count: 12 },
+    desc: 'MEGA (Castle Kingdom): red plastic, amber belly, breath like a birthday candle gone to war. The fire splashes.',
+  },
 };
 
 // GLB manifest: each clip file is the same mesh with one animation baked in.
@@ -464,6 +539,15 @@ export const MODEL_MANIFEST = {
   'worker-bricks':  { dir: 'assets/units/worker-bricks',  model: 'model.glb', targetHeight: 0.52 },
   'worker-plush':   { dir: 'assets/units/worker-plush',   model: 'model.glb', targetHeight: 0.52 },
   'worker-racers':  { dir: 'assets/units/worker-racers',  model: 'model.glb', targetHeight: 0.52 },
+  'worker-knights': { dir: 'assets/units/worker-knights', model: 'model.glb', targetHeight: 0.52 },
+  // Castle Kingdom uniques
+  knight:    { dir: 'assets/units/knight',    model: 'model.glb', targetHeight: 0.52 },
+  crossbow:  { dir: 'assets/units/crossbow',  model: 'model.glb', targetHeight: 0.52 },
+  charger:   { dir: 'assets/units/charger',   model: 'model.glb', targetHeight: 0.62 },
+  paladin:   { dir: 'assets/units/paladin',   model: 'model.glb', targetHeight: 0.58 },
+  trebuchet: { dir: 'assets/units/trebuchet', model: 'model.glb', targetHeight: 0.7 },
+  dragon:    { dir: 'assets/units/dragon',    model: 'model.glb', targetHeight: 1.05 },
+  wargalley: { dir: 'assets/units/wargalley', model: 'model.glb', targetHeight: 0.6 },
   'worker-bots':    { dir: 'assets/units/worker-bots',    model: 'model.glb', targetHeight: 0.52 },
   scout:   { dir: 'assets/units/scout',   clips: ['idle', 'walk', 'attack', 'death'], targetHeight: 0.5 },
   soldier: { dir: 'assets/units/soldier', clips: ['idle', 'walk', 'attack', 'death'], targetHeight: 0.5 },
@@ -548,7 +632,7 @@ export const BUILDINGS = {
   dock: {
     name: 'Dock', tags: ['building'], size: 3, hp: 500, cost: { blocks: 120, snacks: 30 }, buildTime: 20,
     armor: { melee: 1, pierce: 6 }, vision: 5, age: 1, height: 0.65, dock: true,
-    trains: ['skimmer', 'tugboat', 'duckboat', 'navy-classic', 'navy-bricks', 'navy-plush', 'navy-racers', 'navy-bots', 'galleon'],
+    trains: ['skimmer', 'tugboat', 'duckboat', 'navy-classic', 'navy-bricks', 'navy-plush', 'navy-racers', 'navy-bots', 'wargalley', 'galleon'],
     debris: WOOD_DEBRIS,
     desc: 'Shipyard and harbor — raise it at the water\'s edge. Bath Skimmers harvest the floating treasures from day one; the warships launch come the Playmat Age.',
   },
@@ -594,6 +678,13 @@ export const BUILDINGS = {
     trains: ['zapbot', 'titanbot', 'mecha'], techs: ['overclock'],
     debris: { shapes: ['cube', 'disc'], colors: [0x8a95a2, 0x40c0e0] },
     desc: 'Tin Bots unique: assembles Zap Bots and Titan Bots, researches Overclock. It hums at night.',
+  },
+  roost: {
+    name: 'Dragon Roost', tags: ['building'], size: 3, hp: 650, cost: { blocks: 150, snacks: 40 }, buildTime: 21,
+    armor: { melee: 2, pierce: 6 }, vision: 4, age: 2, height: 1.3, faction: 'knights',
+    trains: ['knight', 'crossbow', 'charger', 'dragon'], techs: ['chivalry'],
+    debris: { shapes: ['cube', 'stick'], colors: [0x8a8f98, 0xc03028] },
+    desc: 'Kingdom unique: a stone spire with a nest on top and one warm red egg. Knights muster below; something above keeps them brave.',
   },
   wall: {
     name: 'Block Wall', tags: ['building', 'wall'], size: 1, hp: 250, cost: { blocks: 5 }, buildTime: 4,
@@ -650,14 +741,14 @@ export const BUILDINGS = {
   },
   workshop: {
     name: 'Siege Workshop', tags: ['building'], size: 3, hp: 750, cost: { blocks: 175, buttons: 75 }, buildTime: 26,
-    armor: { melee: 1, pierce: 7 }, vision: 4, trains: ['ram', 'catapult'], age: 3, height: 1.1,
+    armor: { melee: 1, pierce: 7 }, vision: 4, trains: ['ram', 'catapult', 'trebuchet'], age: 3, height: 1.1,
     debris: WOOD_DEBRIS,
     desc: 'Where Pillow Rams and Sticker Catapults are dreamed up and bolted together. Fort Age.',
   },
   fort: {
     name: 'Toy Fort', tags: ['building'], size: 4, hp: 2400, cost: { blocks: 200, marbles: 180 }, buildTime: 45,
     armor: { melee: 3, pierce: 8 }, vision: 11, age: 3, height: 2.2, garrison: 8,
-    trains: ['hero', 'hypno', 'bear', 'golem', 'dragster', 'bazooka', 'grenadier', 'lancer', 'sockpuppet', 'drone'],
+    trains: ['hero', 'hypno', 'bear', 'golem', 'dragster', 'bazooka', 'grenadier', 'lancer', 'sockpuppet', 'drone', 'paladin'],
     techs: ['plating', 'training'],
     attack: { atk: 10, atkType: 'pierce', interval: 1.6, range: 8,
               projectile: { speed: 14, arc: true, color: 0xffe28a, size: 0.11, trail: 0xffe28a } },
@@ -874,6 +965,7 @@ export const TECHS = {
   interlock:  { name: 'Interlocking Studs', age: 3, faction: 'bricks', cost: { blocks: 220, marbles: 120 }, time: 45, building: true, desc: 'Double-studded construction: every building +30% HP (stacks with Plating).' },
   grouphug:   { name: 'Group Hug',        age: 3, faction: 'plush',   cost: { snacks: 220, buttons: 150 }, time: 40, desc: 'Plushies squeeze tighter: Medics heal 60% more and every toy +10% HP.' },
   nitro:      { name: 'Nitro Injection',  age: 3, faction: 'racers',  cost: { snacks: 170, buttons: 180 }, time: 38, desc: 'Redline everything: wheeled toys +20% speed and +2 attack.' },
+  chivalry:   { name: 'Chivalry',         age: 3, faction: 'knights', cost: { snacks: 220, blocks: 180 }, time: 40, desc: 'The vows are renewed: all military +2 melee attack, and armored boots march 8% faster.' },
   overclock:  { name: 'Overclock',        age: 3, faction: 'bots',    cost: { buttons: 200, marbles: 120 }, time: 40, desc: 'Redline the servos: every toy attacks 12% faster AND +1 ranged attack.' },
 };
 
@@ -1405,6 +1497,15 @@ export const FACTIONS = {
       bio: 'Wound tight, blue eyes warmer than spec allows. Was set on the pillow the morning the Kid drove away and chose to stay and hold the room. Runs on a mainspring and a promise, and counts down — tick, tick — to every rematch.',
     },
   },
+  knights: {
+    label: 'Castle Kingdom', icon: '🏰',
+    desc: 'Stone and oath. Buildings +20% HP, all toys +5% HP — but armored boots march 6% slower.',
+    mods: { buildingHp: 1.2, unitHp: 1.05, speedInfantry: 0.94 },
+    commander: {
+      name: 'Sir Hector', title: 'The Half-Painted', portrait: 'assets/ui/cmdr-knights.jpg',
+      bio: 'The factory line stopped halfway down his left side, so one half of him is silver and crimson and the other is bare grey promise. He treats every toy the way the Kid treated him: as finished enough to matter. His castle has never fallen; his paint job, never completed. He is at peace with exactly one of those.',
+    },
+  },
 };
 
 // ---------------- game-over epilogues ----------------
@@ -1454,6 +1555,16 @@ export const EPILOGUES = {
       + 'But listen: tick... tick... They are not stopping, Commander. They are '
       + 'counting down to the rematch.',
   },
+  knights: {
+    win: 'The Kingdom does not cheer either — knights kneel, the dragon folds her wings '
+      + 'over the smallest squires, and Sir Hector raises his half-painted sword to the '
+      + 'nightlight. "The castle stands," he says, and in the whole history of the room '
+      + 'no toy has ever meant anything more.',
+    lose: 'The walls are down, but a kingdom was never the stones — it was the kneeling. '
+      + 'Sir Hector gathers his knights in the rubble and knights every single one of '
+      + 'them again, bare grey side catching the moonlight. Rise, Commander. Castles '
+      + 'are rebuilt by the sworn.',
+  },
 };
 
 // ---------------- AI table-talk (all UI-only, never touches the sim) ----------------
@@ -1466,6 +1577,7 @@ export const TAUNTS = {
     plush: 'Colonel Snug is done hugging. The Horde left home at dawn with their buttons polished — they mean to be on your rug by snack time.',
     racers: 'Engines at the start line. The Racers are not planning an economy — they are planning your fences, at ninety miles an hour.',
     bots: 'The Tin Bots cancelled their own parade. Keys wound, columns formed — the first march is aimed straight at your Toy Chest.',
+    knights: 'Sir Hector has skipped the siege manual entirely. Lances are couched and the drawbridge is already down — the charge left at dawn.',
   },
   balanced: {
     classic: 'Greenboots plays it by the field manual: scout, build, strike. Leave one door open and he will find it.',
@@ -1473,6 +1585,7 @@ export const TAUNTS = {
     plush: 'The Horde stirs slowly, patient as bedtime, gathering courage and crumbs in equal measure. When they come, they come together.',
     racers: 'The Racers idle their engines and watch the pit board. The moment you look tired, Commander, the flag drops.',
     bots: 'The Tin Bots compute the odds, then compute them again. When the arithmetic favors them, they will arrive precisely on time.',
+    knights: 'The Kingdom fights the old way: scout the field, honor the parley, then break your gate politely but completely.',
   },
   boomer: {
     classic: 'Greenboots is digging in — trenches, rations, reinforcements. He means to out-supply you, not out-swing you.',
@@ -1480,6 +1593,7 @@ export const TAUNTS = {
     plush: 'The Horde naps, snacks, and stitches reinforcements. Every minute you wait, their pile of friends grows taller.',
     racers: 'The Racers are tuning, not racing — bigger engines, fatter tires. Catch them in the garage, or race whatever rolls out.',
     bots: 'The Tin Bots are building a factory that builds factories. Interrupt the assembly line, Commander, or be assembled into their plans.',
+    knights: 'Sir Hector is quarrying. Wall upon wall, tower upon tower — and somewhere behind the battlements, an egg is getting warm.',
   },
 };
 
@@ -1491,6 +1605,7 @@ export const AI_LINES = {
     plush: 'Soft footsteps, moving fast — the Horde has sent hugs of the unfriendly kind toward your workers.',
     racers: 'Engines scream across the mat — a Racer raid is inbound. Get the workers off the road!',
     bots: 'Tick-tick-tick — a raiding column has left the enemy line, marching straight for your gatherers.',
+    knights: 'Hoofbeats on the playmat — the Kingdom has sent chargers for your workers. Sound the bell!',
   },
   ageup: {
     classic: 'Bugles from the rival camp — Greenboots just found a bigger boot to drop.',
@@ -1498,6 +1613,7 @@ export const AI_LINES = {
     plush: 'The Horde grew up a little just now. Bigger bears. Braver buttons.',
     racers: 'New engines on the wind — the Racers just rolled something faster out of the garage.',
     bots: 'A chorus of fresh keys winding — the Tin Bots have upgraded the assembly line.',
+    knights: 'Trumpets over the battlements — Sir Hector has declared a new age of the Kingdom.',
   },
   wonder: {
     classic: 'Greenboots is building his legend, Commander — tear it down before it earns a statue.',
@@ -1505,6 +1621,7 @@ export const AI_LINES = {
     plush: 'The Horde is stitching a dream taller than the lamp. Unstitch it, quickly.',
     racers: 'The Racers are raising a trophy for a race you have not lost yet. Object, loudly.',
     bots: 'The Tin Bots are assembling something beautiful and terrible. The countdown is not a metaphor.',
+    knights: 'The Kingdom is raising a cathedral of blocks and banners. Kneel, or knock it down — those are the options.',
   },
   king: {
     classic: 'They\'ve found your King! Greenboots plays for keeps — get him behind walls!',
@@ -1512,6 +1629,7 @@ export const AI_LINES = {
     plush: 'The Horde is closing on your King — and those hugs will not be gentle. Pull him back!',
     racers: 'Racers on your King! They will circle him like a finish line — move him NOW!',
     bots: 'Enemy columns converging on your King. The arithmetic of regicide has begun — break their line!',
+    knights: 'The Kingdom rides for your King — they know exactly what a crown is worth. Shields around him, NOW!',
   },
 };
 

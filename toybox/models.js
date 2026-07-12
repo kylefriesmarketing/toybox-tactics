@@ -1255,6 +1255,19 @@ function factionHouse(faction, add, box, cyl, teamCol, rng) {
     add(box(0.5, 0.18, 0.32, teamCol), 0, 1.16, -0.1);
     return;
   }
+  if (faction === 'knights') {
+    // turret cottage: timber-frame body, round stone turret, straw roof, team banner
+    add(box(1.3, 0.85, 1.1, 0xe8dcc4), 0.15, 0.43, 0);                       // plaster walls
+    for (const tx of [-0.35, 0.15, 0.65]) add(box(0.08, 0.85, 1.14, 0x6a4a2c), tx, 0.43, 0); // timber beams
+    const roofK = new THREE.Mesh(new THREE.ConeGeometry(1.0, 0.7, 4), toyMat(0xd9b95c, 0.95));
+    roofK.rotation.y = Math.PI / 4; add(roofK, 0.15, 1.2, 0);                // thatched cap
+    add(cyl(0.34, 1.15, 0x9a9fa8, 12), -0.72, 0.57, 0.2);                    // stone turret
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.55, 12), toyMat(0xc0392b, 0.8));
+    add(cap, -0.72, 1.42, 0.2);                                              // red conical roof
+    add(cyl(0.03, 0.55, 0xddd6c0, 6), -0.72, 1.95, 0.2);
+    add(box(0.36, 0.2, 0.03, teamCol), -0.55, 2.1, 0.2).castShadow = false;  // team banner
+    return;
+  }
   if (faction === 'bots') {
     // tin bunker: riveted steel box + dome, antenna, glowing team eye
     add(box(1.5, 0.9, 1.4, 0x8a929c), 0, 0.45, 0);
@@ -1309,6 +1322,17 @@ function factionWall(faction, add, box, cyl, teamCol, rng, up, age) {
       const off = (layer % 2) * 0.2 - 0.1;
       for (let k = -1; k <= 1; k++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), toyMat(layer % 2 ? 0xb7a877 : 0xc2b280)); b.scale.set(1.5, 0.75, 1.1); b.castShadow = true; add(b, k * 0.34 + off, 0.13 + layer * 0.24, 0); }
     }
+    return;
+  }
+  if (faction === 'knights') {
+    // castle curtain wall: staggered grey stone blocks capped with battlements
+    const stones = up ? [0xb2b7c0, 0x9aa0aa, 0xc4c9d2] : [0x9a9fa8, 0x868c96, 0xa8adb6];
+    for (let layer = 0; layer < layers; layer++) {
+      const off = (layer % 2) * 0.2 - 0.1;
+      for (let k = -1; k <= 1; k++) add(box(0.48, 0.28, 0.4, stones[(layer + k + 3) % 3]), k * 0.33 + off, 0.15 + layer * 0.29, 0).rotation.y = (rng() - 0.5) * 0.04;
+    }
+    const topK = 0.15 + layers * 0.29;
+    for (const mx of [-0.36, 0, 0.36]) add(box(0.18, 0.2, 0.36, stones[0]), mx, topK, 0); // merlons
     return;
   }
   // bricks (default): staggered studded toy bricks with a team cap
@@ -1609,6 +1633,20 @@ function buildingGeometry(key, def, owner, rng, up = false, age = 1, faction = n
     const flagR = add(box(0.5, 0.3, 0.04, teamCol), 0.28, 1.95, -0.4);
     add(cyl(0.04, 1.4, 0xddd6c0, 6), 0, 1.55, -0.4);
     flagR.castShadow = false;
+  } else if (key === 'roost') {
+    // dragon roost: craggy stone spire, twiggy nest, one warm red egg
+    add(cyl(0.85, 0.5, 0x868c96, 10), 0, 0.25, 0);            // broad rock base
+    add(cyl(0.6, 0.9, 0x9a9fa8, 9), 0, 0.9, 0);               // tapering spire
+    add(cyl(0.42, 0.7, 0x8a9099, 8), 0.12, 1.6, -0.08);       // crooked upper crag
+    add(box(0.5, 0.1, 0.14, 0x6a4a2c), 0.55, 1.1, 0.3).rotation.z = 0.2; // perch beam
+    const nest = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.14, 8, 14), toyMat(0x7a5a34, 0.95));
+    nest.rotation.x = Math.PI / 2; add(nest, 0.1, 2.0, -0.08);
+    const egg = new THREE.Mesh(new THREE.SphereGeometry(0.24, 10, 8),
+      new THREE.MeshStandardMaterial({ color: 0xc03028, emissive: 0xff6a1a, emissiveIntensity: 0.25, roughness: 0.5 }));
+    egg.scale.set(1, 1.25, 1); add(egg, 0.1, 2.05, -0.08);
+    const flagK = add(box(0.5, 0.3, 0.04, teamCol), 0.28, 2.55, 0.3);
+    add(cyl(0.04, 1.1, 0xddd6c0, 6), 0, 2.15, 0.3);
+    flagK.castShadow = false;
   }
   return g;
 }

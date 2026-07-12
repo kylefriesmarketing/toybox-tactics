@@ -54,6 +54,13 @@ export const LORE = {
     galleon: 'The Toy Galleon is the bath\'s only capital ship, and it knows it — three sails of real cloth, a broadside of cork cannon, and a crow\'s nest from which, on a clear night, you can see the faucet at the edge of the world.',
     forgotten: 'The storybooks do not like this page. Toys boxed long enough learn to wind themselves, and what winds itself answers to no bedtime. They are not wicked. They are what waiting becomes when nobody says goodnight to it.',
     forgottenking: 'Before the tribes, before the room, a king was boxed with his crown still on. No scuffs. No name. No initials on his foot — because no one ever loved him carelessly enough to mark him. Everything he does, he does so that someone, anyone, will remember he was here.',
+    knight: 'The Castle Knights came in a bucket, forty to the pound, and every single one believes he is the knight on the box art. This is not vanity. A toy who believes he is the picture fights exactly like the picture.',
+    crossbow: 'The Crossbow Guard practiced on the bookshelf, shooting rubber bands at a paper dragon, until the night a real shadow crossed the nightlight and his hands did not shake. Wall duty is boring. That is the entire point of walls.',
+    charger: 'Knight and horse were molded as one piece, which the other tribes call a manufacturing shortcut and the Kingdom calls a marriage. Neither has ever fallen without the other, and neither ever will.',
+    paladin: 'The Golden Paladin was the fancy figure — kept on the shelf, out of the toy box, above the wars. One night he climbed down on a rope of shoelaces. He has never said what he saw from up there, only that no toy should be kept from the fight that decides its family.',
+    trebuchet: 'The Toy Trebuchet runs on a counterweight, a marble, and the oldest magic in the room: leverage. The Kingdom\'s engineers do not shout when it fires. They whisper "for science," and the wall across the rug stops existing.',
+    dragon: 'The egg sat in the roost for nine hundred bedtimes, warmed by every knight who passed. When it finally cracked, the whole Kingdom braced for a monster — and got a guardian who remembers every hand that kept her warm. Her fire is real. So is her patience.',
+    wargalley: 'The War Galley was carved for a gift shop and enlisted in a bathtub. Its dragon figurehead is not decoration — it is a promise to the real one back home: the fleet returns, or the fleet does not stop rowing.',
   },
 
   buildings: {
@@ -78,6 +85,7 @@ export const LORE = {
     nest: 'The Pillow Nest is soft-power headquarters — nursery, hospital and barracks in one warm heap. Toys wounded anywhere in the room dream of being carried here.',
     pitstop: 'The Pit Stop measures its history in seconds saved. Fuel, fresh tires, and the Racers\' entire strategic reserve of bad ideas, all under one checkered awning.',
     robolab: 'The Robotics Bay hums at a frequency only gears love. It is the one building in the room that files its own maintenance reports, in triplicate, unprompted.',
+    roost: 'The Dragon Roost was a rock, then a watchtower, then a nursery, in that order. The knights say they guard the egg. Anyone who has seen the nest at night, glowing faintly like a coal deciding to be a sun, knows it is the other way around.',
   },
 
   maps: {
