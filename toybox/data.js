@@ -865,7 +865,7 @@ export const GAME_MODES = {
 };
 
 // ---------------- campaign: "The Bedroom Wars" ----------------
-// A 5-mission story arc. Each mission is just a curated match config fed to the
+// A three-act, 15-mission trilogy (+1 secret page). Each mission is just a curated match config fed to the
 // normal engine (map, faction, mode, difficulty, resources) plus story text and
 // optional light modifiers (player bonus units / enemy resource boost). No new
 // engine mechanics — missions escalate via map, mode, difficulty and matchups.
@@ -1159,6 +1159,37 @@ export const CAMPAIGN = [
     enemyBoost: 1.5, // the last blockade is the biggest
     endingArt: 'assets/campaign/end-act3.jpg', // trilogy-closing homecoming plate
   },
+
+  // ---------------- THE MIDNIGHT CHAPTER ----------------
+  // A secret sixteenth page. It does not exist until the trilogy is finished —
+  // then it appears at the bottom of the book, the way midnight appears at the
+  // bottom of a day.
+  {
+    id: 'midnight', name: 'The Midnight Chapter', icon: '🕛', secret: true,
+    map: 'attic', faction: 'classic', enemy: 'bots',
+    gameMode: 'regicide', difficulty: 'hard', startRes: 'marathon',
+    brief: 'You should be asleep. The room should be asleep. But on the first night '
+      + 'after the last story, the attic hatch opens by itself, and down the ladder '
+      + 'comes a cold ticking. The Forgotten have wound each other, every toy that '
+      + 'was ever boxed and never sent for, led by the First Forgotten — a king with '
+      + 'no scuffs, no name, and no one\'s initials on his foot. He has not come for '
+      + 'the room. He has come for the remembering. Tonight there are no tribes, '
+      + 'Commander. Every toy you ever led fights under one flag, and the flag is a '
+      + 'promise: NO ONE GETS FORGOTTEN. Guard your King. Unmake theirs.',
+    objective: 'Protect your King. Unwind the First Forgotten.',
+    victory: 'The First Forgotten winds down slowly, almost gratefully, and in the '
+      + 'quiet after his last tick the attic exhales a hundred years of dust. You '
+      + 'carry them all downstairs — every Forgotten, every strange old shape — and '
+      + 'the toybox, which has always been bigger on the inside where it counts, '
+      + 'makes room. And that is the whole secret, Commander, the one under every '
+      + 'story this room ever told: a toy is never too old, too odd, or too broken. '
+      + 'Only ever too far from the box. Not anymore. The last page turns itself. '
+      + 'Sleep well. You earned the whole night.',
+    defeat: 'The ticking recedes up the ladder, patient as winter. Wind your armies, '
+      + 'Commander, and climb again — midnight comes every night, and so can you.',
+    enemyBoost: 1.7, // a hundred years of stored patience
+    endingArt: 'assets/campaign/end-midnight.jpg',
+  },
 ];
 
 // ---------------- scripted mission moments ----------------
@@ -1255,6 +1286,21 @@ export const MISSION_EVENTS = {
     { at: 450, type: 'spawn', unit: 'bear', n: 1, owner: 0, kind: 'info',
       text: 'A bear the sale forgot shakes the grass from its fur and falls in beside you.' },
     { at: 750, text: 'Almost home. The window is open. The old bear is waiting. March, Commander.' },
+  ],
+  midnight: [
+    { at: 90, text: 'Tick. Tick. The attic counts along with the war, and it has been counting far longer than you.' },
+    { at: 240, type: 'spawn', unit: 'golem', n: 1, owner: 0, kind: 'info',
+      text: 'The Snap-Bricks answer the one flag: a Golem assembles itself from the trilogy\'s spare pieces.' },
+    { at: 400, type: 'spawn', unit: 'bear', n: 1, owner: 0, kind: 'info',
+      text: 'Colonel Snug sends his best hug up the ladder. It has never once missed.' },
+    { at: 560, type: 'spawn', unit: 'dragster', n: 1, owner: 0, kind: 'info',
+      text: 'Chief Nitro donates the tribe\'s fastest bad idea to the cause.' },
+    { at: 700, type: 'spawn', unit: 'zapbot', n: 2, owner: 0, kind: 'info',
+      text: 'Two Tin Bots climb to face the Forgotten — their own oldest fear — with their little eyes glowing steady.' },
+    { at: 850, type: 'boost', owner: 1, res: { snacks: 300, blocks: 300, buttons: 200 }, kind: 'attack',
+      text: 'The First Forgotten opens a box that was never unpacked. A hundred years of birthday presents answer to him now.' },
+    { at: 1000, type: 'spawn', unit: 'hero', n: 1, owner: 0, kind: 'info',
+      text: 'And at the darkest tick, a hero climbs the ladder last — the way heroes always do, so no one is behind them.' },
   ],
 };
 

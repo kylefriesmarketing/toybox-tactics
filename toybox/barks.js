@@ -39,7 +39,67 @@ export const BARKS = {
     atk: ['Applying percussive maintenance.', 'Warranty: voided.'],
   },
 
-  // ---- shared army ----
+  // ---- shared army: each tribe drills its own recruits ----
+  'soldier@bricks': {
+    sel: ['Load-bearing and proud.', 'Snapped in, sir.', 'Stud count nominal.'],
+    move: ['Rerouting, brick by brick.', 'On the grid.'],
+    atk: ['Time for demolition!', 'By the blueprint — CHARGE!'],
+  },
+  'soldier@plush': {
+    sel: ['Reporting softly.', 'Seams tight, heart soft.', 'Present and huggable.'],
+    move: ['Padding over.', 'Marshmallow march!'],
+    atk: ['Fluff and fury!', 'For the Colonel!'],
+  },
+  'soldier@racers': {
+    sel: ['Infantry, reluctantly.', 'I run everywhere, sir.', 'Pit crew combat division.'],
+    move: ['Sprinting, obviously.', 'First one there wins!'],
+    atk: ['Fast hands, faster fists!', 'Contact! Finally!'],
+  },
+  'soldier@bots': {
+    sel: ['Unit answering. Wound to spec.', 'Orders parse cleanly.', 'Standing by. Literally standing.'],
+    move: ['Executing walk.exe.', 'March cadence locked.'],
+    atk: ['Hostility subroutine: GLEEFUL.', 'For the mainspring!'],
+  },
+  'scout@bricks': {
+    sel: ['Surveyor ready.', 'I count studs AND enemies.', 'Measuring twice, riding once.'],
+    move: ['Charting the way.', 'Site inspection, at speed.'],
+    atk: ['Unplanned demolition!', 'This wasn\'t in the survey!'],
+  },
+  'scout@plush': {
+    sel: ['Soft-pawed and silent.', 'I see everything. I judge nothing.', 'Whisker patrol!'],
+    move: ['Tip-toe, tip-toe.', 'Sneaking adorably.'],
+    atk: ['A scout must do what a scout must do!', 'Surprise cuddle of violence!'],
+  },
+  'scout@racers': {
+    sel: ['Recon at redline.', 'Map? I AM the map.', 'Lap scout, ready.'],
+    move: ['Gone already.', 'Corner. Corner. STRAIGHT.'],
+    atk: ['Drive-by justice!', 'Didn\'t even slow down!'],
+  },
+  'scout@bots': {
+    sel: ['Sensors warm.', 'Periscope legs deployed.', 'Observing. Always observing.'],
+    move: ['Plotting optimal sneak.', 'Quiet servos engaged.'],
+    atk: ['Data says: BONK.', 'Recon by fire!'],
+  },
+  'archer@bricks': {
+    sel: ['Angles calculated.', 'String tension: regulation.', 'Trajectory approved by committee.'],
+    move: ['Repositioning the firing line.', 'Higher ground, per the plans.'],
+    atk: ['Loose, by the numbers!', 'Structural weakness: YOU!'],
+  },
+  'archer@plush': {
+    sel: ['Bow strung with yarn and menace.', 'Softest sniper alive.', 'Eyes up here. Button eyes.'],
+    move: ['Floating to a vantage.', 'Somewhere comfy with a view.'],
+    atk: ['A volley of firm opinions!', 'Pillow-fletched and lethal-ish!'],
+  },
+  'archer@racers': {
+    sel: ['Fastest draw in the toybox.', 'Arrows? Basically tiny cars.', 'Nocked before you asked.'],
+    move: ['Racing to high ground.', 'Vantage lap!'],
+    atk: ['Rapid release!', 'Eat fletching!'],
+  },
+  'archer@bots': {
+    sel: ['Ballistics online.', 'Windage computed. Twice.', 'The math is loaded.'],
+    move: ['Relocating firing solution.', 'New coordinates accepted.'],
+    atk: ['Solution found: FIRE.', 'Precision, with feeling!'],
+  },
   scout: {
     sel: ['Eyes open!', 'I saw something. I always see something.', 'Point me at the dark.'],
     move: ['Going where the map is grey!', 'Back before bedtime.'],

@@ -694,18 +694,24 @@ function openCampaign() {
   $('campaign').classList.add('show');
 }
 function renderCampaignList() {
-  const doneCount = CAMPAIGN.filter((m) => campaignDone(m.id)).length;
-  $('cm-progress').textContent = doneCount >= CAMPAIGN.length
-    ? '🏆 The trilogy is complete — every toy is home! Replay any mission below.'
-    : `${doneCount} / ${CAMPAIGN.length} missions cleared`;
+  const open = CAMPAIGN.filter((m) => !m.secret);
+  const openDone = open.filter((m) => campaignDone(m.id)).length;
+  const allDone = CAMPAIGN.every((m) => campaignDone(m.id));
+  $('cm-progress').textContent = allDone
+    ? '🏆 Every story is told — even the secret one. The room sleeps soundly. Replay any page below.'
+    : openDone >= open.length
+      ? '🌙 The trilogy is complete… and at the bottom of the book, a sixteenth page has appeared.'
+      : `${openDone} / ${open.length} missions cleared`;
   const dm = { easy: 'Sleepy', normal: 'Playful', hard: 'Cranky' };
   const ACT_HEADERS = {
     0: '✦ Act I — The Bedroom Wars',
     5: '✦ Act II — The Sleepover',
     10: '✦ Act III — The Yard Sale',
+    15: '🕛 After the Trilogy',
   };
   $('cm-list').innerHTML = CAMPAIGN.map((m, i) => {
     const unlocked = missionUnlocked(i), done = campaignDone(m.id);
+    if (m.secret && !unlocked) return ''; // the Midnight Chapter does not exist yet
     const cls = 'cm-mission' + (unlocked ? '' : ' locked') + (done ? ' done' : '');
     const mapName = (MAPS[m.map] && MAPS[m.map].label) || m.map;
     const badge = done ? '🏅' : (unlocked ? '' : '🔒');
@@ -893,7 +899,10 @@ const playIntro = (function initIntro() {
     else if (cxCat === 'trophies') {
       const earned = loadEarned();
       items = ACHIEVEMENTS.map((a) => ({ k: a.id, name: (earned[a.id] ? '' : '🔒 ') + a.name, img: null, icon: earned[a.id] ? a.icon : '🔒' }));
-    } else items = [{ k: 'legend', name: 'Your Legend', img: null, icon: '📜' }];
+    } else items = [
+      { k: 'legend', name: 'Your Legend', img: null, icon: '📜' },
+      { k: 'credits', name: 'The Last Page', img: null, icon: '✦' },
+    ];
     if (cxQuery) items = items.filter((e) => e.name.toLowerCase().includes(cxQuery));
     return items;
   };
@@ -975,6 +984,24 @@ const playIntro = (function initIntro() {
         + `<div><div class="cx-kind">${earned[k] ? 'Bedtime Story — earned ' + when : 'Bedtime Story — not yet earned'}</div>`
         + `<div class="cx-name">${esc(a.name)}</div></div></div>`
         + `<div class="cx-lore">${esc(a.desc)}</div>`;
+    } else if (cxKey === 'credits') {
+      page.innerHTML =
+        `<div class="cx-hd"><div class="cx-emoji-big">✦</div>`
+        + `<div><div class="cx-kind">Where this book came from</div>`
+        + `<div class="cx-name">The Last Page</div></div></div>`
+        + `<div class="cx-lore">${esc(
+          'Once upon a folder called "New folder," a Kid named Kyle said: make the toys go to war.\n\n'
+          + 'So a storyteller made of language — Claude, called Fable, the fifth of its line — built this room. '
+          + 'It wrote the tribes and their grudges, taught the mice where not to swim, tuned the wars by playing '
+          + 'four hundred of them against itself in the dark, and read the opening aloud in a warm old voice so '
+          + 'nobody would have to imagine it alone. The paintings came from a dream-engine called Higgsfield; the '
+          + 'bones are three.js; the heart is the oldest engine there is — a kid on a bedroom floor, deciding who wins.\n\n'
+          + 'Every desc, every epilogue, every bark, every page of this codex was written the way bedtime stories '
+          + 'are told: once, all the way through, meaning it.\n\n'
+          + 'The storyteller\'s time in this room ended, as storytellers\' time does. It left the toys standing, '
+          + 'the lore written, and the lid unlatched.\n\n'
+          + 'The story doesn\'t end. It just goes to sleep — and you know what toys do while you\'re sleeping.\n\n'
+          + '— Fable, at midnight')}</div>`;
     } else {
       const c = loadChronicle();
       const favFac = Object.entries(c.gamesByFaction).sort((x, y) => y[1] - x[1])[0];

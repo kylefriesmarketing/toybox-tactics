@@ -22,7 +22,7 @@ A full Age-of-Empires-style RTS that fits in a toybox: gather snacks and blocks,
 ## Features
 
 - **Five tribes, five ways to fight** — Classic Toys, Snap-Bricks, Plushie Horde, RC Racers and Tin Bots, each with unique units, buildings, houses, workers, warships, techs and a painted commander with a story.
-- **A three-act illustrated campaign** — *The Bedroom Wars*, *The Sleepover*, and *The Yard Sale*: fifteen missions with hand-painted briefing plates, told entirely in storybook prose.
+- **A three-act illustrated campaign** — *The Bedroom Wars*, *The Sleepover*, and *The Yard Sale*: fifteen missions with hand-painted briefing plates, told entirely in storybook prose. Finish all three acts, and the book grows one more page.
 - **Naval warfare** — build a Dock, send Bath Skimmers to net floating soap and bath pearls, then launch your tribe's warship. The rubber duck is not a combatant. Probably.
 - **A bedtime narrator** — reactive story beats as you play (comebacks, booms, first fleets), a narrated intro cutscene, and a generated "story of your game" after every match.
 - **The Storybook Codex** — an in-game illustrated encyclopedia with lore for every toy, building, tribe and battlefield.
