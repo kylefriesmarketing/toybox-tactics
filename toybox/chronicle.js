@@ -93,6 +93,18 @@ export const ACHIEVEMENTS = [
   { id: 'collector', icon: '📚', name: 'Keeper of Stories',
     desc: 'Earn twelve other Bedtime Stories.',
     check: (c) => c.earnedCount >= 12 },
+  // ---- beyond the shelf: stories from after the book was "finished" ----
+  // (beyond: true keeps them out of the Toy Box Zero gate — page zero asks
+  // for the original twenty-one, not for everything written since)
+  { id: 'secondnight', icon: '🌒', name: 'Told Twice, True Twice', beyond: true,
+    desc: 'Win any campaign mission on the Second Night (NG+).',
+    check: (c) => c.win && !!c.g.ngPlus },
+  { id: 'together', icon: '🤝', name: 'Better Together', beyond: true,
+    desc: 'Win a battle fighting beside an AI ally.',
+    check: (c) => c.win && c.g.players.some((p) => p.id !== c.g.myId && p.team === c.g.players[c.g.myId].team) },
+  { id: 'pagezero', icon: '📦', name: 'The Page Under the Pages', beyond: true,
+    desc: 'Win Toy Box Zero — the first war, told in sepia.',
+    check: (c) => c.win && !!c.g.zeroEra },
 ];
 
 // Called once per finished match. Updates the Chronicle, evaluates every

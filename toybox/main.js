@@ -713,7 +713,11 @@ function markCampaignDone(id) {
   localStorage.setItem(ngActive ? 'tt-campaign-ng' : 'tt-campaign', JSON.stringify(p));
 }
 function allStoriesEarned() {
-  try { return Object.keys(loadEarned()).length >= ACHIEVEMENTS.length; } catch { return false; }
+  // page zero asks for the ORIGINAL shelf — stories marked `beyond` don't gate it
+  try {
+    const earned = loadEarned();
+    return ACHIEVEMENTS.filter((a) => !a.beyond).every((a) => earned[a.id]);
+  } catch { return false; }
 }
 function missionUnlocked(i) {
   if (CAMPAIGN[i].needsAllStories && !allStoriesEarned()) return false;
@@ -1389,6 +1393,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   }
   const zeroEra = !!(campaignMission && campaignMission.zeroEra && !mpOpts);
   setProceduralEra(zeroEra); // Toy Box Zero: the room before anyone painted it
+  // (stamped onto the game below so the Chronicle can recognize page zero)
   applyMapLighting(zeroEra ? 'sepia' : (typeof map === 'object' ? map : (MAPS[map] || MAPS.playmat)).light);
   vfx = new VFX(scene);
   net = mpOpts ? mpOpts.net : null;
@@ -1465,6 +1470,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
     net.onDrop = () => { ui.alert('Connection lost — the other player left.', 'attack'); };
     net.onDesync = (t) => { ui.alert('Sync drift detected — this match may be unreliable.', 'warn'); console.warn('[net] desync at tick', t); };
   }
+  game.zeroEra = zeroEra; // the Chronicle checks this for 'The Page Under the Pages'
   game.setup();
   // resumed campaign saves need their event list in place BEFORE restore, so the
   // snapshot's done-flags land on it (fired moments must not replay on load)
