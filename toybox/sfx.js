@@ -118,6 +118,90 @@ export class SFX {
     this.rainSrc = src;
   }
 
+  // ---------- outdoor ambience beds (all synthesized, all free) ----------
+  // kind: 'day' = birds + breeze · 'gold' = bees + breeze · 'dusk' = crickets + owl
+  startAmbience(kind) {
+    if (!this.ctx || this.ambKind === kind) return;
+    this.ambKind = kind;
+    if (this.ambTimers) for (const t of this.ambTimers) clearTimeout(t);
+    this.ambTimers = [];
+    if (!kind) return;
+    const ctx = this.ctx;
+    // the breeze: every outdoor hour has one, softer at dusk
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuf; src.loop = true;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.value = 480; f.Q.value = 0.4;
+    const g = ctx.createGain();
+    g.gain.value = kind === 'dusk' ? 0.006 : 0.011;
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 0.05;
+    const lfoG = ctx.createGain(); lfoG.gain.value = 0.005;
+    lfo.connect(lfoG); lfoG.connect(g.gain);
+    src.connect(f); f.connect(g); g.connect(this.sfxBus);
+    src.start(); lfo.start();
+    const chirp = () => { // one birdsong phrase: 2-4 falling whistles
+      if (this.ambKind !== 'day' || this.muted) return;
+      const n = 2 + (Math.random() * 3 | 0);
+      for (let i = 0; i < n; i++) {
+        const t0 = ctx.currentTime + i * 0.16;
+        const o = ctx.createOscillator(); o.type = 'sine';
+        o.frequency.setValueAtTime(2600 + Math.random() * 900, t0);
+        o.frequency.exponentialRampToValueAtTime(1900 + Math.random() * 400, t0 + 0.09);
+        const og = ctx.createGain();
+        og.gain.setValueAtTime(0, t0);
+        og.gain.linearRampToValueAtTime(0.02, t0 + 0.015);
+        og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
+        o.connect(og); og.connect(this.sfxBus);
+        o.start(t0); o.stop(t0 + 0.14);
+      }
+      this.ambTimers.push(setTimeout(chirp, 2500 + Math.random() * 6000));
+    };
+    const cricket = () => { // pulsed trill from somewhere in the grass
+      if (this.ambKind !== 'dusk' || this.muted) return;
+      const t0 = ctx.currentTime;
+      const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = 4300 + Math.random() * 500;
+      const og = ctx.createGain(); og.gain.value = 0;
+      for (let i = 0; i < 7; i++) {
+        og.gain.setValueAtTime(0.007, t0 + i * 0.055);
+        og.gain.setValueAtTime(0, t0 + i * 0.055 + 0.028);
+      }
+      o.connect(og); og.connect(this.sfxBus);
+      o.start(t0); o.stop(t0 + 0.45);
+      this.ambTimers.push(setTimeout(cricket, 900 + Math.random() * 2200));
+    };
+    const owl = () => { // two soft hoots, rarely
+      if (this.ambKind !== 'dusk' || this.muted) return;
+      for (const [dt0, len] of [[0, 0.28], [0.42, 0.4]]) {
+        const t0 = ctx.currentTime + dt0;
+        const o = ctx.createOscillator(); o.type = 'sine';
+        o.frequency.setValueAtTime(365, t0);
+        o.frequency.linearRampToValueAtTime(330, t0 + len);
+        const og = ctx.createGain();
+        og.gain.setValueAtTime(0, t0);
+        og.gain.linearRampToValueAtTime(0.022, t0 + 0.07);
+        og.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
+        o.connect(og); og.connect(this.sfxBus);
+        o.start(t0); o.stop(t0 + len + 0.05);
+      }
+      this.ambTimers.push(setTimeout(owl, 18000 + Math.random() * 30000));
+    };
+    if (kind === 'gold') { // the bees: a low warm drone that wanders the rows
+      const bee = ctx.createOscillator(); bee.type = 'sawtooth'; bee.frequency.value = 190;
+      const bf = ctx.createBiquadFilter(); bf.type = 'lowpass'; bf.frequency.value = 800;
+      const bg = ctx.createGain(); bg.gain.value = 0.006;
+      const wob = ctx.createOscillator(); wob.frequency.value = 0.9;
+      const wobG = ctx.createGain(); wobG.gain.value = 14;
+      wob.connect(wobG); wobG.connect(bee.frequency);
+      bee.connect(bf); bf.connect(bg); bg.connect(this.sfxBus);
+      bee.start(); wob.start();
+    }
+    if (kind === 'day') this.ambTimers.push(setTimeout(chirp, 1200));
+    if (kind === 'dusk') {
+      this.ambTimers.push(setTimeout(cricket, 800));
+      this.ambTimers.push(setTimeout(owl, 9000));
+    }
+  }
+
   // ---------- unit voice acknowledgments (toy squeaks per type) ----------
   voice(type) {
     if (!this.ctx || this.muted) return;

@@ -213,7 +213,7 @@ async function boot() {
   stopLore();
   $('loading').classList.add('hide');
   setTimeout(() => $('loading').remove(), 700);
-  $('menu').classList.add('show');
+  { const m = $('menu'); if (m) m.classList.add('show'); } // null: a test hook started the game mid-boot
   offerResume();
   applySettings();
   // first-timers get a gentle nudge toward the tutorial
@@ -1496,17 +1496,29 @@ window.__ttSoak = (opts = {}, maxTicks = 9000) => {
   g.setup();
   // campaign QA: feed scripted mission beats into the headless run
   if (opts.missionEvents) g.missionEvents = opts.missionEvents.map((e) => ({ ...e }));
+  // lockstep QA: scripted commands {t, pid, c} executed exactly like net.js does —
+  // lets a soak drive human seats (co-op vs AI) and prove determinism across runs
+  const script = (opts.script || []).slice().sort((a, b) => a.t - b.t);
+  let si = 0;
   let err = null, t = 0;
-  try { for (; t < maxTicks && !g.over; t++) g.update(0.1); }
-  catch (e) { err = (e && e.message) + ' | ' + ((e && e.stack) || '').split('\n')[1]; }
+  try {
+    for (; t < maxTicks && !g.over; t++) {
+      while (si < script.length && script[si].t <= t) { g.execCommand(script[si].pid, script[si].c); si++; }
+      g.update(0.1);
+    }
+  } catch (e) { err = (e && e.message) + ' | ' + ((e && e.stack) || '').split('\n')[1]; }
   const armies = g.players.map((p) =>
     g.entities.filter((e) => e.kind === 'unit' && !e.dead && e.owner === p.id && e.def.aggro > 0).length);
   const ages = g.players.map((p) => p.age);
   const res = g.players.map((p) => Object.fromEntries(Object.entries(p.res).map(([k, v]) => [k, Math.round(v)])));
-  return { seed, winnerTeam, over: g.over, ticks: t, simSec: Math.round(t * 0.1), err, armies, ages, res, facs };
+  // determinism fingerprint: end-state entity sum + rng cursor (same seed+script ⇒ identical)
+  const fp = g.entities.reduce((a, e) => a + (e.dead ? 0 : ((e.x * 71 + e.z * 137 + (e.hp || 0) * 13) | 0)), 0) +
+    '|' + g.entities.length + '|' + g.rng.getState();
+  return { seed, winnerTeam, over: g.over, ticks: t, simSec: Math.round(t * 0.1), err, armies, ages, res, facs, fp };
 };
 window.__ttGL = () => ({ renderer, scene, camera }); // perf probes
 window.__ttAmbient = () => ambient; // ambience debug handle
+window.__ttSfx = () => sfx; // audio debug handle (ambKind checks)
 window.__ttCam = (x, z, dist = 24) => {
   cam.tx = cam.x = x; cam.tz = cam.z = z; cam.tdist = cam.dist = dist;
   applyCamera(1);
@@ -1640,7 +1652,10 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   const zeroEra = !!(campaignMission && campaignMission.zeroEra && !mpOpts);
   setProceduralEra(zeroEra); // Toy Box Zero: the room before anyone painted it
   // (stamped onto the game below so the Chronicle can recognize page zero)
-  applyMapLighting(zeroEra ? 'sepia' : (typeof map === 'object' ? map : (MAPS[map] || MAPS.playmat)).light);
+  const mapCfg0 = typeof map === 'object' ? map : (MAPS[map] || MAPS.playmat);
+  applyMapLighting(zeroEra ? 'sepia' : mapCfg0.light);
+  // outdoor hours have their own soundtrack: birds, bees, or crickets
+  try { sfx.startAmbience(mapCfg0.outdoor && !zeroEra ? mapCfg0.light : null); } catch (e) { /* muted */ }
   vfx = new VFX(scene);
   net = mpOpts ? mpOpts.net : null;
   // team roster: single-player skirmish comes from the lobby (2–4 seats, teams);
