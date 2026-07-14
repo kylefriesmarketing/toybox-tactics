@@ -94,6 +94,20 @@ export const E_MODULES = {
 // how many module sockets a node offers, by type
 export const E_MODULE_SLOTS = { capital: 2, stronghold: 2, crown: 0, mission: 0, resource: 0, market: 0, discovery: 0 };
 
+// House events (§5): the room is alive after bedtime. One brews at a time,
+// telegraphed a full turn before it strikes (fair-warning rule). Each is
+// mechanically distinct; the resolver in empire.js applies the flagged effects.
+export const E_EVENTS = {
+  vacuum:  { name: 'The Vacuum',        icon: '🌪️', closesRoute: true,
+             warn: 'A distant RUMBLE — the vacuum is coming for a road!' },
+  cat:     { name: 'Cat on Patrol',     icon: '🐱', closesRoute: true, swat: true,
+             warn: 'A soft paw pads closer — the cat is on patrol!' },
+  battery: { name: 'Low Battery Night', icon: '🔋', dimsPower: true,
+             warn: 'The nightlight flickers — a Low Battery Night is falling!' },
+  spill:   { name: 'Spilled Drink',     icon: '🥤', closesRoute: true, floods: true,
+             warn: 'A cup wobbles at the table edge — a spill is brewing!' },
+};
+
 // Doctrines (§10): a swappable strategic identity. You start with one slot and
 // unlock a second midgame. Each doctrine is a focused passive that expresses a
 // playstyle. Swapping an occupied slot costs Power, to discourage counter-picking.

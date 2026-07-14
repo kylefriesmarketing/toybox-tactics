@@ -13,7 +13,7 @@ import { UNITS, FACTIONS } from './data.js';
 import {
   E_NODES, E_ROUTES, E_TEMPLATES, E_NODE_TEMPLATE, E_NODE_TEMPLATE_OVERRIDE,
   E_FACTIONS, E_START_ROSTER, E_GARRISONS, E_UPGRADES, E_BRANCHES, E_RULES, E_SIM,
-  E_MODULES, E_MODULE_SLOTS, E_DOCTRINES,
+  E_MODULES, E_MODULE_SLOTS, E_DOCTRINES, E_EVENTS,
 } from './empire-data.js';
 import {
   E_CARDS, E_RARITY, E_COMMON_KEYS, E_CARD_ORDER,
@@ -157,10 +157,13 @@ export class Empire {
   }
   income(p, sup = null) {
     const supplied = sup || this.suppliedSet(p);
+    const flooded = this.floodedNode();
     let inc = 0;
     for (const [id, st] of Object.entries(this.s.nodes)) {
       if (st.owner !== p) continue;
-      inc += supplied.has(id) ? E_NODES[id].yield : Math.floor(E_NODES[id].yield / 2);
+      let y = supplied.has(id) ? E_NODES[id].yield : Math.floor(E_NODES[id].yield / 2);
+      if (id === flooded) y = Math.floor(y / 2); // Spilled Drink half-drowns this node's yield
+      inc += y;
       // a Workshop module runs whenever the node is supplied
       if (supplied.has(id)) for (const k of (st.modules || [])) if (E_MODULES[k].parts_yield) inc += E_MODULES[k].parts_yield;
     }
@@ -190,11 +193,15 @@ export class Empire {
     if (this.hasDoctrine(owner, 'warrior')) m *= 1.10; // Warrior's Code
     return m;
   }
-  // routes still usable this turn (the vacuum can close one)
+  // routes still usable this turn (a house event can close one)
   openRoutesOf(id) {
-    const blocked = this.s.event && this.s.event.phase === 'active' ? this.s.event.route : -1;
+    const blocked = this.blockedRoute();
     return E_ROUTES.map((r, i) => ({ r, i })).filter(({ r, i }) => i !== blocked && (r[0] === id || r[1] === id))
       .map(({ r }) => ({ to: r[0] === id ? r[1] : r[0], kind: r[2], cost: E_RULES.routeCost[r[2]] }));
+  }
+  floodedNode() {
+    const ev = this.s.event;
+    return (ev && ev.phase === 'active' && E_EVENTS[ev.kind].floods) ? ev.node : null;
   }
   upkeepCost(p) {
     let cards = 0;
@@ -205,7 +212,7 @@ export class Empire {
   // deterministic state fingerprint for tests + future MP hash checks
   stateHash() {
     const core = { t: this.s.turn, p: this.s.parts, pw: this.s.power, im: this.s.imag, u: this.s.upgrades, dc: this.s.doctrines, r: this.s.rng,
-      cr: this.s.crown.owner + ':' + this.s.crown.turns, ev: this.s.event ? this.s.event.route + this.s.event.phase : '',
+      cr: this.s.crown.owner + ':' + this.s.crown.turns, ev: this.s.event ? this.s.event.kind + this.s.event.route + this.s.event.phase + (this.s.event.node || '') : '',
       lt: this.s.lastLoot ? this.s.lastLoot.key : '',
       n: Object.entries(this.s.nodes).map(([k, v]) => k + v.owner + (v.garrison ? v.garrison.length : '') + (v.modules || []).join('')),
       a: this.s.armies.map((a) => a.id + a.node + a.cards.map((c) => (c.key || c.type) + c.strength + c.vet).join('')) };
@@ -222,7 +229,9 @@ export class Empire {
       const sup = this.suppliedSet(p);
       this.s.parts[p] += this.income(p, sup) - this.upkeepCost(p);
       if (this.s.parts[p] < 0) this.s.parts[p] = 0;
-      this.s.power[p] = Math.min(E_RULES.powerCap, this.s.power[p] + this.powerIncome(p, sup));
+      // Low Battery Night dims Power income for everyone while it lasts
+      const dim = this.s.event && this.s.event.phase === 'active' && E_EVENTS[this.s.event.kind].dimsPower;
+      this.s.power[p] = Math.min(E_RULES.powerCap, this.s.power[p] + (dim ? 0 : this.powerIncome(p, sup)));
       // Dreamer's Gambit: +50% Imagination income
       this.s.imag[p] += Math.round(this.imagIncome(p, sup) * (this.hasDoctrine(p, 'dreamer') ? 1.5 : 1));
       const relayMP = E_RULES.armyMP + (this.s.upgrades[p].includes('relay') ? E_RULES.relayMP : 0)
@@ -245,27 +254,48 @@ export class Empire {
     this.save();
   }
 
-  // "The Vacuum Approaches" (§5): telegraphed a full turn before it sweeps a
-  // route closed. All rolls come from the campaign stream — seeded, replayable.
+  // House events (§5): one brews at a time, telegraphed a full turn before it
+  // strikes. All rolls come from the campaign stream — seeded, replayable.
+  blockedRoute() {
+    const ev = this.s.event;
+    return (ev && ev.phase === 'active' && E_EVENTS[ev.kind].closesRoute) ? ev.route : -1;
+  }
+  routeNames(i) { const [a, b] = E_ROUTES[i]; return `${E_NODES[a].name}–${E_NODES[b].name}`; }
   tickEvent() {
     const ev = this.s.event;
     if (ev) {
+      const def = E_EVENTS[ev.kind];
       if (ev.phase === 'warn') {
         ev.phase = 'active';
         ev.left = E_RULES.vacuum.duration;
-        const [a, b] = E_ROUTES[ev.route];
-        this.say(`🌪️ THE VACUUM sweeps the ${E_NODES[a].name} — ${E_NODES[b].name} road! Closed for ${ev.left} turns.`);
+        if (def.closesRoute) this.say(`${def.icon} ${def.name} strikes the ${this.routeNames(ev.route)} road — closed ${ev.left} turns!`);
+        if (def.dimsPower) this.say(`${def.icon} ${def.name} — Power runs dry across the room for ${ev.left} turns.`);
+        if (def.swat) {
+          const [a, b] = E_ROUTES[ev.route];
+          for (const nid of [a, b]) {
+            const army = this.armyAt(nid);
+            if (army) { for (const c of army.cards) c.strength = Math.max(10, c.strength - 20); this.say(`🐱 The cat swats ${this.facLabel(army.owner)}'s army at ${E_NODES[nid].name}!`); }
+          }
+        }
+        if (def.floods) {
+          const [a, b] = E_ROUTES[ev.route];
+          ev.node = this.rng() < 0.5 ? a : b;
+          this.say(`${def.icon} The spill floods ${E_NODES[ev.node].name} — half yield for ${ev.left} turns.`);
+        }
       } else if (--ev.left <= 0) {
+        this.say(`🌤️ The ${def.name} passes. The room settles.`);
         this.s.event = null;
-        this.say('🌤️ The vacuum returns to its closet. The road reopens.');
       }
       return;
     }
     if (this.s.turn >= E_RULES.vacuum.earliest && this.rng() < E_RULES.vacuum.chance) {
-      const route = (this.rng() * E_ROUTES.length) | 0;
-      this.s.event = { kind: 'vacuum', phase: 'warn', route, left: 0 };
-      const [a, b] = E_ROUTES[route];
-      this.say(`⚠️ A distant RUMBLE… the vacuum eyes the ${E_NODES[a].name} — ${E_NODES[b].name} road. One turn to react!`);
+      const kinds = Object.keys(E_EVENTS);
+      const kind = kinds[(this.rng() * kinds.length) | 0];
+      const def = E_EVENTS[kind];
+      const nev = { kind, phase: 'warn', left: 0 };
+      if (def.closesRoute) nev.route = (this.rng() * E_ROUTES.length) | 0;
+      this.s.event = nev;
+      this.say(`⚠️ ${def.warn}${def.closesRoute ? ` (the ${this.routeNames(nev.route)} road)` : ''} One turn to react!`);
     }
   }
 
@@ -974,12 +1004,14 @@ class EmpireUI {
     const nodePos = (id) => E_NODES[id];
     const supplied = emp.suppliedSet(0);
     const ev = s.event;
+    const evDef = ev ? E_EVENTS[ev.kind] : null;
+    const evHasRoute = ev && evDef.closesRoute && ev.route !== undefined;
     const routeSvg = E_ROUTES.map(([a, b, kind], i) => {
       const A = nodePos(a), B = nodePos(b);
-      const evc = ev && ev.route === i ? (ev.phase === 'active' ? ' blocked' : ' warned') : '';
+      const evc = evHasRoute && ev.route === i ? (ev.phase === 'active' ? ' blocked' : ' warned') : '';
       let extra = '';
-      if (ev && ev.route === i) {
-        extra = `<text x="${(A.mx + B.mx) / 2}" y="${(A.my + B.my) / 2 - 6}" text-anchor="middle" class="e-ev-ic">${ev.phase === 'active' ? '🌪️' : '⚠️'}</text>`;
+      if (evHasRoute && ev.route === i) {
+        extra = `<text x="${(A.mx + B.mx) / 2}" y="${(A.my + B.my) / 2 - 6}" text-anchor="middle" class="e-ev-ic">${ev.phase === 'active' ? evDef.icon : '⚠️'}</text>`;
       }
       return `<line x1="${A.mx}" y1="${A.my}" x2="${B.mx}" y2="${B.my}" class="e-route ${kind}${evc}"/>${extra}`;
     }).join('');
@@ -1001,6 +1033,7 @@ class EmpireUI {
         : (n.type === 'crown' ? '<text y="-32" text-anchor="middle" class="e-crownmark">👑</text>' : '');
       const aimark = knowsAiTarget && s.aiIntent === id ? '<text x="-20" y="-18" class="e-supwarn">🎯</text>' : '';
       const mods = (st.modules || []).length ? `<text x="22" y="24" class="e-modmark">${(st.modules || []).map((k) => E_MODULES[k].icon).join('')}</text>` : '';
+      const flood = emp.floodedNode() === id ? '<text x="-22" y="24" class="e-modmark">🥤</text>' : '';
       const tip = `${n.name} — ${st.owner === -1 ? 'Unclaimed' : emp.facLabel(st.owner)}${n.yield ? ` · ${n.yield}🔩/turn` : ''}`;
       return `<g class="e-node${hot}${insp}" data-node="${id}" transform="translate(${n.mx},${n.my})">
         <title>${tip}</title>
@@ -1008,7 +1041,7 @@ class EmpireUI {
         <circle r="26" class="e-node-c${unsup ? ' unsup' : ''}" style="stroke:${ring}"/>
         <text y="7" text-anchor="middle" class="e-node-ic">${n.icon}</text>
         <text y="44" text-anchor="middle" class="e-node-lb">${n.name}</text>
-        ${crownProg}${aimark}${mods}
+        ${crownProg}${aimark}${mods}${flood}
         ${unsup ? '<text x="20" y="-18" class="e-supwarn">✂️</text>' : ''}
       </g>`;
     }).join('');
@@ -1034,8 +1067,8 @@ class EmpireUI {
     const doctrineChip = `<span class="e-chip" title="Your doctrines — click 🎗️ below to change">🎗️ ${myDoctrines.length ? myDoctrines.map((k) => E_DOCTRINES[k].icon).join(' ') : '<span class="e-dim">choose one</span>'}</span>`;
     const evBanner = ev
       ? `<div class="e-event ${ev.phase}">${ev.phase === 'warn'
-        ? '⚠️ A distant rumble — the vacuum comes for a road next turn!'
-        : `🌪️ The vacuum blocks a road — ${ev.left} turn${ev.left > 1 ? 's' : ''} left`}</div>`
+        ? `⚠️ ${evDef.warn}`
+        : `${evDef.icon} ${evDef.name} — ${ev.left} turn${ev.left > 1 ? 's' : ''} left`}</div>`
       : '';
     const phaseLbl = s.over ? '🌅 The war is over' : s.phase === 'plan' ? '📝 Give your orders, Commander' : '⚔️ Battles rage…';
 
