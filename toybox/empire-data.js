@@ -94,6 +94,18 @@ export const E_MODULES = {
 // how many module sockets a node offers, by type
 export const E_MODULE_SLOTS = { capital: 2, stronghold: 2, crown: 0, mission: 0, resource: 0, market: 0, discovery: 0 };
 
+// Doctrines (§10): a swappable strategic identity. You start with one slot and
+// unlock a second midgame. Each doctrine is a focused passive that expresses a
+// playstyle. Swapping an occupied slot costs Power, to discourage counter-picking.
+export const E_DOCTRINES = {
+  scavenger: { name: 'Scavenger Economy', icon: '🧰', desc: '+40% Parts from every capture, and +5 extra scraps per battle won.' },
+  fortified: { name: 'Fortified Frontier', icon: '🏯', desc: 'You fight +15% stronger defending ANY territory you hold, not just forts.' },
+  lightning: { name: 'Lightning Campaign', icon: '⚡', desc: 'Every army gains +1 Movement, and Force March costs no Power.' },
+  warrior:   { name: "Warrior's Code",     icon: '🎖️', desc: 'Your armies fight +10% stronger in every battle, played or simulated.' },
+  spymaster: { name: 'Spymaster',          icon: '🔭', desc: 'Scout every garrison on the board, and always see the rival empire’s target.' },
+  dreamer:   { name: "Dreamer's Gambit",   icon: '💡', desc: '+50% Imagination income, and Empire Tree upgrades cost 20% fewer Parts.' },
+};
+
 // the Empire Tree (bible §10): four branches, two tiers each. Tier II needs its
 // branch's tier I. Bought with Parts + Imagination — the slower, strategic yield.
 // Distinct empires emerge by the midgame from which branches you commit to.
@@ -136,6 +148,8 @@ export const E_RULES = {
   victoryWarn: 2,          // telegraph a rival within N turns of any victory (§16)
   scrapDrop: 12,           // scraps earned each battle you win (craft currency)
   chestScraps: 25,         // bonus scraps for cracking a treasure node (discovery)
+  doctrineSlot2Turn: 8,    // the second doctrine slot unlocks midgame (§10)
+  doctrineSwapCost: 2,     // Power to replace a committed doctrine (anti counter-pick)
   armyMP: 3,
   routeCost: { road: 1, rough: 2 },
   forceMarchCost: 1,        // Power: +1 MP, once per army per turn (§6)

@@ -13,7 +13,7 @@ import { UNITS, FACTIONS } from './data.js';
 import {
   E_NODES, E_ROUTES, E_TEMPLATES, E_NODE_TEMPLATE, E_NODE_TEMPLATE_OVERRIDE,
   E_FACTIONS, E_START_ROSTER, E_GARRISONS, E_UPGRADES, E_BRANCHES, E_RULES, E_SIM,
-  E_MODULES, E_MODULE_SLOTS,
+  E_MODULES, E_MODULE_SLOTS, E_DOCTRINES,
 } from './empire-data.js';
 import {
   E_CARDS, E_RARITY, E_COMMON_KEYS, E_CARD_ORDER,
@@ -52,11 +52,12 @@ export class Empire {
     if (seedOrSave && typeof seedOrSave === 'object') { this.load(seedOrSave); return; }
     const seed = seedOrSave || ((Math.random() * 2 ** 31) | 0);
     this.s = {
-      v: 5, seed, turn: 1, phase: 'plan', rng: 0,
+      v: 6, seed, turn: 1, phase: 'plan', rng: 0,
       factions, // seat 0 = human, seat 1 = AI
       parts: [E_RULES.startParts, E_RULES.startParts],
       power: [E_RULES.startPower, E_RULES.startPower],
       imag: [E_RULES.startImag, E_RULES.startImag],
+      doctrines: [[], ['warrior']], // seat 0 human (unchosen), seat 1 AI (opens aggressive)
       stats: { played: 0, simmed: 0, won: 0, lost: 0, captured: 0, cards: 0 },
       event: null, // { kind:'vacuum', phase:'warn'|'active', route, left }
       crown: { owner: -1, turns: 0 }, // §16 Crown Victory tracker
@@ -117,7 +118,9 @@ export class Empire {
     }
     // v4 → v5: stronghold modules (round 5)
     for (const st of Object.values(save.nodes || {})) if (!st.modules) st.modules = [];
-    save.v = 5;
+    // v5 → v6: doctrines (round 7)
+    if (!save.doctrines) save.doctrines = [[], ['warrior']];
+    save.v = 6;
     this.s = save; this.rng = makeRng(1); this.rng.setState(save.rng);
   }
   static stored() {
@@ -182,7 +185,11 @@ export class Empire {
     }
     return inc;
   }
-  ownerPowerMul(owner) { return this.s.upgrades[owner] && this.s.upgrades[owner].includes('combined') ? E_RULES.combinedArmsMul : 1; }
+  ownerPowerMul(owner) {
+    let m = this.s.upgrades[owner] && this.s.upgrades[owner].includes('combined') ? E_RULES.combinedArmsMul : 1;
+    if (this.hasDoctrine(owner, 'warrior')) m *= 1.10; // Warrior's Code
+    return m;
+  }
   // routes still usable this turn (the vacuum can close one)
   openRoutesOf(id) {
     const blocked = this.s.event && this.s.event.phase === 'active' ? this.s.event.route : -1;
@@ -197,7 +204,7 @@ export class Empire {
   armiesOf(p) { return this.s.armies.filter((a) => a.owner === p && a.cards.length); }
   // deterministic state fingerprint for tests + future MP hash checks
   stateHash() {
-    const core = { t: this.s.turn, p: this.s.parts, pw: this.s.power, im: this.s.imag, u: this.s.upgrades, r: this.s.rng,
+    const core = { t: this.s.turn, p: this.s.parts, pw: this.s.power, im: this.s.imag, u: this.s.upgrades, dc: this.s.doctrines, r: this.s.rng,
       cr: this.s.crown.owner + ':' + this.s.crown.turns, ev: this.s.event ? this.s.event.route + this.s.event.phase : '',
       lt: this.s.lastLoot ? this.s.lastLoot.key : '',
       n: Object.entries(this.s.nodes).map(([k, v]) => k + v.owner + (v.garrison ? v.garrison.length : '') + (v.modules || []).join('')),
@@ -216,8 +223,10 @@ export class Empire {
       this.s.parts[p] += this.income(p, sup) - this.upkeepCost(p);
       if (this.s.parts[p] < 0) this.s.parts[p] = 0;
       this.s.power[p] = Math.min(E_RULES.powerCap, this.s.power[p] + this.powerIncome(p, sup));
-      this.s.imag[p] += this.imagIncome(p, sup); // Imagination is the long game — no cap
-      const relayMP = E_RULES.armyMP + (this.s.upgrades[p].includes('relay') ? E_RULES.relayMP : 0);
+      // Dreamer's Gambit: +50% Imagination income
+      this.s.imag[p] += Math.round(this.imagIncome(p, sup) * (this.hasDoctrine(p, 'dreamer') ? 1.5 : 1));
+      const relayMP = E_RULES.armyMP + (this.s.upgrades[p].includes('relay') ? E_RULES.relayMP : 0)
+        + (this.hasDoctrine(p, 'lightning') ? 1 : 0); // Lightning Campaign
       // resting on SUPPLIED friendly ground mends the toys (§8, §11)
       for (const a of this.s.armies) {
         if (a.owner !== p || !a.cards.length) continue;
@@ -269,8 +278,9 @@ export class Empire {
   forceMarch(armyId) {
     const a = this.s.armies.find((x) => x.id === armyId);
     if (!a || a.marched || this.s.phase !== 'plan') return { ok: false, why: 'already marched' };
-    if (this.s.power[a.owner] < E_RULES.forceMarchCost) return { ok: false, why: 'not enough Power' };
-    this.s.power[a.owner] -= E_RULES.forceMarchCost;
+    const cost = this.hasDoctrine(a.owner, 'lightning') ? 0 : E_RULES.forceMarchCost; // Lightning Campaign
+    if (this.s.power[a.owner] < cost) return { ok: false, why: 'not enough Power' };
+    this.s.power[a.owner] -= cost;
     a.mp += 1;
     a.marched = true;
     this.say(`${this.facLabel(a.owner)} winds their toys tight — a forced march!`);
@@ -327,6 +337,23 @@ export class Empire {
     return { ok: true };
   }
 
+  // ---- doctrines (§10) ----
+  hasDoctrine(p, key) { return (this.s.doctrines[p] || []).includes(key); }
+  doctrineSlots(p) { return this.s.turn >= E_RULES.doctrineSlot2Turn ? 2 : 1; }
+  setDoctrine(p, slot, key) {
+    if (this.s.phase !== 'plan' || this.s.over) return { ok: false, why: 'plan phase only' };
+    if (slot >= this.doctrineSlots(p)) return { ok: false, why: 'that slot unlocks midgame' };
+    const cur = this.s.doctrines[p];
+    if (key && this.s.doctrines[p].includes(key) && cur[slot] !== key) return { ok: false, why: 'already active' };
+    const occupied = !!cur[slot];
+    if (occupied && cur[slot] !== key && this.s.power[p] < E_RULES.doctrineSwapCost) return { ok: false, why: `swap costs ${E_RULES.doctrineSwapCost}⚡` };
+    if (occupied && cur[slot] !== key) this.s.power[p] -= E_RULES.doctrineSwapCost; // committing anew costs Power
+    cur[slot] = key || null;
+    if (key) this.say(`${this.facLabel(p)} commits to the ${E_DOCTRINES[key].name} doctrine.`);
+    this.save();
+    return { ok: true };
+  }
+
   // ---- stronghold modules (§8) ----
   moduleSlots(nodeId) { return E_MODULE_SLOTS[E_NODES[nodeId].type] || 0; }
   hasModule(nodeId, key) { return (this.s.nodes[nodeId].modules || []).includes(key); }
@@ -367,9 +394,10 @@ export class Empire {
     const u = E_UPGRADES[key];
     if (!u || this.s.upgrades[p].includes(key)) return { ok: false, why: 'already owned' };
     if (u.prereq && !this.s.upgrades[p].includes(u.prereq)) return { ok: false, why: `needs ${E_UPGRADES[u.prereq].name}` };
-    if (this.s.parts[p] < u.parts) return { ok: false, why: 'not enough Parts' };
+    const partsCost = this.hasDoctrine(p, 'dreamer') ? Math.round(u.parts * 0.8) : u.parts; // Dreamer's Gambit
+    if (this.s.parts[p] < partsCost) return { ok: false, why: 'not enough Parts' };
     if (this.s.imag[p] < u.imag) return { ok: false, why: 'not enough Imagination' };
-    this.s.parts[p] -= u.parts;
+    this.s.parts[p] -= partsCost;
     this.s.imag[p] -= u.imag;
     this.s.upgrades[p].push(key);
     this.say(`${this.facLabel(p)} adopts ${u.name}.`);
@@ -457,8 +485,9 @@ export class Empire {
     const { attCards, defCards } = this.encCards(enc);
     const t = E_TEMPLATES[enc.template];
     const defOwner = enc.defender.owner;
-    // Block Walls help whoever HOLDS the contested node (the node's owner defending)
-    const wallMul = (defOwner >= 0 && this.s.nodes[enc.nodeId].owner === defOwner) ? 1 + this.moduleDefBonus(enc.nodeId) : 1;
+    // Block Walls (+ Fortified Frontier doctrine) help whoever HOLDS the node
+    const holdsNode = defOwner >= 0 && this.s.nodes[enc.nodeId].owner === defOwner;
+    const wallMul = holdsNode ? 1 + this.moduleDefBonus(enc.nodeId) + (this.hasDoctrine(defOwner, 'fortified') ? 0.15 : 0) : 1;
     const defMul = (t.defBoost || 1) * (E_NODES[enc.nodeId].tier ? 1 + 0.1 * E_NODES[enc.nodeId].tier : 1)
       * (defOwner >= 0 ? this.ownerPowerMul(defOwner) : 1) * wallMul;
     const ap = this.cardsPower(attCards) * this.ownerPowerMul(enc.attacker.owner), dp = this.cardsPower(defCards) * defMul;
@@ -564,6 +593,7 @@ export class Empire {
     const card = E_CARDS[key], rar = E_RARITY[card.rarity];
     let scraps = E_RULES.scrapDrop;
     if (E_NODES[enc.nodeId].type === 'discovery') scraps += E_RULES.chestScraps; // a real treasure chest
+    if (this.hasDoctrine(0, 'scavenger')) scraps += 5; // Scavenger Economy (loot is the human's)
     let firstTime = false, dupScraps = 0;
     if (this.persist) {
       const g = grantCard(this.coll, key);
@@ -588,6 +618,7 @@ export class Empire {
     if (this.s.upgrades[p].includes('salvage')) loot += 15;
     const node = E_NODES[nodeId];
     if (node.bonus && !st.looted) { loot += node.bonus; st.looted = true; }
+    if (this.hasDoctrine(p, 'scavenger')) loot = Math.round(loot * 1.4); // Scavenger Economy
     if (loot) this.s.parts[p] += loot;
     if (!wasBattle) this.say(`${node.icon} ${this.facLabel(p)} claims ${node.name}${loot ? ` (+${loot} Parts)` : ''}.`);
   }
@@ -691,6 +722,8 @@ export class Empire {
     const p = 1;
     if (this.s.over) return;
     const home = 'CAP_B';
+    // claim the second doctrine slot once it opens (deterministic: turtle up)
+    if (this.doctrineSlots(p) >= 2 && !this.s.doctrines[p][1]) this.setDoctrine(p, 1, 'fortified');
     // strategic buys happen once per turn, not per army
     if (this.armiesOf(p).some((a) => a.node === home)) {
       const capArmy = this.armiesOf(p).find((a) => a.node === home);
@@ -895,7 +928,7 @@ class EmpireUI {
     if (!this.root.classList.contains('show')) return;
     const m = this.root.querySelector('#e-modal');
     const battleModal = m && m.querySelector('#e-sim'); // encounter awaiting a decision
-    const infoModal = m && (m.querySelector('#e-tclose, #e-colclose, #e-rclose, #e-gclose') || m.querySelector('.e-loot'));
+    const infoModal = m && (m.querySelector('#e-tclose, #e-colclose, #e-rclose, #e-gclose, #e-dclose') || m.querySelector('.e-loot'));
     if (e.key === 'Escape') {
       if (battleModal) return; // must choose Play / Simulate / Withdraw
       if (infoModal) { m.innerHTML = ''; e.preventDefault(); return; }
@@ -906,6 +939,7 @@ class EmpireUI {
     if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); const b = this.root.querySelector('#e-end'); if (b && !b.disabled) b.click(); }
     else if (e.key === 'c' || e.key === 'C') { esfx('select', 60); this.showCollection(); }
     else if (e.key === 't' || e.key === 'T') { esfx('select', 60); this.showTree(); }
+    else if (e.key === 'd' || e.key === 'D') { esfx('select', 60); this.showDoctrines(); }
     else if (e.key === '?' || e.key === '/') { this.showGuide(); }
   }
 
@@ -921,7 +955,8 @@ class EmpireUI {
       ${row('🔩', 'GROW: capture nodes for Parts. Recruit cards, build 🌳 tree upgrades (💡 Imagination), and 🧱 stronghold modules.')}
       ${row('📇', 'COLLECT: win battles for troop cards that persist across every campaign — field your best from the recruit picker.')}
       ${row('🌪️', 'BEWARE: the vacuum closes roads, and land cut off from your capital yields half.')}
-      <div class="e-dim" style="margin-top:8px">⌨️ <b>Space</b> ends your turn · <b>Esc</b> closes · <b>C</b> collection · <b>T</b> tree · <b>?</b> this guide.</div>
+      ${row('🎗️', 'IDENTITY: commit to a <b>Doctrine</b> — a focused campaign edge like Scavenger Economy or Lightning Campaign — with a second slot opening midgame.')}
+      <div class="e-dim" style="margin-top:8px">⌨️ <b>Space</b> ends your turn · <b>Esc</b> closes · <b>C</b> cards · <b>T</b> tree · <b>D</b> doctrines · <b>?</b> guide.</div>
       <div class="e-enc-btns"><button id="e-gclose" class="diff-btn sel">Let's play</button></div>
     </div></div>`;
     m.querySelector('#e-gclose').addEventListener('click', () => { m.innerHTML = ''; });
@@ -954,7 +989,7 @@ class EmpireUI {
     }).join('');
     const selArmy = s.armies.find((a) => a.id === this.sel);
     const reach = selArmy && s.phase === 'plan' ? emp.reachable(selArmy).map((r) => r.to) : [];
-    const knowsAiTarget = s.upgrades[0].includes('masterplan') && s.aiIntent;
+    const knowsAiTarget = (s.upgrades[0].includes('masterplan') || emp.hasDoctrine(0, 'spymaster')) && s.aiIntent;
     const nodeSvg = Object.entries(E_NODES).map(([id, n]) => {
       const st = s.nodes[id];
       const ring = st.owner === -1 ? '#7a6a52' : emp.facColor(st.owner);
@@ -995,6 +1030,8 @@ class EmpireUI {
     const crownChip = s.crown.owner !== -1 && s.crown.turns > 0
       ? `<span class="e-chip" title="Hold the Storybook Tower crown ${E_RULES.crownNeed} turns to win" style="border-color:${emp.facColor(s.crown.owner)}">👑 <b>${s.crown.turns}</b>/${E_RULES.crownNeed} <span class="e-dim">${s.crown.owner === 0 ? 'you' : 'rival'}</span></span>`
       : '';
+    const myDoctrines = (s.doctrines[0] || []).filter(Boolean);
+    const doctrineChip = `<span class="e-chip" title="Your doctrines — click 🎗️ below to change">🎗️ ${myDoctrines.length ? myDoctrines.map((k) => E_DOCTRINES[k].icon).join(' ') : '<span class="e-dim">choose one</span>'}</span>`;
     const evBanner = ev
       ? `<div class="e-event ${ev.phase}">${ev.phase === 'warn'
         ? '⚠️ A distant rumble — the vacuum comes for a road next turn!'
@@ -1010,7 +1047,7 @@ class EmpireUI {
         <span class="e-chip" title="Power: force marches (cap ${E_RULES.powerCap})">🔋 <b>${s.power[0]}</b><span class="e-dim">/${E_RULES.powerCap}</span></span>
         <span class="e-chip" title="Imagination: the empire tree's currency">💡 <b>${s.imag[0]}</b> <span class="e-dim">+${emp.imagIncome(0, sup0)}/t</span></span>
         <span class="e-chip" title="Territories held — first to ${E_RULES.dominionNeed} with a stronghold wins">🗺️ <b>${emp.ownedCount(0)}</b> vs ${emp.ownedCount(1)} <span class="e-dim">of ${E_RULES.dominionNeed}</span></span>
-        ${crownChip}
+        ${crownChip}${doctrineChip}
         <span class="e-chip">🌙 Turn <b>${s.turn}</b><span class="e-dim">/${E_RULES.turnCap}</span></span>
         <span class="e-phase">${phaseLbl}</span>
         <span class="e-spring"></span>
@@ -1028,6 +1065,7 @@ class EmpireUI {
       </div>
       <div class="e-bottom">
         <button id="e-tree" class="diff-btn">🌳 Empire Tree <span class="e-dim">(${owned0}/8)</span></button>
+        <button id="e-doctrines" class="diff-btn">🎗️ Doctrines</button>
         <button id="e-cards" class="diff-btn">📇 Collection</button>
         <button id="e-end" class="diff-btn sel" ${s.phase !== 'plan' || s.over ? 'disabled' : ''}>⏳ End Turn</button>
         <div class="e-log">${logHtml}</div>
@@ -1099,7 +1137,7 @@ class EmpireUI {
       // a Watchtower you own reveals garrisons within two routes of the fort
       const near3 = routesOf(id).some((r) => (s.nodes[r.to].owner === 0 && emp.hasModule(r.to, 'watchtower'))
         || routesOf(r.to).some((r2) => s.nodes[r2.to].owner === 0 && emp.hasModule(r2.to, 'watchtower')));
-      const adjacent = near1 || near2 || near3;
+      const adjacent = near1 || near2 || near3 || emp.hasDoctrine(0, 'spymaster'); // Spymaster sees all
       let garrisonLine = '';
       if (st.owner !== 0) {
         const gTmpl = st.garrison || E_GARRISONS[n.type];
@@ -1215,6 +1253,8 @@ class EmpireUI {
     if (tree) tree.addEventListener('click', () => { esfx('select', 60); this.showTree(); });
     const cards = this.root.querySelector('#e-cards');
     if (cards) cards.addEventListener('click', () => { esfx('select', 60); this.showCollection(); });
+    const doc = this.root.querySelector('#e-doctrines');
+    if (doc) doc.addEventListener('click', () => { esfx('select', 60); this.showDoctrines(); });
     for (const b of this.root.querySelectorAll('.e-modbuild')) {
       b.addEventListener('click', () => { const r = emp.buildModule(0, b.dataset.node, b.dataset.mod); esfx(r.ok ? 'place' : 'error', 100); this.render(); });
     }
@@ -1281,6 +1321,43 @@ class EmpireUI {
       b.addEventListener('click', () => { const r = emp.craft(b.dataset.card); esfx(r.ok ? 'charge' : 'error', 120); this.showCollection(); this.render(); });
     }
     m.querySelector('#e-colclose').addEventListener('click', () => { m.innerHTML = ''; });
+  }
+
+  // the Doctrines modal (§10): pick a strategic identity per slot
+  showDoctrines() {
+    const emp = this.emp, s = emp.s, cur = s.doctrines[0] || [];
+    const slots = emp.doctrineSlots(0);
+    const cell = (k, slot) => {
+      const d = E_DOCTRINES[k];
+      const active = cur[slot] === k;
+      const elsewhere = cur.includes(k) && !active; // already in the other slot
+      const occupied = !!cur[slot];
+      const canPay = !occupied || active || s.power[0] >= E_RULES.doctrineSwapCost;
+      const cls = active ? 'active' : elsewhere ? 'elsewhere' : canPay ? '' : 'poor';
+      const tag = active ? '✓ active' : elsewhere ? 'in other slot' : occupied ? `swap (${E_RULES.doctrineSwapCost}⚡)` : 'commit';
+      return `<button class="e-doc ${cls}" data-doc="${k}" data-slot="${slot}" ${elsewhere || (!active && !canPay) ? 'disabled' : ''}>
+        <div class="e-docname">${d.icon} ${d.name}</div><div class="e-docdesc">${d.desc}</div><div class="e-doctag">${tag}</div></button>`;
+    };
+    const slotBlock = (slot) => {
+      if (slot >= slots) return `<div class="e-docslot locked"><div class="e-docslothdr">🔒 Slot 2 — unlocks on turn ${E_RULES.doctrineSlot2Turn}</div></div>`;
+      return `<div class="e-docslot"><div class="e-docslothdr">Slot ${slot + 1}${cur[slot] ? '' : ' — empty'}</div>
+        <div class="e-docgrid">${Object.keys(E_DOCTRINES).map((k) => cell(k, slot)).join('')}</div></div>`;
+    };
+    const m = this.root.querySelector('#e-modal');
+    m.innerHTML = `<div class="e-enc"><div class="e-enc-card e-tree-card">
+      <div class="e-ttl">🎗️ Doctrines <span class="e-dim">🔋 ${s.power[0]} Power</span></div>
+      <div class="e-dim">A focused edge that shapes your whole campaign. Committing to an empty slot is free; swapping a chosen one costs ${E_RULES.doctrineSwapCost} Power.</div>
+      ${slotBlock(0)}${slotBlock(1)}
+      <div class="e-enc-btns"><button id="e-dclose" class="diff-btn sel">Done</button></div>
+    </div></div>`;
+    for (const b of m.querySelectorAll('.e-doc')) {
+      b.addEventListener('click', () => {
+        const r = emp.setDoctrine(0, +b.dataset.slot, b.dataset.doc);
+        esfx(r.ok ? 'charge' : 'error', 120);
+        this.render(); this.showDoctrines();
+      });
+    }
+    m.querySelector('#e-dclose').addEventListener('click', () => { m.innerHTML = ''; });
   }
 
   // the Empire Tree modal (§10): four branches, two tiers, Parts + Imagination
@@ -1426,6 +1503,8 @@ export function empireTest(seed, turns = 8, script = []) {
       if (s.type === 'upgrade') emp.buyUpgrade(0, s.key);
       if (s.type === 'march') emp.forceMarch(s.army || 'A0');
       if (s.type === 'muster') emp.muster(0);
+      if (s.type === 'doctrine') emp.setDoctrine(0, s.slot || 0, s.key);
+      if (s.type === 'module') emp.buildModule(0, s.node, s.key);
     }
     emp.endTurn();
     let guard = 0;
@@ -1434,8 +1513,9 @@ export function empireTest(seed, turns = 8, script = []) {
   }
   return { hash: emp.stateHash(), turn: emp.s.turn, over: emp.s.over, winner: emp.s.winner,
     winHow: emp.s.winHow || null, owned: [emp.ownedCount(0), emp.ownedCount(1)],
-    power: [...emp.s.power], imag: [...emp.s.imag], upgrades: emp.s.upgrades.map((u) => [...u]),
-    crown: { ...emp.s.crown }, armies: emp.s.armies.map((a) => a.id + '@' + a.node + ':' + a.cards.length),
+    parts: [...emp.s.parts], power: [...emp.s.power], imag: [...emp.s.imag], upgrades: emp.s.upgrades.map((u) => [...u]),
+    crown: { ...emp.s.crown }, doctrines: emp.s.doctrines.map((d) => [...d]),
+    armies: emp.s.armies.map((a) => a.id + '@' + a.node + ':' + a.cards.length),
     stats: { ...emp.s.stats }, event: emp.s.event ? { ...emp.s.event } : null,
     lastLoot: emp.s.lastLoot ? emp.s.lastLoot.key : null, cardsWon: emp.loot.map((l) => l.key),
     log: emp.s.log.slice(-3) };
