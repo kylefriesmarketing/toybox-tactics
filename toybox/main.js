@@ -497,6 +497,16 @@ function renderCivPanel(facKey) {
     (tech ? chip('🔬 Unique Tech', tech.name, short(tech.desc)) : '') +
     `</div>`;
 }
+// the civ row is generated from FACTIONS, so every new tribe shows up here
+// automatically (the knights taught us not to hardcode this list)
+{
+  const row = document.getElementById('fac-row');
+  if (row) {
+    row.innerHTML = Object.entries(FACTIONS).map(([k, f]) =>
+      `<button class="fac-btn diff-btn${k === chosenFaction ? ' sel' : ''}" data-fac="${k}">`
+      + `<img class="fac-crest" src="assets/ui/crest-${k}.png" alt="" onerror="this.remove()">${f.label}</button>`).join('');
+  }
+}
 for (const btn of document.querySelectorAll('.fac-btn')) {
   btn.addEventListener('click', () => {
     chosenFaction = btn.dataset.fac;
