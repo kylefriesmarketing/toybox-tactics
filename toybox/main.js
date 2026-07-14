@@ -2024,7 +2024,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
       if (!home) return;
       spawns.forEach((sp, i) => {
         const u = game.spawnUnit(sp.type, seat, home.x + 2.5 + (i % 3) * 0.9, home.z + 2.5 + ((i / 3) | 0) * 0.9);
-        u.maxHp *= (mul || 1); // Combined Arms hardens the whole line
+        u.maxHp *= (mul || 1) * (sp.hp || 1); // Combined Arms + the card's own durability
         u.hp = Math.max(1, u.maxHp * (sp.strength / 100));
         u.empireCardId = sp.cardId;
         if (sp.vet) u.kills = 3; // veterans arrive decorated

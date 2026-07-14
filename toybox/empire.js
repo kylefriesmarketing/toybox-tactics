@@ -14,6 +14,10 @@ import {
   E_NODES, E_ROUTES, E_TEMPLATES, E_NODE_TEMPLATE, E_NODE_TEMPLATE_OVERRIDE,
   E_FACTIONS, E_START_ROSTER, E_GARRISONS, E_UPGRADES, E_BRANCHES, E_RULES, E_SIM,
 } from './empire-data.js';
+import {
+  E_CARDS, E_RARITY, E_COMMON_KEYS, E_CARD_ORDER,
+  loadCollection, saveCollection, ownsCard, grantCard, craftCard, rollLoot,
+} from './empire-cards.js';
 
 const SAVE_KEY = 'tt-empire';
 
@@ -40,39 +44,52 @@ const routesOf = (id) => E_ROUTES.filter((r) => r[0] === id || r[1] === id)
 // ---------------------------------------------------------------- Empire (sim)
 export class Empire {
   constructor(seedOrSave, factions = ['bricks', 'classic'], persist = true) {
-    this.persist = persist; // headless tests run with persist=false (never touch tt-empire)
+    this.persist = persist; // headless tests run with persist=false (never touch storage)
+    // the card collection is META — it lives across campaigns (tests get a throwaway)
+    this.coll = persist ? loadCollection() : { owned: {}, scraps: 0, seen: [] };
+    this.loot = []; // cards won this session (UI shows them; not authoritative state)
     if (seedOrSave && typeof seedOrSave === 'object') { this.load(seedOrSave); return; }
     const seed = seedOrSave || ((Math.random() * 2 ** 31) | 0);
     this.s = {
-      v: 3, seed, turn: 1, phase: 'plan', rng: 0,
+      v: 4, seed, turn: 1, phase: 'plan', rng: 0,
       factions, // seat 0 = human, seat 1 = AI
       parts: [E_RULES.startParts, E_RULES.startParts],
       power: [E_RULES.startPower, E_RULES.startPower],
       imag: [E_RULES.startImag, E_RULES.startImag],
-      stats: { played: 0, simmed: 0, won: 0, lost: 0, captured: 0 },
+      stats: { played: 0, simmed: 0, won: 0, lost: 0, captured: 0, cards: 0 },
       event: null, // { kind:'vacuum', phase:'warn'|'active', route, left }
       crown: { owner: -1, turns: 0 }, // §16 Crown Victory tracker
       aiIntent: null,                  // rival's current target (Master Plan reveals it)
-      warned: {},                      // victory-telegraph one-shots
+      warned: {}, lastLoot: null,      // victory telegraphs + newest card won
       upgrades: [[], []],
       nodes: Object.fromEntries(Object.keys(E_NODES).map((id) => [id, {
         owner: id === 'CAP_A' ? 0 : id === 'CAP_B' ? 1 : -1,
         garrison: null, looted: false,
       }])),
-      armies: [
-        { id: 'A0', owner: 0, node: 'CAP_A', prev: 'CAP_A', mp: E_RULES.armyMP, cards: E_START_ROSTER.map((c, i) => ({ id: 'A0c' + i, ...c })), order: null },
-        { id: 'A1', owner: 1, node: 'CAP_B', prev: 'CAP_B', mp: E_RULES.armyMP, cards: E_START_ROSTER.map((c, i) => ({ id: 'A1c' + i, ...c })), order: null },
-      ],
-      nextCard: [E_START_ROSTER.length, E_START_ROSTER.length],
+      armies: [],
+      nextCard: [0, 0],
       encounters: [], // queued this battle window
       pendingPlay: null, // BattleContext handed to the RTS (survives reload)
       returnToMap: false,
       log: [], over: false, winner: null, sunrise: false,
     };
     this.rng = makeRng(seed);
+    // build the opening armies from card keys (deriving type/hp/vet per card)
+    for (const owner of [0, 1]) {
+      const node = owner === 0 ? 'CAP_A' : 'CAP_B';
+      this.s.armies.push({ id: 'A' + owner, owner, node, prev: node, mp: E_RULES.armyMP, marched: false,
+        cards: E_START_ROSTER.map((key) => this.makeArmyCard(key, `A${owner}c${this.s.nextCard[owner]++}`, owner)), order: null });
+    }
     this.s.rng = this.rng.getState();
     this.say(`🌙 The Bedroom War begins. ${this.facLabel(0)} vs ${this.facLabel(1)} — first to ${E_RULES.dominionNeed} territories.`);
     this.upkeep();
+  }
+
+  // build one army card from a collection card key (see empire-cards.js)
+  makeArmyCard(key, id, owner) {
+    const card = E_CARDS[key] || E_CARDS.recruit;
+    return { id, key, type: card.unit, strength: 100, hp: card.hp || 1,
+      vet: (card.vet || 0) + ((this.s.upgrades && this.s.upgrades[owner] && this.s.upgrades[owner].includes('reserves')) ? 1 : 0) };
   }
 
   // ---------- persistence (§20: save at every phase boundary) ----------
@@ -91,7 +108,13 @@ export class Empire {
     if (!save.crown) save.crown = { owner: -1, turns: 0 };
     if (save.aiIntent === undefined) save.aiIntent = null;
     if (!save.warned) save.warned = {};
-    save.v = 3;
+    // v3 → v4: the card collection (round 4). Old plain cards get a fallback key.
+    if (save.lastLoot === undefined) save.lastLoot = null;
+    if (save.stats && save.stats.cards === undefined) save.stats.cards = 0;
+    for (const a of (save.armies || [])) for (const c of a.cards) {
+      if (!c.key) { c.key = c.type === 'archer' ? 'archer' : c.type === 'spear' ? 'spear' : 'recruit'; c.hp = c.hp || 1; }
+    }
+    save.v = 4;
     this.s = save; this.rng = makeRng(1); this.rng.setState(save.rng);
   }
   static stored() {
@@ -171,8 +194,9 @@ export class Empire {
   stateHash() {
     const core = { t: this.s.turn, p: this.s.parts, pw: this.s.power, im: this.s.imag, u: this.s.upgrades, r: this.s.rng,
       cr: this.s.crown.owner + ':' + this.s.crown.turns, ev: this.s.event ? this.s.event.route + this.s.event.phase : '',
+      lt: this.s.lastLoot ? this.s.lastLoot.key : '',
       n: Object.entries(this.s.nodes).map(([k, v]) => k + v.owner + (v.garrison ? v.garrison.length : '')),
-      a: this.s.armies.map((a) => a.id + a.node + a.cards.map((c) => c.type + c.strength + c.vet).join('')) };
+      a: this.s.armies.map((a) => a.id + a.node + a.cards.map((c) => (c.key || c.type) + c.strength + c.vet).join('')) };
     const str = JSON.stringify(core);
     let h = 5381;
     for (let i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) | 0;
@@ -260,8 +284,7 @@ export class Empire {
     const nth = this.s.armies.filter((a) => a.owner === p).length;
     const id = nth <= 1 ? `B${p}` : `B${p}_${nth}`;
     this.s.armies.push({ id, owner: p, node: cap, prev: cap, mp: E_RULES.armyMP, marched: false,
-      cards: [{ id: `${id}c${this.s.nextCard[p]++}`, type: 'soldier', strength: 100,
-        vet: this.s.upgrades[p].includes('reserves') ? 1 : 0 }], order: null });
+      cards: [this.makeArmyCard('recruit', `${id}c${this.s.nextCard[p]++}`, p)], order: null });
     this.say(`🚩 ${this.facLabel(p)} musters a second army!`);
     this.save();
     return { ok: true };
@@ -278,21 +301,31 @@ export class Empire {
   }
   cancelMove(armyId) { const a = this.s.armies.find((x) => x.id === armyId); if (a) a.order = null; }
 
-  recruit(p, armyId = null) {
+  // recruit a collection card into an army. cardKey null = AI/quick pick (cycles
+  // commons). Humans may only field cards they own (commons are always in hand).
+  recruit(p, armyId = null, cardKey = null) {
     const cap = p === 0 ? 'CAP_A' : 'CAP_B';
     const a = armyId ? this.s.armies.find((x) => x.id === armyId && x.owner === p)
       : this.armiesOf(p).find((x) => x.node === cap);
     if (!a || a.node !== cap) return { ok: false, why: 'army must stand at your capital' };
     if (a.cards.length >= E_RULES.maxCards) return { ok: false, why: 'army is at full strength' };
-    if (this.s.parts[p] < E_RULES.recruitCost) return { ok: false, why: 'not enough Parts' };
-    this.s.parts[p] -= E_RULES.recruitCost;
-    const types = ['soldier', 'archer', 'spear'];
-    const type = types[this.s.nextCard[p] % types.length];
-    a.cards.push({ id: `A${p}c${this.s.nextCard[p]++}`, type, strength: 100,
-      vet: this.s.upgrades[p].includes('reserves') ? 1 : 0 });
-    this.say(`${this.facLabel(p)} recruits a fresh ${UNITS[type].name}.`);
+    if (!cardKey) cardKey = E_COMMON_KEYS[this.s.nextCard[p] % E_COMMON_KEYS.length];
+    const card = E_CARDS[cardKey];
+    if (!card) return { ok: false, why: 'no such card' };
+    if (p === 0 && !ownsCard(this.coll, cardKey)) return { ok: false, why: 'card not in your collection' };
+    if (this.s.parts[p] < card.cost) return { ok: false, why: 'not enough Parts' };
+    this.s.parts[p] -= card.cost;
+    a.cards.push(this.makeArmyCard(cardKey, `A${p}c${this.s.nextCard[p]++}`, p));
+    this.say(`${this.facLabel(p)} fields ${card.name}.`);
     this.save();
     return { ok: true };
+  }
+
+  // ---- collection actions (meta; persist-gated) ----
+  craft(key) {
+    const r = craftCard(this.coll, key);
+    if (r.ok) { if (this.persist) saveCollection(this.coll); this.say(`🃏 Crafted ${E_CARDS[key].name} from scraps.`); }
+    return r;
   }
 
   buyUpgrade(p, key) {
@@ -375,7 +408,7 @@ export class Empire {
   }
   cardsPower(cards) {
     let p = E_SIM.cmdFlat;
-    for (const c of cards) p += this.unitPower(c.type) * (c.strength / 100) * (1 + E_RULES.vetPowerBonus * (c.vet || 0));
+    for (const c of cards) p += this.unitPower(c.type) * (c.hp || 1) * (c.strength / 100) * (1 + E_RULES.vetPowerBonus * (c.vet || 0));
     return p;
   }
   encCards(enc) {
@@ -442,6 +475,7 @@ export class Empire {
       this.s.stats[result.mode === 'played' ? 'played' : 'simmed']++;
       const humanWon = result.attackerWon === (enc.attacker.owner === 0);
       this.s.stats[humanWon ? 'won' : 'lost']++;
+      if (humanWon) this.awardLoot(enc); // spoils of war → a card + scraps
     }
     const att = this.s.armies.find((a) => a.id === enc.attacker.armyId);
     const st = this.s.nodes[enc.nodeId];
@@ -476,6 +510,36 @@ export class Empire {
       this.say(`🛡️ ${node.name} holds against ${this.facLabel(enc.attacker.owner)}.`);
     }
     this.save();
+  }
+
+  // spoils of a battle the human won: a deterministic card + scraps. Tougher
+  // nodes roll from a better pool. The DRAW is seeded (testable); the grant to
+  // the meta collection is a persist side-effect (tests never write storage).
+  lootQuality(nodeId) {
+    const t = E_NODES[nodeId].type;
+    if (t === 'capital' || t === 'crown' || t === 'stronghold') return 2;
+    if (t === 'discovery' || t === 'mission') return 1;
+    return 0;
+  }
+  awardLoot(enc) {
+    const lrng = makeRng(((enc.seed ^ 0x51ce15) >>> 0) || 1);
+    const key = rollLoot(lrng, this.lootQuality(enc.nodeId));
+    const card = E_CARDS[key], rar = E_RARITY[card.rarity];
+    let scraps = E_RULES.scrapDrop;
+    if (E_NODES[enc.nodeId].type === 'discovery') scraps += E_RULES.chestScraps; // a real treasure chest
+    let firstTime = false, dupScraps = 0;
+    if (this.persist) {
+      const g = grantCard(this.coll, key);
+      firstTime = g.first; dupScraps = g.scraps;
+      this.coll.scraps += scraps;
+      saveCollection(this.coll);
+    } else {
+      firstTime = !this.coll.owned[key]; if (key && E_CARDS[key].rarity !== 'common') this.coll.owned[key] = 1;
+    }
+    this.s.stats.cards++;
+    this.s.lastLoot = { key, first: firstTime, scraps: scraps + dupScraps };
+    this.loot.push(this.s.lastLoot);
+    this.say(`🎁 Spoils of ${E_NODES[enc.nodeId].name}: ${card.icon} <b>${card.name}</b> (${rar.name})${firstTime ? ' — NEW!' : ' — dupe → scraps'} · +${scraps + dupScraps}✨`);
   }
 
   capture(p, nodeId, wasBattle = false) {
@@ -681,9 +745,10 @@ export class Empire {
       // Combined Arms (Warfare II) deploys tougher toys in PLAYED battles too
       attMul: this.ownerPowerMul(enc.attacker.owner),
       defMul: enc.defender.owner >= 0 ? this.ownerPowerMul(enc.defender.owner) : 1,
-      // roster cards spawn as tagged units on each side (survivors return)
-      attSpawns: attCards.map((c) => ({ cardId: c.id, type: c.type, strength: c.strength, vet: c.vet })),
-      defSpawns: defCards.map((c) => ({ cardId: c.id, type: c.type, strength: c.strength, vet: c.vet })),
+      // roster cards spawn as tagged units on each side (survivors return);
+      // hp carries the card's durability mod so a collection card fights the same
+      attSpawns: attCards.map((c) => ({ cardId: c.id, key: c.key, type: c.type, strength: c.strength, vet: c.vet, hp: c.hp || 1 })),
+      defSpawns: defCards.map((c) => ({ cardId: c.id, key: c.key, type: c.type, strength: c.strength, vet: c.vet, hp: c.hp || 1 })),
       nodeName: E_NODES[enc.nodeId].name,
     };
   }
@@ -705,7 +770,7 @@ export class Empire {
     const ctx = save.pendingPlay.ctx;
     const attackerWon = (win === ctx.humanIsAttacker);
     const collect = (spawns) => spawns
-      .map((sp) => { const sv = survivors[sp.cardId]; return sv ? { id: sp.cardId, type: sp.type, strength: sv.strength, vet: sp.vet } : null; })
+      .map((sp) => { const sv = survivors[sp.cardId]; return sv ? { id: sp.cardId, key: sp.key, type: sp.type, strength: sv.strength, vet: sp.vet, hp: sp.hp || 1 } : null; })
       .filter(Boolean);
     emp.applyBattleResult(enc, {
       encId: enc.encId, mode: 'played', attackerWon,
@@ -858,6 +923,7 @@ class EmpireUI {
       </div>
       <div class="e-bottom">
         <button id="e-tree" class="diff-btn">🌳 Empire Tree <span class="e-dim">(${owned0}/8)</span></button>
+        <button id="e-cards" class="diff-btn">📇 Collection</button>
         <button id="e-end" class="diff-btn sel" ${s.phase !== 'plan' || s.over ? 'disabled' : ''}>⏳ End Turn</button>
         <div class="e-log">${logHtml}</div>
       </div>
@@ -889,9 +955,12 @@ class EmpireUI {
   sidePanel(selArmy) {
     const emp = this.emp, s = emp.s;
     if (selArmy) {
-      const cards = selArmy.cards.map((c) =>
-        `<div class="e-card"><span>${UNITS[c.type].name}</span><span title="veterancy">${'★'.repeat(c.vet)}</span>
-         <div class="e-hp"><div style="width:${c.strength}%"></div></div></div>`).join('');
+      const cards = selArmy.cards.map((c) => {
+        const card = E_CARDS[c.key] || { name: UNITS[c.type] ? UNITS[c.type].name : c.type, icon: '', rarity: 'common' };
+        const col = E_RARITY[card.rarity].color;
+        return `<div class="e-card"><span style="color:${col}">${card.icon} ${card.name}</span><span title="veterancy">${'★'.repeat(c.vet)}</span>
+         <div class="e-hp"><div style="width:${c.strength}%"></div></div></div>`;
+      }).join('');
       const atCap = selArmy.node === 'CAP_A';
       const mpPips = '●'.repeat(selArmy.mp) + '○'.repeat(Math.max(0, E_RULES.armyMP + (selArmy.marched ? 1 : 0) - selArmy.mp));
       const canMuster = emp.armiesOf(0).length < E_RULES.maxArmies
@@ -965,11 +1034,13 @@ class EmpireUI {
     if (endBtn) endBtn.addEventListener('click', () => {
       this.confirmNew = false;
       const capturedBefore = emp.s.stats.captured;
+      const lootBefore = emp.loot.length;
       esfx('command', 120);
       emp.endTurn();
       this.sel = null;
       this.render();
       if (emp.s.stats.captured > capturedBefore) esfx('place', 120);
+      if (emp.loot.length > lootBefore) this.flashLoot(emp.loot[emp.loot.length - 1]);
       const enc = emp.nextEncounter();
       if (enc) { esfx('charge', 200); this.showEncounter(enc); }
     });
@@ -1004,12 +1075,78 @@ class EmpireUI {
       if (this.sel || this.selNode) { this.sel = null; this.selNode = null; this.render(); }
     });
     const act = (id, fn, snd = 'place') => { const el = this.root.querySelector(id); if (el) el.addEventListener('click', () => { const r = fn(); esfx(r && r.ok === false ? 'error' : snd, 100); this.render(); }); };
-    act('#e-recruit', () => emp.recruit(0, this.sel), 'place');
+    const rec = this.root.querySelector('#e-recruit');
+    if (rec) rec.addEventListener('click', () => { esfx('select', 60); this.showRecruit(); });
     act('#e-march', () => emp.forceMarch(this.sel), 'twang');
     act('#e-muster', () => emp.muster(0), 'charge');
     act('#e-cancel', () => emp.cancelMove(this.sel), 'select');
     const tree = this.root.querySelector('#e-tree');
     if (tree) tree.addEventListener('click', () => { esfx('select', 60); this.showTree(); });
+    const cards = this.root.querySelector('#e-cards');
+    if (cards) cards.addEventListener('click', () => { esfx('select', 60); this.showCollection(); });
+  }
+
+  // recruit picker: field a card you own (commons always available)
+  showRecruit() {
+    const emp = this.emp, s = emp.s, armyId = this.sel;
+    const list = Object.entries(E_CARDS)
+      .filter(([k]) => ownsCard(emp.coll, k))
+      .sort((a, b) => E_CARD_ORDER.indexOf(a[1].rarity) - E_CARD_ORDER.indexOf(b[1].rarity) || a[1].cost - b[1].cost)
+      .map(([k, c]) => {
+        const afford = s.parts[0] >= c.cost;
+        return `<button class="e-rcard ${afford ? '' : 'poor'}" data-card="${k}" ${afford ? '' : 'disabled'} style="border-color:${E_RARITY[c.rarity].color}88">
+          <span class="e-rname">${c.icon} ${c.name}</span>
+          <span class="e-rrar" style="color:${E_RARITY[c.rarity].color}">${E_RARITY[c.rarity].name}</span>
+          <span class="e-rcost">${c.cost}🔩</span></button>`;
+      }).join('');
+    const m = this.root.querySelector('#e-modal');
+    m.innerHTML = `<div class="e-enc"><div class="e-enc-card e-tree-card">
+      <div class="e-ttl">➕ Field a Card</div>
+      <div class="e-dim">Recruit from your collection into this army. Win battles and open chests to collect more.</div>
+      <div class="e-rlist">${list}</div>
+      <div class="e-enc-btns"><button id="e-rclose" class="diff-btn sel">Done</button></div>
+    </div></div>`;
+    for (const b of m.querySelectorAll('.e-rcard')) {
+      b.addEventListener('click', () => {
+        const r = emp.recruit(0, armyId, b.dataset.card);
+        esfx(r.ok ? 'place' : 'error', 100);
+        this.render();
+        if (r.ok) this.showRecruit(); // stay open to field more
+      });
+    }
+    m.querySelector('#e-rclose').addEventListener('click', () => { m.innerHTML = ''; });
+  }
+
+  // the Card Collection — every card, owned or locked, with crafting
+  showCollection() {
+    const emp = this.emp, coll = emp.coll;
+    const groups = E_CARD_ORDER.map((rar) => {
+      const cells = Object.entries(E_CARDS).filter(([, c]) => c.rarity === rar).map(([k, c]) => {
+        const owned = ownsCard(coll, k);
+        const craftCost = E_RARITY[rar].craft;
+        const canCraft = !owned && rar !== 'common' && coll.scraps >= craftCost;
+        return `<div class="e-colcard ${owned ? 'owned' : 'locked'}" style="border-color:${E_RARITY[rar].color}${owned ? '' : '44'}">
+          <div class="e-colic">${owned ? c.icon : '❓'}</div>
+          <div class="e-colname">${owned ? c.name : '???'}</div>
+          <div class="e-colflav">${owned ? c.flavor : 'Undiscovered — win it in battle or craft it.'}</div>
+          ${owned ? '' : (rar === 'common' ? '' : `<button class="e-craft" data-card="${k}" ${canCraft ? '' : 'disabled'}>Craft ${craftCost}✨</button>`)}
+        </div>`;
+      }).join('');
+      return `<div class="e-colgroup"><div class="e-colhdr" style="color:${E_RARITY[rar].color}">${E_RARITY[rar].name}</div><div class="e-colrow">${cells}</div></div>`;
+    }).join('');
+    const total = Object.keys(E_CARDS).length;
+    const have = Object.keys(E_CARDS).filter((k) => ownsCard(coll, k)).length;
+    const m = this.root.querySelector('#e-modal');
+    m.innerHTML = `<div class="e-enc"><div class="e-enc-card e-col-card">
+      <div class="e-ttl">📇 Card Collection <span class="e-dim">${have}/${total} · ✨ <b>${coll.scraps}</b> scraps</span></div>
+      <div class="e-dim">Cards persist across every campaign. Win battles for new cards + scraps; dupes melt into scraps you can craft with.</div>
+      <div class="e-collection">${groups}</div>
+      <div class="e-enc-btns"><button id="e-colclose" class="diff-btn sel">Done</button></div>
+    </div></div>`;
+    for (const b of m.querySelectorAll('.e-craft')) {
+      b.addEventListener('click', () => { const r = emp.craft(b.dataset.card); esfx(r.ok ? 'charge' : 'error', 120); this.showCollection(); this.render(); });
+    }
+    m.querySelector('#e-colclose').addEventListener('click', () => { m.innerHTML = ''; });
   }
 
   // the Empire Tree modal (§10): four branches, two tiers, Parts + Imagination
@@ -1053,6 +1190,21 @@ class EmpireUI {
     m.innerHTML = `<div class="e-toast">${msg}</div>`;
     clearTimeout(this.toastT);
     this.toastT = setTimeout(() => { if (m.firstChild && m.firstChild.className === 'e-toast') m.innerHTML = ''; }, 2600);
+  }
+  // a card-reveal flourish when spoils are won (skipped if a battle modal is up)
+  flashLoot(loot) {
+    if (!loot || this.emp.nextEncounter()) return;
+    const c = E_CARDS[loot.key]; if (!c) return;
+    const col = E_RARITY[c.rarity].color;
+    const m = this.root.querySelector('#e-modal');
+    m.innerHTML = `<div class="e-loot" style="border-color:${col}">
+      <div class="e-loot-tag" style="color:${col}">${loot.first ? '✨ NEW CARD' : 'DUPLICATE → +' + loot.scraps + ' scraps'}</div>
+      <div class="e-loot-ic">${c.icon}</div>
+      <div class="e-loot-name" style="color:${col}">${c.name}</div>
+      <div class="e-dim">${E_RARITY[c.rarity].name} · ${c.flavor}</div></div>`;
+    esfx('charge', 100);
+    clearTimeout(this.lootT);
+    this.lootT = setTimeout(() => { if (m.firstChild && m.firstChild.className === 'e-loot') m.innerHTML = ''; }, 3200);
   }
 
   showEncounter(enc) {
@@ -1151,5 +1303,6 @@ export function empireTest(seed, turns = 8, script = []) {
     power: [...emp.s.power], imag: [...emp.s.imag], upgrades: emp.s.upgrades.map((u) => [...u]),
     crown: { ...emp.s.crown }, armies: emp.s.armies.map((a) => a.id + '@' + a.node + ':' + a.cards.length),
     stats: { ...emp.s.stats }, event: emp.s.event ? { ...emp.s.event } : null,
+    lastLoot: emp.s.lastLoot ? emp.s.lastLoot.key : null, cardsWon: emp.loot.map((l) => l.key),
     log: emp.s.log.slice(-3) };
 }

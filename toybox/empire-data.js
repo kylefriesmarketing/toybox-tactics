@@ -66,12 +66,8 @@ export const E_FACTIONS = {
   classic: { color: '#7fd06a', armyName: 'Green Patrol' },
 };
 
-// starting army roster (unit cards; strength = %, vet = pips)
-export const E_START_ROSTER = [
-  { type: 'soldier', strength: 100, vet: 0 },
-  { type: 'soldier', strength: 100, vet: 0 },
-  { type: 'archer',  strength: 100, vet: 0 },
-];
+// starting army roster — collection card keys (see empire-cards.js E_CARDS)
+export const E_START_ROSTER = ['recruit', 'recruit', 'archer'];
 // what garrisons defend with, by node type (cards created on first contest)
 export const E_GARRISONS = {
   capital:    [{ type: 'soldier' }, { type: 'soldier' }, { type: 'archer' }, { type: 'spear' }],
@@ -123,6 +119,8 @@ export const E_RULES = {
   workshopBonus: 10,       // Industry II capital Parts/turn
   relayMP: 1,              // Logistics I extra movement
   victoryWarn: 2,          // telegraph a rival within N turns of any victory (§16)
+  scrapDrop: 12,           // scraps earned each battle you win (craft currency)
+  chestScraps: 25,         // bonus scraps for cracking a treasure node (discovery)
   armyMP: 3,
   routeCost: { road: 1, rough: 2 },
   forceMarchCost: 1,        // Power: +1 MP, once per army per turn (§6)
