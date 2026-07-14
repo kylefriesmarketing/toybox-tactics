@@ -60,6 +60,33 @@ export const E_NODE_TEMPLATE = {
 // POWER node fights as a sudden-death station per Appendix A's "Wind-Up Station"
 export const E_NODE_TEMPLATE_OVERRIDE = { POWER: 'station', CENTER: 'clash' };
 
+// Mission-template library (§7): each base template has thematic VARIANTS, picked
+// deterministically per encounter (from its seed). A variant reskins the played battle —
+// its label, gameMode, startRes tier, and a one-line flavour note — WITHOUT touching the
+// simulate math (defBoost stays on the base template), so battle odds + headless determinism
+// are unchanged; only the RTS match you Play varies. Variant 0 == the classic behaviour.
+export const E_TEMPLATE_VARIANTS = {
+  field: [
+    { label: 'Field Battle',        note: 'An open scrap on level ground.' },
+    { label: 'Dawn Raid',           gameMode: 'sudden',   startRes: 'lean',     note: 'Sudden death, lean supplies — hit fast, hit first.' },
+    { label: 'Supply Run',          gameMode: 'standard', startRes: 'high',     note: 'Stockpiles everywhere — the longer game rewards economy.' },
+  ],
+  siege: [
+    { label: 'Stronghold Siege',    note: 'Dug-in walls and stocked larders.' },
+    { label: 'Midnight Assault',    gameMode: 'sudden',   startRes: 'high',     note: 'Storm the walls before the household stirs — sudden death.' },
+    { label: 'The Long Siege',      gameMode: 'standard', startRes: 'marathon', note: 'A grinding, well-fed siege — settle in for the long night.' },
+  ],
+  clash: [
+    { label: 'Crossroads Clash',    note: 'Hold the middle to win the hill.' },
+    { label: 'Center Stage',        gameMode: 'koth',     startRes: 'high',     note: 'A well-supplied brawl for the contested heart.' },
+    { label: 'Scramble',           gameMode: 'sudden',   startRes: 'standard', note: 'No second chances — one clean break decides it.' },
+  ],
+  station: [
+    { label: 'Station Takeover',    note: 'Seize the wind-up works — sudden death.' },
+    { label: 'Power Struggle',      gameMode: 'koth',     startRes: 'high',     note: 'Hold the power for the win — batteries fully charged.' },
+  ],
+};
+
 // slice factions (Appendix A: Brick Bastion vs Action Hall)
 export const E_FACTIONS = {
   bricks:  { color: '#4d9bff', armyName: 'Brick Column' },

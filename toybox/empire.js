@@ -11,7 +11,7 @@
 
 import { UNITS, FACTIONS } from './data.js';
 import {
-  E_NODES, E_ROUTES, E_TEMPLATES, E_NODE_TEMPLATE, E_NODE_TEMPLATE_OVERRIDE,
+  E_NODES, E_ROUTES, E_TEMPLATES, E_NODE_TEMPLATE, E_NODE_TEMPLATE_OVERRIDE, E_TEMPLATE_VARIANTS,
   E_FACTIONS, E_START_ROSTER, E_GARRISONS, E_UPGRADES, E_BRANCHES, E_RULES, E_SIM,
   E_MODULES, E_MODULE_SLOTS, E_DOCTRINES, E_EVENTS,
 } from './empire-data.js';
@@ -490,10 +490,14 @@ export class Empire {
     const defCards = defArmy ? defArmy.cards : this.garrisonFor(nodeId);
     if (!defCards || !defCards.length) { this.capture(attArmy.owner, nodeId); return; }
     const tKey = E_NODE_TEMPLATE_OVERRIDE[nodeId] || E_NODE_TEMPLATE[E_NODES[nodeId].type] || 'field';
+    // deterministic mission-template variant for THIS encounter (§7) — a salted seed so it's
+    // independent of the battle-resolution seed; flavour/mode only, never touches sim odds
+    const variants = E_TEMPLATE_VARIANTS[tKey];
+    const variant = variants && variants.length ? deriveSeed(this.s.seed, this.s.turn, nodeId + attArmy.id + 'var') % variants.length : 0;
     const enc = {
       encId: `e_t${this.s.turn}_${nodeId}_${attArmy.id}`,
       seed: deriveSeed(this.s.seed, this.s.turn, nodeId + attArmy.id),
-      nodeId, template: tKey,
+      nodeId, template: tKey, variant,
       attacker: { owner: attArmy.owner, armyId: attArmy.id },
       defender: { owner: defArmy ? defArmy.owner : st.owner, armyId: defArmy ? defArmy.id : null },
       applied: false,
@@ -520,6 +524,14 @@ export class Empire {
       : { cards: this.s.nodes[enc.nodeId].garrison || [] };
     return { attCards: att ? att.cards : [], defCards: def ? def.cards : [] };
   }
+  // Mission-template library (§7): base template reskinned by the encounter's variant.
+  // defBoost stays on the base (sim odds unchanged); label/gameMode/startRes/note vary.
+  resolveTemplate(enc) {
+    const base = E_TEMPLATES[enc.template];
+    const variants = E_TEMPLATE_VARIANTS[enc.template];
+    const v = variants && variants.length ? variants[(enc.variant || 0) % variants.length] : null;
+    return v ? { ...base, ...v } : base;
+  }
   // Readiness (§11): a tired army fights softer, down to `floor` at 0 readiness.
   readyMul(army) {
     if (!army || army.readiness == null) return 1; // garrisons (no army) fight at full
@@ -532,7 +544,7 @@ export class Empire {
   }
   preview(enc) {
     const { attCards, defCards } = this.encCards(enc);
-    const t = E_TEMPLATES[enc.template];
+    const t = this.resolveTemplate(enc);
     const defOwner = enc.defender.owner;
     const attArmy = this.s.armies.find((a) => a.id === enc.attacker.armyId);
     const defArmy = enc.defender.armyId ? this.s.armies.find((a) => a.id === enc.defender.armyId) : null;
@@ -903,7 +915,7 @@ export class Empire {
   // ---------- BattleContext for the RTS bridge (played battles) ----------
   buildBattleContext(enc) {
     const { attCards, defCards } = this.encCards(enc);
-    const t = E_TEMPLATES[enc.template];
+    const t = this.resolveTemplate(enc);
     const humanIsAttacker = enc.attacker.owner === 0;
     return {
       encId: enc.encId, seed: enc.seed, nodeId: enc.nodeId,
@@ -1526,7 +1538,8 @@ class EmpireUI {
     m.innerHTML = `<div class="e-enc">
       <div class="e-enc-card">
         <div class="e-ttl">${n.icon} ${youAttack ? 'Assault on' : 'Defend'} ${n.name}</div>
-        <div class="e-dim">${p.template.label} · ~${p.template.time} if played · seed locked — no rerolls</div>
+        <div class="e-dim"><b>${p.template.label}</b> · ~${p.template.time} if played · seed locked — no rerolls</div>
+        ${p.template.note ? `<div class="e-dim" style="font-style:italic;opacity:.85">“${p.template.note}”</div>` : ''}
         <div class="e-band b-${p.band.toLowerCase()}">${p.band}</div>
         ${tiredNote}
         <div class="e-rosters">
