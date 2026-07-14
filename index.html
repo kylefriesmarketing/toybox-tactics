@@ -344,6 +344,12 @@
   .seat .mp-rm:hover { background: #7a2a2a; color: #fff; }
   .mp-code-big { font-family: var(--font-display); font-size: 20px; letter-spacing: 4px; color: var(--gold);
     background: #201206; border: 1px solid var(--gold-deep); border-radius: 8px; padding: 2px 10px; }
+  #mp-battlefield { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
+  #mp-battlefield label { color: var(--dim); font-size: 12px; font-weight: 600; }
+  #mp-battlefield select { background: var(--panel-3); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 8px; padding: 5px 9px; font-size: 12.5px; font-family: inherit; cursor: pointer; }
+  #mp-battlefield select:hover { border-color: var(--gold-deep); }
+  #mp-battlefield select:disabled { opacity: 0.6; cursor: default; }
   .menu-label { margin-top: 8px; color: var(--gold); font-size: 10.5px; letter-spacing: 2.5px;
     text-transform: uppercase; font-weight: 700; text-shadow: var(--emboss); font-family: var(--font-display); }
   #diff-row, #mp-row, #fac-row, #mp-fac-row, #size-row, #mode-row, #startres-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
@@ -756,7 +762,25 @@
 
   #sound-chip { gap: 8px; }
   #mute-btn { cursor: pointer; background: none; border: none; font-size: 14px; padding: 0; }
-  #vol { width: 74px; accent-color: var(--gold-2); cursor: pointer; }
+  #vol { width: 74px; }
+  /* themed range sliders (HUD volume, master volume, game speed): the native
+     inputs were plain browser chrome — give them the wood-groove + gold thumb look */
+  #vol, .gm-set input[type=range] {
+    -webkit-appearance: none; appearance: none; height: 7px; border-radius: 999px;
+    background: linear-gradient(180deg, #3a2817, #221607);
+    border: 1px solid var(--line); cursor: pointer; outline: none; }
+  #vol::-webkit-slider-runnable-track, .gm-set input[type=range]::-webkit-slider-runnable-track {
+    -webkit-appearance: none; height: 7px; border-radius: 999px; background: transparent; }
+  #vol::-moz-range-track, .gm-set input[type=range]::-moz-range-track {
+    height: 7px; border-radius: 999px; background: transparent; }
+  #vol::-webkit-slider-thumb, .gm-set input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 16px; height: 16px; margin-top: -5px;
+    border-radius: 50%; border: 1px solid #6a4a1e; box-shadow: 0 1px 3px #000a;
+    background: radial-gradient(circle at 35% 30%, #ffe9b8, var(--gold-2) 55%, var(--gold-deep)); }
+  #vol::-moz-range-thumb, .gm-set input[type=range]::-moz-range-thumb {
+    width: 16px; height: 16px; border-radius: 50%; border: 1px solid #6a4a1e;
+    box-shadow: 0 1px 3px #000a;
+    background: radial-gradient(circle at 35% 30%, #ffe9b8, var(--gold-2) 55%, var(--gold-deep)); }
   body.amove, body.amove canvas { cursor: crosshair; }
   button.cmd em { font-style: normal; color: #b48fd8; font-size: 10px; }
   button.cmd.locked { border-style: dashed; }
@@ -983,6 +1007,8 @@
         <div class="menu-label">Your civilization</div>
         <div id="mp-fac-row"></div>
         <div id="mp-civ-panel" class="civ-panel"></div>
+        <div class="menu-label">Battlefield</div>
+        <div id="mp-battlefield"></div>
         <div class="menu-label">Players &amp; teams</div>
         <div id="mp-seats"></div>
         <button id="mp-add" class="diff-btn" style="margin:4px auto;display:block">＋ Add player</button>

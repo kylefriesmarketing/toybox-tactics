@@ -632,9 +632,40 @@ function mpCivLabel(civ) {
 function mpHumanCount() {
   return mpLobby.seats.filter((s, i) => i === 0 || s.type === 'human').length;
 }
+// the MP screen now picks its own map + mode (kept in sync with Custom Skirmish)
+function syncMapButtons() {
+  for (const b of document.querySelectorAll('#map-row .map-btn')) b.classList.toggle('sel', b.dataset.map === chosenMap);
+  const rr = document.getElementById('random-row'); if (rr) rr.style.display = chosenMap === 'random' ? 'flex' : 'none';
+  const d = document.getElementById('map-desc'); if (d && MAPS[chosenMap]) d.textContent = MAPS[chosenMap].desc;
+}
+function syncModeButtons() {
+  for (const b of document.querySelectorAll('#mode-row .mode-btn')) b.classList.toggle('sel', b.dataset.mode === chosenMode);
+  const d = document.getElementById('mode-desc'); if (d && GAME_MODES[chosenMode]) d.textContent = GAME_MODES[chosenMode].desc;
+}
+function renderMpBattlefield() {
+  const el = document.getElementById('mp-battlefield');
+  if (!el) return;
+  if (mpLobby.phase === 'joining') { el.style.display = 'none'; return; } // the host owns the map
+  el.style.display = 'flex';
+  const editable = mpLobby.phase === 'setup';
+  const mapOpts = Object.entries(MAPS).map(([k, m]) =>
+    `<option value="${k}" ${k === chosenMap ? 'selected' : ''}>${m.icon} ${m.label}</option>`).join('')
+    + `<option value="random" ${chosenMap === 'random' ? 'selected' : ''}>🎲 Random</option>`;
+  const modeOpts = Object.keys(GAME_MODES).filter((m) => m !== 'survival') // survival is single-player
+    .map((m) => `<option value="${m}" ${m === chosenMode ? 'selected' : ''}>${GAME_MODES[m].icon} ${GAME_MODES[m].label}</option>`).join('');
+  el.innerHTML = `<label>🗺️ Map</label><select id="mp-map" ${editable ? '' : 'disabled'}>${mapOpts}</select>`
+    + `<label>⚔️ Mode</label><select id="mp-mode" ${editable ? '' : 'disabled'}>${modeOpts}</select>`;
+  if (editable) {
+    const mapSel = document.getElementById('mp-map');
+    mapSel.addEventListener('change', () => { chosenMap = mapSel.value; syncMapButtons(); renderMpLobby(); });
+    const modeSel = document.getElementById('mp-mode');
+    modeSel.addEventListener('change', () => { chosenMode = modeSel.value; syncModeButtons(); renderMpLobby(); });
+  }
+}
 function renderMpLobby() {
   const editable = mpLobby.phase === 'setup';
   const seatsEl = document.getElementById('mp-seats');
+  renderMpBattlefield();
   const facOpts = (sel) => ['random', ...Object.keys(FACTIONS)].map((f) =>
     `<option value="${f}" ${f === sel ? 'selected' : ''}>${f === 'random' ? '🎲 Random civ' : FACTIONS[f].icon + ' ' + FACTIONS[f].label}</option>`).join('');
   const diffOpts = (sel) => `<option value="default" ${sel === 'default' ? 'selected' : ''}>AI: Default</option>` +
@@ -684,9 +715,8 @@ function renderMpLobby() {
   }
   const mm = document.getElementById('mp-mapmode');
   if (mm) {
-    const mapName = chosenMap === 'random' ? '🎲 Random' : (MAPS[chosenMap] ? MAPS[chosenMap].label : chosenMap);
     const h = mpHumanCount();
-    mm.innerHTML = `Map: <b>${mapName}</b> · Mode: <b>${GAME_MODES[chosenMode === 'survival' ? 'standard' : chosenMode].label}</b> · <b>${h}</b> human seat${h > 1 ? 's' : ''} <span style="color:#9a92c4">— map & mode come from Custom Skirmish</span>`;
+    mm.innerHTML = `<b>${h}</b> human seat${h > 1 ? 's' : ''} at the table${h < mpLobby.seats.length ? ` · <b>${mpLobby.seats.length - h}</b> AI` : ''}.`;
   }
   mpToggleControls();
 }
