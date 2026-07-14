@@ -604,66 +604,130 @@ for (const btn of document.querySelectorAll('.pcount-btn')) {
 }
 renderLobby(); // initial
 
-// ---------------- multiplayer lobby (2 humans + AI seats, online) ----------------
-// The two humans occupy seats 0 (host) and 1 (guest) — the lockstep layer relays
-// exactly those two command streams; AI seats 2–3 run deterministically on both
-// clients. The host's roster is sent to the guest so both build an identical game.
-const MP_TEAM_PRESETS = {
-  2: { '1v1': [0, 1] },
-  3: { 'co-op': [0, 0, 1], ffa: [0, 1, 2] },
-  4: { 'co-op': [0, 0, 1, 1], '2v2': [0, 1, 0, 1], ffa: [0, 1, 2, 3] },
+// ---------------- multiplayer lobby (up to 4 HUMANS, star-topology lockstep) ------
+// Every player is a seat you can flip between Human and AI, drop onto any team, and
+// add or remove (2–4 total). The host opens a room; friends fill the open Human
+// seats as they join; any Human seat left empty at start quietly becomes an AI so
+// the host is never stuck waiting. Only human command streams travel the wire — AI
+// seats run deterministically on every client (see net.js's star relay).
+const MP_MAX = 4;
+let mpNet = null;
+const mpLobby = {
+  phase: 'setup',   // 'setup' → configuring · 'hosting' → room open · 'joining' → waiting on host
+  code: '',
+  roster: null,     // guest side: host's roster preview while waiting
+  filled: {},       // host side: seatId → guest name, as friends arrive
+  seats: [
+    { type: 'human', team: 0, civ: 'random', diff: 'default' }, // seat 0 = you (host)
+    { type: 'ai',    team: 1, civ: 'random', diff: 'default' },
+  ],
 };
-const MP_PRESET_LABEL = { '1v1': '⚔️ 1v1', 'co-op': '🤝 Co-op vs AI', '2v2': '🤝 2v2', ffa: '🎲 FFA' };
-const mpLobby = { count: 2, preset: '1v1', civ: ['', '', 'random', 'random'], diff: ['', '', 'default', 'default'] };
+function mpTeamOptions(sel) {
+  return TEAM_LETTER.map((L, t) => `<option value="${t}" ${t === sel ? 'selected' : ''}>Team ${L}</option>`).join('');
+}
+function mpCivLabel(civ) {
+  if (!civ || civ === 'random') return '🎲 Random civ';
+  return FACTIONS[civ] ? `${FACTIONS[civ].icon} ${FACTIONS[civ].label}` : civ;
+}
+function mpHumanCount() {
+  return mpLobby.seats.filter((s, i) => i === 0 || s.type === 'human').length;
+}
 function renderMpLobby() {
-  if (!MP_TEAM_PRESETS[mpLobby.count][mpLobby.preset]) mpLobby.preset = Object.keys(MP_TEAM_PRESETS[mpLobby.count])[0];
-  const teams = MP_TEAM_PRESETS[mpLobby.count][mpLobby.preset];
-  const tr = document.getElementById('mp-teams');
-  if (tr) {
-    tr.innerHTML = Object.keys(MP_TEAM_PRESETS[mpLobby.count]).map((k) =>
-      `<button class="mp-team-preset diff-btn ${k === mpLobby.preset ? 'sel' : ''}" data-preset="${k}">${MP_PRESET_LABEL[k]}</button>`).join('');
-    for (const b of tr.querySelectorAll('.mp-team-preset')) b.addEventListener('click', () => { mpLobby.preset = b.dataset.preset; renderMpLobby(); });
-  }
-  const seats = document.getElementById('mp-seats');
-  if (seats) {
-    const facOpts = (sel) => ['random', ...Object.keys(FACTIONS)].map((f) =>
-      `<option value="${f}" ${f === sel ? 'selected' : ''}>${f === 'random' ? '🎲 Random civ' : FACTIONS[f].icon + ' ' + FACTIONS[f].label}</option>`).join('');
-    const diffOpts = (sel) => `<option value="default" ${sel === 'default' ? 'selected' : ''}>Default</option>` +
-      Object.keys(DIFFICULTIES).map((d) => `<option value="${d}" ${d === sel ? 'selected' : ''}>${DIFFICULTIES[d].label}</option>`).join('');
-    let html = '';
-    for (let i = 0; i < mpLobby.count; i++) {
-      const badge = `<span class="team-badge" style="background:${TEAM_COLOR[teams[i]]}">${TEAM_LETTER[teams[i]]}</span>`;
-      if (i === 0) { const f = FACTIONS[chosenFaction] || FACTIONS.classic; html += `<div class="seat"><span class="seat-ic">🎖️</span><span class="seat-name">You (host)</span>${badge}<span class="seat-spring"></span><span style="color:#d7cff2;font-size:12px">${f.icon} ${f.label}</span></div>`; }
-      else if (i === 1) html += `<div class="seat"><span class="seat-ic">🧑</span><span class="seat-name">Friend</span>${badge}<span class="seat-spring"></span><span style="color:#9a92c4;font-size:12px">joins online with their own civ</span></div>`;
-      else html += `<div class="seat" data-seat="${i}"><span class="seat-ic">🤖</span><span class="seat-name">AI ${i + 1}</span>${badge}<span class="seat-spring"></span>` +
-        `<select class="mp-seat-civ" data-seat="${i}">${facOpts(mpLobby.civ[i])}</select><select class="mp-seat-diff" data-seat="${i}">${diffOpts(mpLobby.diff[i])}</select></div>`;
+  const editable = mpLobby.phase === 'setup';
+  const seatsEl = document.getElementById('mp-seats');
+  const facOpts = (sel) => ['random', ...Object.keys(FACTIONS)].map((f) =>
+    `<option value="${f}" ${f === sel ? 'selected' : ''}>${f === 'random' ? '🎲 Random civ' : FACTIONS[f].icon + ' ' + FACTIONS[f].label}</option>`).join('');
+  const diffOpts = (sel) => `<option value="default" ${sel === 'default' ? 'selected' : ''}>AI: Default</option>` +
+    Object.keys(DIFFICULTIES).map((d) => `<option value="${d}" ${d === sel ? 'selected' : ''}>AI: ${DIFFICULTIES[d].label}</option>`).join('');
+
+  // guest waiting on the host: read-only roster preview
+  if (mpLobby.phase === 'joining') {
+    if (seatsEl) {
+      const r = mpLobby.roster || [];
+      seatsEl.innerHTML = r.length ? r.map((s) => {
+        const badge = `<span class="team-badge" style="background:${TEAM_COLOR[s.team] || '#888'}">${TEAM_LETTER[s.team] || '?'}</span>`;
+        const me = s.id === (mpNet && mpNet.myId) ? ' (you)' : '';
+        return `<div class="seat"><span class="seat-ic">${s.type === 'ai' ? '🤖' : '🧑'}</span><span class="seat-name">${s.name}${me}</span>${badge}<span class="seat-spring"></span><span style="color:#9a92c4;font-size:12px">${s.type === 'ai' ? mpCivLabel(s.faction) : ''}</span></div>`;
+      }).join('') : '<div class="menu-help">Connecting…</div>';
     }
-    seats.innerHTML = html;
-    for (const s of seats.querySelectorAll('.mp-seat-civ')) s.addEventListener('change', () => { mpLobby.civ[+s.dataset.seat] = s.value; });
-    for (const s of seats.querySelectorAll('.mp-seat-diff')) s.addEventListener('change', () => { mpLobby.diff[+s.dataset.seat] = s.value; });
+    mpToggleControls();
+    return;
+  }
+
+  // host / setup: editable seat rows (disabled once the room is open)
+  if (seatsEl) {
+    seatsEl.innerHTML = mpLobby.seats.map((s, i) => {
+      const badge = `<span class="team-badge" style="background:${TEAM_COLOR[s.team]}">${TEAM_LETTER[s.team]}</span>`;
+      const teamSel = `<select class="mp-team" data-seat="${i}" ${editable ? '' : 'disabled'}>${mpTeamOptions(s.team)}</select>`;
+      if (i === 0) {
+        const f = FACTIONS[chosenFaction] || FACTIONS.classic;
+        return `<div class="seat"><span class="seat-ic">🎖️</span><span class="seat-name">You (host)</span>${badge}${teamSel}<span class="seat-spring"></span><span style="color:#d7cff2;font-size:12px">${f.icon} ${f.label}</span></div>`;
+      }
+      const typeSel = `<select class="mp-type" data-seat="${i}" ${editable ? '' : 'disabled'}><option value="human" ${s.type === 'human' ? 'selected' : ''}>🧑 Human</option><option value="ai" ${s.type === 'ai' ? 'selected' : ''}>🤖 AI</option></select>`;
+      let tail;
+      if (s.type === 'ai') {
+        tail = `<select class="mp-civ" data-seat="${i}" ${editable ? '' : 'disabled'}>${facOpts(s.civ)}</select><select class="mp-diff" data-seat="${i}" ${editable ? '' : 'disabled'}>${diffOpts(s.diff)}</select>`;
+      } else {
+        const name = mpLobby.filled[i];
+        tail = `<span style="color:${name ? '#9be89b' : '#9a92c4'};font-size:12px">${name ? '✓ ' + name : (editable ? 'open — a friend can take this seat' : 'waiting for a friend…')}</span>`;
+      }
+      const rm = editable && mpLobby.seats.length > 2 ? `<button class="mp-rm" data-seat="${i}" title="Remove seat">✕</button>` : '';
+      return `<div class="seat" data-seat="${i}"><span class="seat-ic">${s.type === 'ai' ? '🤖' : '🧑'}</span><span class="seat-name">${s.type === 'ai' ? 'AI' : 'Player ' + (i + 1)}</span>${badge}${teamSel}${typeSel}<span class="seat-spring"></span>${tail}${rm}</div>`;
+    }).join('');
+    if (editable) {
+      for (const el of seatsEl.querySelectorAll('.mp-team')) el.addEventListener('change', () => { mpLobby.seats[+el.dataset.seat].team = +el.value; renderMpLobby(); });
+      for (const el of seatsEl.querySelectorAll('.mp-type')) el.addEventListener('change', () => { mpLobby.seats[+el.dataset.seat].type = el.value; renderMpLobby(); });
+      for (const el of seatsEl.querySelectorAll('.mp-civ')) el.addEventListener('change', () => { mpLobby.seats[+el.dataset.seat].civ = el.value; });
+      for (const el of seatsEl.querySelectorAll('.mp-diff')) el.addEventListener('change', () => { mpLobby.seats[+el.dataset.seat].diff = el.value; });
+      for (const el of seatsEl.querySelectorAll('.mp-rm')) el.addEventListener('click', () => { mpLobby.seats.splice(+el.dataset.seat, 1); renderMpLobby(); });
+    }
   }
   const mm = document.getElementById('mp-mapmode');
   if (mm) {
     const mapName = chosenMap === 'random' ? '🎲 Random' : (MAPS[chosenMap] ? MAPS[chosenMap].label : chosenMap);
-    mm.innerHTML = `Map: <b>${mapName}</b> · Mode: <b>${GAME_MODES[chosenMode].label}</b> <span style="color:#9a92c4">— set these in Custom Skirmish</span>`;
+    const h = mpHumanCount();
+    mm.innerHTML = `Map: <b>${mapName}</b> · Mode: <b>${GAME_MODES[chosenMode === 'survival' ? 'standard' : chosenMode].label}</b> · <b>${h}</b> human seat${h > 1 ? 's' : ''} <span style="color:#9a92c4">— map & mode come from Custom Skirmish</span>`;
+  }
+  mpToggleControls();
+}
+// show the right buttons for the phase (add / host / join in setup; start + code while hosting)
+function mpToggleControls() {
+  const setup = mpLobby.phase === 'setup';
+  const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
+  show('mp-add', setup && mpLobby.seats.length < MP_MAX);
+  show('mp-row', setup);
+  show('mp-start', mpLobby.phase === 'hosting');
+  show('mp-leave', mpLobby.phase !== 'setup');
+  const cs = document.getElementById('mp-codeshow');
+  if (cs) {
+    cs.style.display = (mpLobby.phase === 'hosting' && mpLobby.code) ? '' : 'none';
+    if (mpLobby.code) cs.innerHTML = `Room code <b class="mp-code-big">${mpLobby.code}</b> — share it, then press Start`;
   }
 }
-function buildMpDefs() {
-  const teams = MP_TEAM_PRESETS[mpLobby.count][mpLobby.preset] || Object.values(MP_TEAM_PRESETS[mpLobby.count])[0];
-  const defs = [];
-  for (let i = 0; i < mpLobby.count; i++) {
-    if (i === 0) defs.push({ team: teams[0], isAI: false, faction: chosenFaction });
-    else if (i === 1) defs.push({ team: teams[1], isAI: false, faction: 'classic' }); // guest's civ filled on connect
-    else defs.push({ team: teams[i], isAI: true, faction: mpLobby.civ[i] === 'random' ? null : mpLobby.civ[i], difficulty: mpLobby.diff[i] === 'default' ? chosenDiff : mpLobby.diff[i] });
-  }
-  return defs;
+// build the host's net config from the current lobby seats
+function mpConfig() {
+  return {
+    seats: mpLobby.seats.map((s, i) => ({
+      type: i === 0 ? 'human' : s.type,
+      team: s.team,
+      faction: i === 0 ? chosenFaction : (s.type === 'ai' ? (s.civ === 'random' ? null : s.civ) : null),
+      difficulty: s.type === 'ai' ? (s.diff === 'default' ? chosenDiff : s.diff) : 'default',
+    })),
+    map: chosenMap === 'random' ? generateRandomMap(rndSeed, rndOpts) : chosenMap,
+    difficulty: chosenDiff,
+    gameMode: chosenMode === 'survival' ? 'standard' : chosenMode, // survival is single-player
+    startRes: chosenStartRes,
+  };
 }
-for (const btn of document.querySelectorAll('.mp-pcount-btn')) {
-  btn.addEventListener('click', () => {
-    mpLobby.count = +btn.dataset.pc;
-    document.querySelectorAll('.mp-pcount-btn').forEach((b) => b.classList.toggle('sel', b === btn));
-    renderMpLobby();
-  });
+function mpReset() {
+  if (mpNet) { try { mpNet.destroy(); } catch (e) { /* already gone */ } }
+  mpNet = null;
+  mpLobby.phase = 'setup';
+  mpLobby.code = '';
+  mpLobby.roster = null;
+  mpLobby.filled = {};
+  mpStatus('');
+  renderMpLobby();
 }
 renderMpLobby(); // initial
 
@@ -735,7 +799,7 @@ function showMenuScreen(name) {
 $('home-quick').addEventListener('click', () => startGame(chosenDiff));
 $('home-custom').addEventListener('click', () => showMenuScreen('setup'));
 $('home-mp').addEventListener('click', () => { showMenuScreen('mp'); renderMpLobby(); });
-for (const b of document.querySelectorAll('.setup-back')) b.addEventListener('click', () => showMenuScreen('home'));
+for (const b of document.querySelectorAll('.setup-back')) b.addEventListener('click', () => { mpReset(); showMenuScreen('home'); });
 window.__ttStart = (d, m) => startGame(d || 'normal', m); // headless test hook
 window.__ttRandom = generateRandomMap; // headless: build a random-map config to soak
 window.__ttTier = (u, t) => applyUnitTier(u.view, u.def, u.owner, t); // preview: unit upgrade tier
@@ -1431,39 +1495,85 @@ function endTutorial() {
 }
 $('tut-skip').addEventListener('click', () => endTutorial());
 
-// ---------------- multiplayer menu ----------------
+// ---------------- multiplayer menu (host relays; up to 4 humans) ----------------
 const mpStatus = (msg) => { const el = $('mp-status'); if (el) el.textContent = msg; };
-$('mp-host').addEventListener('click', async () => {
-  if (game) return;
+const mpDiff = (d) => (!d || d === 'default') ? 'normal' : d;
+
+// + Add player
+$('mp-add') && $('mp-add').addEventListener('click', () => {
+  if (mpLobby.phase !== 'setup' || mpLobby.seats.length >= MP_MAX) return;
+  const used = mpLobby.seats.map((s) => s.team);
+  const team = [0, 1, 2, 3].find((t) => !used.includes(t)) ?? (mpLobby.seats.length % 2);
+  mpLobby.seats.push({ type: 'human', team, civ: 'random', diff: 'default' });
+  renderMpLobby();
+});
+
+// Host: open a room, then watch friends fill the open seats until you press Start
+$('mp-host') && $('mp-host').addEventListener('click', async () => {
+  if (game || mpLobby.phase !== 'setup') return;
   sfx.init();
-  mpStatus('Setting up the room…');
+  mpLobby.phase = 'hosting';
+  mpStatus('Opening the room…');
+  renderMpLobby();
   try {
-    const n = new Net();
-    // send the whole lobby roster; a random map is generated once and shipped
-    const mpMap = chosenMap === 'random' ? generateRandomMap(rndSeed, rndOpts) : chosenMap;
-    const defs = buildMpDefs();
-    const setup = await n.host(mpMap, chosenFaction, (msg) => mpStatus(msg),
-      'lobby', chosenDiff, chosenMode, chosenStartRes, defs);
-    mpStatus('Friend joined! Starting…');
-    startGame(setup.difficulty, null, { net: n, myId: 0, seed: setup.seed, map: setup.map, factions: setup.factions, mode: setup.mode, gameMode: setup.gameMode, startRes: setup.startRes, playerDefs: setup.playerDefs });
+    mpNet = new Net();
+    await mpNet.host(mpConfig(), (kind, data) => {
+      if (kind === 'code') { mpLobby.code = data; mpStatus('Room open — waiting for friends. Press Start when ready.'); }
+      else if (kind === 'join') { mpLobby.filled[data.id] = data.name; mpStatus(`${data.name} joined as Player ${data.id + 1}.`); }
+      else if (kind === 'leave') { delete mpLobby.filled[data.id]; mpStatus(`Player ${data.id + 1} left the room.`); }
+      renderMpLobby();
+    });
   } catch (e) {
     mpStatus(`⚠ ${e.message || e.type || 'Hosting failed'}`);
+    mpReset();
   }
 });
-$('mp-join').addEventListener('click', async () => {
-  if (game) return;
+
+// Start: lock the roster and deal everyone the same seed
+$('mp-start') && $('mp-start').addEventListener('click', () => {
+  if (game || !mpNet || !mpNet.isHost) return;
+  const setup = mpNet.startMatch();
+  mpStatus('Starting the night…');
+  startGame(mpDiff(setup.difficulty), null, {
+    net: mpNet, myId: 0, seed: setup.seed, map: setup.map, factions: setup.factions,
+    gameMode: setup.gameMode, startRes: setup.startRes, playerDefs: setup.playerDefs,
+  });
+});
+
+// Join: connect with a code, then wait in the host's lobby until they start
+$('mp-join') && $('mp-join').addEventListener('click', async () => {
+  if (game || mpLobby.phase !== 'setup') return;
   sfx.init();
   const code = $('mp-code').value.trim();
   if (code.length < 4) { mpStatus('Enter the 4-letter room code first.'); return; }
+  mpLobby.phase = 'joining';
   mpStatus('Connecting…');
+  renderMpLobby();
   try {
-    const n = new Net();
-    const setup = await n.join(code, chosenFaction, (msg) => mpStatus(msg));
-    startGame('normal', null, { net: n, myId: 1, seed: setup.seed, map: setup.map, factions: setup.factions, mode: setup.mode, gameMode: setup.gameMode, startRes: setup.startRes, playerDefs: setup.playerDefs });
+    mpNet = new Net();
+    const setup = await mpNet.join(code, { name: mpPlayerName(), faction: chosenFaction }, (kind, data) => {
+      if (kind === 'seat') { mpLobby.roster = data.roster; mpStatus(`Seated as Player ${data.id + 1}. Waiting for the host to start…`); }
+      else if (kind === 'roster') { mpLobby.roster = data.roster; }
+      renderMpLobby();
+    });
+    startGame(mpDiff(setup.difficulty), null, {
+      net: mpNet, myId: mpNet.myId, seed: setup.seed, map: setup.map, factions: setup.factions,
+      gameMode: setup.gameMode, startRes: setup.startRes, playerDefs: setup.playerDefs,
+    });
   } catch (e) {
     mpStatus(`⚠ ${e.message || e.type || 'Could not join'}`);
+    mpReset();
   }
 });
+
+// Leave the room / cancel hosting
+$('mp-leave') && $('mp-leave').addEventListener('click', () => mpReset());
+// a lightweight display name for the lobby (remembered between sessions)
+function mpPlayerName() {
+  let n = localStorage.getItem('tt-name');
+  if (!n) { n = 'Player-' + Math.random().toString(36).slice(2, 5).toUpperCase(); localStorage.setItem('tt-name', n); }
+  return n;
+}
 window.__ttShot = (w = 960) => {
   // render fresh (no preserveDrawingBuffer), then downscale for transport
   renderer.render(scene, camera);
@@ -1526,6 +1636,80 @@ window.__ttSoak = (opts = {}, maxTicks = 9000) => {
     '|' + g.entities.length + '|' + g.rng.getState();
   const surv = g.survival ? { wave: g.survival.wave, bestWave: g.survival.bestWave, active: g.survival.active, won: !!g.survivalWon } : null;
   return { seed, winnerTeam, over: g.over, ticks: t, simSec: Math.round(t * 0.1), err, armies, ages, res, facs, fp, surv };
+};
+// in-memory lockstep harness: wires N real Net instances in a star (fake conns
+// deliver synchronously) driving N headless Games. Exercises the ACTUAL net.js
+// aggregate/finalize/broadcast/execTick paths without PeerJS, then confirms every
+// client's sim stayed byte-identical. opts: { humans, ai, seed, ticks, map, script,
+// dropAt } — script = [{ t, client, cmd }] injects a human's command at a tick;
+// dropAt = { client, tick } yanks a guest mid-match to prove the host plays on.
+window.__ttNetTest = (opts = {}) => {
+  const nH = opts.humans || 2, nA = opts.ai || 0, total = nH + nA;
+  const seed = opts.seed || 12345, ticks = opts.ticks || 600;
+  const playerDefs = [];
+  for (let i = 0; i < nH; i++) playerDefs.push({ team: i % 2, isAI: false, faction: 'classic' });
+  for (let i = 0; i < nA; i++) playerDefs.push({ team: (nH + i) % 2, isAI: true, faction: 'classic', difficulty: 'normal' });
+  const humanIds = playerDefs.map((d, i) => i).filter((i) => !playerDefs[i].isAI);
+  const games = [];
+  for (let i = 0; i < total; i++) {
+    const g = new Game(new THREE.Scene(), registryCache, { alert() {}, selection() {}, age() {}, gameOver() {} }, {
+      fx: new VFX(new THREE.Scene()), sfx: null, difficulty: 'normal', map: opts.map || 'playmat',
+      playerDefs: playerDefs.map((d) => ({ ...d })), gameMode: 'standard', startRes: 'standard',
+      seed, mp: true, myId: i,
+    });
+    g.setup();
+    games.push(g);
+  }
+  const nets = playerDefs.map((d, i) => {
+    if (d.isAI) return null;
+    const n = new Net();
+    n.myId = i; n.isHost = (i === humanIds[0]); n.humanIds = humanIds.slice();
+    n.started = true; n.connected = true;
+    return n;
+  });
+  const host = nets[humanIds[0]];
+  const deliverToGuest = (guest, m) => {
+    if (!m || m.type !== 'cmds') return;
+    guest.buf.set(m.tick, m.cmds);
+    if (m.hash !== undefined) guest.checkHash(m.hashTick, m.hash);
+  };
+  const conns = {};
+  for (const gid of humanIds) {
+    if (gid === host.myId) continue;
+    const guest = nets[gid];
+    const hostSide = { _seatId: gid, send: (m) => deliverToGuest(guest, m) };
+    guest.hostConn = { send: (m) => host.hostOnData(hostSide, m) };
+    host.conns.push({ conn: hostSide, id: gid });
+    conns[gid] = hostSide;
+  }
+  const byTick = {};
+  for (const s of (opts.script || [])) (byTick[s.t] = byTick[s.t] || []).push(s);
+  let err = null, stepped = 0, dropped = false;
+  try {
+    for (let t = 0; t < ticks; t++) {
+      if (opts.dropAt && !dropped && t === opts.dropAt.tick) {
+        // simulate a guest dropping: the host's conn.close handler fires
+        const gid = humanIds[opts.dropAt.client];
+        host.hostOnClose(conns[gid]); dropped = true;
+      }
+      for (const s of (byTick[t] || [])) {
+        const pid = humanIds[s.client];
+        if (nets[pid] && !host.left.has(pid)) nets[pid].queueLocal({ ...s.cmd });
+      }
+      for (const gid of humanIds) { if (!nets[gid] || host.left.has(gid)) continue; nets[gid].flush(games[gid]); }
+      let allStep = true;
+      for (const gid of humanIds) { if (host.left.has(gid)) continue; if (!nets[gid].canStep()) allStep = false; }
+      if (!allStep) break; // a stall means the relay failed to deliver in time
+      for (const gid of humanIds) {
+        if (host.left.has(gid)) continue;
+        nets[gid].execTick(games[gid]); games[gid].update(TICK);
+      }
+      stepped++;
+    }
+  } catch (e) { err = (e && e.message) + ' | ' + ((e && e.stack) || '').split('\n')[1]; }
+  const live = humanIds.filter((gid) => !host.left.has(gid));
+  const hashes = live.map((gid) => games[gid].stateHash());
+  return { humans: nH, ai: nA, ticks: stepped, err, inSync: hashes.every((h) => h === hashes[0]), hashes: hashes.slice(0, 4) };
 };
 window.__ttGL = () => ({ renderer, scene, camera }); // perf probes
 window.__ttAmbient = () => ambient; // ambience debug handle

@@ -338,6 +338,12 @@
   .seat select { background: var(--panel-3); color: var(--ink); border: 1px solid var(--line); border-radius: 8px;
     padding: 3px 7px; font-size: 12px; font-family: inherit; cursor: pointer; }
   .seat select:hover { border-color: var(--gold-deep); }
+  .seat select:disabled { opacity: 0.55; cursor: default; }
+  .seat .mp-rm { background: #4a2020; color: #ffb0a0; border: 1px solid #7a3030; border-radius: 7px;
+    width: 22px; height: 22px; line-height: 1; font-size: 12px; padding: 0; flex: none; cursor: pointer; }
+  .seat .mp-rm:hover { background: #7a2a2a; color: #fff; }
+  .mp-code-big { font-family: var(--font-display); font-size: 20px; letter-spacing: 4px; color: var(--gold);
+    background: #201206; border: 1px solid var(--gold-deep); border-radius: 8px; padding: 2px 10px; }
   .menu-label { margin-top: 8px; color: var(--gold); font-size: 10.5px; letter-spacing: 2.5px;
     text-transform: uppercase; font-weight: 700; text-shadow: var(--emboss); font-family: var(--font-display); }
   #diff-row, #mp-row, #fac-row, #mp-fac-row, #size-row, #mode-row, #startres-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
@@ -970,29 +976,26 @@
       <div class="menu-card" style="max-width:580px">
         <div class="setup-head">
           <button class="setup-back diff-btn">← Back</button>
-          <span class="menu-label" style="margin:0">Multiplayer — 2 humans + AI</span>
+          <span class="menu-label" style="margin:0">Multiplayer — up to 4 friends</span>
           <span class="setup-head-spacer"></span>
         </div>
-        <div class="menu-help" style="margin:0 0 6px"><b>Hosting?</b> Set up the room below, then share the 4-letter code. <b>Joining?</b> Pick your civ, then type your friend's code. Map &amp; mode come from Custom Skirmish.</div>
+        <div class="menu-help" style="margin:0 0 6px"><b>Hosting?</b> Set up the seats, open the room, and share the code — friends fill the open Human seats, then press Start. <b>Joining?</b> Pick your civ and type your friend's code. Map &amp; mode come from Custom Skirmish.</div>
         <div class="menu-label">Your civilization</div>
         <div id="mp-fac-row"></div>
         <div id="mp-civ-panel" class="civ-panel"></div>
-        <div class="menu-label">Host setup — Players</div>
-        <div id="mp-pcount">
-          <button class="mp-pcount-btn diff-btn sel" data-pc="2">2</button>
-          <button class="mp-pcount-btn diff-btn" data-pc="3">3</button>
-          <button class="mp-pcount-btn diff-btn" data-pc="4">4</button>
-        </div>
-        <div class="menu-label">Teams</div>
-        <div id="mp-teams"></div>
+        <div class="menu-label">Players &amp; teams</div>
         <div id="mp-seats"></div>
+        <button id="mp-add" class="diff-btn" style="margin:4px auto;display:block">＋ Add player</button>
         <div id="mp-mapmode" class="menu-help" style="margin:6px 0 2px"></div>
+        <div id="mp-codeshow" class="menu-help" style="margin:4px 0;display:none"></div>
         <div id="mp-row">
-          <button id="mp-host" class="diff-btn">🌐 Host game</button>
+          <button id="mp-host" class="diff-btn">🌐 Host room</button>
           <span style="color:var(--dim);font-size:12px">— or join —</span>
           <input id="mp-code" maxlength="4" placeholder="CODE" autocomplete="off">
           <button id="mp-join" class="diff-btn">Join</button>
         </div>
+        <button id="mp-start" class="diff-btn sel" style="margin:4px auto;display:none">▶ Start the night</button>
+        <button id="mp-leave" class="diff-btn" style="margin:4px auto;display:none">✕ Leave room</button>
         <div id="mp-status"></div>
       </div>
     </div>
