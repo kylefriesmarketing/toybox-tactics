@@ -117,9 +117,13 @@ export const E_MODULES = {
                 desc: 'Scout enemy garrisons within two routes of this fort.' },
   barracks:   { name: 'Barracks',    icon: '⛺', parts: 55, imag: 15, recruit: true,
                 desc: 'Field collection cards here as if standing at your capital.' },
+  generator:  { name: 'Power Cell',   icon: '🔌', parts: 50, imag: 10, power_yield: 2,
+                desc: '+2 Power each turn this node is supplied — fuel for Force Marches.' },
+  library:    { name: 'Dream Library', icon: '📚', parts: 45, imag: 20, imag_yield: 3,
+                desc: '+3 Imagination each turn this node is supplied — fuel for the Empire Tree.' },
 };
-// how many module sockets a node offers, by type
-export const E_MODULE_SLOTS = { capital: 2, stronghold: 2, crown: 0, mission: 0, resource: 0, market: 0, discovery: 0 };
+// how many module sockets a node offers, by type. The capital is your Citadel — 3 sockets (§8).
+export const E_MODULE_SLOTS = { capital: 3, stronghold: 2, crown: 0, mission: 0, resource: 0, market: 0, discovery: 0 };
 
 // House events (§5): the room is alive after bedtime. One brews at a time,
 // telegraphed a full turn before it strikes (fair-warning rule). Each is

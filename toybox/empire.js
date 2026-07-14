@@ -181,7 +181,10 @@ export class Empire {
     const supplied = sup || this.suppliedSet(p);
     let inc = 0;
     for (const [id, st] of Object.entries(this.s.nodes)) {
-      if (st.owner === p && supplied.has(id)) inc += E_NODES[id].powerYield || 0;
+      if (st.owner === p && supplied.has(id)) {
+        inc += E_NODES[id].powerYield || 0;
+        for (const k of (st.modules || [])) inc += E_MODULES[k].power_yield || 0; // Power Cell (§8)
+      }
     }
     return inc;
   }
@@ -189,7 +192,10 @@ export class Empire {
     const supplied = sup || this.suppliedSet(p);
     let inc = 0;
     for (const [id, st] of Object.entries(this.s.nodes)) {
-      if (st.owner === p && supplied.has(id)) inc += E_NODES[id].imagYield || 0;
+      if (st.owner === p && supplied.has(id)) {
+        inc += E_NODES[id].imagYield || 0;
+        for (const k of (st.modules || [])) inc += E_MODULES[k].imag_yield || 0; // Dream Library (§8)
+      }
     }
     return inc;
   }
@@ -828,10 +834,10 @@ export class Empire {
         if (this.s.parts[p] >= u.parts + 40 && this.s.imag[p] >= u.imag) { this.buyUpgrade(p, key); break; }
       }
     }
-    // fortify its strongholds: Block Walls first, then a Workshop
+    // fortify its strongholds: Block Walls, a Workshop, then a Power Cell for the 3rd (Citadel) slot
     for (const [id, st] of Object.entries(this.s.nodes)) {
       if (st.owner !== p || this.moduleSlots(id) === 0) continue;
-      for (const mk of ['walls', 'workshop']) {
+      for (const mk of ['walls', 'workshop', 'generator']) {
         if (this.hasModule(id, mk) || st.modules.length >= this.moduleSlots(id)) continue;
         if (this.s.parts[p] >= E_MODULES[mk].parts + 25 && this.s.imag[p] >= (E_MODULES[mk].imag || 0)) { this.buildModule(p, id, mk); break; }
       }
