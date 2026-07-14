@@ -751,7 +751,9 @@ function loadCampaignProgress(baseTable = false) {
 }
 function baseCampaignAllDone() {
   const p = loadCampaignProgress(true);
-  return CAMPAIGN.every((m) => m.needsAllStories || p[m.id]); // page zero never gates NG+
+  // the ORIGINAL book (trilogy + midnight) unlocks NG+ — pages written after
+  // (Act IV, the alliance, page zero) never lock it back up
+  return CAMPAIGN.every((m) => m.needsAllStories || m.beyondTrilogy || p[m.id]);
 }
 function campaignDone(id) { return !!loadCampaignProgress()[id]; }
 function markCampaignDone(id) {
@@ -766,6 +768,7 @@ function allStoriesEarned() {
   } catch { return false; }
 }
 function missionUnlocked(i) {
+  if (campaignDone(CAMPAIGN[i].id)) return true; // a finished page never re-locks
   if (CAMPAIGN[i].needsAllStories && !allStoriesEarned()) return false;
   return i === 0 || campaignDone(CAMPAIGN[i - 1].id);
 }
@@ -789,7 +792,7 @@ function renderCampaignList() {
     : allDone
       ? '🏆 Every story is told — even the secret one. The room sleeps soundly. Replay any page below.'
       : openDone >= open.length
-        ? '🌙 The trilogy is complete… and at the bottom of the book, a sixteenth page has appeared.'
+        ? '🌙 Every open page is told… and at the bottom of the book, a secret chapter has appeared.'
         : `${openDone} / ${open.length} missions cleared`;
   $('cm-progress').innerHTML = progressText + zeroTease + (ngUnlocked
     ? `<div style="margin-top:8px"><button id="ng-toggle" class="diff-btn" style="font-size:12px;padding:6px 14px">${ngActive ? '📖 Back to the First Night' : '🌒 Begin the Second Night (NG+)'}</button></div>`
@@ -801,7 +804,8 @@ function renderCampaignList() {
     0: '✦ Act I — The Bedroom Wars',
     5: '✦ Act II — The Sleepover',
     10: '✦ Act III — The Yard Sale',
-    15: '🕛 After the Trilogy',
+    15: '🌿 Act IV — The Great Outdoors',
+    20: '🕛 After the Trilogy',
   };
   $('cm-list').innerHTML = CAMPAIGN.map((m, i) => {
     const unlocked = missionUnlocked(i), done = campaignDone(m.id);
@@ -1174,7 +1178,7 @@ const playIntro = (function initIntro() {
     const cb = $('campaign-btn');
     cb.classList.add('primary');
     const small = cb.querySelector('small');
-    if (small) small.textContent = '✦ Start here — the Bedroom Wars, a three-act storybook war';
+    if (small) small.textContent = '✦ Start here — the Bedroom Wars, a four-act storybook war';
   }
 }
 

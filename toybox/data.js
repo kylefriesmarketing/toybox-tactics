@@ -1336,6 +1336,111 @@ export const CAMPAIGN = [
     endingArt: 'assets/campaign/end-act3.jpg', // trilogy-closing homecoming plate
   },
 
+  // ---------------- ACT IV — THE GREAT OUTDOORS ----------------
+  // (beyondTrilogy: these pages never gate NG+ or the secret chapters)
+  {
+    id: 'doorstep', name: 'Past the Welcome Mat', icon: '🚪', beyondTrilogy: true,
+    map: 'playground', faction: 'classic', enemy: 'racers',
+    gameMode: 'standard', difficulty: 'normal', startRes: 'standard',
+    brief: 'The headcount came up one short. Bun-Bun — the Kid\'s oldest plush '
+      + 'rabbit, the one who was there before ANY of us — never made it in from '
+      + 'the yard sale. He is out there somewhere past the door, in the country '
+      + 'where rain happens. General Greenboots musters an expedition on the '
+      + 'welcome mat at first light. The backyard tribes — wild toys, sun-bleached '
+      + 'and half-feral — do not recognize our flags out here. Teach them the '
+      + 'flags, Commander. Then find that rabbit.',
+    objective: 'Establish the expedition: raze the wild toys\' yard camp.',
+    victory: 'The wild toys kneel — then, being toys, immediately offer everyone '
+      + 'juice. They saw Bun-Bun, Commander: carried off toward the sandbox by '
+      + 'something with wheels, two nights ago. The trail is warm. The grass is '
+      + 'enormous. The expedition marches at dawn.',
+    defeat: 'Back to the welcome mat — but no toy quits a rescue. Re-muster, '
+      + 'Commander. Bun-Bun has waited two nights; he can believe in us one more.',
+  },
+  {
+    id: 'dunes', name: 'The Sandbox Crossing', icon: '🏖️', beyondTrilogy: true,
+    map: 'sandbox', faction: 'bricks', enemy: 'bots',
+    gameMode: 'standard', difficulty: 'normal', startRes: 'standard',
+    brief: 'The sandbox is a desert with a wooden horizon, and Foreman Klik\'s '
+      + 'engineers have never been happier or more afraid. The dunes shift. The '
+      + 'sand swallows roads whole. And a column of Tin Bots is already digging '
+      + 'on the far rim — Cogsworth wants Bun-Bun too, "FOR THE ARCHIVE." Cross '
+      + 'the dunes first, Commander. Build fast; the sand does not wait.',
+    objective: 'Cross the dunes: destroy the Bots\' dig site on the far rim.',
+    victory: 'The dig site topples into its own excavation, and Klik plants a '
+      + 'flag on the tallest dune — it falls over immediately, which he logs as '
+      + '"structurally honest ground." In the pit the Bots were digging: one '
+      + 'button eye. Bun-Bun\'s. He was here. The garden is next.',
+    defeat: 'The dunes keep the field. Klik re-surveys, unbothered: "Sand is '
+      + 'just bricks that haven\'t decided yet." March again, Commander.',
+  },
+  {
+    id: 'gardenwar', name: 'The Garden Siege', icon: '🌻', beyondTrilogy: true,
+    map: 'garden', faction: 'knights', enemy: 'racers',
+    gameMode: 'koth', difficulty: 'hard', startRes: 'standard',
+    brief: 'The garden is a kingdom already — sunflower towers, terraced ramparts, '
+      + 'and a gnome older than the fence who has watched everything and said '
+      + 'nothing. Sir Hector takes one look and unfurls every banner he owns: '
+      + '"THIS is proper country." The Racers hold the high beds and the throne '
+      + 'of stepping-stones, and they saw where Bun-Bun was taken. Take the hill '
+      + 'and they\'ll talk. Knights do their best work uphill, Commander.',
+    objective: 'Hold the garden throne for two minutes. Make the gnome proud.',
+    victory: 'The banner holds. The Racers spill it all mid-surrender: the wheeled '
+      + 'thing took Bun-Bun to the Old Oak at the yard\'s end — the wild country. '
+      + 'Sir Hector knights the gnome on the spot. The gnome, as ever, says '
+      + 'nothing. But he looks pleased. The whole garden looks pleased.',
+    defeat: 'The terraces change paws again. "A siege," says Sir Hector, helmet '
+      + 'dented, half-paint gleaming, "is just patience wearing armor." Again.',
+  },
+  {
+    id: 'washout', name: 'The Sprinkler Hour', icon: '💦', beyondTrilogy: true,
+    map: 'sandbox', faction: 'classic', enemy: 'bots',
+    allies: [{ faction: 'knights' }], foes: [{ faction: 'racers' }],
+    gameMode: 'sudden', difficulty: 'hard', startRes: 'high',
+    brief: 'The forecast is on the fridge and the forecast says DOOM: the '
+      + 'sprinklers run at dawn. Anything still in the yard gets the flood. The '
+      + 'expedition is out of time and out of quiet options — so Greenboots and '
+      + 'Sir Hector make camp side by side in the sandbox, banners knotted '
+      + 'together, while the Bots and the last Racer holdouts make their own '
+      + 'pact across the dunes. One chest each. No rebuilding. Whoever still '
+      + 'stands when the pipes groan owns the road to the Old Oak.',
+    objective: 'Alliance Sudden Death: both rival Toy Chests, before the water comes.',
+    victory: 'The last rival chest folds as the pipes give their first warning '
+      + 'gurgle — and both armies run for the deck TOGETHER, knights carrying '
+      + 'army men, army men carrying knight banners. From the rail they watch '
+      + 'the flood take the dunes. "Good sand," says Klik\'s liaison, misty. '
+      + 'The road to the Oak is open, Commander. One more march.',
+    defeat: 'The water wins the field before you do. From the deck, soaked and '
+      + 'furious and alive, the alliance watches the dunes drown. At dusk the '
+      + 'sand will be dry, and so will the resolve. Again, Commander.',
+    enemyBoost: 1.15,
+  },
+  {
+    id: 'oakcrown', name: 'The Old Oak', icon: '🌳', beyondTrilogy: true,
+    map: 'oldoak', faction: 'classic', enemy: 'racers',
+    gameMode: 'koth', difficulty: 'hard', startRes: 'standard',
+    brief: 'Dusk, at the end of the yard, under the tree that was here before '
+      + 'the house. Bun-Bun sits in the high roots like a king in exile — hauled '
+      + 'here by a feral RC monster truck that decided, in its one wheeled heart, '
+      + 'that the softest toy should live in the safest place. It means well. It '
+      + 'will not give him back. The wild toys of the deep yard hold the hill, '
+      + 'the porch light is coming on, and somewhere behind you the window is '
+      + 'waiting. Take the hill, Commander. Hold it under the oldest branches in '
+      + 'the world, and bring the first toy home last.',
+    objective: 'Take and hold the hill beneath the Old Oak. Bring Bun-Bun home.',
+    victory: 'The hill holds, and the monster truck — flanked, exhausted, '
+      + 'strangely relieved — nudges Bun-Bun down the roots itself. The march '
+      + 'home crosses the whole dark yard: garden, dunes, welcome mat, window. '
+      + 'The old bear\'s paw reaches down one more time. And when the lid closes '
+      + 'tonight it closes on EVERYONE, Commander — the room, the Kingdom, and '
+      + 'one rabbit who now tells the wildest bedtime stories of all. The book '
+      + 'has a backyard now. The light is still on.',
+    defeat: 'The Oak keeps its guest one more night. The porch light hums. '
+      + 'Bun-Bun, high in the roots, waves — patient as only the oldest toy can '
+      + 'be. Dawn, Commander. We climb again at dawn.',
+    enemyBoost: 1.35,
+  },
+
   // ---------------- THE MIDNIGHT CHAPTER ----------------
   // A secret sixteenth page. It does not exist until the trilogy is finished —
   // then it appears at the bottom of the book, the way midnight appears at the
@@ -1367,7 +1472,7 @@ export const CAMPAIGN = [
     endingArt: 'assets/campaign/end-midnight.jpg',
   },
   {
-    id: 'alliance', name: 'The Toybox Alliance', icon: '🤝', secret: true,
+    id: 'alliance', name: 'The Toybox Alliance', icon: '🤝', secret: true, beyondTrilogy: true,
     map: 'livingroom', faction: 'classic', enemy: 'bots',
     allies: [{ faction: 'knights' }], foes: [{ faction: 'bricks' }],
     gameMode: 'standard', difficulty: 'hard', startRes: 'high',
@@ -1392,7 +1497,7 @@ export const CAMPAIGN = [
     enemyBoost: 1.15,
   },
   {
-    id: 'zero', name: 'Toy Box Zero', icon: '📦', secret: true, zeroEra: true,
+    id: 'zero', name: 'Toy Box Zero', icon: '📦', secret: true, zeroEra: true, beyondTrilogy: true,
     needsAllStories: true, // every Bedtime Story earned — the room trusts you with page one
     map: 'playmat', faction: 'classic', enemy: 'plush',
     gameMode: 'sudden', difficulty: 'hard', startRes: 'lean',
@@ -1545,6 +1650,35 @@ export const MISSION_EVENTS = {
     { at: 900, type: 'boost', owner: 2, res: { blocks: 200, buttons: 150 }, kind: 'attack',
       text: 'The rival pact pools its pockets — one assembly line, two armies, zero sentiment.' },
     { at: 1200, text: 'A knight falls covering an army man he met tonight. The room writes the word "allies" in its book and underlines it twice.' },
+  ],
+  doorstep: [
+    { at: 60, text: 'The door closes behind the expedition. For the first time in any story the room ever told, the ceiling is weather.' },
+    { at: 300, text: 'A breeze crosses the column and every flag learns what flags are FOR. Even the veterans stop marching for a second.' },
+    { at: 700, type: 'spawn', unit: 'scout', n: 2, owner: 0, kind: 'info',
+      text: 'Two wild scouts defect to the expedition — sun-bleached, barefoot, grinning. They know where the sandbox road runs.' },
+  ],
+  dunes: [
+    { at: 90, text: 'The sand gets into everything. Klik\'s engineers file seventeen complaints and one love letter.' },
+    { at: 420, text: 'A dune moved in the night. Nobody saw it happen. The scouts have started naming them, which feels safer.' },
+    { at: 800, type: 'boost', owner: 1, res: { buttons: 150, marbles: 80 }, kind: 'attack',
+      text: 'The Bots\' excavator strikes a vein of lost marbles — "FUNDING," Cogsworth announces, "FOR THE ARCHIVE."' },
+  ],
+  gardenwar: [
+    { at: 75, text: 'The sunflowers turn slowly to watch the armies pass. Sir Hector salutes every single one. It takes a while.' },
+    { at: 360, text: 'The gnome has seen four hundred summers of this garden. The knights have adopted him. He remains unconsulted on this.' },
+    { at: 780, type: 'spawn', unit: 'knight', n: 2, owner: 0, kind: 'info',
+      text: 'Two knights arrive late, breathless, carrying a tomato like a war trophy. Reinforcements — and lunch.' },
+  ],
+  washout: [
+    { at: 60, text: 'Somewhere under the yard, a pipe clears its throat. Every toy on the field pretends not to have heard it.' },
+    { at: 480, text: 'The allied camp shares one kettle between two armies. This, the narrator notes, is how civilizations actually start.' },
+    { at: 900, text: 'The sprinkler heads rise an inch out of the grass, curious. Time, Commander, is now officially weather.' },
+  ],
+  oakcrown: [
+    { at: 90, text: 'Bun-Bun waves from the roots — unhurried, unafraid. The oldest toy in the world knows exactly who is coming for him.' },
+    { at: 420, type: 'spawn', unit: 'monster', n: 1, owner: 1, kind: 'attack',
+      text: 'The feral monster truck descends the hill, engine full of thunder and heartbreak. It just wanted to keep something soft SAFE.' },
+    { at: 800, text: 'The porch light blinks on across the yard, and the whole battle glows amber for a heartbeat. Nearly bedtime. Nearly home.' },
   ],
   zero: [
     { at: 45, text: 'The rug is smaller than you remember. Everything was, back then — except the feelings.' },

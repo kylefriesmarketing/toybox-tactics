@@ -26,6 +26,7 @@ function campaignProgress() {
 const ACT1 = ['naptime', 'sandbox', 'bathtub', 'hill', 'finale'];
 const ACT2 = ['crumbs', 'sofa', 'canyonrun', 'nightlight', 'shelfking'];
 const ACT3 = ['tagged', 'boxed', 'bargain', 'stranger', 'wayhome'];
+const ACT4 = ['doorstep', 'dunes', 'gardenwar', 'washout', 'oakcrown'];
 
 // Every Bedtime Story: check(ctx) with ctx = { g, win, me, chron, earnedCount }
 export const ACHIEVEMENTS = [
@@ -105,6 +106,9 @@ export const ACHIEVEMENTS = [
   { id: 'pagezero', icon: '📦', name: 'The Page Under the Pages', beyond: true,
     desc: 'Win Toy Box Zero — the first war, told in sepia.',
     check: (c) => c.win && !!c.g.zeroEra },
+  { id: 'act4', icon: '🌿', name: 'The Book Has a Backyard', beyond: true,
+    desc: 'Finish Act IV — The Great Outdoors, and bring Bun-Bun home.',
+    check: () => ACT4.every((id) => campaignProgress()[id]) },
 ];
 
 // Called once per finished match. Updates the Chronicle, evaluates every
