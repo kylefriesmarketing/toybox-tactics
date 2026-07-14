@@ -358,9 +358,37 @@
   .e-dim { color: #b9a888; font-size: 12px; }
   .e-spring { flex: 1; }
   .e-main { flex: 1; display: flex; min-height: 0; }
-  #e-board { flex: 1; min-width: 0; }
-  .e-route { stroke: #6a4a2a; stroke-width: 5; stroke-linecap: round; }
-  .e-route.rough { stroke-dasharray: 4 9; stroke-width: 4; }
+  #e-board { flex: 1; min-width: 0;
+    background: url('assets/ui/empire-board.jpg') center / cover no-repeat #16100a;
+    box-shadow: inset 0 0 120px 40px #0a06038c; }
+  .e-phase { color: #ffd97a; font-size: 12.5px; font-style: italic; text-shadow: 0 1px 2px #000; }
+  .e-event { text-align: center; padding: 5px 10px; font-size: 13px; color: #ffe9b8;
+    background: #46280cd8; border-bottom: 1px solid var(--gold-deep); }
+  .e-event.active { background: #4a1a10d8; color: #ffc9b0; animation: e-evpulse 1.6s infinite; }
+  @keyframes e-evpulse { 50% { background: #61251568; } }
+  /* chalk-drawn paths over the floor art */
+  .e-route { stroke: #e8d9b8; stroke-width: 4.5; stroke-linecap: round; opacity: 0.42; }
+  .e-route.rough { stroke-dasharray: 4 9; stroke-width: 4; opacity: 0.34; }
+  .e-route.warned { stroke: #ffb84a; opacity: 0.8; animation: e-evpulse 1.6s infinite; }
+  .e-route.blocked { stroke: #ff6a50; stroke-dasharray: 3 6; opacity: 0.8; }
+  .e-ev-ic { font-size: 18px; }
+  .e-node-halo { pointer-events: none; }
+  .e-node-c.unsup { stroke-dasharray: 6 5; }
+  .e-supwarn { font-size: 13px; }
+  .e-crownmark { font-size: 13px; }
+  .e-army-hpbg { fill: #16100a; }
+  .e-army-hp { fill: #90be6d; }
+  .e-kv { display: flex; justify-content: space-between; font-size: 12.5px; }
+  .e-kv span { color: #b9a888; }
+  .e-rosters { display: flex; gap: 14px; }
+  .e-rosters > div { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .e-uchip { position: relative; font-size: 11.5px; background: #16100a; border: 1px solid var(--line);
+    border-radius: 7px; padding: 3px 7px 5px; color: var(--ink); overflow: hidden; }
+  .e-uchip i { position: absolute; left: 0; bottom: 0; height: 2.5px; background: linear-gradient(90deg,#90be6d,#f9c74f); }
+  .e-vstats { display: flex; gap: 12px; justify-content: center; margin: 6px 0; }
+  .e-vstats > div { display: flex; flex-direction: column; align-items: center; }
+  .e-vstats b { color: var(--gold-2); font-size: 18px; font-family: var(--font-display); }
+  .e-vstats span { color: #b9a888; font-size: 10.5px; }
   .e-order { stroke: #ffd97a; stroke-width: 3; stroke-dasharray: 7 5; }
   .e-node { cursor: pointer; }
   .e-node-c { fill: #2c1f12; stroke-width: 4; }

@@ -44,9 +44,12 @@ export class Empire {
     if (seedOrSave && typeof seedOrSave === 'object') { this.load(seedOrSave); return; }
     const seed = seedOrSave || ((Math.random() * 2 ** 31) | 0);
     this.s = {
-      v: 1, seed, turn: 1, phase: 'plan', rng: 0,
+      v: 2, seed, turn: 1, phase: 'plan', rng: 0,
       factions, // seat 0 = human, seat 1 = AI
       parts: [E_RULES.startParts, E_RULES.startParts],
+      power: [E_RULES.startPower, E_RULES.startPower],
+      stats: { played: 0, simmed: 0, won: 0, lost: 0, captured: 0 },
+      event: null, // { kind:'vacuum', phase:'warn'|'active', route, left }
       upgrades: [[], []],
       nodes: Object.fromEntries(Object.keys(E_NODES).map((id) => [id, {
         owner: id === 'CAP_A' ? 0 : id === 'CAP_B' ? 1 : -1,
@@ -74,7 +77,14 @@ export class Empire {
     if (!this.persist) return;
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.s)); } catch (e) { /* storage full */ }
   }
-  load(save) { this.s = save; this.rng = makeRng(1); this.rng.setState(save.rng); }
+  load(save) {
+    // v1 → v2 migration: Power, campaign stats, house events arrived in round 2
+    if (!save.power) save.power = [E_RULES.startPower, E_RULES.startPower];
+    if (!save.stats) save.stats = { played: 0, simmed: 0, won: 0, lost: 0, captured: 0 };
+    if (save.event === undefined) save.event = null;
+    save.v = 2;
+    this.s = save; this.rng = makeRng(1); this.rng.setState(save.rng);
+  }
   static stored() {
     try { const j = localStorage.getItem(SAVE_KEY); return j ? JSON.parse(j) : null; } catch (e) { return null; }
   }
@@ -88,15 +98,54 @@ export class Empire {
   armyAt(nodeId) { return this.s.armies.find((a) => a.node === nodeId && a.cards.length); }
   ownedCount(p) { return Object.values(this.s.nodes).filter((n) => n.owner === p).length; }
   fortCount(p) { return Object.keys(this.s.nodes).filter((id) => this.s.nodes[id].owner === p && (E_NODES[id].type === 'stronghold')).length; }
-  income(p) {
+  // supply (§8, binary): a node is Supplied when it reaches the capital through
+  // friendly-owned nodes over OPEN routes. Unsupplied territory yields half and
+  // cannot mend armies — cutting one route creates an isolated pocket.
+  suppliedSet(p) {
+    const cap = p === 0 ? 'CAP_A' : 'CAP_B';
+    const set = new Set();
+    if (this.s.nodes[cap].owner !== p) return set;
+    set.add(cap);
+    let frontier = [cap];
+    while (frontier.length) {
+      const next = [];
+      for (const f of frontier) for (const r of this.openRoutesOf(f)) {
+        if (set.has(r.to) || this.s.nodes[r.to].owner !== p) continue;
+        set.add(r.to); next.push(r.to);
+      }
+      frontier = next;
+    }
+    return set;
+  }
+  income(p, sup = null) {
+    const supplied = sup || this.suppliedSet(p);
     let inc = 0;
-    for (const [id, st] of Object.entries(this.s.nodes)) if (st.owner === p) inc += E_NODES[id].yield;
+    for (const [id, st] of Object.entries(this.s.nodes)) {
+      if (st.owner !== p) continue;
+      inc += supplied.has(id) ? E_NODES[id].yield : Math.floor(E_NODES[id].yield / 2);
+    }
     return inc;
   }
-  upkeepCost(p) {
-    const a = this.s.armies.find((x) => x.owner === p);
-    return a ? Math.floor(a.cards.length / 2) : 0;
+  powerIncome(p, sup = null) {
+    const supplied = sup || this.suppliedSet(p);
+    let inc = 0;
+    for (const [id, st] of Object.entries(this.s.nodes)) {
+      if (st.owner === p && supplied.has(id)) inc += E_NODES[id].powerYield || 0;
+    }
+    return inc;
   }
+  // routes still usable this turn (the vacuum can close one)
+  openRoutesOf(id) {
+    const blocked = this.s.event && this.s.event.phase === 'active' ? this.s.event.route : -1;
+    return E_ROUTES.map((r, i) => ({ r, i })).filter(({ r, i }) => i !== blocked && (r[0] === id || r[1] === id))
+      .map(({ r }) => ({ to: r[0] === id ? r[1] : r[0], kind: r[2], cost: E_RULES.routeCost[r[2]] }));
+  }
+  upkeepCost(p) {
+    let cards = 0;
+    for (const a of this.s.armies) if (a.owner === p) cards += a.cards.length;
+    return Math.floor(cards / 2);
+  }
+  armiesOf(p) { return this.s.armies.filter((a) => a.owner === p && a.cards.length); }
   // deterministic state fingerprint for tests + future MP hash checks
   stateHash() {
     const core = { t: this.s.turn, p: this.s.parts, u: this.s.upgrades, r: this.s.rng,
@@ -110,27 +159,88 @@ export class Empire {
 
   // ---------- turn phases (§6, slice: sequential resolution) ----------
   upkeep() {
+    this.tickEvent();
     for (const p of [0, 1]) {
-      this.s.parts[p] += this.income(p) - this.upkeepCost(p);
+      const sup = this.suppliedSet(p);
+      this.s.parts[p] += this.income(p, sup) - this.upkeepCost(p);
       if (this.s.parts[p] < 0) this.s.parts[p] = 0;
-    }
-    for (const a of this.s.armies) {
-      a.mp = E_RULES.armyMP;
-      a.order = null;
-      // resting on friendly ground mends the toys (§11 readiness, simplified)
-      const st = this.s.nodes[a.node];
-      if (st && st.owner === a.owner) {
-        const heal = E_RULES.healPerTurn + (this.s.upgrades[a.owner].includes('repairs') ? 10 : 0);
-        for (const c of a.cards) c.strength = Math.min(100, c.strength + heal);
+      this.s.power[p] = Math.min(E_RULES.powerCap, this.s.power[p] + this.powerIncome(p, sup));
+      // resting on SUPPLIED friendly ground mends the toys (§8, §11)
+      for (const a of this.s.armies) {
+        if (a.owner !== p || !a.cards.length) continue;
+        a.mp = E_RULES.armyMP;
+        a.order = null;
+        a.marched = false;
+        const st = this.s.nodes[a.node];
+        if (st && st.owner === p && sup.has(a.node)) {
+          const heal = E_RULES.healPerTurn + (this.s.upgrades[p].includes('repairs') ? 10 : 0);
+          for (const c of a.cards) c.strength = Math.min(100, c.strength + heal);
+        }
       }
     }
     this.s.phase = 'plan';
     this.save();
   }
 
+  // "The Vacuum Approaches" (§5): telegraphed a full turn before it sweeps a
+  // route closed. All rolls come from the campaign stream — seeded, replayable.
+  tickEvent() {
+    const ev = this.s.event;
+    if (ev) {
+      if (ev.phase === 'warn') {
+        ev.phase = 'active';
+        ev.left = E_RULES.vacuum.duration;
+        const [a, b] = E_ROUTES[ev.route];
+        this.say(`🌪️ THE VACUUM sweeps the ${E_NODES[a].name} — ${E_NODES[b].name} road! Closed for ${ev.left} turns.`);
+      } else if (--ev.left <= 0) {
+        this.s.event = null;
+        this.say('🌤️ The vacuum returns to its closet. The road reopens.');
+      }
+      return;
+    }
+    if (this.s.turn >= E_RULES.vacuum.earliest && this.rng() < E_RULES.vacuum.chance) {
+      const route = (this.rng() * E_ROUTES.length) | 0;
+      this.s.event = { kind: 'vacuum', phase: 'warn', route, left: 0 };
+      const [a, b] = E_ROUTES[route];
+      this.say(`⚠️ A distant RUMBLE… the vacuum eyes the ${E_NODES[a].name} — ${E_NODES[b].name} road. One turn to react!`);
+    }
+  }
+
   // legal one-step moves for an army (UI highlights; orders validated the same way)
   reachable(army) {
-    return routesOf(army.node).filter((r) => r.cost <= army.mp);
+    return this.openRoutesOf(army.node).filter((r) => r.cost <= army.mp);
+  }
+
+  // Force March (§6): burn 1 Power for +1 MP, once per army per turn
+  forceMarch(armyId) {
+    const a = this.s.armies.find((x) => x.id === armyId);
+    if (!a || a.marched || this.s.phase !== 'plan') return { ok: false, why: 'already marched' };
+    if (this.s.power[a.owner] < E_RULES.forceMarchCost) return { ok: false, why: 'not enough Power' };
+    this.s.power[a.owner] -= E_RULES.forceMarchCost;
+    a.mp += 1;
+    a.marched = true;
+    this.say(`${this.facLabel(a.owner)} winds their toys tight — a forced march!`);
+    this.save();
+    return { ok: true };
+  }
+
+  // Muster (§11): a second army at the capital, once the empire can feed it
+  muster(p) {
+    const cap = p === 0 ? 'CAP_A' : 'CAP_B';
+    if (this.armiesOf(p).length >= E_RULES.maxArmies) return { ok: false, why: 'army cap reached' };
+    if (this.ownedCount(p) < E_RULES.musterMinNodes) return { ok: false, why: `need ${E_RULES.musterMinNodes} territories` };
+    if (this.s.parts[p] < E_RULES.musterCost) return { ok: false, why: 'not enough Parts' };
+    this.s.parts[p] -= E_RULES.musterCost;
+    // dead armies stay as tombstones, so the per-owner count yields a unique,
+    // deterministic id even when a destroyed army is replaced (B0, then B0_2…)
+    const nth = this.s.armies.filter((a) => a.owner === p).length;
+    const id = nth <= 1 ? `B${p}` : `B${p}_${nth}`;
+    this.s.armies.push({ id, owner: p, node: cap, prev: cap, mp: E_RULES.armyMP, marched: false,
+      cards: [{ id: `${id}c${this.s.nextCard[p]++}`, type: 'soldier', strength: 100,
+        vet: this.s.upgrades[p].includes('reserves') ? 1 : 0 }], order: null });
+    this.say(`🚩 ${this.facLabel(p)} musters a second army!`);
+    this.save();
+    return { ok: true };
   }
 
   // queue/replace a one-hop order for the human seat during planning
@@ -144,9 +254,10 @@ export class Empire {
   }
   cancelMove(armyId) { const a = this.s.armies.find((x) => x.id === armyId); if (a) a.order = null; }
 
-  recruit(p) {
-    const a = this.s.armies.find((x) => x.owner === p);
+  recruit(p, armyId = null) {
     const cap = p === 0 ? 'CAP_A' : 'CAP_B';
+    const a = armyId ? this.s.armies.find((x) => x.id === armyId && x.owner === p)
+      : this.armiesOf(p).find((x) => x.node === cap);
     if (!a || a.node !== cap) return { ok: false, why: 'army must stand at your capital' };
     if (a.cards.length >= E_RULES.maxCards) return { ok: false, why: 'army is at full strength' };
     if (this.s.parts[p] < E_RULES.recruitCost) return { ok: false, why: 'not enough Parts' };
@@ -177,9 +288,9 @@ export class Empire {
   endTurn() {
     if (this.s.phase !== 'plan' || this.s.over) return;
     this.s.phase = 'resolve';
-    this.resolveMove(this.s.armies.find((a) => a.owner === 0));
+    for (const a of this.armiesOf(0)) this.resolveMove(a);
     this.aiPlan();
-    this.resolveMove(this.s.armies.find((a) => a.owner === 1));
+    for (const a of this.armiesOf(1)) this.resolveMove(a);
     this.s.phase = 'battle';
     this.save();
     this.autoResolveAiBattles();
@@ -296,6 +407,12 @@ export class Empire {
   applyBattleResult(enc, result) {
     if (enc.applied || result.encId !== enc.encId) return;
     enc.applied = true;
+    // the campaign remembers how its wars were fought (victory-screen stats)
+    if (enc.attacker.owner === 0 || enc.defender.owner === 0) {
+      this.s.stats[result.mode === 'played' ? 'played' : 'simmed']++;
+      const humanWon = result.attackerWon === (enc.attacker.owner === 0);
+      this.s.stats[humanWon ? 'won' : 'lost']++;
+    }
     const att = this.s.armies.find((a) => a.id === enc.attacker.armyId);
     const st = this.s.nodes[enc.nodeId];
     if (att) att.cards = result.attCards.map((c) => ({ ...c }));
@@ -335,6 +452,7 @@ export class Empire {
     const st = this.s.nodes[nodeId];
     if (st.owner === p) return;
     st.owner = p;
+    if (p === 0) this.s.stats.captured++;
     let loot = wasBattle ? E_RULES.captureBonusBase : 0;
     if (this.s.upgrades[p].includes('salvage')) loot += 15;
     const node = E_NODES[nodeId];
@@ -397,32 +515,34 @@ export class Empire {
   // ---------- strategic AI seat (§21: legal orders, same rules) ----------
   aiPlan() {
     const p = 1;
-    const a = this.s.armies.find((x) => x.owner === p);
-    if (!a || !a.cards.length || this.s.over) return;
-    // recover: hurt or thin army heads home to heal + recruit
-    const avgStr = a.cards.reduce((s, c) => s + c.strength, 0) / a.cards.length;
+    if (this.s.over) return;
     const home = 'CAP_B';
-    if ((a.cards.length <= 2 || avgStr < 45) && a.node !== home) {
-      this.aiMoveToward(a, home); return;
-    }
-    // recruit + upgrade when standing at the capital with a full purse
-    if (a.node === home) {
-      while (this.s.parts[p] >= E_RULES.recruitCost + 20 && a.cards.length < 6) this.recruit(p);
+    // strategic buys happen once per turn, not per army
+    if (this.armiesOf(p).some((a) => a.node === home)) {
+      const capArmy = this.armiesOf(p).find((a) => a.node === home);
+      while (this.s.parts[p] >= E_RULES.recruitCost + 20 && capArmy.cards.length < 6) this.recruit(p, capArmy.id);
       if (!this.s.upgrades[p].includes('salvage') && this.s.parts[p] >= E_UPGRADES.salvage.cost + 40) this.buyUpgrade(p, 'salvage');
     }
-    // defend: an enemy army adjacent to home pulls the army back
-    const human = this.s.armies.find((x) => x.owner === 0);
-    if (human && human.cards.length && routesOf(home).some((r) => r.to === human.node) && a.node !== home) {
-      this.aiMoveToward(a, home); return;
+    // muster a second front once the empire can feed it
+    if (this.armiesOf(p).length < E_RULES.maxArmies && this.ownedCount(p) >= E_RULES.musterMinNodes
+        && this.s.parts[p] >= E_RULES.musterCost + 60) this.muster(p);
+    const claimed = new Set(); // two armies never chase the same prize
+    for (const a of this.armiesOf(p)) {
+      // recover: hurt or thin army heads home to heal + recruit
+      const avgStr = a.cards.reduce((s, c) => s + c.strength, 0) / a.cards.length;
+      if ((a.cards.length <= 2 || avgStr < 45) && a.node !== home) { this.aiMoveToward(a, home); continue; }
+      // defend: an enemy army adjacent to home pulls one army back
+      const threat = this.armiesOf(0).some((h) => routesOf(home).some((r) => r.to === h.node));
+      if (threat && a.node !== home && !claimed.has(home)) { claimed.add(home); this.aiMoveToward(a, home); continue; }
+      // expand/attack: nearest valuable node, Favored+ fights only
+      const target = this.aiPickTarget(a, claimed);
+      if (target) { claimed.add(target); this.aiMoveToward(a, target); }
     }
-    // expand/attack: nearest node not ours, preferring value; attack only when Favored+
-    const target = this.aiPickTarget(a);
-    if (target) this.aiMoveToward(a, target);
   }
-  aiPickTarget(a) {
+  aiPickTarget(a, claimed = new Set()) {
     const scores = [];
     for (const [id, st] of Object.entries(this.s.nodes)) {
-      if (st.owner === 1) continue;
+      if (st.owner === 1 || claimed.has(id)) continue;
       const n = E_NODES[id];
       let v = n.yield + (n.type === 'stronghold' ? 8 : 0) + (n.dominion ? 6 : 0) + (n.bonus ? 5 : 0);
       const dist = this.hopDistance(a.node, id);
@@ -549,8 +669,10 @@ export function openEmpire(forceNew = false) {
 class EmpireUI {
   constructor(emp) {
     this.emp = emp;
-    this.sel = null; // selected army id
+    this.sel = null;     // selected army id
+    this.selNode = null; // inspected node id (side-panel intel card)
     this.launchCtx = null;
+    this.lastPos = {};   // armyId -> {x,y} for march animations
     this.root = document.getElementById('empire');
   }
   show() {
@@ -561,12 +683,26 @@ class EmpireUI {
   }
   hide() { this.root.classList.remove('show'); ui = null; }
 
+  armyPos(a) {
+    const n = E_NODES[a.node];
+    const dx = a.owner === 0 ? -30 : 30;
+    const dy = a.id.startsWith('B') ? 26 : -26; // second armies ride below the node
+    return { x: n.mx + dx, y: n.my + dy };
+  }
+
   render() {
     const emp = this.emp, s = emp.s;
     const nodePos = (id) => E_NODES[id];
-    const routeSvg = E_ROUTES.map(([a, b, kind]) => {
+    const supplied = emp.suppliedSet(0);
+    const ev = s.event;
+    const routeSvg = E_ROUTES.map(([a, b, kind], i) => {
       const A = nodePos(a), B = nodePos(b);
-      return `<line x1="${A.mx}" y1="${A.my}" x2="${B.mx}" y2="${B.my}" class="e-route ${kind}"/>`;
+      const evc = ev && ev.route === i ? (ev.phase === 'active' ? ' blocked' : ' warned') : '';
+      let extra = '';
+      if (ev && ev.route === i) {
+        extra = `<text x="${(A.mx + B.mx) / 2}" y="${(A.my + B.my) / 2 - 6}" text-anchor="middle" class="e-ev-ic">${ev.phase === 'active' ? '🌪️' : '⚠️'}</text>`;
+      }
+      return `<line x1="${A.mx}" y1="${A.my}" x2="${B.mx}" y2="${B.my}" class="e-route ${kind}${evc}"/>${extra}`;
     }).join('');
     const orderSvg = s.armies.filter((a) => a.order).map((a) => {
       const A = nodePos(a.node), B = nodePos(a.order.to);
@@ -578,19 +714,26 @@ class EmpireUI {
       const st = s.nodes[id];
       const ring = st.owner === -1 ? '#7a6a52' : emp.facColor(st.owner);
       const hot = reach.includes(id) ? ' hot' : '';
-      return `<g class="e-node${hot}" data-node="${id}" transform="translate(${n.mx},${n.my})">
-        <circle r="26" class="e-node-c" style="stroke:${ring}"/>
+      const insp = this.selNode === id ? ' insp' : '';
+      const unsup = st.owner === 0 && !supplied.has(id);
+      return `<g class="e-node${hot}${insp}" data-node="${id}" transform="translate(${n.mx},${n.my})">
+        ${st.owner !== -1 ? `<circle r="31" class="e-node-halo" style="fill:${emp.facColor(st.owner)}18"/>` : ''}
+        <circle r="26" class="e-node-c${unsup ? ' unsup' : ''}" style="stroke:${ring}"/>
         <text y="7" text-anchor="middle" class="e-node-ic">${n.icon}</text>
         <text y="44" text-anchor="middle" class="e-node-lb">${n.name}</text>
+        ${n.type === 'crown' ? '<text y="-32" text-anchor="middle" class="e-crownmark">👑</text>' : ''}
+        ${unsup ? '<text x="20" y="-18" class="e-supwarn">✂️</text>' : ''}
       </g>`;
     }).join('');
     const armySvg = s.armies.filter((a) => a.cards.length).map((a) => {
-      const n = nodePos(a.node);
-      const dx = a.owner === 0 ? -30 : 30;
+      const p = this.armyPos(a);
       const selC = a.id === this.sel ? ' sel' : '';
-      return `<g class="e-army${selC}" data-army="${a.id}" transform="translate(${n.mx + dx},${n.my - 26})">
+      const str = Math.round(a.cards.reduce((t, c) => t + c.strength, 0) / a.cards.length);
+      return `<g class="e-army${selC}" data-army="${a.id}" transform="translate(${p.x},${p.y})">
         <circle r="13" style="fill:${emp.facColor(a.owner)}"/>
         <text y="4" text-anchor="middle" class="e-army-n">${a.cards.length}</text>
+        <rect x="-11" y="15" width="22" height="3" rx="1.5" class="e-army-hpbg"/>
+        <rect x="-11" y="15" width="${(22 * str / 100).toFixed(1)}" height="3" rx="1.5" class="e-army-hp"/>
       </g>`;
     }).join('');
 
@@ -599,24 +742,33 @@ class EmpireUI {
       return `<button class="diff-btn e-upg${owned ? ' owned' : ''}" data-upg="${k}" ${owned ? 'disabled' : ''} title="${u.desc}">
         ${u.icon} ${u.name}${owned ? ' ✓' : ` — ${u.cost}🔩`}</button>`;
     }).join('');
-    const logHtml = s.log.slice(-6).reverse().map((l) => `<div>T${l.t} · ${l.msg}</div>`).join('');
-    const side = this.sideCard(selArmy);
+    const logHtml = s.log.slice(-7).reverse().map((l) => `<div><b>T${l.t}</b> ${l.msg}</div>`).join('');
+    const sup0 = supplied;
+    const evBanner = ev
+      ? `<div class="e-event ${ev.phase}">${ev.phase === 'warn'
+        ? '⚠️ A distant rumble — the vacuum comes for a road next turn!'
+        : `🌪️ The vacuum blocks a road — ${ev.left} turn${ev.left > 1 ? 's' : ''} left`}</div>`
+      : '';
+    const phaseLbl = s.over ? '🌅 The war is over' : s.phase === 'plan' ? '📝 Give your orders, Commander' : '⚔️ Battles rage…';
 
     this.root.innerHTML = `
       <div class="e-top">
         <button id="e-back" class="diff-btn">← Menu</button>
-        <span class="e-chip">🔩 <b>${s.parts[0]}</b> Parts <span class="e-dim">(+${emp.income(0) - emp.upkeepCost(0)}/turn)</span></span>
-        <span class="e-chip">🌙 Turn <b>${s.turn}</b>/${E_RULES.turnCap}</span>
-        <span class="e-chip">🗺️ Territory <b>${emp.ownedCount(0)}</b>·${emp.ownedCount(1)} <span class="e-dim">(need ${E_RULES.dominionNeed} + a fort)</span></span>
+        <span class="e-chip" title="Parts: build, recruit, upgrade">🔩 <b>${s.parts[0]}</b> <span class="e-dim">+${emp.income(0, sup0) - emp.upkeepCost(0)}/t</span></span>
+        <span class="e-chip" title="Power: force marches and special actions (cap ${E_RULES.powerCap})">🔋 <b>${s.power[0]}</b><span class="e-dim">/${E_RULES.powerCap}</span></span>
+        <span class="e-chip" title="Territories held — first to ${E_RULES.dominionNeed} with a stronghold wins">🗺️ <b>${emp.ownedCount(0)}</b> vs ${emp.ownedCount(1)} <span class="e-dim">of ${E_RULES.dominionNeed}</span></span>
+        <span class="e-chip">🌙 Turn <b>${s.turn}</b><span class="e-dim">/${E_RULES.turnCap}</span></span>
+        <span class="e-phase">${phaseLbl}</span>
         <span class="e-spring"></span>
         <button id="e-new" class="diff-btn" title="Abandon this war and start fresh">🔄 New War</button>
       </div>
+      ${evBanner}
       <div class="e-main">
         <svg id="e-board" viewBox="0 0 1000 560" preserveAspectRatio="xMidYMid meet">
           <defs><marker id="e-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#ffd97a"/></marker></defs>
           ${routeSvg}${orderSvg}${nodeSvg}${armySvg}
         </svg>
-        <div class="e-side">${side}</div>
+        <div class="e-side">${this.sidePanel(selArmy)}</div>
       </div>
       <div class="e-bottom">
         <div class="e-upgs">${upgRow}</div>
@@ -625,42 +777,104 @@ class EmpireUI {
       </div>
       <div id="e-modal"></div>`;
     this.wire();
+    this.animateTokens();
     if (s.over) this.showVictory();
   }
 
-  sideCard(selArmy) {
+  // FLIP-style march animation: tokens glide from their last drawn position
+  animateTokens() {
+    for (const g of this.root.querySelectorAll('.e-army')) {
+      const a = this.emp.s.armies.find((x) => x.id === g.dataset.army);
+      if (!a) continue;
+      const now = this.armyPos(a);
+      const old = this.lastPos[a.id];
+      if (old && (old.x !== now.x || old.y !== now.y)) {
+        try {
+          g.animate([
+            { transform: `translate(${old.x}px,${old.y}px)` },
+            { transform: `translate(${now.x}px,${now.y}px)` },
+          ], { duration: 550, easing: 'ease-in-out' });
+        } catch (e) { /* older browser: tokens just snap */ }
+      }
+      this.lastPos[a.id] = now;
+    }
+  }
+
+  sidePanel(selArmy) {
     const emp = this.emp, s = emp.s;
     if (selArmy) {
       const cards = selArmy.cards.map((c) =>
-        `<div class="e-card"><span>${UNITS[c.type].name}</span><span>${'★'.repeat(c.vet)}</span>
+        `<div class="e-card"><span>${UNITS[c.type].name}</span><span title="veterancy">${'★'.repeat(c.vet)}</span>
          <div class="e-hp"><div style="width:${c.strength}%"></div></div></div>`).join('');
       const atCap = selArmy.node === 'CAP_A';
+      const mpPips = '●'.repeat(selArmy.mp) + '○'.repeat(Math.max(0, E_RULES.armyMP + (selArmy.marched ? 1 : 0) - selArmy.mp));
+      const canMuster = emp.armiesOf(0).length < E_RULES.maxArmies
+        && emp.ownedCount(0) >= E_RULES.musterMinNodes && s.parts[0] >= E_RULES.musterCost;
       return `<div class="e-panel">
-        <div class="e-ttl">🚩 Your Army — ${E_NODES[selArmy.node].name}</div>
-        <div class="e-dim">MP ${selArmy.mp}/${E_RULES.armyMP} · ${selArmy.cards.length}/${E_RULES.maxCards} toys
-        ${selArmy.order ? ` · moving to ${E_NODES[selArmy.order.to].name}` : ''}</div>
+        <div class="e-ttl">🚩 ${selArmy.id.startsWith('B') ? 'Second Army' : 'Grand Army'} — ${E_NODES[selArmy.node].name}</div>
+        <div class="e-dim">March ${mpPips} · ${selArmy.cards.length}/${E_RULES.maxCards} toys
+        ${selArmy.order ? ` · → ${E_NODES[selArmy.order.to].name}` : ''}</div>
         ${cards}
-        <button id="e-recruit" class="diff-btn" ${atCap && s.parts[0] >= E_RULES.recruitCost && selArmy.cards.length < E_RULES.maxCards ? '' : 'disabled'}>
-          ➕ Recruit (${E_RULES.recruitCost}🔩)${atCap ? '' : ' — at capital only'}</button>
-        ${selArmy.order ? '<button id="e-cancel" class="diff-btn">✕ Cancel move</button>' : '<div class="e-dim">Click a highlighted node to march.</div>'}
+        <button id="e-recruit" class="diff-btn" ${atCap && s.parts[0] >= E_RULES.recruitCost && selArmy.cards.length < E_RULES.maxCards ? '' : 'disabled'}
+          title="${atCap ? 'Add a toy to this army' : 'Recruiting happens at your capital'}">➕ Recruit (${E_RULES.recruitCost}🔩)</button>
+        <button id="e-march" class="diff-btn" ${!selArmy.marched && s.power[0] >= E_RULES.forceMarchCost && s.phase === 'plan' ? '' : 'disabled'}
+          title="+1 movement this turn">🔋 Force March (${E_RULES.forceMarchCost}⚡)</button>
+        ${atCap ? `<button id="e-muster" class="diff-btn" ${canMuster ? '' : 'disabled'}
+          title="A second army — needs ${E_RULES.musterMinNodes} territories">🚩 Muster 2nd Army (${E_RULES.musterCost}🔩)</button>` : ''}
+        ${selArmy.order ? '<button id="e-cancel" class="diff-btn">✕ Cancel move</button>' : '<div class="e-dim">Click a glowing node to march.</div>'}
+      </div>`;
+    }
+    if (this.selNode) {
+      const id = this.selNode, n = E_NODES[id], st = s.nodes[id];
+      const supplied = emp.suppliedSet(st.owner === -1 ? 0 : st.owner);
+      const tKey = E_NODE_TEMPLATE_OVERRIDE[id] || E_NODE_TEMPLATE[n.type] || 'field';
+      const t = E_TEMPLATES[tKey];
+      // scouting fog (§15, slice): garrison details only near your territory
+      const adjacent = routesOf(id).some((r) => s.nodes[r.to].owner === 0)
+        || st.owner === 0 || emp.armiesOf(0).some((a) => a.node === id || routesOf(id).some((r) => r.to === a.node));
+      let garrisonLine = '';
+      if (st.owner !== 0) {
+        const gTmpl = st.garrison || E_GARRISONS[n.type];
+        if (gTmpl && gTmpl.length) {
+          garrisonLine = adjacent
+            ? `🛡️ Scouts report <b>${gTmpl.length}</b> defender${gTmpl.length > 1 ? 's' : ''}`
+            : '🛡️ Garrison unknown — march closer to scout it';
+        } else garrisonLine = '🕊️ Undefended';
+      } else {
+        garrisonLine = supplied.has(id) ? '✅ Supplied' : '✂️ CUT OFF — half yield, no healing here';
+      }
+      const owner = st.owner === -1 ? 'Unclaimed' : emp.facLabel(st.owner);
+      return `<div class="e-panel">
+        <div class="e-ttl">${n.icon} ${n.name}</div>
+        <div class="e-dim">${n.desc}</div>
+        <div class="e-kv"><span>Owner</span><b style="color:${st.owner === -1 ? '#b9a888' : emp.facColor(st.owner)}">${owner}</b></div>
+        ${n.yield ? `<div class="e-kv"><span>Yield</span><b>${n.yield}🔩${n.powerYield ? ` + ${n.powerYield}⚡` : ''}/turn</b></div>` : ''}
+        ${n.bonus && !st.looted ? `<div class="e-kv"><span>Cache</span><b>+${n.bonus}🔩 one-time</b></div>` : ''}
+        ${n.dominion ? `<div class="e-kv"><span>Dominion</span><b>worth ${n.dominion}</b></div>` : ''}
+        <div class="e-kv"><span>If contested</span><b>${t.label} · ~${t.time}</b></div>
+        <div class="e-dim">${garrisonLine}</div>
       </div>`;
     }
     return `<div class="e-panel"><div class="e-ttl">📖 The Bedroom War</div>
-      <div class="e-dim">Click your army token (blue) to command it. Capture ${E_RULES.dominionNeed} territories
-      including a stronghold — or take the enemy capital — before sunrise on turn ${E_RULES.turnCap}.</div>
-      <div class="e-dim" style="margin-top:6px">Nodes fight back: strongholds and the enemy hold garrisons.
-      You choose to <b>Play</b> each battle in the toy box or <b>Simulate</b> it from the same odds.</div></div>`;
+      <div class="e-dim">Click your army token to command it; click any node for intel. Capture
+      <b>${E_RULES.dominionNeed} territories</b> including a stronghold — or take the enemy capital —
+      before sunrise on turn ${E_RULES.turnCap}.</div>
+      <div class="e-dim" style="margin-top:6px">⚡ Power fuels forced marches. ✂️ Territory cut off from
+      your capital yields half. 🌪️ Mind the vacuum.</div>
+      <div class="e-dim" style="margin-top:6px">Every battle is yours to <b>Play</b> in the toy box
+      or <b>Simulate</b> from the same odds.</div></div>`;
   }
 
   wire() {
     const emp = this.emp;
     this.root.querySelector('#e-back').addEventListener('click', () => { this.hide(); });
     this.root.querySelector('#e-new').addEventListener('click', () => {
-      if (this.confirmNew) { Empire.clear(); this.emp = new Empire(); this.sel = null; this.confirmNew = false; this.render(); }
+      if (this.confirmNew) { Empire.clear(); this.emp = new Empire(); this.sel = null; this.selNode = null; this.lastPos = {}; this.confirmNew = false; this.render(); }
       else { this.confirmNew = true; this.root.querySelector('#e-new').textContent = '⚠ Sure? Click again'; }
     });
     const endBtn = this.root.querySelector('#e-end');
     if (endBtn) endBtn.addEventListener('click', () => {
+      this.confirmNew = false;
       emp.endTurn();
       this.sel = null;
       this.render();
@@ -671,20 +885,35 @@ class EmpireUI {
       g.addEventListener('click', (e) => {
         e.stopPropagation();
         const a = emp.s.armies.find((x) => x.id === g.dataset.army);
-        if (a && a.owner === 0) { this.sel = a.id; this.render(); }
+        if (!a || a.owner !== 0) return;
+        this.sel = this.sel === a.id ? null : a.id; // click again to deselect
+        this.selNode = null;
+        this.render();
       });
     }
     for (const g of this.root.querySelectorAll('.e-node')) {
-      g.addEventListener('click', () => {
+      g.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = g.dataset.node;
         if (this.sel && emp.s.phase === 'plan') {
-          const r = emp.issueMove(this.sel, g.dataset.node);
+          const r = emp.issueMove(this.sel, id);
           if (r.ok) { this.render(); return; }
         }
-        this.toast(E_NODES[g.dataset.node].desc);
+        this.sel = null;
+        this.selNode = this.selNode === id ? null : id; // inspect / close intel
+        this.render();
       });
     }
+    // clicking open board space clears every selection
+    this.root.querySelector('#e-board').addEventListener('click', () => {
+      if (this.sel || this.selNode) { this.sel = null; this.selNode = null; this.render(); }
+    });
     const rec = this.root.querySelector('#e-recruit');
-    if (rec) rec.addEventListener('click', () => { emp.recruit(0); this.render(); });
+    if (rec) rec.addEventListener('click', () => { emp.recruit(0, this.sel); this.render(); });
+    const mar = this.root.querySelector('#e-march');
+    if (mar) mar.addEventListener('click', () => { emp.forceMarch(this.sel); this.render(); });
+    const mus = this.root.querySelector('#e-muster');
+    if (mus) mus.addEventListener('click', () => { emp.muster(0); this.render(); });
     const can = this.root.querySelector('#e-cancel');
     if (can) can.addEventListener('click', () => { emp.cancelMove(this.sel); this.render(); });
     for (const b of this.root.querySelectorAll('.e-upg')) {
@@ -704,15 +933,22 @@ class EmpireUI {
     const p = emp.preview(enc);
     const n = E_NODES[enc.nodeId];
     const youAttack = enc.attacker.owner === 0;
+    const { attCards, defCards } = emp.encCards(enc);
+    const chip = (c) => `<span class="e-uchip" title="${UNITS[c.type].name} ${c.strength}%${c.vet ? ' · veteran' : ''}">
+      ${UNITS[c.type].name.split(' ')[0]}${'★'.repeat(c.vet || 0)}<i style="width:${c.strength}%"></i></span>`;
+    const yourCards = youAttack ? attCards : defCards;
+    const theirCards = youAttack ? defCards : attCards;
     const m = this.root.querySelector('#e-modal');
     m.innerHTML = `<div class="e-enc">
       <div class="e-enc-card">
         <div class="e-ttl">${n.icon} ${youAttack ? 'Assault on' : 'Defend'} ${n.name}</div>
-        <div class="e-dim">${p.template.label} · ~${p.template.time} if played</div>
+        <div class="e-dim">${p.template.label} · ~${p.template.time} if played · seed locked — no rerolls</div>
         <div class="e-band b-${p.band.toLowerCase()}">${p.band}</div>
-        <div class="e-dim">Your force ${Math.round(youAttack ? p.attPower : p.defPower)} vs theirs ${Math.round(youAttack ? p.defPower : p.attPower)}
-          · expected losses: ${p.lossHint}</div>
-        <div class="e-dim">Stakes: ${youAttack ? 'capture the node' : 'hold the node'}; the loser falls back — or breaks.</div>
+        <div class="e-rosters">
+          <div><div class="e-dim">Your toys (${Math.round(youAttack ? p.attPower : p.defPower)})</div>${yourCards.map(chip).join('')}</div>
+          <div><div class="e-dim">Theirs (${Math.round(youAttack ? p.defPower : p.attPower)})</div>${theirCards.map(chip).join('')}</div>
+        </div>
+        <div class="e-dim">Expected losses: <b>${p.lossHint}</b> · Stakes: ${youAttack ? 'capture the node' : 'hold the node'} — the loser falls back, or breaks.</div>
         <div class="e-enc-btns">
           <button id="e-play" class="diff-btn sel">⚔️ Play the battle</button>
           <button id="e-sim" class="diff-btn">🎲 Simulate</button>
@@ -740,15 +976,22 @@ class EmpireUI {
   }
 
   showVictory() {
-    const emp = this.emp;
+    const emp = this.emp, st = emp.s.stats;
     const win = emp.s.winner === 0;
     const m = this.root.querySelector('#e-modal');
     m.innerHTML = `<div class="e-enc"><div class="e-enc-card">
-      <div class="e-ttl">${win ? '🌅 VICTORY' : '🌑 DEFEAT'}</div>
+      <div class="e-ttl" style="font-size:22px">${win ? '🌅 VICTORY' : '🌑 DEFEAT'}</div>
       <div class="e-dim">${emp.s.log[emp.s.log.length - 1].msg}</div>
+      <div class="e-vstats">
+        <div><b>${emp.s.turn}</b><span>turns</span></div>
+        <div><b>${st.captured}</b><span>captured</span></div>
+        <div><b>${st.won}·${st.lost}</b><span>battles W·L</span></div>
+        <div><b>${st.played}</b><span>played</span></div>
+        <div><b>${st.simmed}</b><span>simulated</span></div>
+      </div>
       <div class="e-enc-btns"><button id="e-again" class="diff-btn sel">🔄 New War</button>
       <button id="e-out" class="diff-btn">← Menu</button></div></div></div>`;
-    m.querySelector('#e-again').addEventListener('click', () => { Empire.clear(); this.emp = new Empire(); this.sel = null; this.render(); });
+    m.querySelector('#e-again').addEventListener('click', () => { Empire.clear(); this.emp = new Empire(); this.sel = null; this.selNode = null; this.lastPos = {}; this.render(); });
     m.querySelector('#e-out').addEventListener('click', () => this.hide());
   }
 }
@@ -761,9 +1004,11 @@ export function empireTest(seed, turns = 8, script = []) {
   for (const s of script) (byTurn[s.turn] = byTurn[s.turn] || []).push(s);
   for (let t = 0; t < turns && !emp.s.over; t++) {
     for (const s of (byTurn[emp.s.turn] || [])) {
-      if (s.type === 'move') emp.issueMove('A0', s.to);
-      if (s.type === 'recruit') emp.recruit(0);
+      if (s.type === 'move') emp.issueMove(s.army || 'A0', s.to);
+      if (s.type === 'recruit') emp.recruit(0, s.army || null);
       if (s.type === 'upgrade') emp.buyUpgrade(0, s.key);
+      if (s.type === 'march') emp.forceMarch(s.army || 'A0');
+      if (s.type === 'muster') emp.muster(0);
     }
     emp.endTurn();
     let guard = 0;
@@ -771,5 +1016,8 @@ export function empireTest(seed, turns = 8, script = []) {
     while ((enc = emp.nextEncounter()) && guard++ < 10) emp.finishEncounter(enc, emp.simulate(enc));
   }
   return { hash: emp.stateHash(), turn: emp.s.turn, over: emp.s.over, winner: emp.s.winner,
-    owned: [emp.ownedCount(0), emp.ownedCount(1)], log: emp.s.log.slice(-3) };
+    owned: [emp.ownedCount(0), emp.ownedCount(1)], power: [...emp.s.power],
+    armies: emp.s.armies.map((a) => a.id + '@' + a.node + ':' + a.cards.length),
+    stats: { ...emp.s.stats }, event: emp.s.event ? { ...emp.s.event } : null,
+    log: emp.s.log.slice(-3) };
 }

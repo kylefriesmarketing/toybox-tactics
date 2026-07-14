@@ -7,9 +7,9 @@
 // The 12-node "Bedroom War" slice board (bible Appendix A).
 // mx/my are map-panel coordinates in a 1000x560 SVG viewBox.
 export const E_NODES = {
-  CAP_A:   { name: 'Brick Bastion',        icon: '🏰', type: 'capital',    mx: 90,  my: 275, yield: 20, biome: 'playmat',
+  CAP_A:   { name: 'Brick Bastion',        icon: '🏰', type: 'capital',    mx: 90,  my: 275, yield: 20, powerYield: 1, biome: 'playmat',
              desc: 'The Snap-Brick capital. Twenty Parts a turn, and the lights stay on.' },
-  CAP_B:   { name: 'Action Hall',          icon: '🎖️', type: 'capital',    mx: 910, my: 275, yield: 20, biome: 'livingroom',
+  CAP_B:   { name: 'Action Hall',          icon: '🎖️', type: 'capital',    mx: 910, my: 275, yield: 20, powerYield: 1, biome: 'livingroom',
              desc: 'The Army Men command post, dug in behind the couch cushion.' },
   RUG_1:   { name: 'Button Meadow',        icon: '🔘', type: 'resource',   mx: 235, my: 130, yield: 10, biome: 'playmat',
              desc: 'A scatter of lost buttons in the open rug country. +10 Parts/turn.' },
@@ -25,10 +25,10 @@ export const E_NODES = {
              desc: 'The eastern gate, braced between two granite bookends.' },
   RUG_3:   { name: 'Crayon Trail',         icon: '🖍️', type: 'resource',   mx: 790, my: 130, yield: 8,  biome: 'playmat',
              desc: 'A waxy road through open carpet. +8 Parts/turn.' },
-  BAT_1:   { name: 'Battery Drawer',       icon: '🔋', type: 'resource',   mx: 790, my: 420, yield: 10, biome: 'kitchen',
-             desc: 'Fresh double-As, still in the packet. +10 Parts/turn.' },
-  POWER:   { name: 'Wind-Up Station',      icon: '⚙️', type: 'mission',    mx: 585, my: 455, yield: 6,  biome: 'garden',
-             desc: 'A ticking contraption of springs and keys. Worth fighting over.' },
+  BAT_1:   { name: 'Battery Drawer',       icon: '🔋', type: 'resource',   mx: 790, my: 420, yield: 10, powerYield: 1, biome: 'kitchen',
+             desc: 'Fresh double-As, still in the packet. +10 Parts and +1 Power per turn.' },
+  POWER:   { name: 'Wind-Up Station',      icon: '⚙️', type: 'mission',    mx: 585, my: 455, yield: 6,  powerYield: 1, biome: 'garden',
+             desc: 'A ticking contraption of springs and keys. +1 Power per turn, and worth fighting over.' },
   ARCHIVE: { name: 'Storybook Tower',      icon: '📖', type: 'crown',      mx: 520, my: 90,  yield: 6,  biome: 'attic', dominion: 2,
              desc: 'The tall stack of bedtime stories. A crown objective — hold it proudly.' },
 };
@@ -96,17 +96,25 @@ export const E_UPGRADES = {
 // economy + rules constants (bible §9 baseline, scaled to the slice)
 export const E_RULES = {
   startParts: 120,
+  startPower: 2,
+  powerCap: 8,              // §9: Power must be spent, not hoarded
   armyMP: 3,
   routeCost: { road: 1, rough: 2 },
+  forceMarchCost: 1,        // Power: +1 MP, once per army per turn (§6)
   recruitCost: 35,          // one fresh unit card at your capital
   maxCards: 8,              // bible §11 base capacity
-  healPerTurn: 6,           // resting on friendly node (Field Repairs: +10 more)
+  maxArmies: 2,             // slice cap; §11 Grand Army raises this later
+  musterCost: 60,           // Parts: raise a second army at your capital
+  musterMinNodes: 4,        // an empire this small can't feed two armies
+  healPerTurn: 6,           // resting on a SUPPLIED friendly node (Field Repairs: +10)
   captureBonusBase: 10,     // loot for taking any node
   dominionNeed: 7,          // Dominion victory: nodes held (of 12)…
   dominionForts: 1,         // …including at least this many strongholds
   simVariance: 0.08,        // §12: bounded ±8%
   vetPowerBonus: 0.15,      // per pip
   turnCap: 24,              // §16 sunrise cap
+  // "The Vacuum Approaches" (§5): telegraphed one turn, then closes a route.
+  vacuum: { earliest: 5, chance: 0.30, duration: 2 },
 };
 
 // simulate-formula unit power reads UNITS source stats; these are the weights
