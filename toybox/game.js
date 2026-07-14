@@ -9,7 +9,7 @@ import {
   MAP_N, POP_MAX, RES_TYPES, RES_META, UNITS, BUILDINGS, TECHS, MARKET, maskAt,
   AGES, AGE_UPS, PRODUCTION_BUILDINGS, START, AI, DIFFICULTIES, TEAM_NAMES, STICKER, WONDER, PERSONAS, MAPS, FACTIONS,
   TAUNTS, AI_LINES, NARRATOR, NARRATOR_NG,
-  CRITTERS, GAME_MODES, START_RES,
+  CRITTERS, GAME_MODES, START_RES, SURVIVAL,
 } from './data.js';
 import {
   createUnitView, createBuildingView, createResourceView,
@@ -295,7 +295,7 @@ export class Game {
     ];
     this.players = this.playerDefs.map((d, i) => ({
       id: i, team: d.team, res: { ...START.resources }, age: 1, aging: 0,
-      popUsed: 0, popCap: 0, isAI: !!d.isAI,
+      popUsed: 0, popCap: 0, isAI: !!d.isAI, den: !!d.den,
       techs: new Set(),
       mods: { carry: 0, gather: 1, gatherSnacks: 1, speedInfantry: 1, speedWheels: 1, speedAll: 1,
               atkMelee: 0, atkPierce: 0, armorInfantry: 0, armorOther: 0, atkSpeed: 1,
@@ -687,6 +687,7 @@ export class Game {
     const RC = (type, i, j, count) =>
       this.addResourceCluster(type, i, j, Math.max(1, Math.round(count * this.map.resourceMul)));
     for (const p of this.players) {
+      if (p.den) continue; // survival: the monster den has no base — it only leaks waves
       const [ci, cj] = starts[p.id];
       const chest = this.addBuilding('chest', p.id, ci, cj, true);
       const face = ci < N / 2 ? 1 : -1;             // expand toward the middle
@@ -724,11 +725,16 @@ export class Game {
     // water maps: the themed bath-toy piles float in the tub (never on dry land)
     if (this.map.water) this.seedWaterResources();
 
+    // Survival: the opposite corner becomes the den the Forgotten crawl out of
+    if (this.gameMode === 'survival' && this.players.some((p) => p.den)) this.setupSurvival(starts);
+
     // Lost Stickers: hold with military toys for a Buttons trickle (map control).
     // King of the Hill replaces them with a single golden Throne at center.
+    // Survival gets neither — its only victory is surviving to the dawn wave, so
+    // an uncontested sticker/relic hold must not hand the defenders an early win.
     if (this.gameMode === 'koth') {
       this.addThrone(worldOf(N / 2), worldOf(N / 2));
-    } else {
+    } else if (this.gameMode !== 'survival') {
       this.addSticker(worldOf(N / 2 - 14), worldOf(N / 2 - 14));
       this.addSticker(worldOf(N / 2 + 13), worldOf(N / 2 + 13));
       if (this.map.stickers >= 3) this.addSticker(worldOf(N / 2), worldOf(N / 2));
@@ -1692,6 +1698,7 @@ export class Game {
       })),
       wonder: this.wonderState ? { ...this.wonderState } : null,
       relic: this.relicState ? { ...this.relicState } : null,
+      survival: this.survival ? { ...this.survival } : null,
       market: { ...this.market },
       timeline: this.timeline,
       // one-shot narrator beats + scripted mission moments must not replay on load
@@ -1876,6 +1883,9 @@ export class Game {
     }
     this.wonderState = snap.wonder ? { ...snap.wonder } : null;
     this.relicState = snap.relic ? { ...snap.relic } : null;
+    // survival: setup() already re-derived the den anchor from map+seed; only the
+    // mutable wave counters need restoring on top of it
+    if (snap.survival && this.survival) Object.assign(this.survival, snap.survival);
     if (snap.market) this.market = { ...snap.market };
     this.timeline = snap.timeline || [];
     this.taunted = true;
@@ -3706,15 +3716,110 @@ export class Game {
 
   checkWin() {
     if (this.over || this.tutorial) return; // the tutorial ends on its own
+    if (this.gameMode === 'survival' && this.survival) {
+      // the Forgotten never "win" by holding ground — the night ends only when
+      // every defender is wiped (defeat) or the dawn wave is cleared (handled in
+      // updateSurvival). The den seat is ignored here entirely.
+      const defenders = this.players.filter((p) => p.team === 0 && !p.den);
+      if (!defenders.some((p) => this.playerAlive(p))) this.endGame(-1);
+      return;
+    }
     const aliveTeams = new Set();
     for (const p of this.players) if (this.playerAlive(p)) aliveTeams.add(p.team);
     if (aliveTeams.size === 1) this.endGame([...aliveTeams][0]);
     else if (aliveTeams.size === 0) this.endGame(-1);
   }
 
+  // ---------- Survival: "The Long Night" wave defense ----------
+  // The den seat (team 1, no base) leaks escalating waves of the Forgotten from
+  // the far corner toward the defenders. Fully deterministic — every roll uses
+  // this.rng, so a seed replays the same night in lockstep.
+  setupSurvival(starts) {
+    const den = this.players.find((p) => p.den) || this.players[this.players.length - 1];
+    this.denId = den.id;
+    const [di, dj] = starts[this.denId] || [N / 2, 6];
+    this.survival = {
+      denX: worldOf(di), denZ: worldOf(dj),
+      wave: 0, active: 0, banked: true, // wave 0 needs no bounty
+      nextAt: SURVIVAL.firstWaveAt, clearGapAt: Infinity, recmdT: 0,
+      bestWave: 0,
+    };
+    // an opening cushion so the first walls can go up no matter the start-res pick
+    for (const p of this.players) {
+      if (p.team !== 0 || p.den) continue;
+      for (const [r, v] of Object.entries(SURVIVAL.opening)) p.res[r] = (p.res[r] || 0) + v;
+    }
+  }
+
+  spawnSurvivalWave(n) {
+    const S = this.survival, C = SURVIVAL;
+    S.wave = n;
+    S.bestWave = Math.max(S.bestWave, n);
+    S.banked = false;                      // this wave's bounty is not yet paid
+    S.nextAt = this.time + C.hardGap;      // a wave always comes within hardGap…
+    S.clearGapAt = this.time + C.gap;      // …or sooner, once the field is clear
+    const isBoss = n % C.boss.every === 0;
+    const count = Math.max(1, Math.round(C.countBase + C.countPerWave * (n - 1)));
+    const tier = [...C.tiers].reverse().find((t) => n >= t.from) || C.tiers[0];
+    const drop = (type) => {
+      const ang = this.rng() * Math.PI * 2;
+      const rad = 1.5 + this.rng() * 4;
+      const e = this.spawnUnit(type, this.denId, S.denX + Math.cos(ang) * rad, S.denZ + Math.sin(ang) * rad, false);
+      if (this.fx) this.fx.spawnPop(e.x, e.z, e.def.color); // a puff as each one wakes
+      return e;
+    };
+    for (let k = 0; k < count; k++) drop(tier.pool[(this.rng() * tier.pool.length) | 0]);
+    if (isBoss) drop(C.boss.pool[(this.rng() * C.boss.pool.length) | 0]);
+    S.recmdT = 0; // point the fresh wave at the defenders immediately
+    this.alert(isBoss
+      ? `Wave ${n} — something enormous is winding itself awake…`
+      : `Wave ${n} rises from the toy box.`, isBoss ? 'attack' : 'warn', null, 0);
+    if (this.sfx && !this.mp) this.sfx.play(isBoss ? 'thud' : 'charge', 200);
+  }
+
+  updateSurvival(dt) {
+    if (this.over || !this.survival) return;
+    const S = this.survival, C = SURVIVAL;
+    let active = 0;
+    for (const e of this.entities) if (e.kind === 'unit' && e.owner === this.denId && !e.dead) active++;
+    S.active = active;
+
+    // a wave fully repelled: pay the bounty, then check for dawn
+    if (S.wave > 0 && active === 0 && !S.banked) {
+      S.banked = true;
+      const amt = Math.round(C.bounty.base + C.bounty.perWave * (S.wave - 1));
+      for (const p of this.players) {
+        if (p.team !== 0 || p.den) continue;
+        for (const r of C.bounty.spread) p.res[r] = (p.res[r] || 0) + amt;
+      }
+      if (S.wave >= C.dawnWave) { this.survivalWon = true; this.endGame(0); return; }
+      this.alert(`Wave ${S.wave} repelled — the toy box coughs up a reward.`, 'info', null, 0);
+    }
+
+    // launch the next wave at the hard deadline, or after the breather once clear
+    if (S.wave < C.dawnWave
+        && (this.time >= S.nextAt || (S.wave > 0 && active === 0 && this.time >= S.clearGapAt && S.banked))) {
+      this.spawnSurvivalWave(S.wave + 1);
+      return;
+    }
+
+    // keep the swarm pointed at the nearest defender building so it never idles
+    S.recmdT -= dt;
+    if (S.recmdT <= 0) {
+      S.recmdT = 2.5;
+      for (const u of this.entities) {
+        if (u.kind !== 'unit' || u.owner !== this.denId || u.dead) continue;
+        if (u.order && u.order.type === 'attack') continue; // already fighting — leave it
+        const tgt = this.nearestEnemyOf(this.denId, u.x, u.z, 999, (e) => e.kind === 'building')
+                 || this.nearestEnemyOf(this.denId, u.x, u.z, 999, () => true);
+        if (tgt) this.setOrder(u, { type: 'amove', x: tgt.x, z: tgt.z }, false);
+      }
+    }
+  }
+
   // wonder victory: a standing, completed wonder counts down to a win
   updateWonder(dt) {
-    if (this.over) return;
+    if (this.over || this.gameMode === 'survival') return; // survival wins only at dawn
     const wonder = this.entities.find((e) =>
       e.kind === 'building' && e.type === 'wonder' && !e.dead && e.built >= 1);
     if (!wonder) {
@@ -3751,7 +3856,7 @@ export class Game {
 
   // relic victory: hold EVERY Lost Sticker at once → a countdown to the win
   updateRelics(dt) {
-    if (this.over) return;
+    if (this.over || this.gameMode === 'survival') return; // survival wins only at dawn
     const stickers = this.entities.filter((e) => e.kind === 'objective' && !e.dead);
     if (stickers.length < 2) return; // need a real set to make it a race
     const holders = new Set(stickers.map((s) => s.holder));
@@ -4001,6 +4106,7 @@ export class Game {
     this.updateWonder(dt);
     this.updateRelics(dt);
     this.updateKoth(dt);
+    if (this.gameMode === 'survival') this.updateSurvival(dt);
 
     // market prices ease back toward their base value over time
     this.marketT -= dt;

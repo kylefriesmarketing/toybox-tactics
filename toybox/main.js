@@ -3,7 +3,7 @@
 // ============================================================
 
 import * as THREE from 'three';
-import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, DIFFICULTIES, CAMPAIGN, INTRO, MISSION_EVENTS, CMDR_LINES, generateRandomMap } from './data.js';
+import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, SURVIVAL, DIFFICULTIES, CAMPAIGN, INTRO, MISSION_EVENTS, CMDR_LINES, generateRandomMap } from './data.js';
 import {
   loadUnitModels, loadBuildingModels, loadMapModels, loadFurnitureModels, setBuildingFootprints,
   createGhostMesh, createMoveMarker, createLamp, renderPortraits, applyUnitTier, refreshFactionBuildingIcons,
@@ -1500,6 +1500,9 @@ window.__ttSoak = (opts = {}, maxTicks = 9000) => {
   const _end = g.endGame.bind(g);
   g.endGame = (team) => { winnerTeam = team; _end(team); };
   g.setup();
+  // survival QA: shorten the night so the dawn-victory branch is testable headlessly
+  const survDawnBak = opts.survivalDawn ? SURVIVAL.dawnWave : null;
+  if (opts.survivalDawn) SURVIVAL.dawnWave = opts.survivalDawn;
   // campaign QA: feed scripted mission beats into the headless run
   if (opts.missionEvents) g.missionEvents = opts.missionEvents.map((e) => ({ ...e }));
   // lockstep QA: scripted commands {t, pid, c} executed exactly like net.js does —
@@ -1513,6 +1516,7 @@ window.__ttSoak = (opts = {}, maxTicks = 9000) => {
       g.update(0.1);
     }
   } catch (e) { err = (e && e.message) + ' | ' + ((e && e.stack) || '').split('\n')[1]; }
+  if (survDawnBak !== null) SURVIVAL.dawnWave = survDawnBak; // restore the shared config
   const armies = g.players.map((p) =>
     g.entities.filter((e) => e.kind === 'unit' && !e.dead && e.owner === p.id && e.def.aggro > 0).length);
   const ages = g.players.map((p) => p.age);
@@ -1520,7 +1524,8 @@ window.__ttSoak = (opts = {}, maxTicks = 9000) => {
   // determinism fingerprint: end-state entity sum + rng cursor (same seed+script ⇒ identical)
   const fp = g.entities.reduce((a, e) => a + (e.dead ? 0 : ((e.x * 71 + e.z * 137 + (e.hp || 0) * 13) | 0)), 0) +
     '|' + g.entities.length + '|' + g.rng.getState();
-  return { seed, winnerTeam, over: g.over, ticks: t, simSec: Math.round(t * 0.1), err, armies, ages, res, facs, fp };
+  const surv = g.survival ? { wave: g.survival.wave, bestWave: g.survival.bestWave, active: g.survival.active, won: !!g.survivalWon } : null;
+  return { seed, winnerTeam, over: g.over, ticks: t, simSec: Math.round(t * 0.1), err, armies, ages, res, facs, fp, surv };
 };
 window.__ttGL = () => ({ renderer, scene, camera }); // perf probes
 window.__ttAmbient = () => ambient; // ambience debug handle
@@ -1675,6 +1680,16 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
     playerDefs = buildLobbyDefs();
   } else if (!playerDefs && mpOpts && mpOpts.playerDefs) {
     playerDefs = mpOpts.playerDefs; // networked lobby: host's roster (both clients identical)
+  }
+  // Survival ("The Long Night"): single-player only — override the lobby roster
+  // with one defender seat (your civ) + a den seat that leaks the Forgotten.
+  const resolvedMode = mpOpts ? mpOpts.gameMode
+    : (resume ? resume.opts.gameMode : (rep ? rep.gameMode : chosenMode));
+  if (resolvedMode === 'survival' && !mpOpts && !resume && !rep && !campaignMission && !watchMode) {
+    playerDefs = [
+      { team: 0, isAI: false, faction: chosenFaction },
+      { team: 1, isAI: false, den: true, faction: 'classic' },
+    ];
   }
   // campaign missions fix the matchup (you vs a scripted enemy tribe);
   // missions with allies/foes spell out the full seating chart instead
@@ -2337,6 +2352,16 @@ function updateObjectives(dt) {
     const chests = game.entities.filter((e) => e.type === 'chest' && !e.dead);
     const mine = chests.filter((c) => game.teamOf(c.owner) === myTeam).length;
     status = `Toy Chests — yours: ${mine} · rivals: ${chests.length - mine} · no rebuilding`;
+  } else if (game.gameMode === 'survival' && game.survival) {
+    const S = game.survival, dawn = SURVIVAL.dawnWave;
+    if (S.wave === 0) {
+      status = `Fortify! First wave in ${Math.max(0, Math.ceil(S.nextAt - game.time))}s — ${dawn} waves till dawn.`;
+    } else if (S.active > 0) {
+      status = `🌙 Wave ${S.wave} of ${dawn} — ${S.active} Forgotten still standing.`;
+    } else {
+      const next = Math.min(S.nextAt, Math.max(S.clearGapAt, game.time));
+      status = `Wave ${S.wave} held. Next in ${Math.max(0, Math.ceil(next - game.time))}s — ${Math.max(0, dawn - S.wave)} to dawn.`;
+    }
   } else {
     const rival = game.entities.filter((e) => e.kind === 'building' && !e.dead
       && e.owner >= 0 && game.teamOf(e.owner) !== myTeam).length;

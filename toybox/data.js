@@ -1041,6 +1041,36 @@ export const GAME_MODES = {
   regicide: { label: 'Regicide', icon: '👑', desc: 'Every toybox crowns a King. Guard yours; unseat theirs.' },
   koth:     { label: 'King of the Hill', icon: '🏔️', desc: 'Hold the golden Throne for 2 minutes. Thrones do not stay empty.' },
   sudden:   { label: 'Sudden Death', icon: '💥', desc: 'One Toy Chest each, no rebuilding. Lose it, and the lid closes.' },
+  survival: { label: 'The Long Night', icon: '🌙', desc: 'No rival base — only the dark. The Forgotten swarm out of the toy box in swelling waves. Hold until dawn.' },
+};
+
+// ---------------- Survival ("The Long Night") ----------------
+// A wave-defense mode: the player(s) hold one corner while the Forgotten — toys
+// boxed too long, done waiting quietly — pour out of the opposite corner in
+// escalating waves. Clear a wave for a bounty; reach the dawn wave to win.
+// Everything here is read by game.js's deterministic wave scheduler (this.rng
+// only), so a given seed replays the exact same night. Tune the night here.
+export const SURVIVAL = {
+  dawnWave: 12,        // clear this wave and the sun comes up — victory
+  firstWaveAt: 42,     // a calm opening to raise the first walls
+  gap: 12,             // breather after a wave is fully repelled
+  hardGap: 62,         // …but the next wave always comes within this long
+  countBase: 3,        // wave size = round(countBase + countPerWave * (wave-1))
+  countPerWave: 1.5,
+  // resources handed to every defender each time a wave is repelled (spread evenly)
+  bounty: { base: 70, perWave: 34, spread: ['snacks', 'blocks', 'buttons'] },
+  // an opening cushion so the first walls can go up regardless of the start-res pick
+  opening: { blocks: 220, snacks: 170, buttons: 110, marbles: 60 },
+  // the roster deepens as the night wears on; each tier's pool is drawn from once
+  // the wave reaches its `from`. Later tiers stack heavier toys onto the swarm.
+  tiers: [
+    { from: 1, pool: ['soldier', 'raider'] },
+    { from: 3, pool: ['soldier', 'raider', 'spear', 'archer'] },
+    { from: 5, pool: ['raider', 'spear', 'archer', 'flinger', 'bear'] },
+    { from: 7, pool: ['archer', 'flinger', 'bear', 'grenadier', 'forgotten'] },
+    { from: 9, pool: ['flinger', 'bear', 'grenadier', 'forgotten', 'forgotten'] },
+  ],
+  boss: { every: 4, pool: ['forgottenking'] }, // a titan crowns every fourth wave
 };
 
 // ---------------- campaign: "The Bedroom Wars" ----------------
