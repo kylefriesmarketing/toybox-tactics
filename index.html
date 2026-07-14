@@ -340,12 +340,12 @@
   .seat select:hover { border-color: var(--gold-deep); }
   .menu-label { margin-top: 8px; color: var(--gold); font-size: 10.5px; letter-spacing: 2.5px;
     text-transform: uppercase; font-weight: 700; text-shadow: var(--emboss); font-family: var(--font-display); }
-  #diff-row, #mp-row, #fac-row, #size-row, #mode-row, #startres-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  #diff-row, #mp-row, #fac-row, #mp-fac-row, #size-row, #mode-row, #startres-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
   #map-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 680px; margin: 0 auto; }
   #map-row .map-btn { min-width: 118px; justify-content: center; }
   #map-desc, #fac-desc, #mode-desc { color: #d8cba8; font-size: 12px; min-height: 16px; text-shadow: 0 1px 2px #000; }
   /* civilization info card */
-  #civ-panel { width: 100%; margin: 4px auto 0; padding: 10px 14px; border-radius: 14px;
+  #civ-panel, #mp-civ-panel { width: 100%; margin: 4px auto 0; padding: 10px 14px; border-radius: 14px;
     background: linear-gradient(180deg,#2c1f12e0,#1c140ce0); border: 1px solid #553c22;
     box-shadow: inset 0 1px 0 #ffffff10, 0 4px 14px #0007; }
   .civ-head { display: flex; align-items: center; justify-content: center; gap: 11px; }
@@ -972,7 +972,10 @@
           <span class="menu-label" style="margin:0">Multiplayer — 2 humans + AI</span>
           <span class="setup-head-spacer"></span>
         </div>
-        <div class="menu-help" style="margin:0 0 6px"><b>Hosting?</b> Set up the room below, then share the 4-letter code. <b>Joining?</b> Just type your friend's code. Map, mode &amp; your civ come from Custom Skirmish.</div>
+        <div class="menu-help" style="margin:0 0 6px"><b>Hosting?</b> Set up the room below, then share the 4-letter code. <b>Joining?</b> Pick your civ, then type your friend's code. Map &amp; mode come from Custom Skirmish.</div>
+        <div class="menu-label">Your civilization</div>
+        <div id="mp-fac-row"></div>
+        <div id="mp-civ-panel" class="civ-panel"></div>
         <div class="menu-label">Host setup — Players</div>
         <div id="mp-pcount">
           <button class="mp-pcount-btn diff-btn sel" data-pc="2">2</button>

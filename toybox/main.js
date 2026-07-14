@@ -476,8 +476,8 @@ for (const btn of document.querySelectorAll('.rnd-btn')) {
 }
 let chosenFaction = 'classic';
 // rich civ card: surfaces each civ's bonus + unique unit + unique building + unique tech
-function renderCivPanel(facKey) {
-  const panel = document.getElementById('civ-panel');
+function renderCivPanel(facKey, panelId = 'civ-panel') {
+  const panel = document.getElementById(panelId);
   if (!panel) return;
   const f = FACTIONS[facKey] || FACTIONS.classic;
   const uniqueUnits = Object.values(UNITS).filter((u) => u.faction === facKey);
@@ -507,24 +507,30 @@ function renderCivPanel(facKey) {
     `</div>`;
 }
 // the civ row is generated from FACTIONS, so every new tribe shows up here
-// automatically (the knights taught us not to hardcode this list)
-{
-  const row = document.getElementById('fac-row');
-  if (row) {
-    row.innerHTML = Object.entries(FACTIONS).map(([k, f]) =>
-      `<button class="fac-btn diff-btn${k === chosenFaction ? ' sel' : ''}" data-fac="${k}">`
-      + `<img class="fac-crest" src="assets/ui/crest-${k}.png" alt="" onerror="this.remove()">${f.label}</button>`).join('');
-  }
+// automatically (the knights taught us not to hardcode this list). The SAME
+// picker is mirrored on the multiplayer screen (#mp-fac-row) so a host or a
+// guest can choose their civ without detouring through Custom Skirmish.
+function fillFacRow(row) {
+  if (!row) return;
+  row.innerHTML = Object.entries(FACTIONS).map(([k, f]) =>
+    `<button class="fac-btn diff-btn${k === chosenFaction ? ' sel' : ''}" data-fac="${k}">`
+    + `<img class="fac-crest" src="assets/ui/crest-${k}.png" alt="" onerror="this.remove()">${f.label}</button>`).join('');
 }
-for (const btn of document.querySelectorAll('.fac-btn')) {
-  btn.addEventListener('click', () => {
-    chosenFaction = btn.dataset.fac;
-    document.querySelectorAll('.fac-btn').forEach((b) => b.classList.toggle('sel', b === btn));
-    renderCivPanel(chosenFaction);
-    renderLobby(); // your seat shows your civ
-  });
-}
+fillFacRow(document.getElementById('fac-row'));
+fillFacRow(document.getElementById('mp-fac-row'));
+// one delegated handler covers both rows and keeps their highlight in sync
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.fac-btn');
+  if (!btn) return;
+  chosenFaction = btn.dataset.fac;
+  document.querySelectorAll('.fac-btn').forEach((b) => b.classList.toggle('sel', b.dataset.fac === chosenFaction));
+  renderCivPanel(chosenFaction);
+  renderCivPanel(chosenFaction, 'mp-civ-panel');
+  renderLobby(); // your skirmish seat shows your civ
+  if (typeof renderMpLobby === 'function') renderMpLobby(); // your MP host seat too
+});
 renderCivPanel(chosenFaction); // initial fill
+renderCivPanel(chosenFaction, 'mp-civ-panel');
 
 // ---------------- skirmish lobby (2–4 players, FFA / teams) ----------------
 const TEAM_PRESETS = {
