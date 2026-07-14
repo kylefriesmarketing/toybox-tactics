@@ -3796,7 +3796,11 @@ export class Game {
     for (const ev of this.missionEvents) {
       if (ev.done || this.time < ev.at) continue;
       ev.done = true;
-      if (ev.text) this.alert(ev.text, ev.kind || 'story', null, 0);
+      if (ev.text) {
+        // character beats speak through the dialogue bar; plain beats stay toasts
+        if (ev.speaker && this.cb.dialogue) this.cb.dialogue(ev.speaker, ev.text, ev.kind || 'story');
+        else this.alert(ev.text, ev.kind || 'story', null, 0);
+      }
       if (ev.type === 'spawn') {
         const owner = ev.owner || 0;
         const home = this.entities.find((e) => e.type === 'chest' && e.owner === owner && !e.dead)
@@ -3818,6 +3822,8 @@ export class Game {
         for (let i = 0; i < (ev.n || 1); i++) {
           this.spawnUnit(ev.unit, owner, bx + (i % 3) * 0.9, bz + ((i / 3) | 0) * 0.9, true);
         }
+        // a marked beat pulls the camera over for a look (view-only, skippable)
+        if (ev.focus && this.cb.focus) this.cb.focus(bx, bz);
       } else if (ev.type === 'boost') {
         const p = this.players[ev.owner ?? 1];
         if (p) for (const [k, v] of Object.entries(ev.res || {})) p.res[k] += v;

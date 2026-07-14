@@ -1384,6 +1384,7 @@ window.__ttCam = (x, z, dist = 24) => {
   cam.tx = cam.x = x; cam.tz = cam.z = z; cam.tdist = cam.dist = dist;
   applyCamera(1);
 };
+window.__ttFocusDebug = () => ({ camMoment: camMoment ? { ...camMoment } : null, watchMode, keysDown: Object.entries(keys).filter(([, v]) => v).map(([k]) => k) });
 window.__ttDebug = () => ({
   placing: placing ? { type: placing.type, valid: placing.valid, i: placing.i, j: placing.j } : null,
   mouse: { x: mouseX, y: mouseY },
@@ -1509,6 +1510,8 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
     },
     age: () => ui.refreshSelection(),
     shake: (amt) => shakeCam(amt),
+    dialogue: (speaker, text) => showDialogue(speaker, text),
+    focus: (x, z) => cameraMoment(x, z),
   }, {
     fx: vfx, sfx, difficulty, map, playerDefs, tutorial,
     gameMode: mpOpts ? mpOpts.gameMode : (resume ? resume.opts.gameMode : (rep ? rep.gameMode : chosenMode)),
@@ -1740,6 +1743,7 @@ let lastPtrType = 'mouse';  // coarse pointers turn edge-scroll off
 
 renderer.domElement.addEventListener('pointerdown', (e) => {
   if (!game) return;
+  camMoment = null; // the player's hand outranks the director's
   lastPtrType = e.pointerType || 'mouse';
   if (e.pointerType === 'touch') {
     touchPts.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -2056,6 +2060,63 @@ function stepMP(realDt) {
     game.update(TICK);
     mpAccum -= TICK;
   }
+}
+
+// ---------------- campaign dialogue bar (commanders speak; the sim never listens) ----
+let dlgTimer = 0;
+const dlgQueue = [];
+function showDialogue(speaker, text) {
+  dlgQueue.push({ speaker, text });
+  if (dlgQueue.length === 1) nextDialogue();
+}
+function nextDialogue() {
+  clearTimeout(dlgTimer);
+  const bar = document.getElementById('dlg-bar');
+  if (!bar) { dlgQueue.length = 0; return; }
+  const item = dlgQueue[0];
+  if (!item) { bar.classList.remove('show'); return; }
+  const f = FACTIONS[item.speaker];
+  const cmd = f && f.commander;
+  bar.querySelector('.dlg-portrait').src = cmd ? cmd.portrait : '';
+  bar.querySelector('.dlg-portrait').style.display = cmd ? '' : 'none';
+  bar.querySelector('.dlg-book').style.display = cmd ? 'none' : '';
+  bar.querySelector('.dlg-name').textContent = cmd ? cmd.name : 'The Storyteller';
+  bar.querySelector('.dlg-text').textContent = item.text;
+  bar.classList.add('show');
+  sfx.play('command');
+  // linger long enough to read, scaled a little by length
+  dlgTimer = setTimeout(() => {
+    dlgQueue.shift();
+    if (dlgQueue.length) nextDialogue();
+    else bar.classList.remove('show');
+  }, Math.min(9000, 3800 + item.text.length * 28));
+}
+
+// ---------------- camera moments (a marked story beat pulls the eye over) ----------------
+let camMoment = null; // { t, fromX, fromZ, toX, toZ }
+function cameraMoment(x, z) {
+  if (camMoment || watchMode) return; // one at a time; the director already drives watch mode
+  camMoment = { t: 0, fromX: cam.tx, fromZ: cam.tz, toX: x, toZ: z };
+}
+function updateCamMoment(dt) {
+  if (!camMoment) return;
+  camMoment.t += dt;
+  const t = camMoment.t;
+  const ease = (f) => (f < 0.5 ? 2 * f * f : 1 - ((2 - 2 * f) ** 2) / 2);
+  if (t < 0.6) { // glide over
+    const f = ease(t / 0.6);
+    cam.tx = camMoment.fromX + (camMoment.toX - camMoment.fromX) * f;
+    cam.tz = camMoment.fromZ + (camMoment.toZ - camMoment.fromZ) * f;
+  } else if (t < 1.9) {
+    cam.tx = camMoment.toX; cam.tz = camMoment.toZ; // linger on the moment
+  } else if (t < 2.5) { // glide home
+    const f = ease((t - 1.9) / 0.6);
+    cam.tx = camMoment.toX + (camMoment.fromX - camMoment.toX) * f;
+    cam.tz = camMoment.toZ + (camMoment.fromZ - camMoment.toZ) * f;
+  } else {
+    camMoment = null;
+  }
+  clampCam();
 }
 
 // ---------------- weather & wind (visual only — the sim never feels the rain) ----
@@ -2484,7 +2545,9 @@ function loop() {
   if (!game) { renderer.render(scene, camera); return; }
   const dt = Math.min(0.05, clock.getDelta());
 
+  updateCamMoment(dt); // scripted camera peeks (any manual input cancels)
   const panSpeed = cam.dist * 0.9 * dt;
+  if (camMoment && (keys.arrowup || keys.w || keys.arrowdown || keys.s || keys.arrowleft || keys.a || keys.arrowright || keys.d)) camMoment = null;
   if (keys.arrowup || keys.w) cam.tz -= panSpeed;
   if (keys.arrowdown || keys.s) cam.tz += panSpeed;
   if (keys.arrowleft || keys.a) cam.tx -= panSpeed;
@@ -2546,6 +2609,7 @@ setInterval(() => {
     ui.update(elapsed);
     updateAmbient(elapsed);
     updateWeather(elapsed);
+    updateCamMoment(elapsed);
     applyCamera(elapsed);
     renderer.render(scene, camera);
   } catch (err) {

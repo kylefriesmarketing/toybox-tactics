@@ -525,6 +525,22 @@
   .cx-cmd img { width: 88px; height: 88px; object-fit: cover; border-radius: 10px;
     border: 2px solid var(--gold-2, #ffb347); flex: none; }
   /* unit voice barks: a little speech line floating over the selection panel */
+  /* ---------- campaign dialogue bar: the commanders speak ---------- */
+  #dlg-bar { position: fixed; left: 50%; bottom: 190px; transform: translate(-50%, 14px); z-index: 60;
+    display: flex; align-items: center; gap: 12px; max-width: 620px; min-width: 320px;
+    padding: 10px 18px 10px 10px; border-radius: 14px; pointer-events: none;
+    background: linear-gradient(180deg, #241a33ee, #191026ee);
+    border: 1px solid #6a5a8a88; box-shadow: 0 8px 28px #00000088, inset 0 0 22px #00000055;
+    opacity: 0; transition: opacity .3s, transform .3s; }
+  #dlg-bar.show { opacity: 1; transform: translate(-50%, 0); }
+  #dlg-bar .dlg-portrait { width: 58px; height: 58px; border-radius: 10px; object-fit: cover;
+    border: 2px solid #b8862e; box-shadow: 0 2px 8px #00000088; flex: none; }
+  #dlg-bar .dlg-book { font-size: 34px; width: 58px; text-align: center; flex: none; }
+  #dlg-bar .dlg-name { font-family: var(--font-display, Georgia, serif); color: #ffd97a;
+    font-size: 13px; letter-spacing: .6px; margin-bottom: 3px; }
+  #dlg-bar .dlg-text { color: #efe6d8; font-size: 14px; line-height: 1.35; font-style: italic; }
+  @media (pointer: coarse) { #dlg-bar { bottom: 220px; max-width: 92vw; } }
+
   #bark-line { position: absolute; top: -26px; left: 12px; right: 12px; pointer-events: none;
     font-style: italic; font-size: 12.5px; color: #ffe9b0; text-shadow: 0 1px 3px #000c;
     opacity: 0; transform: translateY(5px); transition: opacity .25s ease, transform .25s ease;
@@ -690,6 +706,14 @@
   </div>
 
   <div id="alerts"></div>
+  <div id="dlg-bar">
+    <img class="dlg-portrait" src="" alt="">
+    <span class="dlg-book">📖</span>
+    <div class="dlg-body">
+      <div class="dlg-name"></div>
+      <div class="dlg-text"></div>
+    </div>
+  </div>
   <div id="banner"></div>
   <div id="wonder-timer"></div>
   <div id="speed-chip" style="display:none"></div>
