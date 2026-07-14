@@ -72,6 +72,7 @@ export class Empire {
       nextCard: [0, 0],
       encounters: [], // queued this battle window
       pendingPlay: null, // BattleContext handed to the RTS (survives reload)
+      pendingSpoils: null, // Aftermath Spoils reward awaiting the human's pick (survives reload)
       returnToMap: false,
       log: [], over: false, winner: null, sunrise: false,
     };
@@ -120,7 +121,9 @@ export class Empire {
     for (const st of Object.values(save.nodes || {})) if (!st.modules) st.modules = [];
     // v5 → v6: doctrines (round 7)
     if (!save.doctrines) save.doctrines = [[], ['warrior']];
-    save.v = 6;
+    // v6 → v7: Aftermath Spoils (round 9)
+    if (save.pendingSpoils === undefined) save.pendingSpoils = null;
+    save.v = 7;
     this.s = save; this.rng = makeRng(1); this.rng.setState(save.rng);
   }
   static stored() {
@@ -213,6 +216,7 @@ export class Empire {
   stateHash() {
     const core = { t: this.s.turn, p: this.s.parts, pw: this.s.power, im: this.s.imag, u: this.s.upgrades, dc: this.s.doctrines, r: this.s.rng,
       cr: this.s.crown.owner + ':' + this.s.crown.turns, ev: this.s.event ? this.s.event.kind + this.s.event.route + this.s.event.phase + (this.s.event.node || '') : '',
+      sp: this.s.pendingSpoils ? this.s.pendingSpoils.node : '',
       lt: this.s.lastLoot ? this.s.lastLoot.key : '',
       n: Object.entries(this.s.nodes).map(([k, v]) => k + v.owner + (v.garrison ? v.garrison.length : '') + (v.modules || []).join('')),
       a: this.s.armies.map((a) => a.id + a.node + a.cards.map((c) => (c.key || c.type) + c.strength + c.vet).join('')) };
@@ -599,6 +603,10 @@ export class Empire {
       st.garrison = null;
       this.capture(enc.attacker.owner, enc.nodeId, true);
       this.say(`🏆 ${this.facLabel(enc.attacker.owner)} takes ${node.name}!`);
+      // Aftermath Spoils (§17): storming a capital/stronghold/crown earns the human a reward pick
+      if (enc.attacker.owner === 0 && this.lootQuality(enc.nodeId) === 2) {
+        this.s.pendingSpoils = { node: enc.nodeId, armyId: enc.attacker.armyId };
+      }
     } else {
       // repelled: attacker limps back where it came from
       if (att && att.cards.length) { att.node = att.prev; }
@@ -651,6 +659,28 @@ export class Empire {
     if (this.hasDoctrine(p, 'scavenger')) loot = Math.round(loot * 1.4); // Scavenger Economy
     if (loot) this.s.parts[p] += loot;
     if (!wasBattle) this.say(`${node.icon} ${this.facLabel(p)} claims ${node.name}${loot ? ` (+${loot} Parts)` : ''}.`);
+  }
+
+  // Aftermath Spoils (§17): apply the human's reward pick from a capital/stronghold storm.
+  // Deterministic (a player choice, no RNG); idempotent — clears pendingSpoils when done.
+  resolveSpoils(choice) {
+    const sp = this.s.pendingSpoils;
+    if (!sp) return { ok: false };
+    const node = E_NODES[sp.node], r = E_RULES.spoils;
+    if (choice === 'parts') {
+      this.s.parts[0] += r.parts;
+      this.say(`🔩 The victors strip ${node.name} for parts — +${r.parts} Parts.`);
+    } else if (choice === 'heal') {
+      const army = this.s.armies.find((a) => a.id === sp.armyId);
+      if (army) for (const c of army.cards) c.strength = r.heal;
+      this.say(`❤️ The army regroups in ${node.name} — every toy back to full strength.`);
+    } else { // momentum
+      this.s.power[0] = Math.min(E_RULES.powerCap, this.s.power[0] + r.power);
+      this.say(`⚡ ${node.name} falls — the advance seizes the moment, +${r.power} Power.`);
+    }
+    this.s.pendingSpoils = null;
+    this.save();
+    return { ok: true };
   }
 
   // encounters that involve no human seat resolve immediately by simulation
@@ -948,6 +978,7 @@ class EmpireUI {
     document.addEventListener('keydown', this.onKey);
     const enc = this.emp.nextEncounter();
     if (enc) this.showEncounter(enc); // resume mid battle-window after a reload
+    else if (this.emp.s.pendingSpoils) this.showSpoils(); // resume an unclaimed spoils pick (e.g. after a played battle)
     else if (!localStorage.getItem('tt-empire-seen')) { localStorage.setItem('tt-empire-seen', '1'); this.showGuide(); }
   }
   hide() { this.root.classList.remove('show'); document.removeEventListener('keydown', this.onKey); ui = null; }
@@ -957,10 +988,10 @@ class EmpireUI {
   handleKey(e) {
     if (!this.root.classList.contains('show')) return;
     const m = this.root.querySelector('#e-modal');
-    const battleModal = m && m.querySelector('#e-sim'); // encounter awaiting a decision
+    const battleModal = m && (m.querySelector('#e-sim') || m.querySelector('#sp-parts')); // encounter or spoils awaiting a decision
     const infoModal = m && (m.querySelector('#e-tclose, #e-colclose, #e-rclose, #e-gclose, #e-dclose') || m.querySelector('.e-loot'));
     if (e.key === 'Escape') {
-      if (battleModal) return; // must choose Play / Simulate / Withdraw
+      if (battleModal) return; // must choose Play / Simulate / Withdraw (or claim spoils)
       if (infoModal) { m.innerHTML = ''; e.preventDefault(); return; }
       if (this.sel || this.selNode) { this.sel = null; this.selNode = null; this.render(); e.preventDefault(); return; }
       this.hide(); return;
@@ -1437,7 +1468,7 @@ class EmpireUI {
   }
   // a card-reveal flourish when spoils are won (skipped if a battle modal is up)
   flashLoot(loot) {
-    if (!loot || this.emp.nextEncounter()) return;
+    if (!loot || this.emp.nextEncounter() || this.emp.s.pendingSpoils) return; // spoils modal takes precedence
     const c = E_CARDS[loot.key]; if (!c) return;
     const col = E_RARITY[c.rarity].color;
     const m = this.root.querySelector('#e-modal');
@@ -1486,6 +1517,7 @@ class EmpireUI {
       this.render();
       const next = emp.nextEncounter();
       if (next) { esfx('charge', 200); this.showEncounter(next); }
+      else if (emp.s.pendingSpoils) this.showSpoils();
     });
     const flee = m.querySelector('#e-flee');
     if (flee) flee.addEventListener('click', () => {
@@ -1499,6 +1531,30 @@ class EmpireUI {
       this.launchCtx = ctx;
       if (hooks.startGame) hooks.startGame(ctx.difficulty, ctx.map);
     });
+  }
+
+  // Aftermath Spoils (§17): a one-time reward pick after storming a capital/stronghold.
+  // Non-dismissable (guarded in handleKey) — a choice must be made.
+  showSpoils() {
+    const emp = this.emp, sp = emp.s.pendingSpoils;
+    if (!sp) return;
+    clearTimeout(this.lootT); clearTimeout(this.toastT); // don't let a stray toast wipe this modal
+    const node = E_NODES[sp.node], r = E_RULES.spoils;
+    const army = emp.s.armies.find((a) => a.id === sp.armyId);
+    const avg = army && army.cards.length ? Math.round(army.cards.reduce((s, c) => s + c.strength, 0) / army.cards.length) : 100;
+    const m = this.root.querySelector('#e-modal');
+    m.innerHTML = `<div class="e-enc"><div class="e-enc-card">
+      <div class="e-ttl">${node.icon} ${node.name} has fallen — claim your spoils</div>
+      <div class="e-dim">A stronghold taken is a moment to press the advantage. Choose one:</div>
+      <div class="e-enc-btns" style="flex-wrap:wrap">
+        <button id="sp-parts" class="diff-btn sel">🔩 Salvage · +${r.parts} Parts</button>
+        <button id="sp-heal" class="diff-btn">❤️ Regroup · army to full${avg < 100 ? ` (${avg}% now)` : ''}</button>
+        <button id="sp-power" class="diff-btn">⚡ Momentum · +${r.power} Power</button>
+      </div></div></div>`;
+    const pick = (choice, snd) => { emp.resolveSpoils(choice); esfx(snd, 100); this.render(); };
+    m.querySelector('#sp-parts').addEventListener('click', () => pick('parts', 'place'));
+    m.querySelector('#sp-heal').addEventListener('click', () => pick('heal', 'charge'));
+    m.querySelector('#sp-power').addEventListener('click', () => pick('power', 'twang'));
   }
 
   showVictory() {
@@ -1530,7 +1586,8 @@ export function empireTest(seed, turns = 8, script = []) {
   const byTurn = {};
   for (const s of script) (byTurn[s.turn] = byTurn[s.turn] || []).push(s);
   for (let t = 0; t < turns && !emp.s.over; t++) {
-    for (const s of (byTurn[emp.s.turn] || [])) {
+    const acts = byTurn[emp.s.turn] || [];
+    for (const s of acts) {
       if (s.type === 'move') emp.issueMove(s.army || 'A0', s.to);
       if (s.type === 'recruit') emp.recruit(0, s.army || null);
       if (s.type === 'upgrade') emp.buyUpgrade(0, s.key);
@@ -1543,6 +1600,8 @@ export function empireTest(seed, turns = 8, script = []) {
     let guard = 0;
     let enc;
     while ((enc = emp.nextEncounter()) && guard++ < 10) emp.finishEncounter(enc, emp.simulate(enc));
+    // stand in for the human's Aftermath Spoils pick (default Salvage; script may name a choice)
+    if (emp.s.pendingSpoils) { const sp = acts.find((x) => x.type === 'spoils'); emp.resolveSpoils(sp ? sp.choice : 'parts'); }
   }
   return { hash: emp.stateHash(), turn: emp.s.turn, over: emp.s.over, winner: emp.s.winner,
     winHow: emp.s.winHow || null, owned: [emp.ownedCount(0), emp.ownedCount(1)],
@@ -1550,6 +1609,7 @@ export function empireTest(seed, turns = 8, script = []) {
     crown: { ...emp.s.crown }, doctrines: emp.s.doctrines.map((d) => [...d]),
     armies: emp.s.armies.map((a) => a.id + '@' + a.node + ':' + a.cards.length),
     stats: { ...emp.s.stats }, event: emp.s.event ? { ...emp.s.event } : null,
+    pendingSpoils: emp.s.pendingSpoils ? emp.s.pendingSpoils.node : null,
     lastLoot: emp.s.lastLoot ? emp.s.lastLoot.key : null, cardsWon: emp.loot.map((l) => l.key),
     log: emp.s.log.slice(-3) };
 }

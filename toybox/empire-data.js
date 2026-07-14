@@ -181,6 +181,9 @@ export const E_RULES = {
   turnCap: 24,              // §16 sunrise cap
   // "The Vacuum Approaches" (§5): telegraphed one turn, then closes a route.
   vacuum: { earliest: 5, chance: 0.30, duration: 2 },
+  // Aftermath Spoils (§17): a one-time reward pick when YOU storm a capital/stronghold/crown.
+  // A rare, high-stakes decision (the AI keeps its own economy — this is the SP power fantasy).
+  spoils: { parts: 45, heal: 100, power: 2 },
 };
 
 // simulate-formula unit power reads UNITS source stats; these are the weights
