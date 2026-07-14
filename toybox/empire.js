@@ -13,7 +13,7 @@ import { UNITS, FACTIONS } from './data.js';
 import {
   E_NODES, E_ROUTES, E_TEMPLATES, E_NODE_TEMPLATE, E_NODE_TEMPLATE_OVERRIDE, E_TEMPLATE_VARIANTS,
   E_FACTIONS, E_START_ROSTER, E_GARRISONS, E_UPGRADES, E_BRANCHES, E_RULES, E_SIM,
-  E_MODULES, E_MODULE_SLOTS, E_DOCTRINES, E_EVENTS,
+  E_MODULES, E_MODULE_SLOTS, E_DOCTRINES, E_EVENTS, E_DIFFICULTY,
 } from './empire-data.js';
 import {
   E_CARDS, E_RARITY, E_COMMON_KEYS, E_CARD_ORDER,
@@ -52,7 +52,8 @@ export class Empire {
     if (seedOrSave && typeof seedOrSave === 'object') { this.load(seedOrSave); return; }
     const seed = seedOrSave || ((Math.random() * 2 ** 31) | 0);
     this.s = {
-      v: 6, seed, turn: 1, phase: 'plan', rng: 0,
+      v: 9, seed, turn: 1, phase: 'plan', rng: 0,
+      difficulty: 'normal', difficultyChosen: false, // §13 challenge tier (picked on a fresh war)
       factions, // seat 0 = human, seat 1 = AI
       parts: [E_RULES.startParts, E_RULES.startParts],
       power: [E_RULES.startPower, E_RULES.startPower],
@@ -125,7 +126,9 @@ export class Empire {
     if (save.pendingSpoils === undefined) save.pendingSpoils = null;
     // v7 → v8: army readiness (round 10) — existing armies wake up fresh
     for (const a of (save.armies || [])) if (a.readiness === undefined) a.readiness = E_RULES.readiness.max;
-    save.v = 8;
+    // v8 → v9: Empire difficulty (round 13) — in-progress wars keep Normal and skip the picker
+    if (save.difficulty === undefined) { save.difficulty = 'normal'; save.difficultyChosen = true; }
+    save.v = 9;
     this.s = save; this.rng = makeRng(1); this.rng.setState(save.rng);
   }
   static stored() {
@@ -222,7 +225,7 @@ export class Empire {
   armiesOf(p) { return this.s.armies.filter((a) => a.owner === p && a.cards.length); }
   // deterministic state fingerprint for tests + future MP hash checks
   stateHash() {
-    const core = { t: this.s.turn, p: this.s.parts, pw: this.s.power, im: this.s.imag, u: this.s.upgrades, dc: this.s.doctrines, r: this.s.rng,
+    const core = { t: this.s.turn, p: this.s.parts, pw: this.s.power, im: this.s.imag, u: this.s.upgrades, dc: this.s.doctrines, df: this.s.difficulty, r: this.s.rng,
       cr: this.s.crown.owner + ':' + this.s.crown.turns, ev: this.s.event ? this.s.event.kind + this.s.event.route + this.s.event.phase + (this.s.event.node || '') : '',
       sp: this.s.pendingSpoils ? this.s.pendingSpoils.node : '',
       lt: this.s.lastLoot ? this.s.lastLoot.key : '',
@@ -239,7 +242,9 @@ export class Empire {
     this.tickEvent();
     for (const p of [0, 1]) {
       const sup = this.suppliedSet(p);
-      this.s.parts[p] += this.income(p, sup) - this.upkeepCost(p);
+      // §13: the challenge tier scales the RIVAL's Parts income (seat 1 only)
+      const ecoMul = p === 1 ? this.diff().aiIncomeMul : 1;
+      this.s.parts[p] += Math.round(this.income(p, sup) * ecoMul) - this.upkeepCost(p);
       if (this.s.parts[p] < 0) this.s.parts[p] = 0;
       // Low Battery Night dims Power income for everyone while it lasts
       const dim = this.s.event && this.s.event.phase === 'active' && E_EVENTS[this.s.event.kind].dimsPower;
@@ -395,6 +400,19 @@ export class Empire {
     if (occupied && cur[slot] !== key) this.s.power[p] -= E_RULES.doctrineSwapCost; // committing anew costs Power
     cur[slot] = key || null;
     if (key) this.say(`${this.facLabel(p)} commits to the ${E_DOCTRINES[key].name} doctrine.`);
+    this.save();
+    return { ok: true };
+  }
+
+  // Empire difficulty (§13): resolved config for the current challenge tier
+  diff() { return E_DIFFICULTY[this.s.difficulty] || E_DIFFICULTY.normal; }
+  // choose the challenge tier — only on a fresh, untouched war (before any turn is taken)
+  setDifficulty(key) {
+    if (!E_DIFFICULTY[key]) return { ok: false, why: 'unknown difficulty' };
+    if (this.s.difficultyChosen || this.s.turn !== 1) return { ok: false, why: 'the war is already under way' };
+    this.s.difficulty = key;
+    this.s.difficultyChosen = true;
+    this.say(`🌙 The war is set to ${E_DIFFICULTY[key].label}.`);
     this.save();
     return { ok: true };
   }
@@ -887,7 +905,8 @@ export class Empire {
       const defMul = (E_TEMPLATES[tKey].defBoost || 1) * (E_NODES[c.id].tier ? 1 + 0.1 * E_NODES[c.id].tier : 1);
       // factor the army's readiness so the AI doesn't hurl a spent army into a defended node
       const ratio = this.cardsPower(a.cards) * this.readyMul(a) / Math.max(0.001, this.cardsPower(defCards) * defMul);
-      if (ratio > 1.35) return c.id;
+      if (ratio > this.diff().aiBand) return c.id; // §13: bolder rivals attack at a lower edge
+
     }
     return null;
   }
@@ -926,7 +945,7 @@ export class Empire {
     return {
       encId: enc.encId, seed: enc.seed, nodeId: enc.nodeId,
       map: E_NODES[enc.nodeId].biome, gameMode: t.gameMode, startRes: t.startRes,
-      difficulty: 'normal',
+      difficulty: this.diff().rts, // §13: played battles inherit the campaign challenge tier
       humanIsAttacker,
       humanFaction: this.facKey(0), aiFaction: this.facKey(1),
       // Combined Arms (Warfare II) deploys tougher toys in PLAYED battles too
@@ -1017,7 +1036,25 @@ class EmpireUI {
     const enc = this.emp.nextEncounter();
     if (enc) this.showEncounter(enc); // resume mid battle-window after a reload
     else if (this.emp.s.pendingSpoils) this.showSpoils(); // resume an unclaimed spoils pick (e.g. after a played battle)
+    else if (!this.emp.s.difficultyChosen) this.showDifficulty(); // fresh war → pick a challenge tier first
     else if (!localStorage.getItem('tt-empire-seen')) { localStorage.setItem('tt-empire-seen', '1'); this.showGuide(); }
+  }
+  // §13: choose the campaign challenge tier at the start of a new war (then coach on first run)
+  showDifficulty() {
+    const emp = this.emp;
+    const m = this.root.querySelector('#e-modal');
+    const btn = (k) => { const d = E_DIFFICULTY[k]; return `<button class="diff-btn" data-diff="${k}" style="text-align:left">
+      <span style="font-size:18px">${d.icon}</span> <b>${d.label}</b><span class="e-dim" style="display:block;font-weight:400;margin-top:2px">${d.desc}</span></button>`; };
+    m.innerHTML = `<div class="e-enc"><div class="e-enc-card">
+      <div class="e-ttl">🌙 Choose your challenge</div>
+      <div class="e-dim">How fierce is the rival across the bedroom floor? (Sets their economy, aggression &amp; battle skill.)</div>
+      <div class="e-enc-btns" style="flex-direction:column;align-items:stretch;gap:8px">
+        ${Object.keys(E_DIFFICULTY).map(btn).join('')}
+      </div></div></div>`;
+    for (const b of m.querySelectorAll('[data-diff]')) b.addEventListener('click', () => {
+      emp.setDifficulty(b.dataset.diff); esfx('select', 60); this.render();
+      if (!localStorage.getItem('tt-empire-seen')) { localStorage.setItem('tt-empire-seen', '1'); this.showGuide(); }
+    });
   }
   hide() { this.root.classList.remove('show'); document.removeEventListener('keydown', this.onKey); ui = null; }
 
@@ -1026,7 +1063,7 @@ class EmpireUI {
   handleKey(e) {
     if (!this.root.classList.contains('show')) return;
     const m = this.root.querySelector('#e-modal');
-    const battleModal = m && (m.querySelector('#e-sim') || m.querySelector('#sp-parts')); // encounter or spoils awaiting a decision
+    const battleModal = m && (m.querySelector('#e-sim') || m.querySelector('#sp-parts') || m.querySelector('[data-diff]')); // encounter/spoils/difficulty awaiting a decision
     const infoModal = m && (m.querySelector('#e-tclose, #e-colclose, #e-rclose, #e-gclose, #e-dclose') || m.querySelector('.e-loot'));
     if (e.key === 'Escape') {
       if (battleModal) return; // must choose Play / Simulate / Withdraw (or claim spoils)
@@ -1140,6 +1177,8 @@ class EmpireUI {
       : '';
     const myDoctrines = (s.doctrines[0] || []).filter(Boolean);
     const doctrineChip = `<span class="e-chip" title="Your doctrines — click 🎗️ below to change">🎗️ ${myDoctrines.length ? myDoctrines.map((k) => E_DOCTRINES[k].icon).join(' ') : '<span class="e-dim">choose one</span>'}</span>`;
+    const dcfg = emp.diff();
+    const diffChip = `<span class="e-chip" title="${dcfg.desc}">${dcfg.icon} <span class="e-dim">${dcfg.label}</span></span>`;
     const evBanner = ev
       ? `<div class="e-event ${ev.phase}">${ev.phase === 'warn'
         ? `⚠️ ${evDef.warn}`
@@ -1157,6 +1196,7 @@ class EmpireUI {
         <span class="e-chip" title="Territories held — first to ${E_RULES.dominionNeed} with a stronghold wins">🗺️ <b>${emp.ownedCount(0)}</b> vs ${emp.ownedCount(1)} <span class="e-dim">of ${E_RULES.dominionNeed}</span></span>
         ${crownChip}${doctrineChip}
         <span class="e-chip">🌙 Turn <b>${s.turn}</b><span class="e-dim">/${E_RULES.turnCap}</span></span>
+        ${diffChip}
         <span class="e-phase">${phaseLbl}</span>
         <span class="e-spring"></span>
         <button id="e-new" class="diff-btn" title="Abandon this war and start fresh">🔄 New War</button>
@@ -1624,15 +1664,16 @@ class EmpireUI {
       </div>
       <div class="e-enc-btns"><button id="e-again" class="diff-btn sel">🔄 New War</button>
       <button id="e-out" class="diff-btn">← Menu</button></div></div></div>`;
-    m.querySelector('#e-again').addEventListener('click', () => { Empire.clear(); this.emp = new Empire(); this.sel = null; this.selNode = null; this.lastPos = {}; this.render(); });
+    m.querySelector('#e-again').addEventListener('click', () => { Empire.clear(); this.emp = new Empire(); this.sel = null; this.selNode = null; this.lastPos = {}; this._victorySung = false; this.render(); this.showDifficulty(); });
     m.querySelector('#e-out').addEventListener('click', () => this.hide());
   }
 }
 
 // headless determinism harness (§20 test): scripted human turns, auto-AI,
 // all encounters simulated. Same seed + script ⇒ identical stateHash.
-export function empireTest(seed, turns = 8, script = []) {
+export function empireTest(seed, turns = 8, script = [], difficulty = 'normal') {
   const emp = new Empire(seed, undefined, false); // persist=false: never touches tt-empire
+  emp.s.difficulty = difficulty; emp.s.difficultyChosen = true; // §13: exercise a challenge tier headlessly
   const byTurn = {};
   for (const s of script) (byTurn[s.turn] = byTurn[s.turn] || []).push(s);
   for (let t = 0; t < turns && !emp.s.over; t++) {
@@ -1660,6 +1701,7 @@ export function empireTest(seed, turns = 8, script = []) {
     armies: emp.s.armies.map((a) => a.id + '@' + a.node + ':' + a.cards.length),
     readiness: emp.s.armies.map((a) => a.id + ':' + (a.readiness == null ? '-' : Math.round(a.readiness))),
     stats: { ...emp.s.stats }, event: emp.s.event ? { ...emp.s.event } : null,
+    difficulty: emp.s.difficulty,
     pendingSpoils: emp.s.pendingSpoils ? emp.s.pendingSpoils.node : null,
     lastLoot: emp.s.lastLoot ? emp.s.lastLoot.key : null, cardsWon: emp.loot.map((l) => l.key),
     log: emp.s.log.slice(-3) };

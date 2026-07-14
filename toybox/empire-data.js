@@ -87,6 +87,18 @@ export const E_TEMPLATE_VARIANTS = {
   ],
 };
 
+// Empire difficulty (§13): a campaign-level challenge tier chosen at the start of a new war.
+// Scales the RIVAL's economy + how readily it attacks, and the difficulty of PLAYED battles.
+// aiBand = the power ratio the AI needs before it commits to an assault (higher = timider).
+export const E_DIFFICULTY = {
+  cozy:     { label: 'Cozy Night',  icon: '🌛', aiIncomeMul: 0.75, aiBand: 1.70, rts: 'easy',
+              desc: 'A gentle campaign — the rival builds slowly and only strikes when it clearly wins.' },
+  normal:   { label: 'Lights-Out',  icon: '🌙', aiIncomeMul: 1.00, aiBand: 1.35, rts: 'normal',
+              desc: 'A fair fight. The rival matches your pace and takes honest risks.' },
+  ruthless: { label: 'Sleep Tight', icon: '🌑', aiIncomeMul: 1.30, aiBand: 1.12, rts: 'hard',
+              desc: 'The rival is well-fed and presses every advantage. Do not blink.' },
+};
+
 // slice factions (Appendix A: Brick Bastion vs Action Hall)
 export const E_FACTIONS = {
   bricks:  { color: '#4d9bff', armyName: 'Brick Column' },
