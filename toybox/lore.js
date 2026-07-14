@@ -98,5 +98,8 @@ export const LORE = {
     bookshelf: 'Bookshelf Heights is the room\'s mountain country, terraced in literature. Hold the high shelves and you hold the weather; lose them and fight uphill through the poetry section.',
     livingroom: 'The Living Room is holiday country — tinsel horizons and present-shaped hills. Toys fight politely here, mostly, on account of the ornaments being witnesses.',
     bathtub: 'The Bathtub Armada was the room\'s first sea and remains its whole navy tradition: one warm basin, two determined docks, and a rubber duck the size of the moon.',
+    sandbox: 'The Sandbox Dunes were the first ground any toy fought on that no grown-up ever leveled. The sand remembers nothing — every rake wipes the whole war — which is why toys love it and historians despair.',
+    garden: 'The Garden is the room\'s idea of a jungle: sunflowers taller than trebuchets, soil rich enough to bribe a foreman, and a gnome who has watched every battle and told no one. Yet.',
+    oldoak: 'The Old Oak was here before the house. The toys know this the way they know bedtime — nobody told them, everybody knows. Hold the hill and you hold the yard; the tree, pointedly, holds itself.',
   },
 };

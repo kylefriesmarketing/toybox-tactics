@@ -842,7 +842,56 @@ export const MAPS = {
     decorCount: 12,
     desc: 'A warm sea in the middle of everything. Raise your Docks and rule the waves!',
   },
+  // ---- THE GREAT OUTDOORS: past the door, where the world stops being square ----
+  sandbox: {
+    label: 'Sandbox Dunes', icon: '🏖️', ground: 'sandbox', light: 'day', outdoor: true,
+    obstacles: 5, canyon: false, resourceMul: 1.1, stickers: 2, plateaus: 0,
+    // the first non-square battlefield: a kidney-shaped sandbox — outside the
+    // wooden rim is deck, and no toy marches on deck. Rolling dunes inside.
+    mask: { type: 'kidney', rx: 33, rz: 27, bx: 0, bz: -26, br: 12 },
+    dunes: { count: 7, rMin: 4, rMax: 7 },
+    obstacleKinds: ['rock', 'bucket', 'shovel'],
+    decor: ['pebble', 'grass', 'seashell'],
+    decorCount: 14,
+    desc: 'The kidney-shaped sandbox, mid-morning. Rolling dunes, buried treasure, no corners to hide in.',
+  },
+  garden: {
+    label: 'The Garden', icon: '🌻', ground: 'garden', light: 'gold', outdoor: true,
+    obstacles: 5, canyon: false, resourceMul: 1.3, stickers: 3, plateaus: 4,
+    // flower-bed terraces climb in real steps; sunflower groves are the forests
+    groves: { kind: 'sunflower', count: 5 },
+    obstacleKinds: ['rock', 'tree'],
+    decor: ['daisy', 'grass', 'mushroom', 'pebble'],
+    decorCount: 20,
+    desc: 'Flower-bed terraces and sunflower groves taller than siege engines. Rich soil, long shadows.',
+  },
+  oldoak: {
+    label: 'The Old Oak', icon: '🌳', ground: 'oldoak', light: 'dusk', outdoor: true,
+    obstacles: 6, canyon: false, resourceMul: 1.15, stickers: 3, plateaus: 1,
+    // an oval lawn clearing around one enormous tree on a hill — THE high ground
+    mask: { type: 'ellipse', rx: 34, rz: 29 },
+    centerHill: { r: 9 },
+    roots: true,
+    obstacleKinds: ['rock', 'tree'],
+    decor: ['mushroom', 'grass', 'pebble', 'daisy'],
+    decorCount: 18,
+    desc: 'One giant oak on a hill at dusk, roots like castle walls. Whoever holds the tree holds the yard.',
+  },
 };
+
+// irregular playable shapes: pure + deterministic, shared by the sim (blocking)
+// and the ground painter (scenery outside the rim). true = inside the play area.
+export function maskAt(mask, i, j, n) {
+  if (!mask) return true;
+  const di = i - n / 2 + 0.5, dj = j - n / 2 + 0.5;
+  const inEllipse = (di * di) / (mask.rx * mask.rx) + (dj * dj) / (mask.rz * mask.rz) <= 1;
+  if (!inEllipse) return false;
+  if (mask.type === 'kidney') {
+    const bx = di - (mask.bx || 0), bz = dj - (mask.bz || 0);
+    if (bx * bx + bz * bz <= mask.br * mask.br) return false; // the bite
+  }
+  return true;
+}
 
 // ---------------- random map generator ----------------
 // Produces a MAPS-shaped config object deterministically from a seed + settings,

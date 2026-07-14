@@ -6,7 +6,7 @@
 
 import * as THREE from 'three';
 import {
-  MAP_N, POP_MAX, RES_TYPES, RES_META, UNITS, BUILDINGS, TECHS, MARKET,
+  MAP_N, POP_MAX, RES_TYPES, RES_META, UNITS, BUILDINGS, TECHS, MARKET, maskAt,
   AGES, AGE_UPS, PRODUCTION_BUILDINGS, START, AI, DIFFICULTIES, TEAM_NAMES, STICKER, WONDER, PERSONAS, MAPS, FACTIONS,
   TAUNTS, AI_LINES, NARRATOR, NARRATOR_NG,
   CRITTERS, GAME_MODES, START_RES,
@@ -402,7 +402,7 @@ export class Game {
 
   // ---------- setup ----------
   setup() {
-    this.scene.add(createGround(N, this.map.ground));
+    this.scene.add(createGround(N, this.map.ground, this.map));
     const rng = this.rng;
 
     // N-player start positions around the map perimeter, grouped by team so
@@ -426,6 +426,14 @@ export class Game {
     this.homePos = this.homes[this.myId];
     const clearHomes = (i, j, r) =>
       this.homes.every((h) => (worldOf(i) - h.x) ** 2 + (worldOf(j) - h.z) ** 2 > r * r);
+
+    // ---- outdoor maps: an irregular playable shape (outside the rim = scenery) ----
+    // masks are designed to always contain the start ring, so seats never drown
+    if (this.map.mask) {
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        if (!maskAt(this.map.mask, i, j, N)) this.blocked[idx(i, j)] = 1;
+      }
+    }
 
     // ---- naval basin: flood a central lake that only ships can cross ----
     if (this.map.water) {
@@ -507,6 +515,54 @@ export class Game {
         }
       }
     }
+    // ---- rolling dunes: low, wobbly mounds wearing full ramp collars, so the
+    // whole field reads as hills a toy can wander over rather than cliffs ----
+    if (this.map.dunes) {
+      const D = this.map.dunes;
+      for (let k = 0; k < (D.count || 6); k++) {
+        let ci = 0, cj = 0, ok = false;
+        for (let tries = 0; tries < 30 && !ok; tries++) {
+          ci = 14 + (rng() * (N - 28)) | 0; cj = 14 + (rng() * (N - 28)) | 0;
+          if (clearHomes(ci, cj, 15) && !this.blocked[idx(ci, cj)]) ok = true;
+        }
+        if (!ok) continue;
+        const r = (D.rMin || 4) + (rng() * ((D.rMax || 7) - (D.rMin || 4)) | 0);
+        const wob = rng() * 9;
+        // three concentric bands: crest E, then E*2/3 and E/3 collars — every
+        // step is ≤ CLIMB, so dunes are walkable from any direction
+        for (const [band, hMul] of [[r, 1], [r + 1, 2 / 3], [r + 2, 1 / 3]]) {
+          for (let b = -band - 1; b <= band + 1; b++) for (let a = -band - 1; a <= band + 1; a++) {
+            const i = ci + a, j = cj + b;
+            if (!inMap(i, j) || this.blocked[idx(i, j)]) continue;
+            const w = 0.8 + 0.2 * Math.sin(Math.atan2(b, a) * 3 + wob);
+            if ((a * a + b * b) <= band * band * w) {
+              this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], E * hMul);
+            }
+          }
+        }
+      }
+    }
+
+    // ---- the center hill: one deliberate two-step rise crowned by the map's
+    // hero landmark (the Old Oak) — the high ground everyone is here for ----
+    if (this.map.centerHill) {
+      const ci = N / 2, cj = N / 2, R = this.map.centerHill.r || 9;
+      for (const [band, h] of [[R, E], [R + 1, E * 2 / 3], [R + 2, E / 3]]) {
+        for (let b = -band; b <= band; b++) for (let a = -band; a <= band; a++) {
+          const i = ci + a, j = cj + b;
+          if (!inMap(i, j) || this.blocked[idx(i, j)]) continue;
+          if (a * a + b * b <= band * band) this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], h);
+        }
+      }
+      for (const [band, h] of [[Math.max(3, R - 5), E * 2], [Math.max(4, R - 4), E * 5 / 3], [Math.max(5, R - 3), E * 4 / 3]]) {
+        for (let b = -band; b <= band; b++) for (let a = -band; a <= band; a++) {
+          const i = ci + a, j = cj + b;
+          if (!inMap(i, j) || this.blocked[idx(i, j)]) continue;
+          if (a * a + b * b <= band * band) this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], h);
+        }
+      }
+    }
+
     // keep the basin dead flat even if a plateau clipped its edge
     if (this.map.water) for (let k = 0; k < this.water.length; k++) if (this.water[k]) this.height[k] = 0;
     this.computeCorners();
@@ -528,11 +584,61 @@ export class Game {
       }
     }
 
+    // themed blockers (books/pillows indoors, rocks/trees past the door); the
+    // rectClear guard is a no-op on classic maps but keeps masked scenery empty
+    const oKinds = this.map.obstacleKinds || ['book', 'pillow'];
+    const rectClear = (i, j, w, d) => {
+      for (let b = j; b < j + d; b++) for (let a = i; a < i + w; a++) {
+        if (!inMap(a, b) || this.blocked[idx(a, b)]) return false;
+      }
+      return true;
+    };
     for (let k = 0; k < this.map.obstacles; k++) {
       const i = 14 + (rng() * (N - 28)) | 0, j = 14 + (rng() * (N - 28)) | 0;
       const w = 2 + (rng() * 2 | 0), d = 2 + (rng() * 2 | 0);
-      if (this.flatAt(i, j, w, d, 0)) this.addObstacle(rng() < 0.5 ? 'book' : 'pillow', i, j, w, d, k + 1);
-      if (this.flatAt(N - i - w, N - j - d, w, d, 0)) this.addObstacle(rng() < 0.5 ? 'book' : 'pillow', N - i - w, N - j - d, w, d, k + 40);
+      const kind = () => oKinds[(rng() * oKinds.length) | 0];
+      if (this.flatAt(i, j, w, d, 0) && rectClear(i, j, w, d)) this.addObstacle(kind(), i, j, w, d, k + 1);
+      if (this.flatAt(N - i - w, N - j - d, w, d, 0) && rectClear(N - i - w, N - j - d, w, d)) this.addObstacle(kind(), N - i - w, N - j - d, w, d, k + 40);
+    }
+    // the Old Oak itself: a 4×4 giant on the hilltop, plus root walls radiating
+    // down the slope with gaps between them — natural castle walls
+    if (this.map.centerHill) {
+      this.addObstacle('oak', N / 2 - 2, N / 2 - 2, 4, 4, 900);
+      if (this.map.roots) {
+        const R = (this.map.centerHill.r || 9) + 2;
+        for (let s = 0; s < 6; s++) {
+          const ang = (s / 6) * Math.PI * 2 + 0.35;
+          const dx = Math.cos(ang), dz = Math.sin(ang);
+          for (let seg = 0; seg < 2; seg++) {
+            const d0 = R + 1 + seg * 4;
+            const i = Math.round(N / 2 + dx * d0), j = Math.round(N / 2 + dz * d0);
+            const horiz = Math.abs(dx) > Math.abs(dz);
+            const w = horiz ? 3 : 1, dd = horiz ? 1 : 3;
+            if (this.flatAt(i, j, w, dd, null) && rectClear(i, j, w, dd) && clearHomes(i, j, 13)) {
+              this.addObstacle('roots', i, j, w, dd, 910 + s * 2 + seg);
+            }
+          }
+        }
+      }
+    }
+    // groves: clumps of sunflowers/trees standing in for the AoE treeline
+    if (this.map.groves) {
+      const G = this.map.groves;
+      for (let k = 0; k < (G.count || 4); k++) {
+        let gi = 0, gj = 0, ok = false;
+        for (let tries = 0; tries < 25 && !ok; tries++) {
+          gi = 14 + (rng() * (N - 28)) | 0; gj = 14 + (rng() * (N - 28)) | 0;
+          if (clearHomes(gi, gj, 15)) ok = true;
+        }
+        if (!ok) continue;
+        const n = 3 + (rng() * 3 | 0);
+        for (let t = 0; t < n; t++) {
+          const i = gi + ((rng() * 7) | 0) - 3, j = gj + ((rng() * 7) | 0) - 3;
+          if (this.flatAt(i, j, 1, 1, 0) && rectClear(i, j, 1, 1)) {
+            this.addObstacle(G.kind || 'sunflower', i, j, 1, 1, 940 + k * 8 + t);
+          }
+        }
+      }
     }
     // Toy Chest Canyon: a diagonal barricade with three contested gaps
     if (this.map.canyon) {

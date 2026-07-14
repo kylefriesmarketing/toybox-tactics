@@ -428,6 +428,15 @@ function refreshRandomDesc() {
   const d = document.getElementById('map-desc');
   if (d) d.textContent = generateRandomMap(rndSeed, rndOpts).desc;
 }
+// the battlefield row is generated from MAPS — new maps show up on their own
+{
+  const row = document.getElementById('map-row');
+  if (row) {
+    row.innerHTML = Object.entries(MAPS).map(([k, m]) =>
+      `<button class="map-btn diff-btn${k === chosenMap ? ' sel' : ''}" data-map="${k}">${m.icon} ${m.label}</button>`).join('')
+      + `<button class="map-btn diff-btn" data-map="random">🎲 Random</button>`;
+  }
+}
 for (const btn of document.querySelectorAll('.map-btn')) {
   btn.addEventListener('click', () => {
     chosenMap = btn.dataset.map;
@@ -664,6 +673,33 @@ function applyMapLighting(mode) {
     return;
   }
   hemi.color.set(0xfff2dd); lamp.color.set(0xffdfae); // restore the usual bulbs
+  if (mode === 'day') {
+    // the great outdoors, mid-morning: blue sky, honest sunshine
+    hemi.intensity = 1.05; lamp.intensity = 2.1; moon.intensity = 0;
+    hemi.color.set(0xeaf4ff); lamp.color.set(0xfff4d8);
+    scene.background = new THREE.Color(0x87b8e8);
+    scene.fog.color.set(0x9cc4ea);
+    fogBase.near = 70; fogBase.far = 170;
+    return;
+  }
+  if (mode === 'gold') {
+    // golden hour in the garden: long warm light, soft haze
+    hemi.intensity = 0.85; lamp.intensity = 2.0; moon.intensity = 0.05;
+    hemi.color.set(0xffe4c0); lamp.color.set(0xffce8a);
+    scene.background = new THREE.Color(0xd9a45e);
+    scene.fog.color.set(0xdba868);
+    fogBase.near = 60; fogBase.far = 150;
+    return;
+  }
+  if (mode === 'dusk') {
+    // just after sunset: violet sky, the porch light doing its best
+    hemi.intensity = 0.55; lamp.intensity = 1.4; moon.intensity = 0.5;
+    hemi.color.set(0xb8a8d8); lamp.color.set(0xffb87a);
+    scene.background = new THREE.Color(0x4a3a6a);
+    scene.fog.color.set(0x53406e);
+    fogBase.near = 48; fogBase.far = 120;
+    return;
+  }
   if (mode === 'dark') {
     hemi.intensity = 0.4; lamp.intensity = 1.1; moon.intensity = 0.55;
     scene.background = new THREE.Color(0x0d0a1c);
@@ -1145,7 +1181,7 @@ const playIntro = (function initIntro() {
 // ---------------- Tonight's Story: AI-vs-AI spectator with a camera director ----------------
 $('watch-btn').addEventListener('click', () => {
   watchMode = true;
-  const maps = ['playmat', 'bathtub', 'bookshelf', 'kitchen', 'playground', 'livingroom', 'attic', 'canyon', 'underbed'];
+  const maps = Object.keys(MAPS); // every battlefield, indoors and out
   startGame('hard', maps[(Math.random() * maps.length) | 0]);
   setTimeout(() => {
     if (!game) return;
@@ -1359,11 +1395,15 @@ let spAccum = 0;     // single-player fixed-step accumulator (20Hz, replay-grade
 // replays it move-for-move. Version-stamped: a rebalanced data.js would tell
 // a different story from the same log, so mismatched bottles stay corked.
 let dataHash = 'dev';
-fetch('toybox/data.js').then((r) => r.text()).then((t) => {
-  let h = 5381;
-  for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
-  dataHash = h.toString(36);
-}).catch(() => { /* file:// dev — replays stay 'dev'-stamped */ });
+// the stamp covers BOTH tuning (data.js) and the sim itself (game.js) — a
+// change to either would make an old bottle tell a different story
+Promise.all([fetch('toybox/data.js'), fetch('toybox/game.js')])
+  .then((rs) => Promise.all(rs.map((r) => r.text())))
+  .then((texts) => {
+    let h = 5381;
+    for (const t of texts) for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+    dataHash = h.toString(36);
+  }).catch(() => { /* file:// dev — replays stay 'dev'-stamped */ });
 let replayLaunch = null; // set just before startGame() to play a bottle back
 
 function startReplay() {

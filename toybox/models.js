@@ -2092,8 +2092,9 @@ export function createWaterDecor() {
 
 // ---------------- ground / decor ----------------
 
-export function createGround(N, style = 'playmat') {
+export function createGround(N, style = 'playmat', mapCfg = null) {
   const g = new THREE.Group();
+  const OUTDOOR = style === 'sandbox' || style === 'garden' || style === 'oldoak';
 
   // the floor beyond the mat — painted to match the room the map lives in
   // (bathtub = tile, kitchen = checker, playground = grass, livingroom = carpet,
@@ -2136,6 +2137,14 @@ export function createGround(N, style = 'playmat') {
     for (let i = 0; i < 2500; i++) {
       fc.fillStyle = `rgba(${150 + frnd() * 60}, ${110 + frnd() * 45}, ${85 + frnd() * 35}, 0.3)`;
       fc.fillRect(frnd() * 512, frnd() * 512, 3, 3);
+    }
+  } else if (OUTDOOR) {
+    // the world past the door: lawn to every horizon (the deck/rim lives on the mat)
+    fc.fillStyle = style === 'oldoak' ? '#4a7a3a' : '#5f9a48';
+    fc.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 1200; i++) {
+      fc.fillStyle = `rgba(${30 + frnd() * 60}, ${110 + frnd() * 60}, ${35 + frnd() * 40}, 0.35)`;
+      fc.fillRect(frnd() * 512, frnd() * 512, 3 + frnd() * 3, 7 + frnd() * 9);
     }
   } else {
     // bedroom / bookshelf floorboards (bookshelf reads darker, like a study)
@@ -2182,7 +2191,7 @@ export function createGround(N, style = 'playmat') {
 
   // room walls with baseboards frame the max zoom-out (skip under the bed â€”
   // there is no wall down there, just darkness)
-  if (style !== 'underbed') {
+  if (style !== 'underbed' && !OUTDOOR) { // outdoors, the sky is the wall
     const WALL = N / 2 + 30, WH = 88, WT = 1.6;  // tall enough the camera never rises over them
     // each room wears its own paint (playground "walls" read as sky over a hedge)
     const wallColor = ({
@@ -2238,6 +2247,65 @@ export function createGround(N, style = 'playmat') {
     x.fillStyle = '#8a4a5c'; x.beginPath(); x.ellipse(420, 1500, 90, 40, 0.7, 0, Math.PI * 2); x.fill();
     x.fillStyle = '#4a6a8a'; x.fillRect(1500, 400, 180, 130);
     x.strokeStyle = '#f6f2e6'; x.lineWidth = 5; x.strokeRect(1500, 400, 180, 130);
+  } else if (style === 'sandbox') {
+    // warm raked sand: speckle + long rake arcs + the odd buried marble glint
+    let seedS = 13579;
+    const rndS = () => (seedS = (seedS * 16807) % 2147483647) / 2147483647;
+    x.fillStyle = '#e2c184'; x.fillRect(0, 0, S, S);
+    x.fillStyle = '#d4af6e';
+    for (let i = 0; i < 3200; i++) x.fillRect(rndS() * S, rndS() * S, 3 + rndS() * 3, 2 + rndS() * 3);
+    x.fillStyle = '#f0d49a';
+    for (let i = 0; i < 1800; i++) x.fillRect(rndS() * S, rndS() * S, 2, 2);
+    x.strokeStyle = 'rgba(150,110,55,0.28)'; x.lineWidth = 10;
+    for (let r = 0; r < 9; r++) {
+      x.beginPath();
+      x.arc(S * (0.2 + rndS() * 0.6), S * (0.2 + rndS() * 0.6), 180 + rndS() * 420, rndS() * 6, rndS() * 2 + 2.4);
+      x.stroke();
+    }
+    for (let i = 0; i < 8; i++) { // glints of buried treasure
+      x.fillStyle = ['#7fd0e8', '#e05555', '#f0d24a'][i % 3];
+      x.beginPath(); x.arc(rndS() * S, rndS() * S, 5 + rndS() * 4, 0, Math.PI * 2); x.fill();
+    }
+  } else if (style === 'garden') {
+    // rich tilled soil in rows, moss patches, and a stepping-stone path
+    let seedG = 86420;
+    const rndG = () => (seedG = (seedG * 16807) % 2147483647) / 2147483647;
+    x.fillStyle = '#5a4028'; x.fillRect(0, 0, S, S);
+    for (let y = 0; y < S; y += 96) { // tilled rows
+      x.fillStyle = y % 192 ? 'rgba(0,0,0,0.12)' : 'rgba(255,235,200,0.05)';
+      x.fillRect(0, y, S, 48);
+    }
+    x.fillStyle = '#4a3520';
+    for (let i = 0; i < 2600; i++) x.fillRect(rndG() * S, rndG() * S, 4 + rndG() * 4, 3 + rndG() * 3);
+    for (let i = 0; i < 26; i++) { // moss and clover patches
+      x.fillStyle = `rgba(${60 + rndG() * 40}, ${125 + rndG() * 50}, ${50 + rndG() * 30}, 0.4)`;
+      x.beginPath(); x.ellipse(rndG() * S, rndG() * S, 40 + rndG() * 90, 30 + rndG() * 60, rndG() * 3, 0, Math.PI * 2); x.fill();
+    }
+    // stepping stones ambling corner to corner
+    x.fillStyle = '#a8a49a';
+    for (let t = 0; t < 15; t++) {
+      const px = S * 0.12 + t * (S * 0.055), py = S * 0.82 - t * (S * 0.048) + Math.sin(t * 1.7) * 90;
+      x.beginPath(); x.ellipse(px, py, 52, 40, Math.sin(t) * 0.6, 0, Math.PI * 2); x.fill();
+    }
+  } else if (style === 'oldoak') {
+    // dusk lawn: deep greens, clover ticks, and a worn dirt ring around the hill
+    let seedO = 97531;
+    const rndO = () => (seedO = (seedO * 16807) % 2147483647) / 2147483647;
+    x.fillStyle = '#4f7c3e'; x.fillRect(0, 0, S, S);
+    x.fillStyle = '#446e35';
+    for (let i = 0; i < 2800; i++) x.fillRect(rndO() * S, rndO() * S, 3 + rndO() * 4, 6 + rndO() * 9);
+    x.fillStyle = '#639a4c';
+    for (let i = 0; i < 1500; i++) x.fillRect(rndO() * S, rndO() * S, 3, 5);
+    // the worn dirt circle where a hundred games of tag went around the tree
+    x.strokeStyle = 'rgba(110,80,45,0.55)'; x.lineWidth = 90;
+    x.beginPath(); x.arc(S / 2, S / 2, S * 0.19, 0, Math.PI * 2); x.stroke();
+    x.fillStyle = 'rgba(95,68,38,0.7)';
+    x.beginPath(); x.arc(S / 2, S / 2, S * 0.085, 0, Math.PI * 2); x.fill();
+    for (let i = 0; i < 30; i++) { // fallen leaves at dusk
+      x.fillStyle = ['#c9803a', '#b5643c', '#d9a04a'][i % 3];
+      x.save(); x.translate(rndO() * S, rndO() * S); x.rotate(rndO() * 6);
+      x.beginPath(); x.ellipse(0, 0, 16, 8, 0, 0, Math.PI * 2); x.fill(); x.restore();
+    }
   } else if (style === 'attic') {
     // attic war table: broad wooden planks with a round rug arena
     x.fillStyle = '#9a6a3c'; x.fillRect(0, 0, S, S);
@@ -2487,6 +2555,49 @@ export function createGround(N, style = 'playmat') {
   x.strokeRect(26, 26, S - 52, S - 52);
   x.setLineDash([]);
   }
+  // irregular playable shapes: repaint everything outside the mask as the
+  // scenery it really is (deck planks around the sandbox, wilder lawn beyond
+  // the oak clearing), with a rim stroke tracing the play-area edge
+  if (mapCfg && mapCfg.mask) {
+    const m = mapCfg.mask, px = S / N, cxp = S / 2, czp = S / 2;
+    const paintBorder = () => {
+      if (style === 'sandbox') {
+        x.fillStyle = '#b08350'; x.fillRect(0, 0, S, S); // deck planks
+        for (let y = 0; y < S; y += 128) {
+          x.fillStyle = (y / 128) % 2 ? 'rgba(0,0,0,0.1)' : 'rgba(255,240,210,0.05)';
+          x.fillRect(0, y, S, 128);
+          x.strokeStyle = 'rgba(60,35,10,0.5)'; x.lineWidth = 6;
+          x.beginPath(); x.moveTo(0, y); x.lineTo(S, y); x.stroke();
+        }
+      } else {
+        x.fillStyle = '#3f6a32'; x.fillRect(0, 0, S, S); // taller wilder lawn
+        let sd = 3141; const rn = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+        x.fillStyle = '#365c2b';
+        for (let i = 0; i < 2000; i++) x.fillRect(rn() * S, rn() * S, 4, 9 + rn() * 12);
+      }
+    };
+    x.save();
+    x.beginPath();
+    x.rect(0, 0, S, S);
+    x.ellipse(cxp, czp, m.rx * px, m.rz * px, 0, 0, Math.PI * 2);
+    x.clip('evenodd'); // everything OUTSIDE the ellipse
+    paintBorder();
+    x.restore();
+    if (m.type === 'kidney') { // the bite is border too
+      x.save();
+      x.beginPath(); x.arc(cxp + (m.bx || 0) * px, czp + (m.bz || 0) * px, m.br * px, 0, Math.PI * 2);
+      x.clip();
+      paintBorder();
+      x.restore();
+    }
+    // the rim: a thick wooden edge tracing the shape
+    x.strokeStyle = style === 'sandbox' ? '#8a5a2c' : '#57452e';
+    x.lineWidth = 22;
+    x.beginPath(); x.ellipse(cxp, czp, m.rx * px, m.rz * px, 0, 0, Math.PI * 2); x.stroke();
+    if (m.type === 'kidney') {
+      x.beginPath(); x.arc(cxp + (m.bx || 0) * px, czp + (m.bz || 0) * px, m.br * px, 0, Math.PI * 2); x.stroke();
+    }
+  }
   const tex = new THREE.CanvasTexture(c);
   tex.anisotropy = 8;
   const groundMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 });
@@ -2498,7 +2609,8 @@ export function createGround(N, style = 'playmat') {
   mat.receiveShadow = true;
   g.add(mat);
   // generated top-down ground art replaces the canvas when present
-  new THREE.TextureLoader().load(
+  // (masked maps keep the canvas — the painted rim IS the map's shape)
+  if (!(mapCfg && mapCfg.mask)) new THREE.TextureLoader().load(
     `assets/map/ground-${style}.png`,
     (t) => {
       t.colorSpace = THREE.SRGBColorSpace;
@@ -2519,6 +2631,9 @@ export function createGround(N, style = 'playmat') {
   else if (style === 'livingroom') addLivingroomSurround(g, N);
   else if (style === 'attic') addAtticSurround(g, N);
   else if (style === 'underbed') addUnderbedProps(g, N);
+  else if (style === 'sandbox') addSandboxSurround(g, N);
+  else if (style === 'garden') addGardenSurround(g, N);
+  else if (style === 'oldoak') addOakSurround(g, N);
   else addBedroom(g, N, style);
   return g;
 }
@@ -2766,6 +2881,92 @@ function addAtticSurround(g, N) {
   glow(12, 10, 34, 0xa8b8d8, 0.35); // small dusty gable window
 }
 
+// sandbox: the deck world — watering can, a lost garden glove, the house far off
+function addSandboxSurround(g, N) {
+  const { half, M, box, cyl, sph, put, glow } = surroundKit(g, N);
+  // the giant watering can on the deck, east
+  const wx = half + 20;
+  put(cyl(6, 7, 13, 0x59a0e0), wx, 6.5, 4);
+  const spout = cyl(1.2, 2, 13, 0x59a0e0, 10); spout.rotation.z = 0.85; put(spout, wx - 9, 9, 4);
+  put(cyl(0.9, 0.9, 9, 0x4a8ac8, 8), wx + 6.5, 10, 4).rotation.z = Math.PI / 2 - 0.4; // handle
+  // a lost garden glove, west — huge as a fallen tent
+  const gx = -half - 18;
+  put(box(10, 2.2, 14, 0xd9c48a, 0.95), gx, 1.1, -6, 0.4);
+  for (let f = 0; f < 4; f++) put(box(2, 1.8, 5, 0xd9c48a, 0.95), gx - 3.5 + f * 2.4, 0.9, -14 + Math.abs(f - 1.5), 0.4);
+  // seed packets blown against the south rim
+  put(box(9, 0.4, 13, 0xe05555, 0.8), -10, 0.2, half + 18, 0.5);
+  put(box(9, 0.4, 13, 0xf0d24a, 0.8), 6, 0.2, half + 20, -0.3);
+  // the house: a warm distant wall with one lit window, far north
+  put(box(90, 44, 3, 0xcfc4ae, 0.95), 0, 22, -half - 34);
+  glow(10, 12, 26, 0xffe9a0, 0.8); // the kitchen window, someone is home
+  // dandelions standing at the rim like streetlights
+  for (const [dx, dz] of [[-half - 12, 14], [half + 14, -16], [8, half + 15], [-16, -half - 13]]) {
+    put(cyl(0.3, 0.3, 11, 0x5a8a3f, 6), dx, 5.5, dz);
+    put(sph(2.6, 0xf6f2e6, 0.95), dx, 12.4, dz);
+  }
+}
+
+// garden: terracotta pots, the picket fence, and the gnome who sees everything
+function addGardenSurround(g, N) {
+  const { half, M, box, cyl, sph, put, glow } = surroundKit(g, N);
+  // picket fence along the north — the garden's far border
+  for (let t = -half - 24; t <= half + 24; t += 6) {
+    put(box(1.6, 10, 1, 0xe8e2d0, 0.9), t, 5, -half - 26);
+  }
+  put(box(half * 2 + 50, 1.4, 1, 0xdcd6c4, 0.9), 0, 7.5, -half - 26);
+  // giant terracotta pots east + west, one tipped and spilling soil
+  const pot = (x, z, r, h, tipped) => {
+    const p = cyl(r, r * 0.78, h, 0xb0603c, 14);
+    if (tipped) { p.rotation.z = Math.PI / 2 - 0.25; put(p, x, r * 0.9, z, 0.4); }
+    else { put(p, x, h / 2, z); put(cyl(r + 0.7, r + 0.7, 1.6, 0x9a5232, 14), x, h - 0.8, z); }
+    return p;
+  };
+  pot(half + 19, -8, 7, 14, false);
+  pot(half + 16, 12, 5, 10, false);
+  pot(-half - 18, 6, 6, 12, true);
+  const soil = sph(5, 0x4a3520, 1); soil.scale.set(1.6, 0.4, 1.1); put(soil, -half - 10, 1, 8);
+  // the garden gnome, south — cheerful and enormous
+  const gz = half + 20;
+  put(cyl(3.4, 4.2, 8, 0x4a6a9a), 8, 4, gz);            // body
+  put(sph(2.6, 0xf0c8a0, 0.8), 8, 9.4, gz);             // face
+  const hat = new THREE.Mesh(new THREE.ConeGeometry(2.8, 7, 12), M(0xd6453f, 0.7));
+  put(hat, 8, 14.2, gz);
+  put(sph(1.6, 0xf6f2e6, 0.95), 8, 7.6, gz + 2.1);      // beard
+  // trellis with climbing beans, west wall of green
+  for (const lx of [-half - 24, -half - 20]) put(cyl(0.4, 0.4, 22, 0x8a6a3a, 6), lx, 11, -14);
+  for (let r = 0; r < 4; r++) put(box(5.5, 0.5, 0.5, 0x8a6a3a), -half - 22, 4 + r * 5, -14);
+  put(sph(4.5, 0x4a8a3a, 0.95), -half - 22, 14, -14).scale.set(1, 1.6, 0.7);
+  glow(16, 14, 30, 0xffd9a0, 0.75); // golden-hour sun low over the fence
+}
+
+// old oak at dusk: the house is far away now, the porch light just came on
+function addOakSurround(g, N) {
+  const { half, M, box, cyl, sph, put, glow } = surroundKit(g, N);
+  // the house on the horizon, north — dark shape, one warm window
+  put(box(70, 36, 3, 0x4a4454, 0.95), -20, 18, -half - 36);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(40, 18, 4), M(0x3a3644, 0.95));
+  roof.rotation.y = Math.PI / 4; put(roof, -20, 44, -half - 36);
+  const win = new THREE.Mesh(new THREE.PlaneGeometry(7, 8),
+    new THREE.MeshStandardMaterial({ color: 0xffd9a0, emissive: 0xffc46a, emissiveIntensity: 0.9 }));
+  win.position.set(-32, 20, -half - 34.4); g.add(win);
+  put(cyl(0.7, 0.7, 24, 0x3a3644, 8), 30, 12, -half - 30); // porch-light post
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(2, 10, 8),
+    new THREE.MeshStandardMaterial({ color: 0xffe9b0, emissive: 0xffd97a, emissiveIntensity: 1.1 }));
+  lamp.position.set(30, 25, -half - 30); g.add(lamp);
+  // hedge line south — the yard's dark edge
+  for (let t = -half - 20; t <= half + 20; t += 11) {
+    put(sph(7, 0x2f5a2a, 0.98), t, 4.5, half + 24).scale.set(1.35, 0.85, 1);
+  }
+  // a forgotten wheelbarrow, east
+  const wb = half + 18;
+  const tub = cyl(6, 4, 5, 0x8a4438, 12); tub.rotation.z = 0.12; put(tub, wb, 4, 10);
+  put(cyl(2.2, 2.2, 1.6, 0x3a3644, 12), wb - 6, 2.2, 10).rotation.z = Math.PI / 2;
+  for (const hz of [7.4, 12.6]) put(cyl(0.5, 0.5, 9, 0x6a5a48, 6), wb + 7, 4.6, hz).rotation.z = 1.25;
+  // fireflies' favorite fencepost, west (the weather layer dances around it)
+  put(cyl(0.9, 1.1, 12, 0x57452e, 8), -half - 16, 6, -4);
+  glow(24, 10, 20, 0xe88a5a, 0.5); // the last band of sunset
+}
+
 // under the bed stays a walless void — just the things that got lost down here
 function addUnderbedProps(g, N) {
   const { half, sph, put, furn } = surroundKit(g, N);
@@ -2990,6 +3191,52 @@ export function createDecorMesh(kind, rngSeed = 1) {
       pip.position.set(px, py, pz);
       g.add(pip);
     }
+  } else if (kind === 'grass') {
+    // a tuft of long grass, splayed like a tiny green firework
+    const n = 4 + (rng() * 3 | 0);
+    for (let i = 0; i < n; i++) {
+      const blade = add(new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.7 + rng() * 0.5, 5), toyMat([0x4a8a3a, 0x5a9a44, 0x6aaa50][i % 3], 0.95)));
+      const a = rng() * Math.PI * 2, lean = 0.25 + rng() * 0.35;
+      blade.position.set(Math.cos(a) * 0.1, 0.32, Math.sin(a) * 0.1);
+      blade.rotation.set(Math.sin(a) * lean, 0, Math.cos(a) * lean);
+    }
+  } else if (kind === 'mushroom') {
+    const stem = add(new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 0.4, 8), toyMat(0xf0e8d8, 0.9)));
+    stem.position.y = 0.2;
+    const cap = add(new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 7, 0, Math.PI * 2, 0, Math.PI / 2), toyMat(0xd6453f, 0.7)));
+    cap.position.y = 0.38;
+    for (let i = 0; i < 4; i++) {
+      const dot = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 6), toyMat(0xf6f2e6, 0.6));
+      const a = rng() * Math.PI * 2, r = 0.12 + rng() * 0.14;
+      dot.position.set(Math.cos(a) * r, 0.44 + (0.14 - r) * 0.8, Math.sin(a) * r);
+      g.add(dot);
+    }
+  } else if (kind === 'daisy') {
+    const stem = add(new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.75, 6), toyMat(0x4a8a3a, 0.9)));
+    stem.position.y = 0.37;
+    const mid = add(new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), toyMat(0xf0c83a, 0.6)));
+    mid.position.y = 0.78;
+    for (let p = 0; p < 7; p++) {
+      const petal = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.26, 5), toyMat(0xf6f2e6, 0.8));
+      const a = p / 7 * Math.PI * 2;
+      petal.position.set(Math.cos(a) * 0.2, 0.78, Math.sin(a) * 0.2);
+      petal.rotation.z = Math.PI / 2; petal.rotation.y = -a;
+      g.add(petal);
+    }
+  } else if (kind === 'pebble') {
+    const n = 1 + (rng() * 3 | 0);
+    for (let i = 0; i < n; i++) {
+      const p = add(new THREE.Mesh(new THREE.SphereGeometry(0.12 + rng() * 0.12, 8, 6), toyMat([0x8a8f98, 0x9aa0aa, 0xb0a89a][i % 3], 0.95)));
+      p.scale.y = 0.55;
+      p.position.set((rng() - 0.5) * 0.5, 0.07, (rng() - 0.5) * 0.5);
+    }
+  } else if (kind === 'seashell') {
+    const shell = add(new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8, 0, Math.PI), toyMat(0xf2d8cc, 0.6)));
+    shell.scale.set(1, 0.45, 0.9);
+    shell.position.y = 0.09;
+    shell.rotation.y = rng() * Math.PI * 2;
+    const swirl = add(new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.03, 6, 10), toyMat(0xe0b8a8, 0.6)));
+    swirl.rotation.x = Math.PI / 2; swirl.position.y = 0.18;
   } else if (kind === 'swingset') {
     // A-frame swing set: two splayed leg pairs, a top bar, two hanging seats
     const frameM = toyMat(0x5a8fb0, 0.45);
@@ -3137,7 +3384,110 @@ export function createObstacleMesh(kind, w, d, rngSeed) {
     return g2;
   }
   const g = new THREE.Group();
-  if (kind === 'book') {
+  // ---- the great outdoors: real nature at toy scale ----
+  if (kind === 'tree') {
+    const s = Math.min(w, d);
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22 * s, 0.32 * s, 1.5 * s, 8), toyMat(0x6a4a2c, 0.9));
+    trunk.position.y = 0.75 * s; trunk.castShadow = true; g.add(trunk);
+    const greens = [0x3f7a34, 0x4a8a3a, 0x5a9a44];
+    for (let i = 0; i < 3; i++) {
+      const c = new THREE.Mesh(new THREE.SphereGeometry((0.75 - i * 0.14) * s, 12, 9), toyMat(greens[(i + rng() * 3) % 3 | 0], 0.95));
+      c.position.set((rng() - 0.5) * 0.5 * s, (1.5 + i * 0.55) * s, (rng() - 0.5) * 0.5 * s);
+      c.castShadow = true; g.add(c);
+    }
+    g.rotation.y = rng() * Math.PI * 2;
+  } else if (kind === 'oak') {
+    // THE tree: a trunk like a tower and a canopy like a green thunderhead
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.7, 4.6, 12), toyMat(0x5a3d24, 0.95));
+    trunk.position.y = 2.3; trunk.castShadow = true; g.add(trunk);
+    for (let i = 0; i < 3; i++) { // root flares
+      const fl = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.8, 1.6, 7), toyMat(0x5a3d24, 0.95));
+      const a = i / 3 * Math.PI * 2 + 0.5;
+      fl.position.set(Math.cos(a) * 1.5, 0.5, Math.sin(a) * 1.5);
+      fl.rotation.z = Math.cos(a) * 0.5; fl.rotation.x = -Math.sin(a) * 0.5;
+      g.add(fl);
+    }
+    const knot = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.14, 8, 12), toyMat(0x3f2a18, 0.9));
+    knot.position.set(0, 2.6, 1.45); g.add(knot); // the owl hole
+    const canopyCols = [0x3a6e30, 0x477e38, 0x548e42, 0x3f7a34];
+    for (let i = 0; i < 6; i++) {
+      const r = 2.4 - Math.abs(i - 2.5) * 0.28;
+      const c = new THREE.Mesh(new THREE.SphereGeometry(r, 13, 10), toyMat(canopyCols[i % 4], 0.95));
+      const a = i * 2.4;
+      c.position.set(Math.cos(a) * 1.3, 5.2 + i * 0.72, Math.sin(a) * 1.3);
+      c.castShadow = true; g.add(c);
+    }
+  } else if (kind === 'rock') {
+    const s = Math.min(w, d);
+    const greys = [0x8a8f98, 0x7a7f88, 0x9aa0aa];
+    const n = 2 + (rng() * 2 | 0);
+    for (let i = 0; i < n; i++) {
+      const r = (0.55 - i * 0.12) * s;
+      const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 0), toyMat(greys[i % 3], 0.98));
+      rock.position.set((rng() - 0.5) * 0.7 * s, r * 0.55, (rng() - 0.5) * 0.7 * s);
+      rock.rotation.set(rng() * 3, rng() * 3, rng() * 3);
+      rock.castShadow = true; g.add(rock);
+    }
+    const moss = new THREE.Mesh(new THREE.SphereGeometry(0.3 * s, 8, 6), toyMat(0x4a8a3a, 1));
+    moss.scale.y = 0.4; moss.position.set(0.3 * s, 0.12, -0.3 * s); g.add(moss);
+  } else if (kind === 'sunflower') {
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 2.2, 7), toyMat(0x4a7a34, 0.9));
+    stem.position.y = 1.1; stem.castShadow = true; g.add(stem);
+    for (const [ly, lr] of [[0.7, 0.55], [1.3, 0.45]]) {
+      const leaf = new THREE.Mesh(new THREE.ConeGeometry(lr, 0.14, 6), toyMat(0x4a8a3a, 0.95));
+      leaf.rotation.z = Math.PI / 2 + (rng() - 0.5); leaf.position.set(lr * 0.7, ly, 0);
+      leaf.rotation.y = rng() * Math.PI * 2; g.add(leaf);
+    }
+    const head = new THREE.Group();
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.16, 14), toyMat(0x5a3d24, 0.9));
+    head.add(disc);
+    for (let p = 0; p < 10; p++) {
+      const petal = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.5, 5), toyMat(0xf0c83a, 0.7));
+      const a = p / 10 * Math.PI * 2;
+      petal.position.set(Math.cos(a) * 0.5, 0, Math.sin(a) * 0.5);
+      petal.rotation.z = Math.PI / 2 + Math.cos(a) * 0.0001; // lay flat outward
+      petal.rotation.y = -a;
+      head.add(petal);
+    }
+    head.rotation.x = 0.5; head.position.y = 2.3;
+    g.add(head);
+    g.rotation.y = rng() * Math.PI * 2;
+  } else if (kind === 'roots') {
+    // gnarled surface roots crawling along the footprint
+    const along = w >= d;
+    const L = Math.max(w, d);
+    for (let seg = 0; seg < L * 2; seg++) {
+      const r = 0.3 - (seg % 3) * 0.06;
+      const root = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.3, 0.9, 7), toyMat(0x5a3d24, 0.95));
+      const t = (seg / (L * 2) - 0.5) * (L - 0.4);
+      root.position.set(along ? t : (rng() - 0.5) * 0.4, 0.28 + Math.sin(seg * 2.1) * 0.12, along ? (rng() - 0.5) * 0.4 : t);
+      root.rotation.z = along ? Math.PI / 2 + (rng() - 0.5) * 0.5 : (rng() - 0.5) * 0.4;
+      root.rotation.x = along ? (rng() - 0.5) * 0.4 : Math.PI / 2 + (rng() - 0.5) * 0.5;
+      root.castShadow = true; g.add(root);
+    }
+    const shroom = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), toyMat(0xd6453f, 0.7));
+    shroom.scale.y = 0.7; shroom.position.set(0.2, 0.5, 0.2); g.add(shroom);
+  } else if (kind === 'bucket') {
+    const s = Math.min(w, d);
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.75 * s, 0.55 * s, 1.1 * s, 14), toyMat(0xe05555, 0.5));
+    b.position.y = 0.55 * s; b.castShadow = true; g.add(b);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.75 * s, 0.06 * s, 8, 18), toyMat(0xc84545, 0.5));
+    rim.rotation.x = Math.PI / 2; rim.position.y = 1.1 * s; g.add(rim);
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.6 * s, 0.045 * s, 6, 14, Math.PI), toyMat(0xf0d24a, 0.5));
+    handle.position.y = 1.1 * s; handle.rotation.z = 0.2; g.add(handle);
+    g.rotation.y = rng() * Math.PI * 2;
+  } else if (kind === 'shovel') {
+    // a toy shovel left lying across the sand
+    const s = Math.max(w, d);
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.09 * s, 0.09 * s, 1.7 * s, 8), toyMat(0x59a0e0, 0.5));
+    handle.rotation.z = Math.PI / 2; handle.position.set(-0.35 * s, 0.12, 0); g.add(handle);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.12 * s, 0.1, 0.5 * s), toyMat(0x59a0e0, 0.5));
+    grip.position.set(-1.2 * s, 0.12, 0); g.add(grip);
+    const scoop = new THREE.Mesh(new THREE.SphereGeometry(0.5 * s, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), toyMat(0xf0d24a, 0.5));
+    scoop.rotation.z = -Math.PI / 2; scoop.rotation.y = Math.PI / 2;
+    scoop.position.set(0.72 * s, 0.18, 0); scoop.castShadow = true; g.add(scoop);
+    g.rotation.y = rng() * Math.PI * 2;
+  } else if (kind === 'book') {
     const n = 2 + (rng() * 2 | 0);
     for (let i = 0; i < n; i++) {
       const b = new THREE.Mesh(
