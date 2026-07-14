@@ -1527,6 +1527,10 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   game.zeroEra = zeroEra; // the Chronicle checks this for 'The Page Under the Pages'
   game.setup();
   setupWeather(); // wind, seeds, rain, fireflies — whatever this map's sky does
+  // the bedside lamp stays indoors — outdoor maps get sun, dusk, and porch light
+  const outdoorMap = !!(game.map && game.map.outdoor);
+  lampProp.group.visible = !outdoorMap;
+  if (outdoorMap) lampProp.light.intensity = 0;
   // resumed campaign saves need their event list in place BEFORE restore, so the
   // snapshot's done-flags land on it (fired moments must not replay on load)
   if (campaignMission && resume) game.missionEvents = (MISSION_EVENTS[campaignMission.id] || []).map((e) => ({ ...e }));
@@ -2100,6 +2104,7 @@ function setupWeather() {
     }
   }
   weather = { kind, group, parts, sway, t: Math.random() * 100 };
+  if (kind === 'rain') { try { sfx.startRain(); } catch (e) { /* muted */ } }
 }
 function updateWeather(dt) {
   if (!weather) return;
@@ -2189,8 +2194,13 @@ function setupAmbient() {
   g.add(cat);
 
   const style = game ? game.map.ground : 'playmat';
-  const hasWalls = style !== 'underbed';
+  const outdoor = !!(game && game.map && game.map.outdoor);
+  // the room furniture (window, door, goldfish bowl) only exists where there IS
+  // a room — not under the bed, and definitely not in the backyard
+  const hasWalls = style !== 'underbed' && !outdoor;
   const rainy = hasWalls && Math.random() < 0.45; // some nights it just rains
+  // no lamp outdoors either, so no moths to circle it (fireflies take the shift)
+  if (outdoor) for (const mo of moths) mo.mesh.visible = false;
 
   // the playmat breathes: breeze ripples run through the fabric
   const mat = scene.getObjectByName('playmat-ground');
@@ -2507,10 +2517,12 @@ function loop() {
   vfx.ambient(cam.x, cam.z, dt); // dust motes drifting in the lamp light
   updateAmbient(dt);            // moths, headlights, the cat
   updateWeather(dt);            // wind in the sunflowers, seeds on the breeze
-  // the lamp breathes a little, like a real filament
-  const flick = 1 + Math.sin(performance.now() * 0.0021) * 0.03 + Math.sin(performance.now() * 0.013) * 0.02;
-  lampProp.light.intensity = 220 * flick;
-  lampProp.bulb.material.emissiveIntensity = 2.2 * flick;
+  // the lamp breathes a little, like a real filament (only while it exists)
+  if (lampProp.group.visible) {
+    const flick = 1 + Math.sin(performance.now() * 0.0021) * 0.03 + Math.sin(performance.now() * 0.013) * 0.02;
+    lampProp.light.intensity = 220 * flick;
+    lampProp.bulb.material.emissiveIntensity = 2.2 * flick;
+  }
   renderer.render(scene, camera);
 }
 requestAnimationFrame(loop);
