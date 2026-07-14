@@ -344,6 +344,58 @@
   .seat .mp-rm:hover { background: #7a2a2a; color: #fff; }
   .mp-code-big { font-family: var(--font-display); font-size: 20px; letter-spacing: 4px; color: var(--gold);
     background: #201206; border: 1px solid var(--gold-deep); border-radius: 8px; padding: 2px 10px; }
+  /* ============ EMPIRE MODE (the strategic board) ============ */
+  #empire { display: none; position: fixed; inset: 0; z-index: 60; flex-direction: column;
+    background: radial-gradient(120% 100% at 50% 0%, #2a1c10 0%, #16100a 70%);
+    font-family: var(--font-body); }
+  #empire.show { display: flex; }
+  .e-top, .e-bottom { display: flex; align-items: center; gap: 10px; padding: 8px 14px; flex-wrap: wrap; }
+  .e-top { border-bottom: 2px solid var(--line); background: #201409cc; }
+  .e-bottom { border-top: 2px solid var(--line); background: #201409cc; }
+  .e-chip { color: var(--ink); font-size: 13px; background: var(--panel-3); border: 1px solid var(--line);
+    border-radius: 999px; padding: 4px 12px; }
+  .e-chip b { color: var(--gold-2); }
+  .e-dim { color: #b9a888; font-size: 12px; }
+  .e-spring { flex: 1; }
+  .e-main { flex: 1; display: flex; min-height: 0; }
+  #e-board { flex: 1; min-width: 0; }
+  .e-route { stroke: #6a4a2a; stroke-width: 5; stroke-linecap: round; }
+  .e-route.rough { stroke-dasharray: 4 9; stroke-width: 4; }
+  .e-order { stroke: #ffd97a; stroke-width: 3; stroke-dasharray: 7 5; }
+  .e-node { cursor: pointer; }
+  .e-node-c { fill: #2c1f12; stroke-width: 4; }
+  .e-node.hot .e-node-c { stroke: var(--gold-2) !important; stroke-width: 6;
+    filter: drop-shadow(0 0 7px #ffca6390); }
+  .e-node-ic { font-size: 22px; }
+  .e-node-lb { font-size: 12.5px; fill: #e8dcc2; paint-order: stroke; stroke: #16100a; stroke-width: 3px; }
+  .e-army { cursor: pointer; }
+  .e-army circle { stroke: #16100a; stroke-width: 2.5; filter: drop-shadow(0 2px 3px #000a); }
+  .e-army.sel circle { stroke: var(--gold-2); stroke-width: 3.5; }
+  .e-army-n { font-size: 12px; font-weight: 800; fill: #16100a; }
+  .e-side { width: 300px; flex: none; padding: 12px; overflow-y: auto; }
+  .e-panel { background: var(--panel-3); border: 1px solid var(--line); border-radius: 14px; padding: 12px;
+    color: var(--ink); display: flex; flex-direction: column; gap: 7px; }
+  .e-ttl { font-family: var(--font-display); color: var(--gold); font-size: 15px; }
+  .e-card { font-size: 12.5px; display: flex; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+  .e-card span:last-child { color: var(--gold-2); }
+  .e-hp { width: 100%; height: 6px; background: #16100a; border-radius: 99px; overflow: hidden; }
+  .e-hp div { height: 100%; background: linear-gradient(90deg, #90be6d, #f9c74f); }
+  .e-upgs { display: flex; gap: 8px; flex-wrap: wrap; }
+  .e-upg.owned { opacity: 0.65; }
+  .e-log { flex: 1; min-width: 220px; color: #b9a888; font-size: 11.5px; max-height: 64px; overflow-y: auto; }
+  #e-modal .e-toast { position: absolute; left: 50%; bottom: 110px; transform: translateX(-50%);
+    background: #201409ee; border: 1px solid var(--gold-deep); color: var(--ink); border-radius: 12px;
+    padding: 9px 16px; max-width: 480px; font-size: 13px; z-index: 5; }
+  .e-enc { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center;
+    background: #0008; }
+  .e-enc-card { background: linear-gradient(180deg, #2c1f12, #201409); border: 2px solid var(--gold-deep);
+    border-radius: 16px; padding: 20px 24px; max-width: 460px; display: flex; flex-direction: column; gap: 9px;
+    color: var(--ink); box-shadow: 0 18px 50px #000c; }
+  .e-band { font-family: var(--font-display); font-size: 20px; letter-spacing: 1px; }
+  .b-overwhelming, .b-favored { color: #90be6d; }
+  .b-even { color: #f9c74f; }
+  .b-risky, .b-desperate { color: #e5726a; }
+  .e-enc-btns { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 4px; }
   #mp-battlefield { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
   #mp-battlefield label { color: var(--dim); font-size: 12px; font-weight: 600; }
   #mp-battlefield select { background: var(--panel-3); color: var(--ink); border: 1px solid var(--line);
@@ -814,6 +866,7 @@
   </div>
 
   <div id="alerts"></div>
+  <div id="empire"></div>
   <div id="bookend"></div>
   <div id="shelf">
     <div class="sh-panel">
@@ -898,7 +951,8 @@
         <button id="campaign-btn" class="home-btn"><span class="hb-ic"><img src="assets/ui/ic-menu-campaign.png" alt="" onerror="this.replaceWith(document.createTextNode('🎖️'))"></span><span class="hb-txt"><b>Campaign</b><small>The Bedroom Wars — a four-act storybook war, indoors and out</small></span></button>
         <button id="tutorial-btn" class="home-btn"><span class="hb-ic"><img src="assets/ui/ic-menu-howto.png" alt="" onerror="this.replaceWith(document.createTextNode('📖'))"></span><span class="hb-txt"><b>How to Play</b><small>Learn the ropes in a guided match</small></span></button>
         <button id="codex-btn" class="home-btn"><span class="hb-ic">📔</span><span class="hb-txt"><b>Storybook</b><small>Every toy, tribe &amp; battlefield — the lore of the room</small></span></button>
-        <button id="home-mp" class="home-btn"><span class="hb-ic"><img src="assets/ui/ic-menu-multiplayer.png" alt="" onerror="this.replaceWith(document.createTextNode('🌐'))"></span><span class="hb-txt"><b>Multiplayer</b><small>Host or join a 1v1 online</small></span></button>
+        <button id="home-mp" class="home-btn"><span class="hb-ic"><img src="assets/ui/ic-menu-multiplayer.png" alt="" onerror="this.replaceWith(document.createTextNode('🌐'))"></span><span class="hb-txt"><b>Multiplayer</b><small>Up to 4 friends online</small></span></button>
+        <button id="home-empire" class="home-btn"><span class="hb-ic">🗺️</span><span class="hb-txt"><b>Empire Mode</b><small>A living war across the toy box — NEW</small></span></button>
       </div>
       <details id="controls-ref">
         <summary>⌨️ Controls &amp; tips</summary>

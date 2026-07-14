@@ -15,6 +15,7 @@ import { recordMatch, ACHIEVEMENTS, loadChronicle, loadEarned } from './chronicl
 import { VFX } from './vfx.js';
 import { SFX } from './sfx.js';
 import { Net, TICK, INPUT_DELAY } from './net.js';
+import { Empire, setEmpireHooks, openEmpire, empireBattleContext, empireShouldAutoOpen, empireTest } from './empire.js';
 
 const N = MAP_N;
 const $ = (id) => document.getElementById(id);
@@ -216,6 +217,8 @@ async function boot() {
   { const m = $('menu'); if (m) m.classList.add('show'); } // null: a test hook started the game mid-boot
   offerResume();
   applySettings();
+  // returning from an Empire Mode battle: reopen the strategic map directly
+  if (empireShouldAutoOpen()) openEmpire();
   // first-timers get a gentle nudge toward the tutorial
   if (!localStorage.getItem('tt-seen')) {
     const hint = document.createElement('div');
@@ -829,6 +832,11 @@ function showMenuScreen(name) {
 $('home-quick').addEventListener('click', () => startGame(chosenDiff));
 $('home-custom').addEventListener('click', () => showMenuScreen('setup'));
 $('home-mp').addEventListener('click', () => { showMenuScreen('mp'); renderMpLobby(); });
+// Empire Mode: the strategic layer opens over the menu; battles come back here
+setEmpireHooks({ startGame: (d, m) => startGame(d, m), showMenuScreen });
+const heBtn = $('home-empire');
+if (heBtn) heBtn.addEventListener('click', () => { sfx.init(); openEmpire(); });
+window.__ttEmpire = empireTest; // headless determinism harness (persist=false)
 for (const b of document.querySelectorAll('.setup-back')) b.addEventListener('click', () => { mpReset(); showMenuScreen('home'); });
 window.__ttStart = (d, m) => startGame(d || 'normal', m); // headless test hook
 window.__ttRandom = generateRandomMap; // headless: build a random-map config to soak
@@ -1865,9 +1873,14 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   }
 
   const rep = replayLaunch; replayLaunch = null; // consume the bottle, if any
-  let map = (mpOpts && mpOpts.map) || mapKey || chosenMap;
+  // Empire Mode battle: the strategic layer hands us an immutable BattleContext
+  // (map/mode/seed/rosters). The campaign already saved itself — after this
+  // match the result returns via Empire.applyPlayedResult and a reload.
+  const ebc = empireBattleContext();
+  let map = (ebc && ebc.map) || (mpOpts && mpOpts.map) || mapKey || chosenMap;
   // seed: MP/resume/replay carry theirs; fresh games roll a new one
-  let seedVal = mpOpts ? mpOpts.seed : (resume ? resume.opts.seed : (rep ? rep.seed : (Math.random() * 2 ** 31) | 0));
+  let seedVal = ebc ? ebc.seed
+    : mpOpts ? mpOpts.seed : (resume ? resume.opts.seed : (rep ? rep.seed : (Math.random() * 2 ** 31) | 0));
   // a fresh single-player random map: build the config from the seed panel and
   // tie the whole match seed to it, so a given seed reproduces the exact board
   if (map === 'random' && !mpOpts && !resume) {
@@ -1886,6 +1899,13 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   // team roster: single-player skirmish comes from the lobby (2–4 seats, teams);
   // campaign fixes its own 1v1 matchup; MP co-op spells out four seats
   let playerDefs = resume ? resume.opts.playerDefs || null : null;
+  if (!playerDefs && ebc) {
+    // empire battle: human vs the rival empire's AI, civs fixed by the campaign
+    playerDefs = [
+      { team: 0, isAI: false, faction: ebc.humanFaction },
+      { team: 1, isAI: true, faction: ebc.aiFaction, difficulty: ebc.difficulty },
+    ];
+  }
   if (!playerDefs && rep) playerDefs = rep.playerDefs; // replay: the original roster, civs pinned
   if (!playerDefs && watchMode && !mpOpts && !campaignMission) {
     // Tonight's Story: two AI tribes, the player just watches (random civs)
@@ -1928,6 +1948,19 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
         const art = $('go-art');
         if (art) { art.style.display = 'none'; art.removeAttribute('src'); }
       }
+      // empire battle: harvest the tagged survivors and hand the BattleResult
+      // back to the campaign (idempotent by encounter id — safe across reloads)
+      if (ebc) {
+        const survivors = {};
+        for (const e of game.entities) {
+          if (e.kind === 'unit' && e.empireCardId && !e.dead) {
+            survivors[e.empireCardId] = { strength: Math.max(5, Math.round((e.hp / e.maxHp) * 100)) };
+          }
+        }
+        Empire.applyPlayedResult(win, survivors);
+        $('go-stats').insertAdjacentHTML('beforeend',
+          `<div style="margin-top:8px"><button class="diff-btn sel" onclick="location.reload()">🗺️ Return to the Empire</button></div>`);
+      }
       // the Chronicle remembers, and new Bedtime Stories get their moment
       const newly = recordMatch(game, win);
       if (newly.length) {
@@ -1957,8 +1990,8 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
     focus: (x, z) => cameraMoment(x, z),
   }, {
     fx: vfx, sfx, difficulty, map, playerDefs, tutorial,
-    gameMode: mpOpts ? mpOpts.gameMode : (resume ? resume.opts.gameMode : (rep ? rep.gameMode : chosenMode)),
-    startRes: mpOpts ? mpOpts.startRes : (resume ? resume.opts.startRes : (rep ? rep.startRes : chosenStartRes)),
+    gameMode: ebc ? ebc.gameMode : mpOpts ? mpOpts.gameMode : (resume ? resume.opts.gameMode : (rep ? rep.gameMode : chosenMode)),
+    startRes: ebc ? ebc.startRes : mpOpts ? mpOpts.startRes : (resume ? resume.opts.startRes : (rep ? rep.startRes : chosenStartRes)),
     // resumed games must rebuild the identical map shell before restoring
     seed: seedVal,
     mp: !!mpOpts, myId: mpOpts ? mpOpts.myId : 0, net,
@@ -1983,6 +2016,22 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   if (campaignMission) game.ngPlus = ngActive; // NG narrator voice survives resume too
   if (resume) game.restore(resume);
   if (campaignMission && !resume) applyMissionMods(game, campaignMission);
+  // empire battle: both rosters march in as tagged spearhead units — the
+  // survivors return to the campaign map with their remaining strength
+  if (ebc) {
+    const dropRoster = (spawns, seat) => {
+      const home = game.entities.find((e) => e.type === 'chest' && e.owner === seat && !e.dead);
+      if (!home) return;
+      spawns.forEach((sp, i) => {
+        const u = game.spawnUnit(sp.type, seat, home.x + 2.5 + (i % 3) * 0.9, home.z + 2.5 + ((i / 3) | 0) * 0.9);
+        u.hp = Math.max(1, u.maxHp * (sp.strength / 100));
+        u.empireCardId = sp.cardId;
+        if (sp.vet) u.kills = 3; // veterans arrive decorated
+      });
+    };
+    dropRoster(ebc.attSpawns, ebc.humanIsAttacker ? 0 : 1);
+    dropRoster(ebc.defSpawns, ebc.humanIsAttacker ? 1 : 0);
+  }
   window.game = game;
 
   ui = new UI(game, {
