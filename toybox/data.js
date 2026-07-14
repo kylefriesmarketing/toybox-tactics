@@ -850,6 +850,7 @@ export const MAPS = {
     // wooden rim is deck, and no toy marches on deck. Rolling dunes inside.
     mask: { type: 'kidney', rx: 33, rz: 27, bx: 0, bz: -26, br: 12 },
     dunes: { count: 7, rMin: 4, rMax: 7 },
+    weather: 'seeds',
     obstacleKinds: ['rock', 'bucket', 'shovel'],
     decor: ['pebble', 'grass', 'seashell'],
     decorCount: 14,
@@ -860,6 +861,7 @@ export const MAPS = {
     obstacles: 5, canyon: false, resourceMul: 1.3, stickers: 3, plateaus: 4,
     // flower-bed terraces climb in real steps; sunflower groves are the forests
     groves: { kind: 'sunflower', count: 5 },
+    weather: 'rain', // a golden sun-shower — the garden's favorite kind
     obstacleKinds: ['rock', 'tree'],
     decor: ['daisy', 'grass', 'mushroom', 'pebble'],
     decorCount: 20,
@@ -872,6 +874,7 @@ export const MAPS = {
     mask: { type: 'ellipse', rx: 34, rz: 29 },
     centerHill: { r: 9 },
     roots: true,
+    weather: 'fireflies',
     obstacleKinds: ['rock', 'tree'],
     decor: ['mushroom', 'grass', 'pebble', 'daisy'],
     decorCount: 18,

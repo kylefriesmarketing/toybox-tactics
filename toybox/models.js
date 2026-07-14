@@ -3200,6 +3200,7 @@ export function createDecorMesh(kind, rngSeed = 1) {
       blade.position.set(Math.cos(a) * 0.1, 0.32, Math.sin(a) * 0.1);
       blade.rotation.set(Math.sin(a) * lean, 0, Math.cos(a) * lean);
     }
+    g.userData.sway = 0.1;
   } else if (kind === 'mushroom') {
     const stem = add(new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 0.4, 8), toyMat(0xf0e8d8, 0.9)));
     stem.position.y = 0.2;
@@ -3223,6 +3224,7 @@ export function createDecorMesh(kind, rngSeed = 1) {
       petal.rotation.z = Math.PI / 2; petal.rotation.y = -a;
       g.add(petal);
     }
+    g.userData.sway = 0.08;
   } else if (kind === 'pebble') {
     const n = 1 + (rng() * 3 | 0);
     for (let i = 0; i < n; i++) {
@@ -3396,6 +3398,7 @@ export function createObstacleMesh(kind, w, d, rngSeed) {
       c.castShadow = true; g.add(c);
     }
     g.rotation.y = rng() * Math.PI * 2;
+    g.userData.sway = 0.035; // the wind knows this tree
   } else if (kind === 'oak') {
     // THE tree: a trunk like a tower and a canopy like a green thunderhead
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.7, 4.6, 12), toyMat(0x5a3d24, 0.95));
@@ -3452,6 +3455,7 @@ export function createObstacleMesh(kind, w, d, rngSeed) {
     head.rotation.x = 0.5; head.position.y = 2.3;
     g.add(head);
     g.rotation.y = rng() * Math.PI * 2;
+    g.userData.sway = 0.07; // sunflowers gossip in any breeze
   } else if (kind === 'roots') {
     // gnarled surface roots crawling along the footprint
     const along = w >= d;

@@ -1526,6 +1526,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   }
   game.zeroEra = zeroEra; // the Chronicle checks this for 'The Page Under the Pages'
   game.setup();
+  setupWeather(); // wind, seeds, rain, fireflies — whatever this map's sky does
   // resumed campaign saves need their event list in place BEFORE restore, so the
   // snapshot's done-flags land on it (fired moments must not replay on load)
   if (campaignMission && resume) game.missionEvents = (MISSION_EVENTS[campaignMission.id] || []).map((e) => ({ ...e }));
@@ -2053,6 +2054,86 @@ function stepMP(realDt) {
   }
 }
 
+// ---------------- weather & wind (visual only — the sim never feels the rain) ----
+let weather = null; // { kind, group, parts, sway, t }
+function clearWeather() {
+  if (weather && weather.group) scene.remove(weather.group);
+  weather = null;
+}
+function setupWeather() {
+  clearWeather();
+  if (!game) return;
+  const kind = game.map && game.map.weather;
+  // collect everything the wind is allowed to touch (tagged by models.js)
+  const sway = [];
+  scene.traverse((n) => {
+    if (n.userData && n.userData.sway) sway.push({ o: n, ph: Math.random() * 9, amp: n.userData.sway, base: n.rotation.z });
+  });
+  if (!kind && !sway.length) return;
+  const group = new THREE.Group();
+  scene.add(group);
+  const parts = [];
+  const span = N * 1.3;
+  if (kind === 'rain') {
+    const rainM = new THREE.MeshBasicMaterial({ color: 0xbfd8f0, transparent: true, opacity: 0.55 });
+    for (let i = 0; i < 110; i++) {
+      const drop = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.55, 0.03), rainM);
+      drop.position.set((Math.random() - 0.5) * span, 4 + Math.random() * 26, (Math.random() - 0.5) * span);
+      group.add(drop);
+      parts.push({ m: drop, v: 16 + Math.random() * 8 });
+    }
+  } else if (kind === 'seeds') {
+    const seedM = new THREE.MeshStandardMaterial({ color: 0xf6f2e6, roughness: 0.9, transparent: true, opacity: 0.85 });
+    for (let i = 0; i < 26; i++) {
+      const fluff = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), seedM);
+      fluff.position.set((Math.random() - 0.5) * span, 1 + Math.random() * 12, (Math.random() - 0.5) * span);
+      group.add(fluff);
+      parts.push({ m: fluff, ph: Math.random() * 9, v: 0.25 + Math.random() * 0.3 });
+    }
+  } else if (kind === 'fireflies') {
+    for (let i = 0; i < 26; i++) {
+      const fly = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5),
+        new THREE.MeshStandardMaterial({ color: 0xfff2b0, emissive: 0xffe27a, emissiveIntensity: 1 }));
+      fly.position.set((Math.random() - 0.5) * span, 0.6 + Math.random() * 3.2, (Math.random() - 0.5) * span);
+      group.add(fly);
+      parts.push({ m: fly, ph: Math.random() * 9, cx: fly.position.x, cz: fly.position.z });
+    }
+  }
+  weather = { kind, group, parts, sway, t: Math.random() * 100 };
+}
+function updateWeather(dt) {
+  if (!weather) return;
+  weather.t += dt;
+  const t = weather.t;
+  for (const s of weather.sway) s.o.rotation.z = s.base + Math.sin(t * 1.2 + s.ph) * s.amp;
+  const span = N * 1.3;
+  if (weather.kind === 'rain') {
+    for (const p of weather.parts) {
+      p.m.position.y -= p.v * dt;
+      p.m.position.x += dt * 1.5; // the shower leans with the breeze
+      if (p.m.position.y < 0) {
+        p.m.position.set((Math.random() - 0.5) * span, 24 + Math.random() * 8, (Math.random() - 0.5) * span);
+      }
+    }
+  } else if (weather.kind === 'seeds') {
+    for (const p of weather.parts) {
+      p.m.position.y -= p.v * dt * 0.4;
+      p.m.position.x += Math.sin(t * 0.7 + p.ph) * dt * 1.6 + dt * 0.8;
+      p.m.position.z += Math.cos(t * 0.5 + p.ph) * dt * 1.2;
+      if (p.m.position.y < 0.3) {
+        p.m.position.set((Math.random() - 0.5) * span, 9 + Math.random() * 8, (Math.random() - 0.5) * span);
+      }
+    }
+  } else if (weather.kind === 'fireflies') {
+    for (const p of weather.parts) {
+      p.m.position.x = p.cx + Math.sin(t * 0.6 + p.ph) * 2.4;
+      p.m.position.z = p.cz + Math.cos(t * 0.45 + p.ph * 1.3) * 2.4;
+      p.m.position.y = 1.6 + Math.sin(t * 0.9 + p.ph * 2) * 1.1;
+      p.m.material.emissiveIntensity = 0.35 + 0.65 * Math.max(0, Math.sin(t * 1.7 + p.ph * 3));
+    }
+  }
+}
+
 // ---------------- ambient room life (visual only, never touches the sim) ----
 let ambient = null;
 let ambClock = 0;
@@ -2425,6 +2506,7 @@ function loop() {
   }
   vfx.ambient(cam.x, cam.z, dt); // dust motes drifting in the lamp light
   updateAmbient(dt);            // moths, headlights, the cat
+  updateWeather(dt);            // wind in the sunflowers, seeds on the breeze
   // the lamp breathes a little, like a real filament
   const flick = 1 + Math.sin(performance.now() * 0.0021) * 0.03 + Math.sin(performance.now() * 0.013) * 0.02;
   lampProp.light.intensity = 220 * flick;
@@ -2451,6 +2533,7 @@ setInterval(() => {
     marker.update(elapsed);
     ui.update(elapsed);
     updateAmbient(elapsed);
+    updateWeather(elapsed);
     applyCamera(elapsed);
     renderer.render(scene, camera);
   } catch (err) {
