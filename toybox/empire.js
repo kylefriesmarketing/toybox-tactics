@@ -875,14 +875,57 @@ class EmpireUI {
     this.launchCtx = null;
     this.lastPos = {};   // armyId -> {x,y} for march animations
     this.root = document.getElementById('empire');
+    // accessibility (§18): honour the OS "reduce motion" preference
+    this.reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    this.onKey = (e) => this.handleKey(e);
   }
   show() {
     this.root.classList.add('show');
     this.render();
+    document.addEventListener('keydown', this.onKey);
     const enc = this.emp.nextEncounter();
     if (enc) this.showEncounter(enc); // resume mid battle-window after a reload
+    else if (!localStorage.getItem('tt-empire-seen')) { localStorage.setItem('tt-empire-seen', '1'); this.showGuide(); }
   }
-  hide() { this.root.classList.remove('show'); ui = null; }
+  hide() { this.root.classList.remove('show'); document.removeEventListener('keydown', this.onKey); ui = null; }
+
+  // keyboard: Space/Enter = end turn · Esc = close/deselect/leave · C/T/? shortcuts.
+  // A battle-decision modal is deliberately NOT dismissable — it needs a choice.
+  handleKey(e) {
+    if (!this.root.classList.contains('show')) return;
+    const m = this.root.querySelector('#e-modal');
+    const battleModal = m && m.querySelector('#e-sim'); // encounter awaiting a decision
+    const infoModal = m && (m.querySelector('#e-tclose, #e-colclose, #e-rclose, #e-gclose') || m.querySelector('.e-loot'));
+    if (e.key === 'Escape') {
+      if (battleModal) return; // must choose Play / Simulate / Withdraw
+      if (infoModal) { m.innerHTML = ''; e.preventDefault(); return; }
+      if (this.sel || this.selNode) { this.sel = null; this.selNode = null; this.render(); e.preventDefault(); return; }
+      this.hide(); return;
+    }
+    if (battleModal || infoModal || this.emp.s.over) return;
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); const b = this.root.querySelector('#e-end'); if (b && !b.disabled) b.click(); }
+    else if (e.key === 'c' || e.key === 'C') { esfx('select', 60); this.showCollection(); }
+    else if (e.key === 't' || e.key === 'T') { esfx('select', 60); this.showTree(); }
+    else if (e.key === '?' || e.key === '/') { this.showGuide(); }
+  }
+
+  // first-run coach + reopenable help (bible §18)
+  showGuide() {
+    const m = this.root.querySelector('#e-modal');
+    const row = (ic, t) => `<div class="e-guiderow"><span class="e-guideic">${ic}</span><span>${t}</span></div>`;
+    m.innerHTML = `<div class="e-enc"><div class="e-enc-card e-guide-card">
+      <div class="e-ttl">📖 How to Rule the Bedroom</div>
+      ${row('🎯', `WIN by holding <b>${E_RULES.dominionNeed}</b> territories (one a stronghold), OR seizing the Storybook Tower crown for <b>${E_RULES.crownNeed}</b> turns, OR storming the enemy capital — before sunrise on turn ${E_RULES.turnCap}.`)}
+      ${row('🚩', 'MOVE: click your <b>blue</b> army, then a <b>glowing</b> node. Roads cost 1 move, rough paths 2.')}
+      ${row('⚔️', 'FIGHT: marching onto a defended node starts a battle. <b>Play</b> it yourself in the toy box, or <b>Simulate</b> from the same odds — survivors carry their wounds back.')}
+      ${row('🔩', 'GROW: capture nodes for Parts. Recruit cards, build 🌳 tree upgrades (💡 Imagination), and 🧱 stronghold modules.')}
+      ${row('📇', 'COLLECT: win battles for troop cards that persist across every campaign — field your best from the recruit picker.')}
+      ${row('🌪️', 'BEWARE: the vacuum closes roads, and land cut off from your capital yields half.')}
+      <div class="e-dim" style="margin-top:8px">⌨️ <b>Space</b> ends your turn · <b>Esc</b> closes · <b>C</b> collection · <b>T</b> tree · <b>?</b> this guide.</div>
+      <div class="e-enc-btns"><button id="e-gclose" class="diff-btn sel">Let's play</button></div>
+    </div></div>`;
+    m.querySelector('#e-gclose').addEventListener('click', () => { m.innerHTML = ''; });
+  }
 
   armyPos(a) {
     const n = E_NODES[a.node];
@@ -923,7 +966,9 @@ class EmpireUI {
         : (n.type === 'crown' ? '<text y="-32" text-anchor="middle" class="e-crownmark">👑</text>' : '');
       const aimark = knowsAiTarget && s.aiIntent === id ? '<text x="-20" y="-18" class="e-supwarn">🎯</text>' : '';
       const mods = (st.modules || []).length ? `<text x="22" y="24" class="e-modmark">${(st.modules || []).map((k) => E_MODULES[k].icon).join('')}</text>` : '';
+      const tip = `${n.name} — ${st.owner === -1 ? 'Unclaimed' : emp.facLabel(st.owner)}${n.yield ? ` · ${n.yield}🔩/turn` : ''}`;
       return `<g class="e-node${hot}${insp}" data-node="${id}" transform="translate(${n.mx},${n.my})">
+        <title>${tip}</title>
         ${st.owner !== -1 ? `<circle r="31" class="e-node-halo" style="fill:${emp.facColor(st.owner)}18"/>` : ''}
         <circle r="26" class="e-node-c${unsup ? ' unsup' : ''}" style="stroke:${ring}"/>
         <text y="7" text-anchor="middle" class="e-node-ic">${n.icon}</text>
@@ -960,6 +1005,7 @@ class EmpireUI {
     this.root.innerHTML = `
       <div class="e-top">
         <button id="e-back" class="diff-btn">← Menu</button>
+        <button id="e-guide" class="diff-btn" title="How to play (?)">❔</button>
         <span class="e-chip" title="Parts: build, recruit, upgrade">🔩 <b>${s.parts[0]}</b> <span class="e-dim">+${emp.income(0, sup0) - emp.upkeepCost(0)}/t</span></span>
         <span class="e-chip" title="Power: force marches (cap ${E_RULES.powerCap})">🔋 <b>${s.power[0]}</b><span class="e-dim">/${E_RULES.powerCap}</span></span>
         <span class="e-chip" title="Imagination: the empire tree's currency">💡 <b>${s.imag[0]}</b> <span class="e-dim">+${emp.imagIncome(0, sup0)}/t</span></span>
@@ -994,6 +1040,7 @@ class EmpireUI {
 
   // FLIP-style march animation: tokens glide from their last drawn position
   animateTokens() {
+    if (this.reduceMotion) { for (const g of this.root.querySelectorAll('.e-army')) { const a = this.emp.s.armies.find((x) => x.id === g.dataset.army); if (a) this.lastPos[a.id] = this.armyPos(a); } return; }
     for (const g of this.root.querySelectorAll('.e-army')) {
       const a = this.emp.s.armies.find((x) => x.id === g.dataset.army);
       if (!a) continue;
@@ -1108,6 +1155,8 @@ class EmpireUI {
   wire() {
     const emp = this.emp;
     this.root.querySelector('#e-back').addEventListener('click', () => { this.hide(); });
+    const gd = this.root.querySelector('#e-guide');
+    if (gd) gd.addEventListener('click', () => { esfx('select', 60); this.showGuide(); });
     this.root.querySelector('#e-new').addEventListener('click', () => {
       if (this.confirmNew) { Empire.clear(); this.emp = new Empire(); this.sel = null; this.selNode = null; this.lastPos = {}; this.confirmNew = false; this.render(); }
       else { this.confirmNew = true; this.root.querySelector('#e-new').textContent = '⚠ Sure? Click again'; }
@@ -1282,7 +1331,7 @@ class EmpireUI {
     const c = E_CARDS[loot.key]; if (!c) return;
     const col = E_RARITY[c.rarity].color;
     const m = this.root.querySelector('#e-modal');
-    m.innerHTML = `<div class="e-loot" style="border-color:${col}">
+    m.innerHTML = `<div class="e-loot${this.reduceMotion ? ' noanim' : ''}" style="border-color:${col}">
       <div class="e-loot-tag" style="color:${col}">${loot.first ? '✨ NEW CARD' : 'DUPLICATE → +' + loot.scraps + ' scraps'}</div>
       <div class="e-loot-ic">${c.icon}</div>
       <div class="e-loot-name" style="color:${col}">${c.name}</div>
