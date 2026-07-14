@@ -1344,16 +1344,9 @@ $('watch-btn').addEventListener('click', () => {
 {
   const rb = $('replay-btn');
   if (rb) {
-    let has = false;
-    try { has = !!JSON.parse(localStorage.getItem('tt-replay-last') || 'null'); } catch { /* corrupt */ }
-    rb.hidden = !has;
-    rb.addEventListener('click', () => {
-      startReplay();
-      setTimeout(() => {
-        if (!game || !game.replayFeed) return;
-        ui.alert('📼 The Bottled Story: the toys remember every move. Sit back — or fly the camera yourself.', 'story', null, 0);
-      }, 1500);
-    });
+    rb.hidden = false; // the shelf always opens — even empty, it takes shared codes
+    rb.textContent = '📼 The Replay Shelf — watch or share bottled stories';
+    rb.addEventListener('click', openShelf);
   }
 }
 
@@ -1501,6 +1494,8 @@ window.__ttSoak = (opts = {}, maxTicks = 9000) => {
   const _end = g.endGame.bind(g);
   g.endGame = (team) => { winnerTeam = team; _end(team); };
   g.setup();
+  // campaign QA: feed scripted mission beats into the headless run
+  if (opts.missionEvents) g.missionEvents = opts.missionEvents.map((e) => ({ ...e }));
   let err = null, t = 0;
   try { for (; t < maxTicks && !g.over; t++) g.update(0.1); }
   catch (e) { err = (e && e.message) + ' | ' + ((e && e.stack) || '').split('\n')[1]; }
@@ -1543,18 +1538,82 @@ Promise.all([fetch('toybox/data.js'), fetch('toybox/game.js')])
   }).catch(() => { /* file:// dev — replays stay 'dev'-stamped */ });
 let replayLaunch = null; // set just before startGame() to play a bottle back
 
-function startReplay() {
-  let rec = null;
-  try { rec = JSON.parse(localStorage.getItem('tt-replay-last') || 'null'); } catch { /* corrupt */ }
-  if (!rec || !rec.log) return;
+function launchReplayRecord(rec) {
+  if (!rec || !rec.log) return false;
   if (rec.v !== dataHash) {
     alert('This bottled story was recorded under an older balance of the room — after an update, the toys would tell it differently. Play a new match to bottle a fresh one.');
-    return;
+    return false;
   }
   campaignMission = null;
   watchMode = false;
   replayLaunch = rec;
   startGame(rec.diff, rec.map);
+  return true;
+}
+function startReplay() {
+  let rec = null;
+  try { rec = JSON.parse(localStorage.getItem('tt-replay-last') || 'null'); } catch { /* corrupt */ }
+  launchReplayRecord(rec);
+}
+// ---- the Replay Shelf: the last ten bottles, plus corked codes for friends ----
+function shelfLoad() {
+  try { return JSON.parse(localStorage.getItem('tt-replay-shelf') || '[]'); } catch { return []; }
+}
+function shelfSave(rec) {
+  try {
+    const shelf = shelfLoad();
+    shelf.unshift(rec);
+    localStorage.setItem('tt-replay-shelf', JSON.stringify(shelf.slice(0, 10)));
+  } catch (e) { /* storage full — the shelf keeps what it can */ }
+}
+const CODE_PREFIX = 'TT1.';
+function encodeReplay(rec) {
+  return CODE_PREFIX + btoa(unescape(encodeURIComponent(JSON.stringify(rec))));
+}
+function decodeReplay(code) {
+  try {
+    const raw = code.trim();
+    if (!raw.startsWith(CODE_PREFIX)) return null;
+    return JSON.parse(decodeURIComponent(escape(atob(raw.slice(CODE_PREFIX.length)))));
+  } catch (e) { return null; }
+}
+function openShelf() {
+  const el = document.getElementById('shelf');
+  if (!el) return;
+  const shelf = shelfLoad();
+  const rows = shelf.length ? shelf.map((rec, i) => {
+    const facA = (FACTIONS[rec.factions && rec.factions[0]] || {}).label || '?';
+    const facB = (FACTIONS[rec.factions && rec.factions[1]] || {}).label || '?';
+    const mapName = typeof rec.map === 'string' ? ((MAPS[rec.map] || {}).label || rec.map) : '🎲 Random';
+    const when = rec.when ? new Date(rec.when).toLocaleDateString() : '';
+    return `<div class="sh-row"><span class="sh-ic">${rec.win ? '🏅' : '✖'}</span>`
+      + `<span class="sh-name">${facA} vs ${facB} — ${mapName} <small>${when}</small></span>`
+      + `<button class="diff-btn sh-watch" data-i="${i}">▶ Watch</button>`
+      + `<button class="diff-btn sh-copy" data-i="${i}">📋 Code</button></div>`;
+  }).join('') : '<div class="sh-empty">No bottles yet — finish a skirmish and the shelf fills itself.</div>';
+  el.querySelector('.sh-list').innerHTML = rows;
+  el.querySelector('.sh-code').value = '';
+  el.classList.add('show');
+  for (const b of el.querySelectorAll('.sh-watch')) {
+    b.onclick = () => { el.classList.remove('show'); launchReplayRecord(shelfLoad()[+b.dataset.i]); };
+  }
+  for (const b of el.querySelectorAll('.sh-copy')) {
+    b.onclick = () => {
+      const code = encodeReplay(shelfLoad()[+b.dataset.i]);
+      const box = el.querySelector('.sh-code');
+      box.value = code;
+      box.select();
+      try { navigator.clipboard.writeText(code); b.textContent = '✓ Copied'; } catch (e) { b.textContent = '⌘C now'; }
+      setTimeout(() => { b.textContent = '📋 Code'; }, 1800);
+    };
+  }
+  el.querySelector('.sh-uncork').onclick = () => {
+    const rec = decodeReplay(el.querySelector('.sh-code').value);
+    if (!rec) { alert('That code didn\'t survive the trip — check it copied whole (it starts with TT1.)'); return; }
+    el.classList.remove('show');
+    launchReplayRecord(rec);
+  };
+  el.querySelector('.sh-close').onclick = () => el.classList.remove('show');
 }
 
 function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = false) {
@@ -1629,14 +1688,16 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
       // bottle the story: fresh SP skirmishes only (campaign/MP/resume/replay can't)
       if (!mpOpts && !resume && !tutorial && !campaignMission && game.cmdLog) {
         try {
-          localStorage.setItem('tt-replay-last', JSON.stringify({
+          const rec = {
             v: dataHash, when: Date.now(), win, seed: seedVal, map,
             diff: difficulty, gameMode: game.gameMode, startRes: game.startResKey,
             faction: game.factionKeys[game.myId],
             factions: [...game.factionKeys],
             playerDefs: game.playerDefs.map((d, i) => ({ ...d, faction: game.factionKeys[i] })),
             log: game.cmdLog,
-          }));
+          };
+          localStorage.setItem('tt-replay-last', JSON.stringify(rec));
+          shelfSave(rec); // the shelf keeps the last ten bottles
         } catch (e) { /* storage full — this story goes untold */ }
       }
     },
