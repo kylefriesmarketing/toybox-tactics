@@ -184,6 +184,10 @@ export const E_RULES = {
   // Aftermath Spoils (§17): a one-time reward pick when YOU storm a capital/stronghold/crown.
   // A rare, high-stakes decision (the AI keeps its own economy — this is the SP power fantasy).
   spoils: { parts: 45, heal: 100, power: 2 },
+  // Readiness (§11): fighting tires an army; a battle at low readiness hits softer (down to
+  // `floor` at 0). Resting on a SUPPLIED friendly node recovers `regen`/turn. A universal tempo
+  // layer for both sides — you can't ram one deathstack around the board without a breather.
+  readiness: { max: 100, floor: 0.72, cost: 34, regen: 26, marchCost: 12, lowAt: 55 },
 };
 
 // simulate-formula unit power reads UNITS source stats; these are the weights

@@ -80,7 +80,7 @@ export class Empire {
     // build the opening armies from card keys (deriving type/hp/vet per card)
     for (const owner of [0, 1]) {
       const node = owner === 0 ? 'CAP_A' : 'CAP_B';
-      this.s.armies.push({ id: 'A' + owner, owner, node, prev: node, mp: E_RULES.armyMP, marched: false,
+      this.s.armies.push({ id: 'A' + owner, owner, node, prev: node, mp: E_RULES.armyMP, marched: false, readiness: E_RULES.readiness.max,
         cards: E_START_ROSTER.map((key) => this.makeArmyCard(key, `A${owner}c${this.s.nextCard[owner]++}`, owner)), order: null });
     }
     this.s.rng = this.rng.getState();
@@ -123,7 +123,9 @@ export class Empire {
     if (!save.doctrines) save.doctrines = [[], ['warrior']];
     // v6 → v7: Aftermath Spoils (round 9)
     if (save.pendingSpoils === undefined) save.pendingSpoils = null;
-    save.v = 7;
+    // v7 → v8: army readiness (round 10) — existing armies wake up fresh
+    for (const a of (save.armies || [])) if (a.readiness === undefined) a.readiness = E_RULES.readiness.max;
+    save.v = 8;
     this.s = save; this.rng = makeRng(1); this.rng.setState(save.rng);
   }
   static stored() {
@@ -219,7 +221,7 @@ export class Empire {
       sp: this.s.pendingSpoils ? this.s.pendingSpoils.node : '',
       lt: this.s.lastLoot ? this.s.lastLoot.key : '',
       n: Object.entries(this.s.nodes).map(([k, v]) => k + v.owner + (v.garrison ? v.garrison.length : '') + (v.modules || []).join('')),
-      a: this.s.armies.map((a) => a.id + a.node + a.cards.map((c) => (c.key || c.type) + c.strength + c.vet).join('')) };
+      a: this.s.armies.map((a) => a.id + a.node + (a.readiness == null ? '' : a.readiness) + a.cards.map((c) => (c.key || c.type) + c.strength + c.vet).join('')) };
     const str = JSON.stringify(core);
     let h = 5381;
     for (let i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) | 0;
@@ -251,6 +253,8 @@ export class Empire {
           const wsHeal = (st.modules || []).reduce((s, k) => s + (E_MODULES[k].heal || 0), 0);
           const heal = E_RULES.healPerTurn + (this.s.upgrades[p].includes('repairs') ? 12 : 0) + wsHeal;
           for (const c of a.cards) c.strength = Math.min(100, c.strength + heal);
+          // resting on supplied friendly ground also restores readiness (§11)
+          if (a.readiness != null) a.readiness = Math.min(E_RULES.readiness.max, a.readiness + E_RULES.readiness.regen);
         }
       }
     }
@@ -317,6 +321,7 @@ export class Empire {
     this.s.power[a.owner] -= cost;
     a.mp += 1;
     a.marched = true;
+    this.tire(a, E_RULES.readiness.marchCost); // a hard march also wears the toys down (§11)
     this.say(`${this.facLabel(a.owner)} winds their toys tight — a forced march!`);
     this.save();
     return { ok: true };
@@ -333,7 +338,7 @@ export class Empire {
     // deterministic id even when a destroyed army is replaced (B0, then B0_2…)
     const nth = this.s.armies.filter((a) => a.owner === p).length;
     const id = nth <= 1 ? `B${p}` : `B${p}_${nth}`;
-    this.s.armies.push({ id, owner: p, node: cap, prev: cap, mp: E_RULES.armyMP, marched: false,
+    this.s.armies.push({ id, owner: p, node: cap, prev: cap, mp: E_RULES.armyMP, marched: false, readiness: E_RULES.readiness.max,
       cards: [this.makeArmyCard('recruit', `${id}c${this.s.nextCard[p]++}`, p)], order: null });
     this.say(`🚩 ${this.facLabel(p)} musters a second army!`);
     this.save();
@@ -515,20 +520,34 @@ export class Empire {
       : { cards: this.s.nodes[enc.nodeId].garrison || [] };
     return { attCards: att ? att.cards : [], defCards: def ? def.cards : [] };
   }
+  // Readiness (§11): a tired army fights softer, down to `floor` at 0 readiness.
+  readyMul(army) {
+    if (!army || army.readiness == null) return 1; // garrisons (no army) fight at full
+    const f = E_RULES.readiness.floor, r = Math.max(0, Math.min(E_RULES.readiness.max, army.readiness));
+    return f + (1 - f) * (r / E_RULES.readiness.max);
+  }
+  tire(army, amt = E_RULES.readiness.cost) {
+    if (!army || army.readiness == null) return;
+    army.readiness = Math.max(0, army.readiness - amt);
+  }
   preview(enc) {
     const { attCards, defCards } = this.encCards(enc);
     const t = E_TEMPLATES[enc.template];
     const defOwner = enc.defender.owner;
+    const attArmy = this.s.armies.find((a) => a.id === enc.attacker.armyId);
+    const defArmy = enc.defender.armyId ? this.s.armies.find((a) => a.id === enc.defender.armyId) : null;
     // Block Walls (+ Fortified Frontier doctrine) help whoever HOLDS the node
     const holdsNode = defOwner >= 0 && this.s.nodes[enc.nodeId].owner === defOwner;
     const wallMul = holdsNode ? 1 + this.moduleDefBonus(enc.nodeId) + (this.hasDoctrine(defOwner, 'fortified') ? 0.15 : 0) : 1;
+    const attMul = this.ownerPowerMul(enc.attacker.owner) * this.readyMul(attArmy);
     const defMul = (t.defBoost || 1) * (E_NODES[enc.nodeId].tier ? 1 + 0.1 * E_NODES[enc.nodeId].tier : 1)
-      * (defOwner >= 0 ? this.ownerPowerMul(defOwner) : 1) * wallMul;
-    const ap = this.cardsPower(attCards) * this.ownerPowerMul(enc.attacker.owner), dp = this.cardsPower(defCards) * defMul;
+      * (defOwner >= 0 ? this.ownerPowerMul(defOwner) : 1) * wallMul * this.readyMul(defArmy);
+    const ap = this.cardsPower(attCards) * attMul, dp = this.cardsPower(defCards) * defMul;
     const ratio = ap / Math.max(0.001, dp);
     const band = ratio > 2 ? 'Overwhelming' : ratio > 1.35 ? 'Favored' : ratio > 0.8 ? 'Even' : ratio > 0.55 ? 'Risky' : 'Desperate';
     const loss = ratio > 2 ? 'light' : ratio > 1.2 ? 'moderate' : 'heavy';
-    return { band, ratio, attPower: ap, defPower: dp, lossHint: loss, template: t, defMul };
+    return { band, ratio, attPower: ap, defPower: dp, lossHint: loss, template: t, defMul, attMul,
+      attReady: attArmy ? attArmy.readiness : null, defReady: defArmy ? defArmy.readiness : null };
   }
 
   // deterministic seeded resolution — same source stats as played battles,
@@ -538,7 +557,7 @@ export class Empire {
     const rng = makeRng(enc.seed);
     const vary = () => 1 + (rng() * 2 - 1) * E_RULES.simVariance;
     const p = this.preview(enc);
-    const attMul = this.ownerPowerMul(enc.attacker.owner);
+    const attMul = p.attMul; // includes ownerPowerMul + attacker readiness (single source of truth)
     let att = attCards.map((c) => ({ ...c })), def = defCards.map((c) => ({ ...c }));
     for (let round = 0; round < 3; round++) {
       const ap = this.cardsPower(att) * attMul * vary();
@@ -579,10 +598,10 @@ export class Empire {
     }
     const att = this.s.armies.find((a) => a.id === enc.attacker.armyId);
     const st = this.s.nodes[enc.nodeId];
-    if (att) att.cards = result.attCards.map((c) => ({ ...c }));
+    if (att) { att.cards = result.attCards.map((c) => ({ ...c })); this.tire(att); } // battles are tiring (§11)
     if (enc.defender.armyId) {
       const def = this.s.armies.find((a) => a.id === enc.defender.armyId);
-      if (def) def.cards = result.defCards.map((c) => ({ ...c }));
+      if (def) { def.cards = result.defCards.map((c) => ({ ...c })); this.tire(def); }
     } else if (st.garrison) {
       st.garrison = result.defCards.map((c) => ({ ...c }));
     }
@@ -848,7 +867,8 @@ export class Empire {
         : (this.s.nodes[c.id].garrison || (E_GARRISONS[E_NODES[c.id].type] || []).map((g) => ({ type: g.type, strength: 100, vet: 0 })));
       const tKey = E_NODE_TEMPLATE_OVERRIDE[c.id] || E_NODE_TEMPLATE[E_NODES[c.id].type] || 'field';
       const defMul = (E_TEMPLATES[tKey].defBoost || 1) * (E_NODES[c.id].tier ? 1 + 0.1 * E_NODES[c.id].tier : 1);
-      const ratio = this.cardsPower(a.cards) / Math.max(0.001, this.cardsPower(defCards) * defMul);
+      // factor the army's readiness so the AI doesn't hurl a spent army into a defended node
+      const ratio = this.cardsPower(a.cards) * this.readyMul(a) / Math.max(0.001, this.cardsPower(defCards) * defMul);
       if (ratio > 1.35) return c.id;
     }
     return null;
@@ -1080,11 +1100,17 @@ class EmpireUI {
       const p = this.armyPos(a);
       const selC = a.id === this.sel ? ' sel' : '';
       const str = Math.round(a.cards.reduce((t, c) => t + c.strength, 0) / a.cards.length);
+      const rd = a.readiness == null ? 100 : a.readiness; // readiness bar + tired badge (§11)
+      const tired = rd < E_RULES.readiness.lowAt;
       return `<g class="e-army${selC}" data-army="${a.id}" transform="translate(${p.x},${p.y})">
+        <title>Strength ${str}% · Readiness ${Math.round(rd)}%${tired ? ' — tired' : ''}</title>
         <circle r="13" style="fill:${emp.facColor(a.owner)}"/>
         <text y="4" text-anchor="middle" class="e-army-n">${a.cards.length}</text>
         <rect x="-11" y="15" width="22" height="3" rx="1.5" class="e-army-hpbg"/>
         <rect x="-11" y="15" width="${(22 * str / 100).toFixed(1)}" height="3" rx="1.5" class="e-army-hp"/>
+        <rect x="-11" y="19" width="22" height="2.4" rx="1.2" class="e-army-hpbg"/>
+        <rect x="-11" y="19" width="${(22 * rd / 100).toFixed(1)}" height="2.4" rx="1.2" class="e-army-rd${tired ? ' low' : ''}"/>
+        ${tired ? '<text x="11" y="-9" text-anchor="middle" class="e-army-tired">💤</text>' : ''}
       </g>`;
     }).join('');
 
@@ -1492,12 +1518,17 @@ class EmpireUI {
       ${UNITS[c.type].name.split(' ')[0]}${'★'.repeat(c.vet || 0)}<i style="width:${c.strength}%"></i></span>`;
     const yourCards = youAttack ? attCards : defCards;
     const theirCards = youAttack ? defCards : attCards;
+    // readiness of YOUR army in this fight (attacker or defender) — flag it if the toys are worn out
+    const myReady = youAttack ? p.attReady : p.defReady;
+    const tiredNote = (myReady != null && myReady < E_RULES.readiness.lowAt)
+      ? `<div class="e-dim" style="color:#e6a23c">💤 Your toys are worn out (readiness ${Math.round(myReady)}%) — they'll fight softer. Rest on friendly ground to recover.</div>` : '';
     const m = this.root.querySelector('#e-modal');
     m.innerHTML = `<div class="e-enc">
       <div class="e-enc-card">
         <div class="e-ttl">${n.icon} ${youAttack ? 'Assault on' : 'Defend'} ${n.name}</div>
         <div class="e-dim">${p.template.label} · ~${p.template.time} if played · seed locked — no rerolls</div>
         <div class="e-band b-${p.band.toLowerCase()}">${p.band}</div>
+        ${tiredNote}
         <div class="e-rosters">
           <div><div class="e-dim">Your toys (${Math.round(youAttack ? p.attPower : p.defPower)})</div>${yourCards.map(chip).join('')}</div>
           <div><div class="e-dim">Theirs (${Math.round(youAttack ? p.defPower : p.attPower)})</div>${theirCards.map(chip).join('')}</div>
@@ -1608,6 +1639,7 @@ export function empireTest(seed, turns = 8, script = []) {
     parts: [...emp.s.parts], power: [...emp.s.power], imag: [...emp.s.imag], upgrades: emp.s.upgrades.map((u) => [...u]),
     crown: { ...emp.s.crown }, doctrines: emp.s.doctrines.map((d) => [...d]),
     armies: emp.s.armies.map((a) => a.id + '@' + a.node + ':' + a.cards.length),
+    readiness: emp.s.armies.map((a) => a.id + ':' + (a.readiness == null ? '-' : Math.round(a.readiness))),
     stats: { ...emp.s.stats }, event: emp.s.event ? { ...emp.s.event } : null,
     pendingSpoils: emp.s.pendingSpoils ? emp.s.pendingSpoils.node : null,
     lastLoot: emp.s.lastLoot ? emp.s.lastLoot.key : null, cardsWon: emp.loot.map((l) => l.key),
