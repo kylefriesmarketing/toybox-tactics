@@ -833,7 +833,7 @@ $('home-quick').addEventListener('click', () => startGame(chosenDiff));
 $('home-custom').addEventListener('click', () => showMenuScreen('setup'));
 $('home-mp').addEventListener('click', () => { showMenuScreen('mp'); renderMpLobby(); });
 // Empire Mode: the strategic layer opens over the menu; battles come back here
-setEmpireHooks({ startGame: (d, m) => startGame(d, m), showMenuScreen });
+setEmpireHooks({ startGame: (d, m) => startGame(d, m), showMenuScreen, sfx });
 const heBtn = $('home-empire');
 if (heBtn) heBtn.addEventListener('click', () => { sfx.init(); openEmpire(); });
 window.__ttEmpire = empireTest; // headless determinism harness (persist=false)
@@ -2019,18 +2019,19 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   // empire battle: both rosters march in as tagged spearhead units — the
   // survivors return to the campaign map with their remaining strength
   if (ebc) {
-    const dropRoster = (spawns, seat) => {
+    const dropRoster = (spawns, seat, mul) => {
       const home = game.entities.find((e) => e.type === 'chest' && e.owner === seat && !e.dead);
       if (!home) return;
       spawns.forEach((sp, i) => {
         const u = game.spawnUnit(sp.type, seat, home.x + 2.5 + (i % 3) * 0.9, home.z + 2.5 + ((i / 3) | 0) * 0.9);
+        u.maxHp *= (mul || 1); // Combined Arms hardens the whole line
         u.hp = Math.max(1, u.maxHp * (sp.strength / 100));
         u.empireCardId = sp.cardId;
         if (sp.vet) u.kills = 3; // veterans arrive decorated
       });
     };
-    dropRoster(ebc.attSpawns, ebc.humanIsAttacker ? 0 : 1);
-    dropRoster(ebc.defSpawns, ebc.humanIsAttacker ? 1 : 0);
+    dropRoster(ebc.attSpawns, ebc.humanIsAttacker ? 0 : 1, ebc.attMul);
+    dropRoster(ebc.defSpawns, ebc.humanIsAttacker ? 1 : 0, ebc.defMul);
   }
   window.game = game;
 

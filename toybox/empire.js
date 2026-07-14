@@ -12,7 +12,7 @@
 import { UNITS, FACTIONS } from './data.js';
 import {
   E_NODES, E_ROUTES, E_TEMPLATES, E_NODE_TEMPLATE, E_NODE_TEMPLATE_OVERRIDE,
-  E_FACTIONS, E_START_ROSTER, E_GARRISONS, E_UPGRADES, E_RULES, E_SIM,
+  E_FACTIONS, E_START_ROSTER, E_GARRISONS, E_UPGRADES, E_BRANCHES, E_RULES, E_SIM,
 } from './empire-data.js';
 
 const SAVE_KEY = 'tt-empire';
@@ -44,12 +44,16 @@ export class Empire {
     if (seedOrSave && typeof seedOrSave === 'object') { this.load(seedOrSave); return; }
     const seed = seedOrSave || ((Math.random() * 2 ** 31) | 0);
     this.s = {
-      v: 2, seed, turn: 1, phase: 'plan', rng: 0,
+      v: 3, seed, turn: 1, phase: 'plan', rng: 0,
       factions, // seat 0 = human, seat 1 = AI
       parts: [E_RULES.startParts, E_RULES.startParts],
       power: [E_RULES.startPower, E_RULES.startPower],
+      imag: [E_RULES.startImag, E_RULES.startImag],
       stats: { played: 0, simmed: 0, won: 0, lost: 0, captured: 0 },
       event: null, // { kind:'vacuum', phase:'warn'|'active', route, left }
+      crown: { owner: -1, turns: 0 }, // §16 Crown Victory tracker
+      aiIntent: null,                  // rival's current target (Master Plan reveals it)
+      warned: {},                      // victory-telegraph one-shots
       upgrades: [[], []],
       nodes: Object.fromEntries(Object.keys(E_NODES).map((id) => [id, {
         owner: id === 'CAP_A' ? 0 : id === 'CAP_B' ? 1 : -1,
@@ -78,11 +82,16 @@ export class Empire {
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.s)); } catch (e) { /* storage full */ }
   }
   load(save) {
-    // v1 → v2 migration: Power, campaign stats, house events arrived in round 2
+    // v1 → v2 migration: Power, campaign stats, house events (round 2)
     if (!save.power) save.power = [E_RULES.startPower, E_RULES.startPower];
     if (!save.stats) save.stats = { played: 0, simmed: 0, won: 0, lost: 0, captured: 0 };
     if (save.event === undefined) save.event = null;
-    save.v = 2;
+    // v2 → v3 migration: Imagination, empire tree, Crown victory (round 3)
+    if (!save.imag) save.imag = [E_RULES.startImag, E_RULES.startImag];
+    if (!save.crown) save.crown = { owner: -1, turns: 0 };
+    if (save.aiIntent === undefined) save.aiIntent = null;
+    if (!save.warned) save.warned = {};
+    save.v = 3;
     this.s = save; this.rng = makeRng(1); this.rng.setState(save.rng);
   }
   static stored() {
@@ -124,6 +133,9 @@ export class Empire {
       if (st.owner !== p) continue;
       inc += supplied.has(id) ? E_NODES[id].yield : Math.floor(E_NODES[id].yield / 2);
     }
+    // Industry II: the capital runs a second workshop shift
+    const cap = p === 0 ? 'CAP_A' : 'CAP_B';
+    if (this.s.upgrades[p].includes('workshop') && this.s.nodes[cap].owner === p && supplied.has(cap)) inc += E_RULES.workshopBonus;
     return inc;
   }
   powerIncome(p, sup = null) {
@@ -134,6 +146,15 @@ export class Empire {
     }
     return inc;
   }
+  imagIncome(p, sup = null) {
+    const supplied = sup || this.suppliedSet(p);
+    let inc = 0;
+    for (const [id, st] of Object.entries(this.s.nodes)) {
+      if (st.owner === p && supplied.has(id)) inc += E_NODES[id].imagYield || 0;
+    }
+    return inc;
+  }
+  ownerPowerMul(owner) { return this.s.upgrades[owner] && this.s.upgrades[owner].includes('combined') ? E_RULES.combinedArmsMul : 1; }
   // routes still usable this turn (the vacuum can close one)
   openRoutesOf(id) {
     const blocked = this.s.event && this.s.event.phase === 'active' ? this.s.event.route : -1;
@@ -148,7 +169,8 @@ export class Empire {
   armiesOf(p) { return this.s.armies.filter((a) => a.owner === p && a.cards.length); }
   // deterministic state fingerprint for tests + future MP hash checks
   stateHash() {
-    const core = { t: this.s.turn, p: this.s.parts, u: this.s.upgrades, r: this.s.rng,
+    const core = { t: this.s.turn, p: this.s.parts, pw: this.s.power, im: this.s.imag, u: this.s.upgrades, r: this.s.rng,
+      cr: this.s.crown.owner + ':' + this.s.crown.turns, ev: this.s.event ? this.s.event.route + this.s.event.phase : '',
       n: Object.entries(this.s.nodes).map(([k, v]) => k + v.owner + (v.garrison ? v.garrison.length : '')),
       a: this.s.armies.map((a) => a.id + a.node + a.cards.map((c) => c.type + c.strength + c.vet).join('')) };
     const str = JSON.stringify(core);
@@ -165,15 +187,17 @@ export class Empire {
       this.s.parts[p] += this.income(p, sup) - this.upkeepCost(p);
       if (this.s.parts[p] < 0) this.s.parts[p] = 0;
       this.s.power[p] = Math.min(E_RULES.powerCap, this.s.power[p] + this.powerIncome(p, sup));
+      this.s.imag[p] += this.imagIncome(p, sup); // Imagination is the long game — no cap
+      const relayMP = E_RULES.armyMP + (this.s.upgrades[p].includes('relay') ? E_RULES.relayMP : 0);
       // resting on SUPPLIED friendly ground mends the toys (§8, §11)
       for (const a of this.s.armies) {
         if (a.owner !== p || !a.cards.length) continue;
-        a.mp = E_RULES.armyMP;
+        a.mp = relayMP;
         a.order = null;
         a.marched = false;
         const st = this.s.nodes[a.node];
         if (st && st.owner === p && sup.has(a.node)) {
-          const heal = E_RULES.healPerTurn + (this.s.upgrades[p].includes('repairs') ? 10 : 0);
+          const heal = E_RULES.healPerTurn + (this.s.upgrades[p].includes('repairs') ? 12 : 0);
           for (const c of a.cards) c.strength = Math.min(100, c.strength + heal);
         }
       }
@@ -274,8 +298,11 @@ export class Empire {
   buyUpgrade(p, key) {
     const u = E_UPGRADES[key];
     if (!u || this.s.upgrades[p].includes(key)) return { ok: false, why: 'already owned' };
-    if (this.s.parts[p] < u.cost) return { ok: false, why: 'not enough Parts' };
-    this.s.parts[p] -= u.cost;
+    if (u.prereq && !this.s.upgrades[p].includes(u.prereq)) return { ok: false, why: `needs ${E_UPGRADES[u.prereq].name}` };
+    if (this.s.parts[p] < u.parts) return { ok: false, why: 'not enough Parts' };
+    if (this.s.imag[p] < u.imag) return { ok: false, why: 'not enough Imagination' };
+    this.s.parts[p] -= u.parts;
+    this.s.imag[p] -= u.imag;
     this.s.upgrades[p].push(key);
     this.say(`${this.facLabel(p)} adopts ${u.name}.`);
     this.save();
@@ -361,8 +388,10 @@ export class Empire {
   preview(enc) {
     const { attCards, defCards } = this.encCards(enc);
     const t = E_TEMPLATES[enc.template];
-    const defMul = (t.defBoost || 1) * (E_NODES[enc.nodeId].tier ? 1 + 0.1 * E_NODES[enc.nodeId].tier : 1);
-    const ap = this.cardsPower(attCards), dp = this.cardsPower(defCards) * defMul;
+    const defOwner = enc.defender.owner;
+    const defMul = (t.defBoost || 1) * (E_NODES[enc.nodeId].tier ? 1 + 0.1 * E_NODES[enc.nodeId].tier : 1)
+      * (defOwner >= 0 ? this.ownerPowerMul(defOwner) : 1);
+    const ap = this.cardsPower(attCards) * this.ownerPowerMul(enc.attacker.owner), dp = this.cardsPower(defCards) * defMul;
     const ratio = ap / Math.max(0.001, dp);
     const band = ratio > 2 ? 'Overwhelming' : ratio > 1.35 ? 'Favored' : ratio > 0.8 ? 'Even' : ratio > 0.55 ? 'Risky' : 'Desperate';
     const loss = ratio > 2 ? 'light' : ratio > 1.2 ? 'moderate' : 'heavy';
@@ -376,15 +405,16 @@ export class Empire {
     const rng = makeRng(enc.seed);
     const vary = () => 1 + (rng() * 2 - 1) * E_RULES.simVariance;
     const p = this.preview(enc);
+    const attMul = this.ownerPowerMul(enc.attacker.owner);
     let att = attCards.map((c) => ({ ...c })), def = defCards.map((c) => ({ ...c }));
     for (let round = 0; round < 3; round++) {
-      const ap = this.cardsPower(att) * vary();
+      const ap = this.cardsPower(att) * attMul * vary();
       const dp = this.cardsPower(def) * p.defMul * vary();
       this.dealLosses(def, ap * 0.5, rng);
       this.dealLosses(att, dp * 0.5, rng);
       if (!att.length || !def.length) break;
     }
-    const attackerWon = this.cardsPower(att) > this.cardsPower(def) * p.defMul;
+    const attackerWon = this.cardsPower(att) * attMul > this.cardsPower(def) * p.defMul;
     return {
       encId: enc.encId, mode: 'simulated', attackerWon,
       attCards: att, defCards: def,
@@ -485,19 +515,46 @@ export class Empire {
     if (!this.s.encounters.length) this.aftermath();
   }
 
+  // §16 Crown Victory: hold the Storybook Tower's crown for crownNeed turns.
+  // Tracked at the phase boundary so a mid-turn recapture resets the count.
+  tickCrown() {
+    const co = this.s.nodes[E_RULES.crownNode].owner;
+    if (co !== -1 && co === this.s.crown.owner) this.s.crown.turns++;
+    else this.s.crown = { owner: co, turns: co === -1 ? 0 : 1 };
+    if (co !== -1 && this.s.crown.turns === E_RULES.crownNeed - 1) {
+      const k = 'crownwarn' + co;
+      if (!this.s.warned[k]) { this.s.warned[k] = true; this.say(`👑 ${this.facLabel(co)} will WIN with the crown next turn unless the Storybook Tower is taken!`); }
+    }
+  }
+  // how many turns is a player from any victory, for the telegraph (§16)?
+  turnsToWin(p) {
+    let best = 99;
+    if (this.ownedCount(p) >= E_RULES.dominionNeed - 1 && this.fortCount(p) >= E_RULES.dominionForts) best = Math.min(best, this.ownedCount(p) >= E_RULES.dominionNeed ? 0 : 1);
+    if (this.s.crown.owner === p) best = Math.min(best, E_RULES.crownNeed - this.s.crown.turns);
+    return best;
+  }
+
   aftermath() {
-    // victory checks resolve at the phase boundary (§16)
+    this.tickCrown();
+    // victory checks resolve together at the phase boundary (§16)
     for (const p of [0, 1]) {
       const capId = p === 0 ? 'CAP_A' : 'CAP_B';
       if (this.s.nodes[capId].owner !== p) { this.finish(1 - p, 'capital'); return; }
-      if (this.ownedCount(p) >= E_RULES.dominionNeed && this.fortCount(p) >= E_RULES.dominionForts) {
-        this.finish(p, 'dominion'); return;
-      }
+    }
+    for (const p of [0, 1]) {
+      if (this.s.crown.owner === p && this.s.crown.turns >= E_RULES.crownNeed) { this.finish(p, 'crown'); return; }
+      if (this.ownedCount(p) >= E_RULES.dominionNeed && this.fortCount(p) >= E_RULES.dominionForts) { this.finish(p, 'dominion'); return; }
     }
     if (this.s.turn >= E_RULES.turnCap) {
       const d0 = this.ownedCount(0), d1 = this.ownedCount(1);
       this.finish(d0 === d1 ? (this.s.parts[0] >= this.s.parts[1] ? 0 : 1) : (d0 > d1 ? 0 : 1), 'sunrise');
       return;
+    }
+    // telegraph any rival within victoryWarn turns of a win (once each)
+    const rt = this.turnsToWin(1);
+    if (rt <= E_RULES.victoryWarn && rt > 0) {
+      const k = 'winwarn' + this.s.turn;
+      if (!this.s.warned[k]) { this.s.warned[k] = true; this.say(`⏳ ${this.facLabel(1)} is ${rt} turn${rt > 1 ? 's' : ''} from victory — disrupt them!`); }
     }
     this.s.turn++;
     this.s.phase = 'plan';
@@ -507,7 +564,13 @@ export class Empire {
     this.s.over = true;
     this.s.winner = winner;
     this.s.phase = 'over';
-    const why = { capital: 'the enemy capital has fallen', dominion: 'dominion of the bedroom is complete', sunrise: 'sunrise — the larger empire prevails' }[how];
+    const why = {
+      capital: 'the enemy capital has fallen',
+      dominion: 'dominion of the bedroom is complete',
+      crown: 'the Storybook Tower crown is held at last',
+      sunrise: 'sunrise — the larger empire prevails',
+    }[how];
+    this.s.winHow = how;
     this.say(`🌅 ${this.facLabel(winner)} wins the Bedroom War — ${why}!`);
     this.save();
   }
@@ -521,30 +584,43 @@ export class Empire {
     if (this.armiesOf(p).some((a) => a.node === home)) {
       const capArmy = this.armiesOf(p).find((a) => a.node === home);
       while (this.s.parts[p] >= E_RULES.recruitCost + 20 && capArmy.cards.length < 6) this.recruit(p, capArmy.id);
-      if (!this.s.upgrades[p].includes('salvage') && this.s.parts[p] >= E_UPGRADES.salvage.cost + 40) this.buyUpgrade(p, 'salvage');
+      // climb the empire tree in a fixed priority when it can afford a node
+      for (const key of ['salvage', 'reserves', 'relay', 'workshop', 'combined']) {
+        const u = E_UPGRADES[key];
+        if (this.s.upgrades[p].includes(key)) continue;
+        if (u.prereq && !this.s.upgrades[p].includes(u.prereq)) continue;
+        if (this.s.parts[p] >= u.parts + 40 && this.s.imag[p] >= u.imag) { this.buyUpgrade(p, key); break; }
+      }
     }
     // muster a second front once the empire can feed it
     if (this.armiesOf(p).length < E_RULES.maxArmies && this.ownedCount(p) >= E_RULES.musterMinNodes
         && this.s.parts[p] >= E_RULES.musterCost + 60) this.muster(p);
+    // the human is one turn from crowning — the AI drops everything to contest it
+    const crownRush = this.s.crown.owner === 0 && this.s.crown.turns >= E_RULES.crownNeed - 2
+      && this.s.nodes[E_RULES.crownNode].owner !== 1;
     const claimed = new Set(); // two armies never chase the same prize
+    let firstTarget = null;
     for (const a of this.armiesOf(p)) {
       // recover: hurt or thin army heads home to heal + recruit
       const avgStr = a.cards.reduce((s, c) => s + c.strength, 0) / a.cards.length;
-      if ((a.cards.length <= 2 || avgStr < 45) && a.node !== home) { this.aiMoveToward(a, home); continue; }
+      if ((a.cards.length <= 2 || avgStr < 45) && a.node !== home && !crownRush) { this.aiMoveToward(a, home); continue; }
+      if (crownRush && !claimed.has(E_RULES.crownNode)) { claimed.add(E_RULES.crownNode); firstTarget = firstTarget || E_RULES.crownNode; this.aiMoveToward(a, E_RULES.crownNode); continue; }
       // defend: an enemy army adjacent to home pulls one army back
       const threat = this.armiesOf(0).some((h) => routesOf(home).some((r) => r.to === h.node));
       if (threat && a.node !== home && !claimed.has(home)) { claimed.add(home); this.aiMoveToward(a, home); continue; }
       // expand/attack: nearest valuable node, Favored+ fights only
       const target = this.aiPickTarget(a, claimed);
-      if (target) { claimed.add(target); this.aiMoveToward(a, target); }
+      if (target) { claimed.add(target); firstTarget = firstTarget || target; this.aiMoveToward(a, target); }
     }
+    this.s.aiIntent = firstTarget; // Master Plan surfaces this to the player
   }
   aiPickTarget(a, claimed = new Set()) {
     const scores = [];
     for (const [id, st] of Object.entries(this.s.nodes)) {
       if (st.owner === 1 || claimed.has(id)) continue;
       const n = E_NODES[id];
-      let v = n.yield + (n.type === 'stronghold' ? 8 : 0) + (n.dominion ? 6 : 0) + (n.bonus ? 5 : 0);
+      let v = n.yield + (n.type === 'stronghold' ? 8 : 0) + (n.dominion ? 6 : 0) + (n.bonus ? 5 : 0)
+        + (n.type === 'crown' ? 10 : 0) + (n.imagYield || 0) * 2;
       const dist = this.hopDistance(a.node, id);
       if (dist === null) continue;
       scores.push({ id, score: v - dist * 2 });
@@ -602,6 +678,9 @@ export class Empire {
       difficulty: 'normal',
       humanIsAttacker,
       humanFaction: this.facKey(0), aiFaction: this.facKey(1),
+      // Combined Arms (Warfare II) deploys tougher toys in PLAYED battles too
+      attMul: this.ownerPowerMul(enc.attacker.owner),
+      defMul: enc.defender.owner >= 0 ? this.ownerPowerMul(enc.defender.owner) : 1,
       // roster cards spawn as tagged units on each side (survivors return)
       attSpawns: attCards.map((c) => ({ cardId: c.id, type: c.type, strength: c.strength, vet: c.vet })),
       defSpawns: defCards.map((c) => ({ cardId: c.id, type: c.type, strength: c.strength, vet: c.vet })),
@@ -643,8 +722,9 @@ export class Empire {
 // ---------------------------------------------------------------- EmpireUI
 // The board screen. Reads Empire state; every action routes through the sim.
 let ui = null;
-let hooks = { startGame: null, showMenuScreen: null };
+let hooks = { startGame: null, showMenuScreen: null, sfx: null };
 export function setEmpireHooks(h) { hooks = { ...hooks, ...h }; }
+function esfx(name, throttle) { try { hooks.sfx && hooks.sfx.play(name, throttle); } catch (e) { /* no audio */ } }
 export function empireBattleContext() { return ui && ui.launchCtx ? ui.launchCtx : null; }
 export function empireShouldAutoOpen() {
   const s = Empire.stored();
@@ -710,18 +790,23 @@ class EmpireUI {
     }).join('');
     const selArmy = s.armies.find((a) => a.id === this.sel);
     const reach = selArmy && s.phase === 'plan' ? emp.reachable(selArmy).map((r) => r.to) : [];
+    const knowsAiTarget = s.upgrades[0].includes('masterplan') && s.aiIntent;
     const nodeSvg = Object.entries(E_NODES).map(([id, n]) => {
       const st = s.nodes[id];
       const ring = st.owner === -1 ? '#7a6a52' : emp.facColor(st.owner);
       const hot = reach.includes(id) ? ' hot' : '';
       const insp = this.selNode === id ? ' insp' : '';
       const unsup = st.owner === 0 && !supplied.has(id);
+      const crownProg = n.type === 'crown' && s.crown.owner !== -1 && s.crown.turns > 0
+        ? `<text y="-32" text-anchor="middle" class="e-crownmark" style="fill:${emp.facColor(s.crown.owner)}">👑${s.crown.turns}/${E_RULES.crownNeed}</text>`
+        : (n.type === 'crown' ? '<text y="-32" text-anchor="middle" class="e-crownmark">👑</text>' : '');
+      const aimark = knowsAiTarget && s.aiIntent === id ? '<text x="-20" y="-18" class="e-supwarn">🎯</text>' : '';
       return `<g class="e-node${hot}${insp}" data-node="${id}" transform="translate(${n.mx},${n.my})">
         ${st.owner !== -1 ? `<circle r="31" class="e-node-halo" style="fill:${emp.facColor(st.owner)}18"/>` : ''}
         <circle r="26" class="e-node-c${unsup ? ' unsup' : ''}" style="stroke:${ring}"/>
         <text y="7" text-anchor="middle" class="e-node-ic">${n.icon}</text>
         <text y="44" text-anchor="middle" class="e-node-lb">${n.name}</text>
-        ${n.type === 'crown' ? '<text y="-32" text-anchor="middle" class="e-crownmark">👑</text>' : ''}
+        ${crownProg}${aimark}
         ${unsup ? '<text x="20" y="-18" class="e-supwarn">✂️</text>' : ''}
       </g>`;
     }).join('');
@@ -737,13 +822,12 @@ class EmpireUI {
       </g>`;
     }).join('');
 
-    const upgRow = Object.entries(E_UPGRADES).map(([k, u]) => {
-      const owned = s.upgrades[0].includes(k);
-      return `<button class="diff-btn e-upg${owned ? ' owned' : ''}" data-upg="${k}" ${owned ? 'disabled' : ''} title="${u.desc}">
-        ${u.icon} ${u.name}${owned ? ' ✓' : ` — ${u.cost}🔩`}</button>`;
-    }).join('');
+    const owned0 = s.upgrades[0].length;
     const logHtml = s.log.slice(-7).reverse().map((l) => `<div><b>T${l.t}</b> ${l.msg}</div>`).join('');
     const sup0 = supplied;
+    const crownChip = s.crown.owner !== -1 && s.crown.turns > 0
+      ? `<span class="e-chip" title="Hold the Storybook Tower crown ${E_RULES.crownNeed} turns to win" style="border-color:${emp.facColor(s.crown.owner)}">👑 <b>${s.crown.turns}</b>/${E_RULES.crownNeed} <span class="e-dim">${s.crown.owner === 0 ? 'you' : 'rival'}</span></span>`
+      : '';
     const evBanner = ev
       ? `<div class="e-event ${ev.phase}">${ev.phase === 'warn'
         ? '⚠️ A distant rumble — the vacuum comes for a road next turn!'
@@ -755,8 +839,10 @@ class EmpireUI {
       <div class="e-top">
         <button id="e-back" class="diff-btn">← Menu</button>
         <span class="e-chip" title="Parts: build, recruit, upgrade">🔩 <b>${s.parts[0]}</b> <span class="e-dim">+${emp.income(0, sup0) - emp.upkeepCost(0)}/t</span></span>
-        <span class="e-chip" title="Power: force marches and special actions (cap ${E_RULES.powerCap})">🔋 <b>${s.power[0]}</b><span class="e-dim">/${E_RULES.powerCap}</span></span>
+        <span class="e-chip" title="Power: force marches (cap ${E_RULES.powerCap})">🔋 <b>${s.power[0]}</b><span class="e-dim">/${E_RULES.powerCap}</span></span>
+        <span class="e-chip" title="Imagination: the empire tree's currency">💡 <b>${s.imag[0]}</b> <span class="e-dim">+${emp.imagIncome(0, sup0)}/t</span></span>
         <span class="e-chip" title="Territories held — first to ${E_RULES.dominionNeed} with a stronghold wins">🗺️ <b>${emp.ownedCount(0)}</b> vs ${emp.ownedCount(1)} <span class="e-dim">of ${E_RULES.dominionNeed}</span></span>
+        ${crownChip}
         <span class="e-chip">🌙 Turn <b>${s.turn}</b><span class="e-dim">/${E_RULES.turnCap}</span></span>
         <span class="e-phase">${phaseLbl}</span>
         <span class="e-spring"></span>
@@ -771,7 +857,7 @@ class EmpireUI {
         <div class="e-side">${this.sidePanel(selArmy)}</div>
       </div>
       <div class="e-bottom">
-        <div class="e-upgs">${upgRow}</div>
+        <button id="e-tree" class="diff-btn">🌳 Empire Tree <span class="e-dim">(${owned0}/8)</span></button>
         <button id="e-end" class="diff-btn sel" ${s.phase !== 'plan' || s.over ? 'disabled' : ''}>⏳ End Turn</button>
         <div class="e-log">${logHtml}</div>
       </div>
@@ -829,9 +915,12 @@ class EmpireUI {
       const supplied = emp.suppliedSet(st.owner === -1 ? 0 : st.owner);
       const tKey = E_NODE_TEMPLATE_OVERRIDE[id] || E_NODE_TEMPLATE[n.type] || 'field';
       const t = E_TEMPLATES[tKey];
-      // scouting fog (§15, slice): garrison details only near your territory
-      const adjacent = routesOf(id).some((r) => s.nodes[r.to].owner === 0)
+      // scouting fog (§15): garrison details only near your territory —
+      // Scouting Kites (Intelligence I) doubles that reach to two routes
+      const near1 = routesOf(id).some((r) => s.nodes[r.to].owner === 0)
         || st.owner === 0 || emp.armiesOf(0).some((a) => a.node === id || routesOf(id).some((r) => r.to === a.node));
+      const near2 = s.upgrades[0].includes('kites') && routesOf(id).some((r) => routesOf(r.to).some((r2) => s.nodes[r2.to].owner === 0));
+      const adjacent = near1 || near2;
       let garrisonLine = '';
       if (st.owner !== 0) {
         const gTmpl = st.garrison || E_GARRISONS[n.type];
@@ -875,11 +964,14 @@ class EmpireUI {
     const endBtn = this.root.querySelector('#e-end');
     if (endBtn) endBtn.addEventListener('click', () => {
       this.confirmNew = false;
+      const capturedBefore = emp.s.stats.captured;
+      esfx('command', 120);
       emp.endTurn();
       this.sel = null;
       this.render();
+      if (emp.s.stats.captured > capturedBefore) esfx('place', 120);
       const enc = emp.nextEncounter();
-      if (enc) this.showEncounter(enc);
+      if (enc) { esfx('charge', 200); this.showEncounter(enc); }
     });
     for (const g of this.root.querySelectorAll('.e-army')) {
       g.addEventListener('click', (e) => {
@@ -888,6 +980,7 @@ class EmpireUI {
         if (!a || a.owner !== 0) return;
         this.sel = this.sel === a.id ? null : a.id; // click again to deselect
         this.selNode = null;
+        esfx('select', 60);
         this.render();
       });
     }
@@ -897,10 +990,12 @@ class EmpireUI {
         const id = g.dataset.node;
         if (this.sel && emp.s.phase === 'plan') {
           const r = emp.issueMove(this.sel, id);
-          if (r.ok) { this.render(); return; }
+          if (r.ok) { esfx('command', 60); this.render(); return; }
+          esfx('error', 120);
         }
         this.sel = null;
         this.selNode = this.selNode === id ? null : id; // inspect / close intel
+        esfx('select', 60);
         this.render();
       });
     }
@@ -908,17 +1003,49 @@ class EmpireUI {
     this.root.querySelector('#e-board').addEventListener('click', () => {
       if (this.sel || this.selNode) { this.sel = null; this.selNode = null; this.render(); }
     });
-    const rec = this.root.querySelector('#e-recruit');
-    if (rec) rec.addEventListener('click', () => { emp.recruit(0, this.sel); this.render(); });
-    const mar = this.root.querySelector('#e-march');
-    if (mar) mar.addEventListener('click', () => { emp.forceMarch(this.sel); this.render(); });
-    const mus = this.root.querySelector('#e-muster');
-    if (mus) mus.addEventListener('click', () => { emp.muster(0); this.render(); });
-    const can = this.root.querySelector('#e-cancel');
-    if (can) can.addEventListener('click', () => { emp.cancelMove(this.sel); this.render(); });
-    for (const b of this.root.querySelectorAll('.e-upg')) {
-      b.addEventListener('click', () => { emp.buyUpgrade(0, b.dataset.upg); this.render(); });
+    const act = (id, fn, snd = 'place') => { const el = this.root.querySelector(id); if (el) el.addEventListener('click', () => { const r = fn(); esfx(r && r.ok === false ? 'error' : snd, 100); this.render(); }); };
+    act('#e-recruit', () => emp.recruit(0, this.sel), 'place');
+    act('#e-march', () => emp.forceMarch(this.sel), 'twang');
+    act('#e-muster', () => emp.muster(0), 'charge');
+    act('#e-cancel', () => emp.cancelMove(this.sel), 'select');
+    const tree = this.root.querySelector('#e-tree');
+    if (tree) tree.addEventListener('click', () => { esfx('select', 60); this.showTree(); });
+  }
+
+  // the Empire Tree modal (§10): four branches, two tiers, Parts + Imagination
+  showTree() {
+    const emp = this.emp, s = emp.s;
+    const cols = Object.entries(E_BRANCHES).map(([bk, b]) => {
+      const nodes = Object.entries(E_UPGRADES).filter(([, u]) => u.branch === bk).sort((a, c) => a[1].tier - c[1].tier);
+      const cells = nodes.map(([k, u]) => {
+        const owned = s.upgrades[0].includes(k);
+        const locked = u.prereq && !s.upgrades[0].includes(u.prereq);
+        const afford = s.parts[0] >= u.parts && s.imag[0] >= u.imag;
+        const cls = owned ? 'owned' : locked ? 'locked' : afford ? 'afford' : 'poor';
+        return `<button class="e-tnode ${cls}" data-upg="${k}" ${owned || locked ? 'disabled' : ''}>
+          <div class="e-tname">${u.icon} ${u.name}</div>
+          <div class="e-tdesc">${u.desc}</div>
+          <div class="e-tcost">${owned ? '✓ owned' : locked ? '🔒 needs ' + E_UPGRADES[u.prereq].name : `${u.parts}🔩 · ${u.imag}💡`}</div>
+        </button>`;
+      }).join('<div class="e-tlink"></div>');
+      return `<div class="e-tcol"><div class="e-tbranch">${b.icon} ${b.name}</div>${cells}</div>`;
+    }).join('');
+    const m = this.root.querySelector('#e-modal');
+    m.innerHTML = `<div class="e-enc"><div class="e-enc-card e-tree-card">
+      <div class="e-ttl">🌳 The Empire Tree</div>
+      <div class="e-dim">🔩 <b>${s.parts[0]}</b> Parts · 💡 <b>${s.imag[0]}</b> Imagination — spend them to shape a distinct empire.</div>
+      <div class="e-tree">${cols}</div>
+      <div class="e-enc-btns"><button id="e-tclose" class="diff-btn sel">Done</button></div>
+    </div></div>`;
+    for (const b of m.querySelectorAll('.e-tnode')) {
+      b.addEventListener('click', () => {
+        const r = emp.buyUpgrade(0, b.dataset.upg);
+        esfx(r.ok ? 'charge' : 'error', 120);
+        this.render();
+        this.showTree(); // refresh the open modal
+      });
     }
+    m.querySelector('#e-tclose').addEventListener('click', () => { m.innerHTML = ''; });
   }
 
   toast(msg) {
@@ -956,10 +1083,13 @@ class EmpireUI {
         </div>
       </div></div>`;
     m.querySelector('#e-sim').addEventListener('click', () => {
-      emp.finishEncounter(enc, emp.simulate(enc));
+      const res = emp.simulate(enc);
+      const humanWon = res.attackerWon === (enc.attacker.owner === 0);
+      emp.finishEncounter(enc, res);
+      esfx(humanWon ? 'place' : 'bonk', 100);
       this.render();
       const next = emp.nextEncounter();
-      if (next) this.showEncounter(next);
+      if (next) { esfx('charge', 200); this.showEncounter(next); }
     });
     const flee = m.querySelector('#e-flee');
     if (flee) flee.addEventListener('click', () => {
@@ -978,6 +1108,7 @@ class EmpireUI {
   showVictory() {
     const emp = this.emp, st = emp.s.stats;
     const win = emp.s.winner === 0;
+    if (!this._victorySung) { this._victorySung = true; esfx(win ? 'victory' : 'defeat', 300); }
     const m = this.root.querySelector('#e-modal');
     m.innerHTML = `<div class="e-enc"><div class="e-enc-card">
       <div class="e-ttl" style="font-size:22px">${win ? '🌅 VICTORY' : '🌑 DEFEAT'}</div>
@@ -1016,8 +1147,9 @@ export function empireTest(seed, turns = 8, script = []) {
     while ((enc = emp.nextEncounter()) && guard++ < 10) emp.finishEncounter(enc, emp.simulate(enc));
   }
   return { hash: emp.stateHash(), turn: emp.s.turn, over: emp.s.over, winner: emp.s.winner,
-    owned: [emp.ownedCount(0), emp.ownedCount(1)], power: [...emp.s.power],
-    armies: emp.s.armies.map((a) => a.id + '@' + a.node + ':' + a.cards.length),
+    winHow: emp.s.winHow || null, owned: [emp.ownedCount(0), emp.ownedCount(1)],
+    power: [...emp.s.power], imag: [...emp.s.imag], upgrades: emp.s.upgrades.map((u) => [...u]),
+    crown: { ...emp.s.crown }, armies: emp.s.armies.map((a) => a.id + '@' + a.node + ':' + a.cards.length),
     stats: { ...emp.s.stats }, event: emp.s.event ? { ...emp.s.event } : null,
     log: emp.s.log.slice(-3) };
 }
