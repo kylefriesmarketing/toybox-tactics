@@ -594,7 +594,29 @@
     background: linear-gradient(180deg, #171030f2, #120b26f8); box-shadow: 0 18px 50px #000c; text-align: center; }
   #bf-title { font-size: 26px; font-weight: 800; color: #ffd97a; letter-spacing: .5px; }
   #bf-tags { color: #b6a9dd; font-size: 12px; margin: 4px 0 12px; }
-  #bf-brief { color: #e8e0ff; font-size: 14px; line-height: 1.5; margin-bottom: 12px; }
+  #bf-brief { color: #e8e0ff; font-size: 14px; line-height: 1.5; margin-bottom: 12px; min-height: 64px; }
+  #bf-brief.typing::after { content: '❚'; color: #ffd97a; animation: bfcaret .8s steps(1) infinite; }
+  @keyframes bfcaret { 50% { opacity: 0; } }
+  /* the war-room plate drifts like a remembered photograph */
+  #bf-art-frame { overflow: hidden; border-radius: 10px; margin: 10px 0; }
+  #bf-art-frame #bf-art { margin: 0; border-radius: 0; }
+  #bf-art.kenburns { animation: kenburns 26s ease-in-out infinite alternate; }
+  @keyframes kenburns {
+    0% { transform: scale(1) translate(0, 0); }
+    100% { transform: scale(1.14) translate(-2.5%, 2%); }
+  }
+  /* the commander leans over the table */
+  #bf-cmdr { display: none; margin: 0 0 12px; padding: 8px 12px; border-left: 3px solid #b8862e;
+    color: #ffd9a0; font-style: italic; font-size: 13px; line-height: 1.45;
+    background: #00000033; border-radius: 0 8px 8px 0;
+    opacity: 0; transform: translateX(-8px); transition: opacity .5s, transform .5s; }
+  #bf-cmdr.show { display: block; opacity: 1; transform: none; }
+  /* the objective stamps onto the page */
+  #bf-obj.stamp { animation: objstamp .38s cubic-bezier(.2, 2.4, .4, 1) both; }
+  @keyframes objstamp {
+    0% { transform: scale(2.1) rotate(-5deg); opacity: 0; }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
+  }
   /* storybook plate: one painted illustration per mission */
   #bf-art { display: block; width: 100%; max-height: 240px; object-fit: cover; margin: 10px 0;
     border-radius: 8px; border: 2px solid var(--gold-deep); box-shadow: 0 4px 14px #000a; }
@@ -959,8 +981,9 @@
     <div id="bf-card">
       <div id="bf-title"></div>
       <div id="bf-tags"></div>
-      <img id="bf-art" alt="">
+      <div id="bf-art-frame"><img id="bf-art" alt=""></div>
       <div id="bf-brief"></div>
+      <div id="bf-cmdr"></div>
       <div id="bf-obj"></div>
       <div id="bf-row">
         <button id="bf-back" class="diff-btn">← Back</button>

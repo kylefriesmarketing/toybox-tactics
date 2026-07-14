@@ -3,7 +3,7 @@
 // ============================================================
 
 import * as THREE from 'three';
-import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, DIFFICULTIES, CAMPAIGN, INTRO, MISSION_EVENTS, generateRandomMap } from './data.js';
+import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, DIFFICULTIES, CAMPAIGN, INTRO, MISSION_EVENTS, CMDR_LINES, generateRandomMap } from './data.js';
 import {
   loadUnitModels, loadBuildingModels, loadMapModels, loadFurnitureModels, setBuildingFootprints,
   createGhostMesh, createMoveMarker, createLamp, renderPortraits, applyUnitTier, refreshFactionBuildingIcons,
@@ -827,15 +827,20 @@ function renderCampaignList() {
     btn.addEventListener('click', () => showBriefing(CAMPAIGN[+btn.dataset.i]));
   }
 }
+let bfTyper = 0;
 function showBriefing(mission) {
   const dm = { easy: 'Sleepy', normal: 'Playful', hard: 'Cranky' };
   const mapName = (MAPS[mission.map] && MAPS[mission.map].label) || mission.map;
   $('bf-title').textContent = `${mission.icon} ${mission.name}`;
-  // the mission's storybook plate (hidden gracefully if the file is missing)
+  // the mission's storybook plate (hidden gracefully if the file is missing),
+  // drifting slowly — a photograph being remembered
   const art = $('bf-art');
   if (art) {
     art.hidden = false;
     art.onerror = () => { art.hidden = true; };
+    art.classList.remove('kenburns');
+    void art.offsetWidth; // restart the drift from the top of the frame
+    art.classList.add('kenburns');
     art.src = `assets/campaign/${mission.id}.jpg`;
   }
   const crestSide = (f, extra) => [f, ...(extra || []).map((x) => x.faction)]
@@ -847,11 +852,40 @@ function showBriefing(mission) {
     + `<span class="vs-mid">VS</span>`
     + crestSide(mission.enemy, mission.foes)
     + `</div>`;
-  $('bf-brief').textContent = mission.brief;
-  $('bf-obj').textContent = '🎯 ' + mission.objective;
+  // the brief writes itself; the commander leans in; the objective stamps down
+  const briefEl = $('bf-brief'), objEl = $('bf-obj'), cmdEl = $('bf-cmdr');
+  clearInterval(bfTyper);
+  const full = mission.brief;
+  const line = CMDR_LINES[mission.id];
+  briefEl.textContent = '';
+  briefEl.classList.add('typing');
+  if (cmdEl) { cmdEl.textContent = line || ''; cmdEl.classList.remove('show'); }
+  objEl.textContent = '🎯 ' + mission.objective;
+  objEl.classList.remove('stamp');
+  objEl.style.visibility = 'hidden';
+  let staged = false;
+  const finish = () => {
+    if (staged) return;
+    staged = true;
+    clearInterval(bfTyper);
+    briefEl.textContent = full;
+    briefEl.classList.remove('typing');
+    if (cmdEl && line) cmdEl.classList.add('show');
+    objEl.style.visibility = '';
+    objEl.classList.add('stamp');
+    sfx.play('command'); // the thunk
+  };
+  let i = 0;
+  bfTyper = setInterval(() => {
+    i += 2; // handwriting pace
+    briefEl.textContent = full.slice(0, i);
+    if (i >= full.length) finish();
+  }, 24);
   $('briefing').classList.add('show');
-  $('bf-begin').onclick = () => startCampaignMission(mission);
-  $('bf-back').onclick = () => { $('briefing').classList.remove('show'); };
+  // one click anywhere on the page completes it instantly (buttons still work)
+  $('briefing').onclick = (e) => { if (e.target.tagName !== 'BUTTON') finish(); };
+  $('bf-begin').onclick = () => { clearInterval(bfTyper); startCampaignMission(mission); };
+  $('bf-back').onclick = () => { clearInterval(bfTyper); $('briefing').classList.remove('show'); };
 }
 function startCampaignMission(mission) {
   campaignMission = mission;

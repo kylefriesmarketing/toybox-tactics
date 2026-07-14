@@ -1529,6 +1529,35 @@ export const CAMPAIGN = [
   },
 ];
 
+// ---------------- briefing-room commander lines ----------------
+// one per mission, spoken over the war table before the battle begins —
+// the voice is always the PLAYER's commander for that mission
+export const CMDR_LINES = {
+  naptime: 'Greenboots taps the map twice. "Under the bed. Before naptime ends. Questions? Good."',
+  sandbox: 'Greenboots pours sand from his boot without breaking eye contact. "Terrain report: hostile."',
+  bathtub: '"A navy," Greenboots says, tasting the word. "We\'re getting a NAVY." He is trying very hard not to smile.',
+  hill: 'Greenboots sets one boot on the map\'s hill. "They want it back. I want to see them try the slope."',
+  finale: 'Greenboots is quiet a long moment. "Every soldier gets one battle the books remember. Gentlemen — this is ours."',
+  crumbs: 'Greenboots slides a crumb across the map like a game piece. "They\'re eating our table. Opinions? Mine exactly."',
+  sofa: 'Snug pats the map gently. "Cushion country, dears. Soft ground, soft hearts, VERY firm intentions."',
+  canyonrun: 'Nitro spins the map like a steering wheel. "Three gaps. One racing line. Try to keep your lunch, Commander."',
+  nightlight: '"The dark keeps veterans," Greenboots says, checking the nightlight twice. "So do I."',
+  shelfking: 'Klik sets a single stud on the map\'s highest shelf. "His crown. My studs. Click. Done."',
+  tagged: 'Greenboots peels a price sticker off his own arm without flinching. "Nobody prices my people. Move out."',
+  boxed: 'Snug\'s button eye catches the lamplight. "It\'s dark in that box, dears. So we shall simply be the light."',
+  bargain: 'Klik counts the map\'s corners like loose change. "A bin is just a fortress with a discount. To work."',
+  stranger: 'Nitro\'s goggles flash. "They wagon-jacked our people, hotshot. This isn\'t a race anymore. It\'s a RESCUE at race pace."',
+  wayhome: 'Greenboots points at the porch light on the map, hand steady as a flagpole. "One more march. Everyone comes home."',
+  midnight: 'Greenboots winds his own key — the old signal. "Tonight there are no tribes. Tonight we are all just toys. TO THE LADDER."',
+  alliance: 'Greenboots and Sir Hector reach to move the same map piece, pause, and bow to each other. This takes a full minute.',
+  zero: 'There is no commander at this table yet. Just a green private, a soft bear across the rug, and a feeling with no name.',
+  doorstep: 'Greenboots stands at the map\'s edge where the paper ends. "Past here, the map is grass. Bring extra courage."',
+  dunes: 'Klik pours a test handful of sand through his fingers and shudders with joy and horror. "Undecided bricks. MARCH."',
+  gardenwar: 'Sir Hector plants his half-painted sword before the garden map. "Terraces. Banners. A GNOME, Commander. This is destiny."',
+  washout: 'Hector and Greenboots knot their banners together over the map. "Until the water comes," they say — accidentally in unison.',
+  oakcrown: 'Greenboots looks up at the drawn oak a long time. "The first toy is up that tree. The last march brings him down. All of us."',
+};
+
 // ---------------- scripted mission moments ----------------
 // Each campaign mission gets 2-3 one-shot beats: story lines mid-battle,
 // reinforcement drops, and telegraphed enemy surges. `at` is sim-seconds.
