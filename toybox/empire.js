@@ -13,6 +13,7 @@ import { UNITS, FACTIONS } from './data.js';
 import {
   E_NODES, E_ROUTES, E_TEMPLATES, E_NODE_TEMPLATE, E_NODE_TEMPLATE_OVERRIDE,
   E_FACTIONS, E_START_ROSTER, E_GARRISONS, E_UPGRADES, E_BRANCHES, E_RULES, E_SIM,
+  E_MODULES, E_MODULE_SLOTS,
 } from './empire-data.js';
 import {
   E_CARDS, E_RARITY, E_COMMON_KEYS, E_CARD_ORDER,
@@ -51,7 +52,7 @@ export class Empire {
     if (seedOrSave && typeof seedOrSave === 'object') { this.load(seedOrSave); return; }
     const seed = seedOrSave || ((Math.random() * 2 ** 31) | 0);
     this.s = {
-      v: 4, seed, turn: 1, phase: 'plan', rng: 0,
+      v: 5, seed, turn: 1, phase: 'plan', rng: 0,
       factions, // seat 0 = human, seat 1 = AI
       parts: [E_RULES.startParts, E_RULES.startParts],
       power: [E_RULES.startPower, E_RULES.startPower],
@@ -64,7 +65,7 @@ export class Empire {
       upgrades: [[], []],
       nodes: Object.fromEntries(Object.keys(E_NODES).map((id) => [id, {
         owner: id === 'CAP_A' ? 0 : id === 'CAP_B' ? 1 : -1,
-        garrison: null, looted: false,
+        garrison: null, looted: false, modules: [],
       }])),
       armies: [],
       nextCard: [0, 0],
@@ -114,7 +115,9 @@ export class Empire {
     for (const a of (save.armies || [])) for (const c of a.cards) {
       if (!c.key) { c.key = c.type === 'archer' ? 'archer' : c.type === 'spear' ? 'spear' : 'recruit'; c.hp = c.hp || 1; }
     }
-    save.v = 4;
+    // v4 → v5: stronghold modules (round 5)
+    for (const st of Object.values(save.nodes || {})) if (!st.modules) st.modules = [];
+    save.v = 5;
     this.s = save; this.rng = makeRng(1); this.rng.setState(save.rng);
   }
   static stored() {
@@ -155,6 +158,8 @@ export class Empire {
     for (const [id, st] of Object.entries(this.s.nodes)) {
       if (st.owner !== p) continue;
       inc += supplied.has(id) ? E_NODES[id].yield : Math.floor(E_NODES[id].yield / 2);
+      // a Workshop module runs whenever the node is supplied
+      if (supplied.has(id)) for (const k of (st.modules || [])) if (E_MODULES[k].parts_yield) inc += E_MODULES[k].parts_yield;
     }
     // Industry II: the capital runs a second workshop shift
     const cap = p === 0 ? 'CAP_A' : 'CAP_B';
@@ -195,7 +200,7 @@ export class Empire {
     const core = { t: this.s.turn, p: this.s.parts, pw: this.s.power, im: this.s.imag, u: this.s.upgrades, r: this.s.rng,
       cr: this.s.crown.owner + ':' + this.s.crown.turns, ev: this.s.event ? this.s.event.route + this.s.event.phase : '',
       lt: this.s.lastLoot ? this.s.lastLoot.key : '',
-      n: Object.entries(this.s.nodes).map(([k, v]) => k + v.owner + (v.garrison ? v.garrison.length : '')),
+      n: Object.entries(this.s.nodes).map(([k, v]) => k + v.owner + (v.garrison ? v.garrison.length : '') + (v.modules || []).join('')),
       a: this.s.armies.map((a) => a.id + a.node + a.cards.map((c) => (c.key || c.type) + c.strength + c.vet).join('')) };
     const str = JSON.stringify(core);
     let h = 5381;
@@ -221,7 +226,8 @@ export class Empire {
         a.marched = false;
         const st = this.s.nodes[a.node];
         if (st && st.owner === p && sup.has(a.node)) {
-          const heal = E_RULES.healPerTurn + (this.s.upgrades[p].includes('repairs') ? 12 : 0);
+          const wsHeal = (st.modules || []).reduce((s, k) => s + (E_MODULES[k].heal || 0), 0);
+          const heal = E_RULES.healPerTurn + (this.s.upgrades[p].includes('repairs') ? 12 : 0) + wsHeal;
           for (const c of a.cards) c.strength = Math.min(100, c.strength + heal);
         }
       }
@@ -306,8 +312,8 @@ export class Empire {
   recruit(p, armyId = null, cardKey = null) {
     const cap = p === 0 ? 'CAP_A' : 'CAP_B';
     const a = armyId ? this.s.armies.find((x) => x.id === armyId && x.owner === p)
-      : this.armiesOf(p).find((x) => x.node === cap);
-    if (!a || a.node !== cap) return { ok: false, why: 'army must stand at your capital' };
+      : this.armiesOf(p).find((x) => this.canRecruitAt(p, x.node));
+    if (!a || !this.canRecruitAt(p, a.node)) return { ok: false, why: 'stand at your capital or a Barracks' };
     if (a.cards.length >= E_RULES.maxCards) return { ok: false, why: 'army is at full strength' };
     if (!cardKey) cardKey = E_COMMON_KEYS[this.s.nextCard[p] % E_COMMON_KEYS.length];
     const card = E_CARDS[cardKey];
@@ -319,6 +325,35 @@ export class Empire {
     this.say(`${this.facLabel(p)} fields ${card.name}.`);
     this.save();
     return { ok: true };
+  }
+
+  // ---- stronghold modules (§8) ----
+  moduleSlots(nodeId) { return E_MODULE_SLOTS[E_NODES[nodeId].type] || 0; }
+  hasModule(nodeId, key) { return (this.s.nodes[nodeId].modules || []).includes(key); }
+  buildModule(p, nodeId, key) {
+    const st = this.s.nodes[nodeId], mod = E_MODULES[key];
+    if (!mod || st.owner !== p) return { ok: false, why: 'not yours' };
+    if (this.s.phase !== 'plan') return { ok: false, why: 'plan phase only' };
+    if (this.hasModule(nodeId, key)) return { ok: false, why: 'already built' };
+    if (st.modules.length >= this.moduleSlots(nodeId)) return { ok: false, why: 'no free sockets' };
+    if (this.s.parts[p] < mod.parts) return { ok: false, why: 'not enough Parts' };
+    if (this.s.imag[p] < (mod.imag || 0)) return { ok: false, why: 'not enough Imagination' };
+    this.s.parts[p] -= mod.parts; this.s.imag[p] -= (mod.imag || 0);
+    st.modules.push(key);
+    this.say(`${mod.icon} ${this.facLabel(p)} builds a ${mod.name} at ${E_NODES[nodeId].name}.`);
+    this.save();
+    return { ok: true };
+  }
+  // total defence bonus a node's modules grant its defender
+  moduleDefBonus(nodeId) {
+    let d = 0;
+    for (const k of (this.s.nodes[nodeId].modules || [])) if (E_MODULES[k].def) d += E_MODULES[k].def;
+    return d;
+  }
+  // can this player recruit standing here? (capital, or a node with a Barracks)
+  canRecruitAt(p, nodeId) {
+    const cap = p === 0 ? 'CAP_A' : 'CAP_B';
+    return nodeId === cap || (this.s.nodes[nodeId].owner === p && this.hasModule(nodeId, 'barracks'));
   }
 
   // ---- collection actions (meta; persist-gated) ----
@@ -422,8 +457,10 @@ export class Empire {
     const { attCards, defCards } = this.encCards(enc);
     const t = E_TEMPLATES[enc.template];
     const defOwner = enc.defender.owner;
+    // Block Walls help whoever HOLDS the contested node (the node's owner defending)
+    const wallMul = (defOwner >= 0 && this.s.nodes[enc.nodeId].owner === defOwner) ? 1 + this.moduleDefBonus(enc.nodeId) : 1;
     const defMul = (t.defBoost || 1) * (E_NODES[enc.nodeId].tier ? 1 + 0.1 * E_NODES[enc.nodeId].tier : 1)
-      * (defOwner >= 0 ? this.ownerPowerMul(defOwner) : 1);
+      * (defOwner >= 0 ? this.ownerPowerMul(defOwner) : 1) * wallMul;
     const ap = this.cardsPower(attCards) * this.ownerPowerMul(enc.attacker.owner), dp = this.cardsPower(defCards) * defMul;
     const ratio = ap / Math.max(0.001, dp);
     const band = ratio > 2 ? 'Overwhelming' : ratio > 1.35 ? 'Favored' : ratio > 0.8 ? 'Even' : ratio > 0.55 ? 'Risky' : 'Desperate';
@@ -639,6 +676,16 @@ export class Empire {
     this.save();
   }
 
+  // the AI has no collection, but its recruits deepen as the night wears on so a
+  // player fielding legendaries still meets resistance. Deterministic by turn+count.
+  aiRecruitKey() {
+    const t = this.s.turn, n = this.s.nextCard[1];
+    const pool = t >= 12 ? ['sarge', 'knight', 'teddy', 'grenadier']
+      : t >= 7 ? ['grenadier', 'raider', 'flinger', 'archer']
+        : ['recruit', 'archer', 'spear'];
+    return pool[n % pool.length];
+  }
+
   // ---------- strategic AI seat (§21: legal orders, same rules) ----------
   aiPlan() {
     const p = 1;
@@ -647,13 +694,22 @@ export class Empire {
     // strategic buys happen once per turn, not per army
     if (this.armiesOf(p).some((a) => a.node === home)) {
       const capArmy = this.armiesOf(p).find((a) => a.node === home);
-      while (this.s.parts[p] >= E_RULES.recruitCost + 20 && capArmy.cards.length < 6) this.recruit(p, capArmy.id);
+      // recruit scales with the night so a card-stocked player still gets a fight
+      while (this.s.parts[p] >= E_RULES.recruitCost + 20 && capArmy.cards.length < 6) this.recruit(p, capArmy.id, this.aiRecruitKey());
       // climb the empire tree in a fixed priority when it can afford a node
       for (const key of ['salvage', 'reserves', 'relay', 'workshop', 'combined']) {
         const u = E_UPGRADES[key];
         if (this.s.upgrades[p].includes(key)) continue;
         if (u.prereq && !this.s.upgrades[p].includes(u.prereq)) continue;
         if (this.s.parts[p] >= u.parts + 40 && this.s.imag[p] >= u.imag) { this.buyUpgrade(p, key); break; }
+      }
+    }
+    // fortify its strongholds: Block Walls first, then a Workshop
+    for (const [id, st] of Object.entries(this.s.nodes)) {
+      if (st.owner !== p || this.moduleSlots(id) === 0) continue;
+      for (const mk of ['walls', 'workshop']) {
+        if (this.hasModule(id, mk) || st.modules.length >= this.moduleSlots(id)) continue;
+        if (this.s.parts[p] >= E_MODULES[mk].parts + 25 && this.s.imag[p] >= (E_MODULES[mk].imag || 0)) { this.buildModule(p, id, mk); break; }
       }
     }
     // muster a second front once the empire can feed it
@@ -866,12 +922,13 @@ class EmpireUI {
         ? `<text y="-32" text-anchor="middle" class="e-crownmark" style="fill:${emp.facColor(s.crown.owner)}">👑${s.crown.turns}/${E_RULES.crownNeed}</text>`
         : (n.type === 'crown' ? '<text y="-32" text-anchor="middle" class="e-crownmark">👑</text>' : '');
       const aimark = knowsAiTarget && s.aiIntent === id ? '<text x="-20" y="-18" class="e-supwarn">🎯</text>' : '';
+      const mods = (st.modules || []).length ? `<text x="22" y="24" class="e-modmark">${(st.modules || []).map((k) => E_MODULES[k].icon).join('')}</text>` : '';
       return `<g class="e-node${hot}${insp}" data-node="${id}" transform="translate(${n.mx},${n.my})">
         ${st.owner !== -1 ? `<circle r="31" class="e-node-halo" style="fill:${emp.facColor(st.owner)}18"/>` : ''}
         <circle r="26" class="e-node-c${unsup ? ' unsup' : ''}" style="stroke:${ring}"/>
         <text y="7" text-anchor="middle" class="e-node-ic">${n.icon}</text>
         <text y="44" text-anchor="middle" class="e-node-lb">${n.name}</text>
-        ${crownProg}${aimark}
+        ${crownProg}${aimark}${mods}
         ${unsup ? '<text x="20" y="-18" class="e-supwarn">✂️</text>' : ''}
       </g>`;
     }).join('');
@@ -917,6 +974,8 @@ class EmpireUI {
       <div class="e-main">
         <svg id="e-board" viewBox="0 0 1000 560" preserveAspectRatio="xMidYMid meet">
           <defs><marker id="e-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#ffd97a"/></marker></defs>
+          <image href="assets/ui/empire-board.jpg" x="0" y="0" width="1000" height="560" preserveAspectRatio="xMidYMid slice" opacity="0.62"/>
+          <rect x="0" y="0" width="1000" height="560" fill="#16100a" opacity="0.28"/>
           ${routeSvg}${orderSvg}${nodeSvg}${armySvg}
         </svg>
         <div class="e-side">${this.sidePanel(selArmy)}</div>
@@ -962,6 +1021,7 @@ class EmpireUI {
          <div class="e-hp"><div style="width:${c.strength}%"></div></div></div>`;
       }).join('');
       const atCap = selArmy.node === 'CAP_A';
+      const canRec = emp.canRecruitAt(0, selArmy.node);
       const mpPips = '●'.repeat(selArmy.mp) + '○'.repeat(Math.max(0, E_RULES.armyMP + (selArmy.marched ? 1 : 0) - selArmy.mp));
       const canMuster = emp.armiesOf(0).length < E_RULES.maxArmies
         && emp.ownedCount(0) >= E_RULES.musterMinNodes && s.parts[0] >= E_RULES.musterCost;
@@ -970,8 +1030,8 @@ class EmpireUI {
         <div class="e-dim">March ${mpPips} · ${selArmy.cards.length}/${E_RULES.maxCards} toys
         ${selArmy.order ? ` · → ${E_NODES[selArmy.order.to].name}` : ''}</div>
         ${cards}
-        <button id="e-recruit" class="diff-btn" ${atCap && s.parts[0] >= E_RULES.recruitCost && selArmy.cards.length < E_RULES.maxCards ? '' : 'disabled'}
-          title="${atCap ? 'Add a toy to this army' : 'Recruiting happens at your capital'}">➕ Recruit (${E_RULES.recruitCost}🔩)</button>
+        <button id="e-recruit" class="diff-btn" ${canRec && selArmy.cards.length < E_RULES.maxCards ? '' : 'disabled'}
+          title="${canRec ? 'Field a collection card here' : 'Recruit at your capital or a Barracks'}">➕ Field a Card…</button>
         <button id="e-march" class="diff-btn" ${!selArmy.marched && s.power[0] >= E_RULES.forceMarchCost && s.phase === 'plan' ? '' : 'disabled'}
           title="+1 movement this turn">🔋 Force March (${E_RULES.forceMarchCost}⚡)</button>
         ${atCap ? `<button id="e-muster" class="diff-btn" ${canMuster ? '' : 'disabled'}
@@ -989,7 +1049,10 @@ class EmpireUI {
       const near1 = routesOf(id).some((r) => s.nodes[r.to].owner === 0)
         || st.owner === 0 || emp.armiesOf(0).some((a) => a.node === id || routesOf(id).some((r) => r.to === a.node));
       const near2 = s.upgrades[0].includes('kites') && routesOf(id).some((r) => routesOf(r.to).some((r2) => s.nodes[r2.to].owner === 0));
-      const adjacent = near1 || near2;
+      // a Watchtower you own reveals garrisons within two routes of the fort
+      const near3 = routesOf(id).some((r) => (s.nodes[r.to].owner === 0 && emp.hasModule(r.to, 'watchtower'))
+        || routesOf(r.to).some((r2) => s.nodes[r2.to].owner === 0 && emp.hasModule(r2.to, 'watchtower')));
+      const adjacent = near1 || near2 || near3;
       let garrisonLine = '';
       if (st.owner !== 0) {
         const gTmpl = st.garrison || E_GARRISONS[n.type];
@@ -1002,6 +1065,24 @@ class EmpireUI {
         garrisonLine = supplied.has(id) ? '✅ Supplied' : '✂️ CUT OFF — half yield, no healing here';
       }
       const owner = st.owner === -1 ? 'Unclaimed' : emp.facLabel(st.owner);
+      // module sockets — buildable when you own an anchor node (fort / capital)
+      const slots = emp.moduleSlots(id);
+      let modBlock = '';
+      if (slots > 0) {
+        const built = (st.modules || []).map((k) => `<span class="e-modchip" title="${E_MODULES[k].desc}">${E_MODULES[k].icon} ${E_MODULES[k].name}</span>`).join('');
+        const free = slots - (st.modules || []).length;
+        let buildBtns = '';
+        if (st.owner === 0 && free > 0) {
+          buildBtns = Object.entries(E_MODULES).filter(([k]) => !emp.hasModule(id, k)).map(([k, mod]) => {
+            const afford = s.parts[0] >= mod.parts && s.imag[0] >= (mod.imag || 0);
+            return `<button class="e-modbuild" data-node="${id}" data-mod="${k}" ${afford && s.phase === 'plan' ? '' : 'disabled'} title="${mod.desc}">
+              ${mod.icon} ${mod.name} — ${mod.parts}🔩${mod.imag ? ` ${mod.imag}💡` : ''}</button>`;
+          }).join('');
+        }
+        modBlock = `<div class="e-kv"><span>Modules</span><b>${(st.modules || []).length}/${slots}</b></div>
+          ${built ? `<div class="e-mods">${built}</div>` : ''}
+          ${buildBtns ? `<div class="e-dim" style="margin-top:2px">Build:</div><div class="e-modbuilds">${buildBtns}</div>` : (st.owner === 0 && free === 0 ? '<div class="e-dim">All sockets full.</div>' : '')}`;
+      }
       return `<div class="e-panel">
         <div class="e-ttl">${n.icon} ${n.name}</div>
         <div class="e-dim">${n.desc}</div>
@@ -1011,6 +1092,7 @@ class EmpireUI {
         ${n.dominion ? `<div class="e-kv"><span>Dominion</span><b>worth ${n.dominion}</b></div>` : ''}
         <div class="e-kv"><span>If contested</span><b>${t.label} · ~${t.time}</b></div>
         <div class="e-dim">${garrisonLine}</div>
+        ${modBlock}
       </div>`;
     }
     return `<div class="e-panel"><div class="e-ttl">📖 The Bedroom War</div>
@@ -1084,6 +1166,9 @@ class EmpireUI {
     if (tree) tree.addEventListener('click', () => { esfx('select', 60); this.showTree(); });
     const cards = this.root.querySelector('#e-cards');
     if (cards) cards.addEventListener('click', () => { esfx('select', 60); this.showCollection(); });
+    for (const b of this.root.querySelectorAll('.e-modbuild')) {
+      b.addEventListener('click', () => { const r = emp.buildModule(0, b.dataset.node, b.dataset.mod); esfx(r.ok ? 'place' : 'error', 100); this.render(); });
+    }
   }
 
   // recruit picker: field a card you own (commons always available)

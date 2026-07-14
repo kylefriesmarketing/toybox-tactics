@@ -79,6 +79,21 @@ export const E_GARRISONS = {
   discovery:  [{ type: 'raider' }, { type: 'raider' }],
 };
 
+// stronghold & capital modules (bible §8): build sockets on the nodes that
+// anchor your empire. Effects reach both the campaign map and the battle bridge.
+export const E_MODULES = {
+  walls:      { name: 'Block Walls', icon: '🧱', parts: 55, imag: 0,  def: 0.3,
+                desc: 'A wall of stacked blocks. You fight +30% stronger defending this fort.' },
+  workshop:   { name: 'Workshop',    icon: '🏭', parts: 60, imag: 0,  parts_yield: 8, heal: 8,
+                desc: '+8 Parts/turn here, and armies resting on this node mend +8 more.' },
+  watchtower: { name: 'Watchtower',  icon: '🔭', parts: 45, imag: 15, scout: 2,
+                desc: 'Scout enemy garrisons within two routes of this fort.' },
+  barracks:   { name: 'Barracks',    icon: '⛺', parts: 55, imag: 15, recruit: true,
+                desc: 'Field collection cards here as if standing at your capital.' },
+};
+// how many module sockets a node offers, by type
+export const E_MODULE_SLOTS = { capital: 2, stronghold: 2, crown: 0, mission: 0, resource: 0, market: 0, discovery: 0 };
+
 // the Empire Tree (bible §10): four branches, two tiers each. Tier II needs its
 // branch's tier I. Bought with Parts + Imagination — the slower, strategic yield.
 // Distinct empires emerge by the midgame from which branches you commit to.
