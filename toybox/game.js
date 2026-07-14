@@ -84,15 +84,34 @@ class PathFinder {
     return null;
   }
   find(sx, sz, tx, tz, forOwner = -2, naval = false) {
-    let si = tileOf(sx), sj = tileOf(sz), ti = tileOf(tx), tj = tileOf(tz);
+    let si = tileOf(sx), sj = tileOf(sz);
+    const ti = tileOf(tx), tj = tileOf(tz);
     const sFree = this.nearestFree(si, sj, 4, naval); if (!sFree) return null;
     [si, sj] = sFree;
-    const tFree = this.nearestFree(ti, tj, 10, naval); if (!tFree) return null;
-    [ti, tj] = tFree;
-    if (si === ti && sj === tj) return [{ x: worldOf(ti), z: worldOf(tj) }];
+    // Blocked destinations (a resource pile, a building footprint, a wall) accept
+    // EVERY free tile of the nearest free ring as a goal, and the search itself
+    // decides which side is closest BY PATH. The old code pre-picked one ring
+    // tile in scan order, which marched workers around piles — and around whole
+    // wall lines — to reach an arbitrary far-side tile.
+    const goals = new Set();
+    let ringR = 0;
+    if (inMap(ti, tj) && !this.isBlockedFor(idx(ti, tj), forOwner, naval)) {
+      goals.add(idx(ti, tj));
+    } else {
+      for (let r = 1; r <= 10 && !goals.size; r++) {
+        for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
+          if (Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
+          const a = ti + di, b = tj + dj;
+          if (inMap(a, b) && !this.isBlockedFor(idx(a, b), forOwner, naval)) goals.add(idx(a, b));
+        }
+        if (goals.size) ringR = r;
+      }
+      if (!goals.size) return null;
+    }
+    if (goals.has(idx(si, sj))) return [{ x: worldOf(si), z: worldOf(sj) }];
 
     const stamp = ++this.stamp;
-    const { blocked, g, visit, from } = this;
+    const { g, visit, from } = this;
     const open = [];
     const push = (f, n) => {
       open.push([f, n]);
@@ -113,18 +132,20 @@ class PathFinder {
       }
       return top[1];
     };
+    // octile distance to the target CENTER, relaxed by the goal ring's radius so
+    // it stays admissible for every ring tile (never overestimates → optimal side)
+    const relax = ringR * 1.414;
     const h = (i, j) => {
       const dx = Math.abs(i - ti), dy = Math.abs(j - tj);
-      return Math.max(dx, dy) + 0.414 * Math.min(dx, dy);
+      return Math.max(0, Math.max(dx, dy) + 0.414 * Math.min(dx, dy) - relax);
     };
     const start = idx(si, sj);
     g[start] = 0; visit[start] = stamp; from[start] = -1;
     push(h(si, sj), start);
-    let expansions = 0, found = false;
-    const target = idx(ti, tj);
+    let expansions = 0, found = -1;
     while (open.length && expansions++ < 6000) {
       const n = pop();
-      if (n === target) { found = true; break; }
+      if (goals.has(n)) { found = n; break; }
       const ni = n % N, nj = (n / N) | 0;
       for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
         if (!di && !dj) continue;
@@ -146,9 +167,9 @@ class PathFinder {
         push(cost + h(a, b), m);
       }
     }
-    if (!found) return null;
+    if (found < 0) return null;
     const path = [];
-    for (let n = target; n !== -1; n = from[n]) path.push({ x: worldOf(n % N), z: worldOf((n / N) | 0) });
+    for (let n = found; n !== -1; n = from[n]) path.push({ x: worldOf(n % N), z: worldOf((n / N) | 0) });
     path.reverse();
     if (path.length > 1) path.shift();
     return path;
