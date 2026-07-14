@@ -7,7 +7,7 @@ import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, DIFFICULTIE
 import {
   loadUnitModels, loadBuildingModels, loadMapModels, loadFurnitureModels, setBuildingFootprints,
   createGhostMesh, createMoveMarker, createLamp, renderPortraits, applyUnitTier, refreshFactionBuildingIcons,
-  PORTRAITS, setProceduralEra,
+  PORTRAITS, setProceduralEra, makeRankBadge,
 } from './models.js';
 import { Game } from './game.js';
 import { UI } from './ui.js';
@@ -773,10 +773,25 @@ function missionUnlocked(i) {
   return i === 0 || campaignDone(CAMPAIGN[i - 1].id);
 }
 function openCampaign() {
+  showingJournal = false; // the book always opens to the missions page
   renderCampaignList();
   $('campaign').classList.add('show');
 }
+let showingJournal = false;
+function renderJournal() {
+  let j = [];
+  try { j = JSON.parse(localStorage.getItem('tt-journal') || '[]'); } catch (e) { /* empty book */ }
+  $('cm-progress').innerHTML = `📖 The Expedition Journal — ${j.length} night${j.length === 1 ? '' : 's'} recorded`
+    + `<div style="margin-top:8px"><button id="jr-back" class="diff-btn" style="font-size:12px;padding:6px 14px">◀ Back to the missions</button></div>`;
+  $('jr-back').onclick = () => { showingJournal = false; renderCampaignList(); };
+  $('cm-list').innerHTML = j.length
+    ? j.slice().reverse().map((e) =>
+      `<div class="jr-entry"><div class="jr-head">${e.icon || '📄'} Night ${e.night} — ${e.name} ${e.win ? '🏅' : '✖'}</div>`
+      + `<div class="jr-text">${e.text}</div></div>`).join('')
+    : '<div class="jr-entry"><div class="jr-text">The first page is blank. It is waiting for your first campaign night.</div></div>';
+}
 function renderCampaignList() {
+  if (showingJournal) { renderJournal(); return; }
   const ngUnlocked = baseCampaignAllDone();
   if (ngActive && !ngUnlocked) setNgActive(false); // never a second night before the first
   const open = CAMPAIGN.filter((m) => !m.secret);
@@ -794,9 +809,13 @@ function renderCampaignList() {
       : openDone >= open.length
         ? '🌙 Every open page is told… and at the bottom of the book, a secret chapter has appeared.'
         : `${openDone} / ${open.length} missions cleared`;
-  $('cm-progress').innerHTML = progressText + zeroTease + (ngUnlocked
-    ? `<div style="margin-top:8px"><button id="ng-toggle" class="diff-btn" style="font-size:12px;padding:6px 14px">${ngActive ? '📖 Back to the First Night' : '🌒 Begin the Second Night (NG+)'}</button></div>`
-    : '');
+  const journalBtn = `<button id="jr-open" class="diff-btn" style="font-size:12px;padding:6px 14px;margin-left:8px">📖 Journal</button>`;
+  $('cm-progress').innerHTML = progressText + zeroTease
+    + `<div style="margin-top:8px">`
+    + (ngUnlocked ? `<button id="ng-toggle" class="diff-btn" style="font-size:12px;padding:6px 14px">${ngActive ? '📖 Back to the First Night' : '🌒 Begin the Second Night (NG+)'}</button>` : '')
+    + journalBtn + `</div>`;
+  const jrBtn = $('jr-open');
+  if (jrBtn) jrBtn.onclick = () => { showingJournal = true; renderJournal(); };
   const ngBtn = $('ng-toggle');
   if (ngBtn) ngBtn.onclick = () => { setNgActive(!ngActive); renderCampaignList(); };
   const dm = { easy: 'Sleepy', normal: 'Playful', hard: 'Cranky' };
@@ -918,12 +937,62 @@ function applyMissionMods(g, mission) {
     }
   }
   g.ngPlus = ngActive; // the narrator retells the beats from memory
+  // veterans of the last page march in with the expedition (one-time, then spent)
+  try {
+    const vets = JSON.parse(localStorage.getItem('tt-vets') || 'null');
+    if (vets && vets.types && vets.types.length && g.homes && g.homes[0]) {
+      const h = g.homes[0];
+      vets.types.forEach((type, k) => {
+        const u = g.spawnUnit(type, 0, h.x + 2.2 + (k % 3) * 0.9, h.z - 2.4 - Math.floor(k / 3) * 0.9);
+        if (u) {
+          u.kills = 3; // veterans arrive with their first star already earned
+          if (u.view && u.view.group) { u.rankBadge = makeRankBadge(1); u.view.group.add(u.rankBadge); }
+        }
+      });
+      setTimeout(() => showDialogue('narrator',
+        `The 1st ${vets.from} Company marches in — ${vets.types.length} veteran${vets.types.length > 1 ? 's' : ''} of the last page, stars still warm.`), 4000);
+      localStorage.removeItem('tt-vets');
+    }
+  } catch (e) { /* fresh page, no veterans */ }
   // scripted moments: hand the game its own copy so retries start fresh
   g.missionEvents = (MISSION_EVENTS[mission.id] || []).map((e) => ({ ...e }));
 }
+const ACT_CLOSERS = { finale: 1, shelfking: 2, wayhome: 3, oakcrown: 4 };
 function campaignGameOver(win) {
   const m = campaignMission;
   if (win) markCampaignDone(m.id);
+  const me = game.players[game.myId];
+  // ---- the Expedition Journal writes tonight's entry ----
+  try {
+    const j = JSON.parse(localStorage.getItem('tt-journal') || '[]');
+    const mm = Math.floor(game.time / 60), ss = String(Math.floor(game.time % 60)).padStart(2, '0');
+    const feels = win
+      ? ['The room felt bigger tonight.', 'Nobody sang on the way back, but everybody hummed.', 'We slept the good sleep, all of us.', 'Even the nightlight seemed proud.']
+      : ['We do not speak of the counting.', 'Tomorrow will have to be braver than today was.', 'The lamp stayed on for us anyway.', 'Somebody re-rolled the bandages twice. It helped.'];
+    j.push({
+      night: j.length + 1, id: m.id, name: m.name, icon: m.icon, win, when: Date.now(),
+      text: `${win ? 'Victory' : 'Defeat'} after ${mm}:${ss}. ${me.stats.kills} rivals unmade; `
+        + `${me.stats.lost} of ours carried home; ${Math.round(me.stats.gathered)} gathered from the floor. `
+        + feels[j.length % feels.length],
+    });
+    localStorage.setItem('tt-journal', JSON.stringify(j.slice(-200)));
+  } catch (e) { /* private mode */ }
+  // ---- survivors of a won page become next page's veteran company ----
+  if (win) {
+    try {
+      const survivors = game.entities.filter((e) => e.kind === 'unit' && !e.dead
+        && e.owner === game.myId && e.def.aggro > 0 && !e.isKing && !e.def.naval).slice(0, 3);
+      if (survivors.length) {
+        localStorage.setItem('tt-vets', JSON.stringify({ from: m.name, types: survivors.map((s) => s.type) }));
+      }
+    } catch (e) { /* no veterans tonight */ }
+  }
+  // ---- act bookends: the page-turn between acts (once per act) ----
+  const act = ACT_CLOSERS[m.id];
+  if (win && act && !localStorage.getItem('tt-bookend-' + act)) {
+    try { localStorage.setItem('tt-bookend-' + act, '1'); } catch (e) { /* still show it */ }
+    setTimeout(() => showBookend(act, me), 1200);
+  }
   $('go-story').textContent = win ? m.victory : m.defeat;
   const art = $('go-art');
   if (art) {
@@ -949,6 +1018,35 @@ function campaignGameOver(win) {
     goNext.style.display = 'none'; // final mission won
   }
 }
+// ---------------- act bookends: the page turns between acts ----------------
+function showBookend(act, me) {
+  const el = document.getElementById('bookend');
+  if (!el) return;
+  const mm = Math.floor(game.time / 60);
+  const stats = `Your war ran ${mm} minute${mm === 1 ? '' : 's'} tonight — ${me.stats.kills} rivals unmade, ${me.stats.lost} of ours carried home.`;
+  const pages = {
+    1: ['End of Act I — The Bedroom Wars',
+      `The room is one. From naptime to the attic stair, every tribe now knows the sound of your marching order. ${stats}`,
+      'But past the rug, past the door at the end of the hallway... a sleepover has been announced. Pack the army, Commander. Act II is another house entirely.'],
+    2: ['End of Act II — The Sleepover',
+      `A strange house, held. Foreign tables, foreign shelves, one borrowed nightlight — and your flag on all of it. ${stats}`,
+      'Then, from the driveway: folding tables. Price stickers. A cardboard box with your whole life in it. Act III is not a war, Commander. It is a yard sale. Somehow that is worse.'],
+    3: ['End of Act III — The Yard Sale',
+      `Home. The word did all the heavy lifting tonight, and your armies did the rest. Every toy that left in a box came back through the window. ${stats}`,
+      'The lid closes gently. The book should end here — and yet the last page feels warm, like something is still awake beneath it. Sleep, Commander. The book will tell you when.'],
+    4: ['End of Act IV — The Great Outdoors',
+      `The backyard belongs to the brave now. Dunes crossed, gardens sieged, sprinklers survived — and one old rabbit carried home under the porch light. ${stats}`,
+      'Bun-Bun tells his story every night now, to anyone who will listen, and everyone listens. The book has a backyard. The room has a horizon. And you, Commander, have read it all into being.'],
+  }[act];
+  el.innerHTML = `<div class="bk-page"><div class="bk-act">${pages[0]}</div>`
+    + `<p>${pages[1]}</p><p>${pages[2]}</p>`
+    + `<button id="bk-turn" class="diff-btn">Turn the page ▶</button></div>`;
+  el.classList.add('show');
+  const close = () => el.classList.remove('show');
+  document.getElementById('bk-turn').onclick = close;
+  el.onclick = (e) => { if (e.target === el) close(); };
+}
+
 $('campaign-btn').addEventListener('click', openCampaign);
 $('cm-close').addEventListener('click', () => $('campaign').classList.remove('show'));
 
