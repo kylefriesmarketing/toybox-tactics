@@ -2092,6 +2092,46 @@ function nextDialogue() {
   }, Math.min(9000, 3800 + item.text.length * 28));
 }
 
+// ---------------- live objectives panel (reads the sim, never writes it) ----------------
+let objT = 0;
+function updateObjectives(dt) {
+  objT -= dt;
+  if (objT > 0) return;
+  objT = 0.5;
+  const el = document.getElementById('objectives');
+  if (!el) return;
+  if (!game || game.over || watchMode) { el.classList.remove('show'); return; }
+  const head = campaignMission
+    ? '🎯 ' + campaignMission.objective
+    : GAME_MODES[game.gameMode].icon + ' ' + GAME_MODES[game.gameMode].label;
+  let status = '';
+  const myTeam = game.teamOf(game.myId);
+  if (game.gameMode === 'koth') {
+    const th = game.entities.find((e) => e.type === 'throne' && !e.dead);
+    if (th) {
+      const ht = th.holdTeam ?? th.holder;
+      const left = Math.ceil(Math.max(0, 120 - (th.holdTime || 0)));
+      status = ht < 0 ? 'The Throne stands empty.'
+        : ht === myTeam ? `Your team holds the Throne — ${left}s to victory!`
+          : `⚠️ The rivals hold the Throne — ${left}s left to stop them!`;
+    }
+  } else if (game.gameMode === 'regicide') {
+    const kings = game.entities.filter((e) => e.isKing && !e.dead);
+    const mine = kings.filter((k) => game.teamOf(k.owner) === myTeam).length;
+    status = `Kings standing — yours: ${mine} · rivals: ${kings.length - mine}`;
+  } else if (game.gameMode === 'sudden') {
+    const chests = game.entities.filter((e) => e.type === 'chest' && !e.dead);
+    const mine = chests.filter((c) => game.teamOf(c.owner) === myTeam).length;
+    status = `Toy Chests — yours: ${mine} · rivals: ${chests.length - mine} · no rebuilding`;
+  } else {
+    const rival = game.entities.filter((e) => e.kind === 'building' && !e.dead
+      && e.owner >= 0 && game.teamOf(e.owner) !== myTeam).length;
+    status = `Rival buildings standing: ${rival}`;
+  }
+  el.innerHTML = `<div class="obj-head">${head}</div><div class="obj-status">${status}</div>`;
+  el.classList.add('show');
+}
+
 // ---------------- camera moments (a marked story beat pulls the eye over) ----------------
 let camMoment = null; // { t, fromX, fromZ, toX, toZ }
 function cameraMoment(x, z) {
@@ -2580,6 +2620,7 @@ function loop() {
   vfx.ambient(cam.x, cam.z, dt); // dust motes drifting in the lamp light
   updateAmbient(dt);            // moths, headlights, the cat
   updateWeather(dt);            // wind in the sunflowers, seeds on the breeze
+  updateObjectives(dt);         // the goal, live, where eyes already are
   // the lamp breathes a little, like a real filament (only while it exists)
   if (lampProp.group.visible) {
     const flick = 1 + Math.sin(performance.now() * 0.0021) * 0.03 + Math.sin(performance.now() * 0.013) * 0.02;
@@ -2609,6 +2650,7 @@ setInterval(() => {
     ui.update(elapsed);
     updateAmbient(elapsed);
     updateWeather(elapsed);
+    updateObjectives(elapsed);
     updateCamMoment(elapsed);
     applyCamera(elapsed);
     renderer.render(scene, camera);
