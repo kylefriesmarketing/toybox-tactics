@@ -1448,6 +1448,7 @@ export class Game {
     u.oq.length = queued ? u.oq.length : 0;
     u.path = null; u.aim = null; u.losT = 0;
     u.anchor = null; // explicit orders reset the defensive-stance leash
+    u.idleT = 0;     // fresh marching orders reset the idle-hands clock
     if (!queued) u.swing = null;
   }
   cmdMove(units, x, z, queued = false, amove = false, formation = 'box') {
@@ -2804,6 +2805,27 @@ export class Game {
         if (!this.nearestEnemy(u.owner, u.x, u.z, 9, (e) => e.kind === 'unit' && e.def.aggro > 0)) {
           u.order = u.fleeResume;
           u.fleeResume = null;
+        }
+      }
+    } else if (u.type === 'worker' && !u.garrisoned) {
+      // idle hands: after a few unbothered seconds, a worker walks itself back
+      // to work — generous radius, so 'ran dry nearby' crews cross to the next
+      // pocket instead of retiring on the spot (deterministic: no rng, id-order
+      // scans, identical for every player — AI crews get re-tasked by their own
+      // planner within a second, so in practice this only moves human workers)
+      u.idleT = (u.idleT || 0) + dt;
+      if (u.idleT >= 5) {
+        u.idleT = 0;
+        const prefer = u.carryType || 'snacks';
+        const node = this.nearestGatherSource(u.owner, prefer, u.x, u.z, 34, u)
+          || this.nearestGatherSource(u.owner, prefer === 'blocks' ? 'snacks' : 'blocks', u.x, u.z, 34, u)
+          || this.nearestGatherSource(u.owner, 'buttons', u.x, u.z, 34, u)
+          || this.nearestGatherSource(u.owner, 'marbles', u.x, u.z, 34, u);
+        if (node) {
+          const resType = node.kind === 'building' ? 'snacks' : node.resType;
+          if (u.carryType !== resType) u.carry = 0;
+          u.carryType = resType;
+          u.order = { type: 'gather', node, phase: 'to', resType };
         }
       }
     }
