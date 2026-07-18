@@ -1752,6 +1752,7 @@ window.__ttNetTest = (opts = {}) => {
 window.__ttGL = () => ({ renderer, scene, camera }); // perf probes
 window.__ttAmbient = () => ambient; // ambience debug handle
 window.__ttSfx = () => sfx; // audio debug handle (ambKind checks)
+window.__ttWeather = () => weather; // weather/flyover debug handle
 window.__ttCam = (x, z, dist = 24) => {
   cam.tx = cam.x = x; cam.tz = cam.z = z; cam.tdist = cam.dist = dist;
   applyCamera(1);
@@ -1893,7 +1894,16 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   const mapCfg0 = typeof map === 'object' ? map : (MAPS[map] || MAPS.playmat);
   applyMapLighting(zeroEra ? 'sepia' : mapCfg0.light);
   // outdoor hours have their own soundtrack: birds, bees, or crickets
-  try { sfx.startAmbience(mapCfg0.outdoor && !zeroEra ? mapCfg0.light : null); } catch (e) { /* muted */ }
+  // every room hums its own hum: outdoor maps keep their hour (breeze/birds/
+  // bees/crickets), the yard gets birdsong, and each indoor map gets its
+  // room-tone (clock, fridge, TV murmur, drips, rain-on-roof, the deep hush).
+  // Toy Box Zero stays silent — the page before the room had sounds.
+  const AMB_BY_GROUND = {
+    playground: 'day', kitchen: 'kitchen', bathtub: 'tub', livingroom: 'tv',
+    attic: 'attic', underbed: 'dark', bookshelf: 'study',
+  };
+  const amb0 = zeroEra ? null : (mapCfg0.outdoor ? mapCfg0.light : (AMB_BY_GROUND[mapCfg0.ground] || 'room'));
+  try { sfx.startAmbience(amb0); } catch (e) { /* muted */ }
   vfx = new VFX(scene);
   net = mpOpts ? mpOpts.net : null;
   // team roster: single-player skirmish comes from the lobby (2–4 seats, teams);
@@ -2733,8 +2743,51 @@ function setupWeather() {
       group.add(fly);
       parts.push({ m: fly, ph: Math.random() * 9, cx: fly.position.x, cz: fly.position.z });
     }
+  } else if (kind === 'motes') {
+    // dust hanging in the window light — barely moving, catching the sun
+    const moteM = new THREE.MeshBasicMaterial({ color: 0xfff4d8, transparent: true, opacity: 0.4 });
+    for (let i = 0; i < 30; i++) {
+      const mote = new THREE.Mesh(new THREE.SphereGeometry(0.035, 5, 4), moteM.clone());
+      mote.position.set((Math.random() - 0.5) * span * 0.8, 0.4 + Math.random() * 6, (Math.random() - 0.5) * span * 0.8);
+      group.add(mote);
+      parts.push({ m: mote, ph: Math.random() * 9 });
+    }
+  } else if (kind === 'steam') {
+    // little curls rising off the table — dinner never quite over
+    for (let i = 0; i < 12; i++) {
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(0.28, 7, 6),
+        new THREE.MeshBasicMaterial({ color: 0xf6f2ea, transparent: true, opacity: 0.16, depthWrite: false }));
+      puff.position.set((Math.random() - 0.5) * span * 0.8, Math.random() * 4, (Math.random() - 0.5) * span * 0.8);
+      group.add(puff);
+      parts.push({ m: puff, ph: Math.random() * 9, v: 0.5 + Math.random() * 0.4, x0: puff.position.x, z0: puff.position.z });
+    }
+  } else if (kind === 'bubbles') {
+    // soap bubbles wobbling up out of the suds
+    for (let i = 0; i < 14; i++) {
+      const bub = new THREE.Mesh(new THREE.SphereGeometry(0.12 + Math.random() * 0.12, 8, 6),
+        new THREE.MeshBasicMaterial({ color: 0xcfe8f4, transparent: true, opacity: 0.3, depthWrite: false }));
+      bub.position.set((Math.random() - 0.5) * span * 0.8, Math.random() * 7, (Math.random() - 0.5) * span * 0.8);
+      group.add(bub);
+      parts.push({ m: bub, ph: Math.random() * 9, v: 0.5 + Math.random() * 0.5, x0: bub.position.x });
+    }
+  } else if (kind === 'glitter') {
+    // the tree sheds sparkle — slow gold and silver flecks all season long
+    for (let i = 0; i < 40; i++) {
+      const fleck = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.06),
+        new THREE.MeshBasicMaterial({ color: Math.random() < 0.5 ? 0xf0d24a : 0xe8e8f0, transparent: true, opacity: 0.75, side: THREE.DoubleSide }));
+      fleck.position.set((Math.random() - 0.5) * span, Math.random() * 10, (Math.random() - 0.5) * span);
+      fleck.rotation.set(Math.random() * 3, Math.random() * 3, 0);
+      group.add(fleck);
+      parts.push({ m: fleck, ph: Math.random() * 9, v: 0.28 + Math.random() * 0.25 });
+    }
   }
-  weather = { kind, group, parts, sway, clouds, t: Math.random() * 100 };
+  // flyovers: every minute or two, something small crosses the sky and is gone
+  const FLYOVERS = { sandbox: 'planes', playground: 'planes', playmat: 'planes', attic: 'planes', garden: 'butterflies' };
+  const flyKind = FLYOVERS[game.map.ground];
+  weather = {
+    kind, group, parts, sway, clouds, t: Math.random() * 100,
+    flyKind, flyT: flyKind ? 20 + Math.random() * 40 : 0, flight: null,
+  };
   if (kind === 'rain') { try { sfx.startRain(); } catch (e) { /* muted */ } }
 }
 function updateWeather(dt) {
@@ -2771,6 +2824,103 @@ function updateWeather(dt) {
       p.m.position.z = p.cz + Math.cos(t * 0.45 + p.ph * 1.3) * 2.4;
       p.m.position.y = 1.6 + Math.sin(t * 0.9 + p.ph * 2) * 1.1;
       p.m.material.emissiveIntensity = 0.35 + 0.65 * Math.max(0, Math.sin(t * 1.7 + p.ph * 3));
+    }
+  } else if (weather.kind === 'motes') {
+    for (const p of weather.parts) { // hover, twinkle, barely drift
+      p.m.position.x += Math.sin(t * 0.3 + p.ph) * dt * 0.12;
+      p.m.position.y += Math.cos(t * 0.22 + p.ph * 1.7) * dt * 0.08;
+      p.m.material.opacity = 0.18 + 0.3 * Math.max(0, Math.sin(t * 0.7 + p.ph * 2));
+    }
+  } else if (weather.kind === 'steam') {
+    for (const p of weather.parts) {
+      p.m.position.y += p.v * dt;
+      p.m.position.x = p.x0 + Math.sin(t * 0.8 + p.ph) * 0.5; // the curl
+      const s = 1 + (p.m.position.y / 5) * 0.8;
+      p.m.scale.setScalar(s);
+      p.m.material.opacity = Math.max(0, 0.18 - p.m.position.y * 0.035);
+      if (p.m.position.y > 5) { p.m.position.y = 0.2; p.x0 = (Math.random() - 0.5) * span * 0.8; p.m.position.z = (Math.random() - 0.5) * span * 0.8; }
+    }
+  } else if (weather.kind === 'bubbles') {
+    for (const p of weather.parts) {
+      p.m.position.y += p.v * dt;
+      p.m.position.x = p.x0 + Math.sin(t * 1.1 + p.ph) * 0.7; // wobble
+      if (p.m.position.y > 8) { p.m.position.y = 0.3; p.x0 = (Math.random() - 0.5) * span * 0.8; p.m.position.z = (Math.random() - 0.5) * span * 0.8; }
+    }
+  } else if (weather.kind === 'glitter') {
+    for (const p of weather.parts) {
+      p.m.position.y -= p.v * dt;
+      p.m.position.x += Math.sin(t * 0.9 + p.ph) * dt * 0.5;
+      p.m.rotation.x += dt * (0.8 + p.ph * 0.1);
+      p.m.rotation.y += dt * 1.2;
+      if (p.m.position.y < 0.1) { p.m.position.set((Math.random() - 0.5) * span, 9 + Math.random() * 2, (Math.random() - 0.5) * span); }
+    }
+  }
+  // flyovers: paper planes in a vee, or butterflies taking the scenic route
+  if (weather.flyKind) {
+    if (weather.flight) {
+      const fl = weather.flight;
+      fl.t += dt;
+      const f = fl.t / fl.dur;
+      for (let i = 0; i < fl.ms.length; i++) {
+        const m = fl.ms[i], off = fl.offs[i];
+        if (fl.kind === 'planes') {
+          m.position.set(
+            -span / 2 - 6 + (span + 12) * f + off.x,
+            7.5 + Math.sin((f * 4 + off.p) * Math.PI) * 0.8 + off.y,
+            fl.z + off.z + Math.sin(f * 6 + off.p) * 0.6
+          );
+          m.rotation.z = Math.sin(f * 6 + off.p) * 0.25; // a lazy bank
+        } else { // butterflies flutter lower, slower, less sure of the route
+          m.position.set(
+            -span / 2 - 4 + (span + 8) * f + off.x + Math.sin(fl.t * 2.2 + off.p) * 1.4,
+            2.2 + Math.sin(fl.t * 3.1 + off.p * 2) * 0.9 + off.y,
+            fl.z + off.z + Math.cos(fl.t * 1.7 + off.p) * 2.2
+          );
+          m.children[0].rotation.z = 0.6 + Math.sin(fl.t * 16 + off.p) * 0.5;   // wingbeats
+          m.children[1].rotation.z = -0.6 - Math.sin(fl.t * 16 + off.p) * 0.5;
+        }
+      }
+      if (f >= 1) {
+        for (const m of fl.ms) weather.group.remove(m);
+        weather.flight = null;
+        weather.flyT = 45 + Math.random() * 60;
+      }
+    } else {
+      weather.flyT -= dt;
+      if (weather.flyT <= 0) {
+        const kind2 = weather.flyKind;
+        const ms = [], offs = [];
+        const n = kind2 === 'planes' ? 3 : 2 + (Math.random() * 2 | 0);
+        for (let i = 0; i < n; i++) {
+          let m;
+          if (kind2 === 'planes') { // a folded paper dart
+            m = new THREE.Group();
+            for (const sx of [-1, 1]) {
+              const wing = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.35),
+                new THREE.MeshBasicMaterial({ color: 0xf6f2e6, side: THREE.DoubleSide }));
+              wing.rotation.z = sx * 0.5;
+              wing.position.x = sx * 0.3;
+              m.add(wing);
+            }
+            m.rotation.y = Math.PI / 2; // nose toward travel
+            offs.push({ x: -i * 2.2, y: i * 0.4, z: (i % 2 ? 1 : -1) * i * 1.4, p: Math.random() * 9 });
+          } else { // a butterfly: two bright flapping wings
+            m = new THREE.Group();
+            const col = [0xe8843a, 0x7fb8e8, 0xe8d24a][i % 3];
+            for (const sx of [-1, 1]) {
+              const wing = new THREE.Mesh(new THREE.CircleGeometry(0.28, 8),
+                new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }));
+              wing.scale.set(1, 0.7, 1);
+              wing.position.x = sx * 0.16;
+              m.add(wing);
+            }
+            offs.push({ x: -i * 3, y: i * 0.5, z: i * 2.5, p: Math.random() * 9 });
+          }
+          weather.group.add(m);
+          ms.push(m);
+        }
+        weather.flight = { kind: kind2, ms, offs, t: 0, dur: kind2 === 'planes' ? 16 : 34, z: (Math.random() - 0.5) * N * 0.7 };
+      }
     }
   }
 }

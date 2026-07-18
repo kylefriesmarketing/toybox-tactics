@@ -775,18 +775,21 @@ export const MAPS = {
     label: 'Bedroom Playmat', icon: '🧸', ground: 'playmat', light: 'normal',
     obstacles: 5, canyon: false, resourceMul: 1, stickers: 2, plateaus: 3,
     features: { milk: 1, ranges: 2, forests: 2 },
+    weather: 'motes', // dust drifting through the window light
     desc: 'The classic. Open center, safe corners, and everything left to prove.',
   },
   canyon: {
     label: 'Toy Chest Canyon', icon: '🏔️', ground: 'playmat', light: 'normal',
     obstacles: 3, canyon: true, resourceMul: 1, stickers: 2, plateaus: 2,
     features: { milk: 1, ranges: 1, forests: 1 },
+    weather: 'motes',
     desc: 'A pillow barricade splits the room, and the whole war squeezes through the gaps.',
   },
   underbed: {
     label: 'Under the Bed', icon: '🌑', ground: 'underbed', light: 'dark',
     obstacles: 11, canyon: false, resourceMul: 0.95, stickers: 3, plateaus: 2,
     features: { ranges: 2, forests: 2 },
+    weather: 'motes', // even the dark has dust
     critters: [{ type: 'bunny', count: 7 }], // dust bunnies scatter from your columns
     // two slipped rows of lost laundry, staggered — the only ways through bend
     // into an S, and something is always waiting at the bend (point-symmetric)
@@ -800,6 +803,7 @@ export const MAPS = {
     label: 'Attic War Table', icon: '📦', ground: 'attic', light: 'warm',
     obstacles: 4, canyon: false, resourceMul: 1.4, stickers: 2, plateaus: 3,
     features: { milk: 1, ranges: 2, forests: 1 },
+    weather: 'motes', // attic air is mostly dust
     desc: 'Wide open, rich, and quiet as history. Boom, Commander — or be boomed.',
   },
   playground: {
@@ -824,6 +828,7 @@ export const MAPS = {
     // dinner-table spills read as impassable milk lakes — lots of them
     features: { milk: 3, ranges: 1, forests: 1 },
     critters: [{ type: 'ant', count: 6 }], // crumb patrol
+    weather: 'steam', // something is always simmering somewhere
     decor: ['teacup', 'die', 'ball', 'crayon'],
     decorCount: 15,
     // one spilled line of flour, parted right at the middle: kitchen stays the
@@ -840,6 +845,7 @@ export const MAPS = {
     // but kept navigable (too many blockers wall armies out and stalemate).
     obstacles: 4, canyon: false, resourceMul: 1, stickers: 3, plateaus: 3,
     features: { ranges: 1, forests: 1 },
+    weather: 'motes', // study light, study dust
     desc: 'Shelves stacked like mountain country. Seize the high ground; do the reading later.',
   },
   livingroom: {
@@ -847,6 +853,7 @@ export const MAPS = {
     obstacles: 3, canyon: false, resourceMul: 1.3, stickers: 3, plateaus: 2,
     features: { forests: 1 },
     critters: [{ type: 'candy', count: 6 }], // sugarplum mice under the tree
+    weather: 'glitter', // the tree sheds sparkle all season
     decor: ['ornament', 'gift', 'die', 'ball'],
     decorCount: 16,
     // a garland slid off the tree and lies across the carpet — three sagging
@@ -860,6 +867,7 @@ export const MAPS = {
     label: 'Bathtub Armada', icon: '🛁', ground: 'bathtub', light: 'normal',
     obstacles: 3, canyon: false, resourceMul: 1.3, stickers: 2, plateaus: 1,
     critters: [{ type: 'duck', count: 4 }], // lil duckies paddling the basin
+    weather: 'bubbles', // soap bubbles drift up from the suds
     features: { forests: 1 },
     // a central basin of sailable water: build a Dock, launch boats, and rule
     // the bath while land toys ring the tub. water: ellipse half-axes in tiles.
