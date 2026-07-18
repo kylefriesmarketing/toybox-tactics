@@ -1727,7 +1727,9 @@ const MAP_MODEL_KEYS = ['snacks', 'blocks', 'buttons', 'marbles', 'book', 'pillo
   // water-map themed resource piles (soap = blocks, ducks = buttons, pearls = marbles)
   'blocks-water', 'buttons-water', 'marbles-water',
   // hero decor props for water maps
-  'duck', 'faucet'];
+  'duck', 'faucet',
+  // hero landmarks (authored per-map set-pieces)
+  'sandcastle'];
 
 export async function loadMapModels(onProgress) {
   const loader = makeGLTFLoader();
@@ -3585,7 +3587,41 @@ export function createObstacleMesh(kind, w, d, rngSeed) {
   }
   const g = new THREE.Group();
   // ---- the great outdoors: real nature at toy scale ----
-  if (kind === 'tree') {
+  if (kind === 'sandcastle') {
+    // procedural stand-in until the generated castle lands: three bucket
+    // towers with crenellated rims, joined by packed-sand walls, one flag
+    const s = Math.min(w, d);
+    const sand = toyMat(0xdcbd82, 0.95), sandD = toyMat(0xcfae70, 0.95);
+    const tower = (tx, tz, r, h) => {
+      const t = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.88, r, h, 10), sand);
+      t.position.set(tx, h / 2, tz); t.castShadow = true; g.add(t);
+      for (let k = 0; k < 6; k++) { // the upside-down-pail crenellations
+        const a = k / 6 * Math.PI * 2;
+        const c = new THREE.Mesh(new THREE.BoxGeometry(r * 0.4, r * 0.35, r * 0.28), sandD);
+        c.position.set(tx + Math.cos(a) * r * 0.72, h + r * 0.14, tz + Math.sin(a) * r * 0.72);
+        c.rotation.y = -a; g.add(c);
+      }
+      return t;
+    };
+    tower(-0.28 * s, 0.22 * s, 0.3 * s, 0.85 * s);
+    tower(0.3 * s, 0.28 * s, 0.26 * s, 0.7 * s);
+    tower(0.05 * s, -0.3 * s, 0.34 * s, 1.05 * s); // the tall one
+    for (const [x1, z1, x2, z2] of [[-0.28, 0.22, 0.3, 0.28], [0.3, 0.28, 0.05, -0.3], [0.05, -0.3, -0.28, 0.22]]) {
+      const len = Math.hypot(x2 - x1, z2 - z1) * s;
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(len, 0.34 * s, 0.16 * s), sand);
+      wall.position.set((x1 + x2) / 2 * s, 0.17 * s, (z1 + z2) / 2 * s);
+      wall.rotation.y = -Math.atan2(z2 - z1, x2 - x1);
+      wall.castShadow = true; g.add(wall);
+    }
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.015 * s, 0.015 * s, 0.35 * s, 5), toyMat(0xd8c8a8, 0.6));
+    pole.position.set(0.05 * s, 1.22 * s, -0.3 * s); g.add(pole);
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.22 * s, 0.13 * s), toyMat(0xe05555, 0.6));
+    flag.material.side = THREE.DoubleSide;
+    flag.position.set(0.16 * s, 1.32 * s, -0.3 * s); g.add(flag);
+    flag.userData.sway = 0.3; // the flag knows the wind too
+    const shell = new THREE.Mesh(new THREE.SphereGeometry(0.09 * s, 8, 6, 0, Math.PI), toyMat(0xf0dcd0, 0.6));
+    shell.position.set(-0.1 * s, 0.06 * s, 0.42 * s); shell.rotation.x = -1.2; g.add(shell);
+  } else if (kind === 'tree') {
     const s = Math.min(w, d);
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22 * s, 0.32 * s, 1.5 * s, 8), toyMat(0x6a4a2c, 0.9));
     trunk.position.y = 0.75 * s; trunk.castShadow = true; g.add(trunk);

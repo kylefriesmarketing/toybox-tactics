@@ -2016,6 +2016,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   game.zeroEra = zeroEra; // the Chronicle checks this for 'The Page Under the Pages'
   game.setup();
   setupWeather(); // wind, seeds, rain, fireflies — whatever this map's sky does
+  setupTracks(); // toy footsteps press into the sand and slowly smooth away
   // the bedside lamp stays indoors — outdoor maps get sun, dusk, and porch light
   const outdoorMap = !!(game.map && game.map.outdoor);
   lampProp.group.visible = !outdoorMap;
@@ -2678,6 +2679,55 @@ function clearWeather() {
   if (weather && weather.group) scene.remove(weather.group);
   weather = null;
 }
+// ---------------- footprints in the sand (view-only) ------------------------
+// A transparent overlay plane above the sandbox mat collects little presses
+// wherever toys walk, and the wind smooths them away over ~half a minute.
+// Pure view: reads unit positions, never touches the sim.
+let tracks = null;
+function setupTracks() {
+  tracks = null;
+  if (!game || game.map.ground !== 'sandbox') return;
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const ctx = c.getContext('2d');
+  const tex = new THREE.CanvasTexture(c);
+  const plane = new THREE.Mesh(
+    new THREE.PlaneGeometry(N, N),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false })
+  );
+  plane.rotation.x = -Math.PI / 2;
+  plane.position.y = 0.045; // over the mat, under the cloud shadows
+  plane.renderOrder = 1;
+  scene.add(plane);
+  tracks = { c, ctx, tex, t: 0 };
+}
+function updateTracks(dt) {
+  if (!tracks || !game) return;
+  tracks.t += dt;
+  if (tracks.t < 0.13) return; // 8Hz is plenty for footprints
+  tracks.t = 0;
+  const x2 = tracks.ctx;
+  // the wind's half of the bargain: everything fades, always
+  x2.globalCompositeOperation = 'destination-out';
+  x2.fillStyle = 'rgba(0,0,0,0.012)';
+  x2.fillRect(0, 0, 512, 512);
+  x2.globalCompositeOperation = 'source-over';
+  const px = 512 / N;
+  for (const e of game.entities) {
+    if (e.dead || e.garrisoned) continue;
+    const moving = (e.kind === 'unit' && e.wasMoving) || (e.kind === 'critter' && e.tgt);
+    if (!moving) continue;
+    const cx2 = (e.x + N / 2) * px, cz2 = (e.z + N / 2) * px;
+    const small = e.kind === 'critter';
+    x2.fillStyle = small ? 'rgba(120,88,48,0.10)' : 'rgba(115,84,45,0.16)';
+    x2.beginPath();
+    x2.ellipse(cx2 + (Math.random() - 0.5) * 1.4, cz2 + (Math.random() - 0.5) * 1.4,
+               small ? 1.1 : 1.9, small ? 0.8 : 1.4, Math.random() * 3, 0, Math.PI * 2);
+    x2.fill();
+  }
+  tracks.tex.needsUpdate = true;
+}
+
 function setupWeather() {
   clearWeather();
   if (!game) return;
@@ -3305,6 +3355,7 @@ function loop() {
   vfx.ambient(cam.x, cam.z, dt); // dust motes drifting in the lamp light
   updateAmbient(dt);            // moths, headlights, the cat
   updateWeather(dt);            // wind in the sunflowers, seeds on the breeze
+  updateTracks(dt);             // footprints press in, the wind smooths them out
   updateObjectives(dt);         // the goal, live, where eyes already are
   // the lamp breathes a little, like a real filament (only while it exists)
   if (lampProp.group.visible) {
@@ -3335,6 +3386,7 @@ setInterval(() => {
     ui.update(elapsed);
     updateAmbient(elapsed);
     updateWeather(elapsed);
+    updateTracks(elapsed);
     updateObjectives(elapsed);
     updateCamMoment(elapsed);
     applyCamera(elapsed);

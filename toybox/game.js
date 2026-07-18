@@ -601,6 +601,13 @@ export class Game {
       }
     }
 
+    // ---- authored hero landmark (the sandbox's sandcastle): placed before the
+    // random obstacles so everything else arranges itself around it ----
+    if (this.map.landmark) {
+      const L = this.map.landmark, s = L.size || 3;
+      this.addObstacle(L.kind, L.i, L.j, s, s, 7);
+    }
+
     // ---- the center hill: one deliberate two-step rise crowned by the map's
     // hero landmark (the Old Oak) — the high ground everyone is here for ----
     if (this.map.centerHill) {

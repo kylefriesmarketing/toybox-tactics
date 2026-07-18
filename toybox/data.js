@@ -888,6 +888,9 @@ export const MAPS = {
     mask: { type: 'kidney', rx: 35, rz: 33, bx: 0, bz: -30, br: 10 },
     dunes: { count: 8, rMin: 4, rMax: 7 },
     critters: [{ type: 'crab', count: 5 }], // hermit crabs sidle the dunes
+    // the hero landmark: somebody's magnificent sandcastle, north of the walls
+    // by the bite — nobody attacks it, everybody fights around it
+    landmark: { kind: 'sandcastle', i: 33, j: 18, size: 3 },
     // steep piled-sand crests nobody can climb, with sandy passes through them —
     // the sandbox's chokepoints. Authored (no rng): a long central wall with two
     // passes across the seat diagonal, plus one shorter wall guarding each wing.
