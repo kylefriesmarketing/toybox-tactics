@@ -59,6 +59,7 @@ export const E_TEMPLATES = {
   siege:   { label: 'Stronghold Siege',  gameMode: 'standard', startRes: 'high',     time: '12-20 min', defBoost: 1.35 },
   clash:   { label: 'Crossroads Clash',  gameMode: 'koth',     startRes: 'standard', time: '10-16 min' },
   station: { label: 'Station Takeover',  gameMode: 'sudden',   startRes: 'high',     time: '8-14 min' },
+  drill:   { label: 'Drill Yard',        gameMode: 'sudden',   startRes: 'lean',     time: '4-8 min' }, // round 15 training bout
 };
 export const E_NODE_TEMPLATE = {
   capital: 'siege', stronghold: 'siege', mission: 'clash', crown: 'clash',
@@ -222,6 +223,13 @@ export const E_RULES = {
   // Free to offer, binding for pactTurns; breaking early costs Power+Imag and
   // leaves a grudge (that rival fights you bolder for grudgeTurns).
   pact: { turns: 4, breakPower: 3, breakImag: 6, grudgeTurns: 6, grudgeBand: 0.16 },
+  // round 15: the Drill Yard — a PLAYABLE training bout at your capital.
+  // Winning it played battle-hardens the drilled card (+1 vet); simulating
+  // only knocks the rust off (strength restore). Fighting is the fun path.
+  drill: { cost: 15, vetCap: 3 },
+  // round 15: Rogue Toys — a wild gang squats a neutral node every few turns.
+  // Clear them out (play it!) for a guaranteed card bounty + scraps.
+  rogue: { earliest: 4, every: 5, stay: 4, scraps: 20 },
   armyMP: 3,
   routeCost: { road: 1, rough: 2 },
   forceMarchCost: 1,        // Power: +1 MP, once per army per turn (§6)

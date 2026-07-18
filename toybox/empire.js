@@ -83,6 +83,7 @@ export class Empire {
       pendingPlay: null, // BattleContext handed to the RTS (survives reload)
       pendingSpoils: null, // Aftermath Spoils reward awaiting the human's pick (survives reload)
       returnToMap: false,
+      rogue: null, // round 15: the wandering card-bounty gang
       log: [], over: false, winner: null, sunrise: false,
     };
     this.rng = makeRng(seed);
@@ -203,6 +204,7 @@ export class Empire {
     if (save.grudges === undefined) save.grudges = {};
     if (save.eliminated === undefined) save.eliminated = [];
     if (save.nodes && !save.nodes.CAP_C) save.nodes.CAP_C = { owner: -1, garrison: null, looted: false, modules: [] };
+    if (save.rogue === undefined) save.rogue = null; // round 15 (transient, no version bump)
     save.v = 10;
     this.s = save; this.rng = makeRng(1); this.rng.setState(save.rng);
   }
@@ -302,6 +304,7 @@ export class Empire {
   stateHash() {
     const core = { t: this.s.turn, p: this.s.parts, pw: this.s.power, im: this.s.imag, u: this.s.upgrades, dc: this.s.doctrines, df: this.s.difficulty, r: this.s.rng,
       dip: JSON.stringify(this.s.relations || {}) + '|' + JSON.stringify(this.s.grudges || {}) + '|' + (this.s.eliminated || []).join(','),
+      rg: this.s.rogue ? this.s.rogue.node + ':' + this.s.rogue.left + ':' + this.s.rogue.cards.map((c) => c.key + c.strength).join('') : '',
       cr: this.s.crown.owner + ':' + this.s.crown.turns, ev: this.s.event ? this.s.event.kind + this.s.event.route + this.s.event.phase + (this.s.event.node || '') : '',
       sp: this.s.pendingSpoils ? this.s.pendingSpoils.node : '',
       lt: this.s.lastLoot ? this.s.lastLoot.key : '',
@@ -317,6 +320,7 @@ export class Empire {
   upkeep() {
     this.tickEvent();
     this.tickDiplomacy();
+    this.tickRogue();
     for (const p of this.aliveSeats()) {
       const sup = this.suppliedSet(p);
       // §13: the challenge tier scales every RIVAL's Parts income (AI seats)
@@ -632,11 +636,91 @@ export class Empire {
     return p;
   }
   encCards(enc) {
+    // Drill Yard (round 15): one card spars against practice dummies
+    if (enc.drill) {
+      const att = this.s.armies.find((a) => a.id === enc.attacker.armyId);
+      const card = att && att.cards.find((c) => c.id === enc.cardId);
+      return { attCards: card ? [card] : [], defCards: enc.sparring || [] };
+    }
     const att = this.s.armies.find((a) => a.id === enc.attacker.armyId);
     const def = enc.defender.armyId
       ? this.s.armies.find((a) => a.id === enc.defender.armyId)
-      : { cards: this.s.nodes[enc.nodeId].garrison || [] };
+      : { cards: (this.s.rogue && this.s.rogue.node === enc.nodeId ? this.s.rogue.cards : null) || this.s.nodes[enc.nodeId].garrison || [] };
     return { attCards: att ? att.cards : [], defCards: def ? def.cards : [] };
+  }
+
+  // ---------- round 15: the Drill Yard (playable training) ----------
+  startDrill(armyId, cardId) {
+    if (this.s.phase !== 'plan' || this.s.over) return { ok: false, why: 'not now' };
+    const a = this.s.armies.find((x) => x.id === armyId && x.owner === 0);
+    if (!a || a.node !== this.capOf(0)) return { ok: false, why: 'army must rest at your capital' };
+    const card = a.cards.find((c) => c.id === cardId);
+    if (!card) return { ok: false, why: 'no such card' };
+    if (this.s.parts[0] < E_RULES.drill.cost) return { ok: false, why: 'not enough Parts' };
+    if (this.s.encounters.some((e) => e.drill && !e.applied)) return { ok: false, why: 'the yard is busy' };
+    this.s.parts[0] -= E_RULES.drill.cost;
+    const t = this.s.turn;
+    const enc = {
+      encId: `drill_t${t}_${cardId}`,
+      seed: deriveSeed(this.s.seed, t, 'drill' + cardId),
+      nodeId: this.capOf(0), template: 'drill', variant: 0, drill: true, cardId,
+      // sparring partners: soft, numerous, and very good-natured about losing
+      sparring: [
+        { id: `sp_${t}_1`, key: 'recruit', type: 'soldier', strength: 75, vet: 0, hp: 1 },
+        { id: `sp_${t}_2`, key: 'archer', type: 'archer', strength: 75, vet: 0, hp: 1 },
+      ],
+      attacker: { owner: 0, armyId },
+      defender: { owner: -1, armyId: null },
+      applied: false,
+    };
+    this.s.encounters.push(enc);
+    this.say(`🎯 ${E_CARDS[card.key] ? E_CARDS[card.key].name : card.type} steps into the Drill Yard (−${E_RULES.drill.cost}🔩).`);
+    this.save();
+    return { ok: true };
+  }
+  applyDrillResult(enc, result) {
+    enc.applied = true;
+    const a = this.s.armies.find((x) => x.id === enc.attacker.armyId);
+    const card = a && a.cards.find((c) => c.id === enc.cardId);
+    if (!card) return;
+    card.strength = 100; // training never breaks the toy — the rust comes off either way
+    const name = E_CARDS[card.key] ? E_CARDS[card.key].name : card.type;
+    if (result.attackerWon && result.mode === 'played' && card.vet < E_RULES.drill.vetCap) {
+      card.vet++;
+      this.say(`⭐ ${name} wins the bout FOUGHT FOR REAL — battle-hardened (+1 vet)!`);
+    } else if (result.attackerWon) {
+      this.say(`🎯 ${name} drills well. (Play the bout yourself to earn a vet pip.)`);
+    } else {
+      this.say(`🎯 ${name} takes a tumble in the yard — no harm done.`);
+    }
+  }
+
+  // ---------- round 15: Rogue Toys (playable card-bounty hunts) ----------
+  tickRogue() {
+    const R = E_RULES.rogue;
+    if (this.s.rogue) {
+      this.s.rogue.left--;
+      if (this.s.rogue.left <= 0) {
+        this.say(`🎲 The rogue toys at ${E_NODES[this.s.rogue.node].name} pack up and move on.`);
+        this.s.rogue = null;
+      }
+      return;
+    }
+    if (this.s.turn < R.earliest || this.s.turn % R.every !== 0) return;
+    // a seeded neutral squat: no capitals, no armies parked there, not the crown
+    const spots = Object.entries(this.s.nodes)
+      .filter(([id, st]) => st.owner === -1 && !this.armyAt(id)
+        && E_NODES[id].type !== 'capital' && E_NODES[id].type !== 'crown')
+      .map(([id]) => id).sort();
+    if (!spots.length) return;
+    const node = spots[Math.floor(this.rng() * spots.length)];
+    const tier = this.s.turn >= 16 ? ['tank', 'knight', 'grenadier']
+      : this.s.turn >= 9 ? ['knight', 'grenadier', 'raider'] : ['raider', 'grenadier'];
+    this.s.rogue = {
+      node, left: R.stay,
+      cards: tier.map((key, i) => ({ id: `R${this.s.turn}c${i}`, key, type: E_CARDS[key].unit, strength: 100, vet: 1, hp: E_CARDS[key].hp || 1 })),
+    };
+    this.say(`🎲 Rogue toys squat ${E_NODES[node].name} — clear them out for a GUARANTEED card bounty!`);
   }
   // Mission-template library (§7): base template reskinned by the encounter's variant.
   // defBoost stays on the base (sim odds unchanged); label/gameMode/startRes/note vary.
@@ -714,6 +798,8 @@ export class Empire {
   // idempotent by encId — a reload after application cannot double-apply
   applyBattleResult(enc, result) {
     if (enc.applied || result.encId !== enc.encId) return;
+    // the Drill Yard has its own gentle rules — nothing is captured, nobody is tired
+    if (enc.drill) { this.applyDrillResult(enc, result); this.save(); return; }
     enc.applied = true;
     // the campaign remembers how its wars were fought (victory-screen stats)
     if (enc.attacker.owner === 0 || enc.defender.owner === 0) {
@@ -721,15 +807,37 @@ export class Empire {
       const humanWon = result.attackerWon === (enc.attacker.owner === 0);
       this.s.stats[humanWon ? 'won' : 'lost']++;
       if (humanWon) this.awardLoot(enc); // spoils of war → a card + scraps
+      // round 15: FIGHTING (not simming) battle-hardens a survivor
+      if (humanWon && result.mode === 'played') {
+        const mine = enc.attacker.owner === 0 ? result.attCards : result.defCards;
+        const best = [...mine].sort((a, b) => b.strength - a.strength)[0];
+        if (best && (best.vet || 0) < E_RULES.drill.vetCap) {
+          best.vet = (best.vet || 0) + 1;
+          const nm = E_CARDS[best.key] ? E_CARDS[best.key].name : best.type;
+          this.say(`⭐ ${nm} comes home battle-hardened (+1 vet) — that's what FIGHTING it yourself earns.`);
+        }
+      }
     }
     const att = this.s.armies.find((a) => a.id === enc.attacker.armyId);
     const st = this.s.nodes[enc.nodeId];
     if (att) { att.cards = result.attCards.map((c) => ({ ...c })); this.tire(att); } // battles are tiring (§11)
+    const rogueHere = this.s.rogue && this.s.rogue.node === enc.nodeId;
     if (enc.defender.armyId) {
       const def = this.s.armies.find((a) => a.id === enc.defender.armyId);
       if (def) { def.cards = result.defCards.map((c) => ({ ...c })); this.tire(def); }
+    } else if (rogueHere) {
+      this.s.rogue.cards = result.defCards.map((c) => ({ ...c }));
     } else if (st.garrison) {
       st.garrison = result.defCards.map((c) => ({ ...c }));
+    }
+    // the rogue gang breaks when beaten — and pays the human a bounty
+    if (rogueHere && result.attackerWon) {
+      this.s.rogue = null;
+      if (enc.attacker.owner === 0) {
+        this.coll.scraps += E_RULES.rogue.scraps;
+        if (this.persist) saveCollection(this.coll);
+        this.say(`🎲 The rogue gang scatters! Bounty claimed (+${E_RULES.rogue.scraps} scraps with the card).`);
+      }
     }
     const node = E_NODES[enc.nodeId];
     if (result.attackerWon) {
@@ -765,6 +873,7 @@ export class Empire {
   // nodes roll from a better pool. The DRAW is seeded (testable); the grant to
   // the meta collection is a persist side-effect (tests never write storage).
   lootQuality(nodeId) {
+    if (this.s.rogue && this.s.rogue.node === nodeId) return 2; // bounty hunts pay premium
     const t = E_NODES[nodeId].type;
     if (t === 'capital' || t === 'crown' || t === 'stronghold') return 2;
     if (t === 'discovery' || t === 'mission') return 1;
@@ -1018,12 +1127,14 @@ export class Empire {
     scores.sort((x, y) => y.score - x.score || (x.id < y.id ? -1 : 1)); // deterministic
     for (const c of scores) {
       const st = this.s.nodes[c.id];
-      const defended = (st.owner >= 0 && st.owner !== p) || this.armyAt(c.id) || E_GARRISONS[E_NODES[c.id].type];
+      const rogueHere = this.s.rogue && this.s.rogue.node === c.id;
+      const defended = (st.owner >= 0 && st.owner !== p) || this.armyAt(c.id) || rogueHere || E_GARRISONS[E_NODES[c.id].type];
       if (!defended) return c.id;
       // fake an encounter to read the preview band before committing
       const hostile = this.armyAt(c.id) && this.armyAt(c.id).owner !== p ? this.armyAt(c.id) : null;
       const defCards = hostile ? hostile.cards
-        : (this.s.nodes[c.id].garrison || (E_GARRISONS[E_NODES[c.id].type] || []).map((g) => ({ type: g.type, strength: 100, vet: 0 })));
+        : rogueHere ? this.s.rogue.cards
+          : (this.s.nodes[c.id].garrison || (E_GARRISONS[E_NODES[c.id].type] || []).map((g) => ({ type: g.type, strength: 100, vet: 0 })));
       const tKey = E_NODE_TEMPLATE_OVERRIDE[c.id] || E_NODE_TEMPLATE[E_NODES[c.id].type] || 'field';
       const defMul = (E_TEMPLATES[tKey].defBoost || 1) * (E_NODES[c.id].tier ? 1 + 0.1 * E_NODES[c.id].tier : 1);
       // factor the army's readiness so the AI doesn't hurl a spent army into a defended node
@@ -1193,7 +1304,7 @@ class EmpireUI {
     if (!this.root.classList.contains('show')) return;
     const m = this.root.querySelector('#e-modal');
     const battleModal = m && (m.querySelector('#e-sim') || m.querySelector('#sp-parts') || m.querySelector('[data-diff]')); // encounter/spoils/difficulty awaiting a decision
-    const infoModal = m && (m.querySelector('#e-tclose, #e-colclose, #e-rclose, #e-gclose, #e-dclose, #e-pclose') || m.querySelector('.e-loot'));
+    const infoModal = m && (m.querySelector('#e-tclose, #e-colclose, #e-rclose, #e-gclose, #e-dclose, #e-pclose, #e-drillclose') || m.querySelector('.e-loot'));
     if (e.key === 'Escape') {
       if (battleModal) return; // must choose Play / Simulate / Withdraw (or claim spoils)
       if (infoModal) { m.innerHTML = ''; e.preventDefault(); return; }
@@ -1207,6 +1318,35 @@ class EmpireUI {
     else if (e.key === 'd' || e.key === 'D') { esfx('select', 60); this.showDoctrines(); }
     else if ((e.key === 'p' || e.key === 'P') && this.emp.seatCount() > 2) { esfx('select', 60); this.showDiplomacy(); }
     else if (e.key === '?' || e.key === '/') { this.showGuide(); }
+  }
+
+  // Drill Yard (round 15): pick which toy steps into the sparring ring
+  showDrill() {
+    const m = this.root.querySelector('#e-modal');
+    const emp = this.emp;
+    const a = emp.s.armies.find((x) => x.id === this.sel && x.owner === 0);
+    if (!a) return;
+    const rows = a.cards.map((c) => {
+      const card = E_CARDS[c.key] || { name: c.type, icon: '', rarity: 'common' };
+      const maxed = (c.vet || 0) >= E_RULES.drill.vetCap;
+      return `<button class="diff-btn" data-drill="${c.id}" ${maxed ? 'disabled' : ''}>
+        ${card.icon} ${card.name} ${'★'.repeat(c.vet || 0)} <span class="e-dim">${maxed ? 'fully drilled' : `${c.strength}%`}</span>
+      </button>`;
+    }).join('');
+    m.innerHTML = `<div class="e-enc"><div class="e-enc-card e-guide-card">
+      <h3>🎯 The Drill Yard</h3>
+      <div class="e-dim">Pick a toy to spar (−${E_RULES.drill.cost}🔩). Strength always restores.
+      <b>Play the bout yourself and win → +1 veterancy.</b> Simulating earns no pips — the yard rewards showing up.</div>
+      ${rows}
+      <button id="e-drillclose" class="diff-btn sel">Close</button>
+    </div></div>`;
+    m.querySelector('#e-drillclose').addEventListener('click', () => { m.innerHTML = ''; });
+    for (const b of m.querySelectorAll('[data-drill]')) b.addEventListener('click', () => {
+      const r = this.emp.startDrill(this.sel, b.dataset.drill);
+      esfx(r.ok ? 'place' : 'error', 100);
+      m.innerHTML = '';
+      this.render(); // the encounter card appears with Play / Simulate
+    });
   }
 
   // §15 diplomacy (round 14): pacts with the rivals, and their pact with each other
@@ -1308,14 +1448,15 @@ class EmpireUI {
       const aimark = knowsAiTarget && s.aiIntent === id ? '<text x="-20" y="-18" class="e-supwarn">🎯</text>' : '';
       const mods = (st.modules || []).length ? `<text x="22" y="24" class="e-modmark">${(st.modules || []).map((k) => E_MODULES[k].icon).join('')}</text>` : '';
       const flood = emp.floodedNode() === id ? '<text x="-22" y="24" class="e-modmark">🥤</text>' : '';
+      const rogue = s.rogue && s.rogue.node === id ? `<text x="0" y="-38" text-anchor="middle" class="e-crownmark">🎲${s.rogue.left}</text>` : '';
       const tip = `${n.name} — ${st.owner === -1 ? 'Unclaimed' : emp.facLabel(st.owner)}${n.yield ? ` · ${n.yield}🔩/turn` : ''}`;
       return `<g class="e-node${hot}${insp}" data-node="${id}" transform="translate(${n.mx},${n.my})">
         <title>${tip}</title>
-        ${st.owner !== -1 ? `<circle r="31" class="e-node-halo" style="fill:${emp.facColor(st.owner)}18"/>` : ''}
+        ${st.owner !== -1 ? `<circle r="38" class="e-node-halo" style="fill:${emp.facColor(st.owner)}22"/>` : ''}
         <circle r="26" class="e-node-c${unsup ? ' unsup' : ''}" style="stroke:${ring}"/>
         <text y="7" text-anchor="middle" class="e-node-ic">${n.icon}</text>
         <text y="44" text-anchor="middle" class="e-node-lb">${n.name}</text>
-        ${crownProg}${aimark}${mods}${flood}
+        ${crownProg}${aimark}${mods}${flood}${rogue}
         ${unsup ? '<text x="20" y="-18" class="e-supwarn">✂️</text>' : ''}
       </g>`;
     }).join('');
@@ -1422,7 +1563,7 @@ class EmpireUI {
         return `<div class="e-card"><span style="color:${col}">${card.icon} ${card.name}</span><span title="veterancy">${'★'.repeat(c.vet)}</span>
          <div class="e-hp"><div style="width:${c.strength}%"></div></div></div>`;
       }).join('');
-      const atCap = selArmy.node === 'CAP_A';
+      const atCap = selArmy.node === emp.capOf(0);
       const canRec = emp.canRecruitAt(0, selArmy.node);
       const mpPips = '●'.repeat(selArmy.mp) + '○'.repeat(Math.max(0, E_RULES.armyMP + (selArmy.marched ? 1 : 0) - selArmy.mp));
       const canMuster = emp.armiesOf(0).length < E_RULES.maxArmies
@@ -1438,6 +1579,8 @@ class EmpireUI {
           title="+1 movement this turn">🔋 Force March (${E_RULES.forceMarchCost}⚡)</button>
         ${atCap ? `<button id="e-muster" class="diff-btn" ${canMuster ? '' : 'disabled'}
           title="A second army — needs ${E_RULES.musterMinNodes} territories">🚩 Muster 2nd Army (${E_RULES.musterCost}🔩)</button>` : ''}
+        ${atCap ? `<button id="e-drill" class="diff-btn" ${s.parts[0] >= E_RULES.drill.cost && s.phase === 'plan' ? '' : 'disabled'}
+          title="A playable training bout — WIN IT PLAYED for +1 vet">🎯 Drill Yard (${E_RULES.drill.cost}🔩)</button>` : ''}
         ${selArmy.order ? '<button id="e-cancel" class="diff-btn">✕ Cancel move</button>' : '<div class="e-dim">Click a glowing node to march.</div>'}
       </div>`;
     }
@@ -1566,6 +1709,8 @@ class EmpireUI {
     act('#e-march', () => emp.forceMarch(this.sel), 'twang');
     act('#e-muster', () => emp.muster(0), 'charge');
     act('#e-cancel', () => emp.cancelMove(this.sel), 'select');
+    const drill = this.root.querySelector('#e-drill');
+    if (drill) drill.addEventListener('click', () => { esfx('select', 60); this.showDrill(); });
     const tree = this.root.querySelector('#e-tree');
     if (tree) tree.addEventListener('click', () => { esfx('select', 60); this.showTree(); });
     const cards = this.root.querySelector('#e-cards');
@@ -1858,6 +2003,7 @@ export function empireTest(seed, turns = 8, script = [], difficulty = 'normal') 
       if (s.type === 'doctrine') emp.setDoctrine(0, s.slot || 0, s.key);
       if (s.type === 'module') emp.buildModule(0, s.node, s.key);
       if (s.type === 'pact') emp.offerPact(s.other ?? 1);
+      if (s.type === 'drill') { const a0 = emp.armiesOf(0)[0]; if (a0 && a0.cards[0]) emp.startDrill(a0.id, a0.cards[s.card || 0] ? a0.cards[s.card || 0].id : a0.cards[0].id); }
       if (s.type === 'breakpact') emp.breakPact(s.other ?? 1);
     }
     emp.endTurn();
