@@ -72,6 +72,7 @@ export class Empire {
       // Non-Aggression Pact with turns remaining. Grudges make a betrayed rival
       // fight the betrayer bolder for a while.
       relations: {}, grudges: {},
+      trades: {}, passages: {}, bounty: null, // round 17: the political toolkit
       eliminated: [], // seats whose capital fell (their toys go back in the box)
       nodes: Object.fromEntries(Object.keys(E_NODES).map((id) => [id, {
         owner: id === 'CAP_A' ? 0 : id === 'CAP_B' ? 1 : (id === 'CAP_C' && S >= 3) ? 2 : -1,
@@ -122,6 +123,82 @@ export class Empire {
       }
     }
     for (const k of Object.keys(this.s.grudges || {})) if (this.s.grudges[k] > 0) this.s.grudges[k]--;
+    // round 17: trades transfer every turn — and collapse the turn a side can't pay
+    for (const k of Object.keys(this.s.trades || {})) {
+      const t = this.s.trades[k];
+      const other = Number(k);
+      const D = E_RULES.diplomacy.trade;
+      const rivalPays = t.mode === 'power' ? this.s.power[other] >= D.getPower : this.s.imag[other] >= D.getImag;
+      if (this.s.parts[0] < D.give || !rivalPays || !this.isAlive(other)) {
+        delete this.s.trades[k];
+        this.say(`⇄ The trade with ${this.facLabel(other)} collapses — somebody's pockets ran dry.`);
+        continue;
+      }
+      this.s.parts[0] -= D.give;
+      this.s.parts[other] += D.give;
+      if (t.mode === 'power') { this.s.power[other] -= D.getPower; this.s.power[0] = Math.min(E_RULES.powerCap, this.s.power[0] + D.getPower); }
+      else { this.s.imag[other] -= D.getImag; this.s.imag[0] += D.getImag; }
+      t.left--;
+      if (t.left <= 0) { delete this.s.trades[k]; this.say(`⇄ The trade with ${this.facLabel(other)} concludes, honestly and in full.`); }
+    }
+    for (const k of Object.keys(this.s.passages || {})) {
+      this.s.passages[k].left--;
+      if (this.s.passages[k].left <= 0) {
+        delete this.s.passages[k];
+        this.say('🛂 A passage agreement expires — the border posts go back up.');
+      }
+    }
+    if (this.s.bounty) {
+      this.s.bounty.left--;
+      if (this.s.bounty.left <= 0) { this.say('🎯 Your bounty expires unclaimed.'); this.s.bounty = null; }
+    }
+  }
+  // round 17 verbs — trade, passage, bounty, ceasefire (§15)
+  hasPassage(payer, grantor) { const p2 = (this.s.passages || {})[`${payer}>${grantor}`]; return !!(p2 && p2.left > 0); }
+  offerTrade(other, mode = 'power') {
+    if (this.s.over || other === 0 || !this.isAlive(other) || (this.s.trades || {})[other]) return { ok: false };
+    if (this.grudgeVs(other, 0)) { this.say(`${this.facLabel(other)} won't trade with a betrayer.`); this.save(); return { ok: false, why: 'grudge' }; }
+    const D = E_RULES.diplomacy.trade;
+    if (this.s.parts[0] < D.give) return { ok: false, why: 'not enough Parts' };
+    this.s.trades[other] = { left: D.turns, mode };
+    this.say(`⇄ Trade struck with ${this.facLabel(other)}: ${D.give}🔩/turn for ${mode === 'power' ? D.getPower + '⚡' : D.getImag + '💡'}/turn, ${D.turns} turns.`);
+    this.save();
+    return { ok: true };
+  }
+  offerPassage(other) {
+    if (this.s.over || other === 0 || !this.isAlive(other) || this.hasPassage(0, other)) return { ok: false };
+    if (!this.atPeace(0, other)) { this.say(`${this.facLabel(other)} sells passage only to pact partners.`); this.save(); return { ok: false, why: 'no pact' }; }
+    const D = E_RULES.diplomacy.passage;
+    if (this.s.parts[0] < D.cost) return { ok: false, why: 'not enough Parts' };
+    this.s.parts[0] -= D.cost;
+    this.s.parts[other] += D.cost;
+    this.s.passages[`0>${other}`] = { left: D.turns };
+    this.say(`🛂 ${this.facLabel(other)} opens their roads to you for ${D.turns} turns (their capital stays shut).`);
+    this.save();
+    return { ok: true };
+  }
+  postBounty(target) {
+    if (this.s.over || target === 0 || !this.isAlive(target) || this.s.bounty) return { ok: false };
+    const hunter = this.aliveSeats().find((p) => p > 0 && p !== target);
+    if (hunter == null) return { ok: false, why: 'nobody left to hunt' };
+    const D = E_RULES.diplomacy.bounty;
+    if (this.s.parts[0] < D.cost) return { ok: false, why: 'not enough Parts' };
+    this.s.parts[0] -= D.cost;
+    this.s.parts[hunter] += D.cost;
+    this.s.bounty = { hunter, target, left: D.turns };
+    this.say(`🎯 Bounty posted: ${this.facLabel(hunter)} takes your coin to harry ${this.facLabel(target)} for ${D.turns} turns. A proxy war, and your hands stay clean.`);
+    this.save();
+    return { ok: true };
+  }
+  offerCeasefire(other) {
+    if (this.s.over || other === 0 || !this.isAlive(other) || this.atPeace(0, other)) return { ok: false };
+    const D = E_RULES.diplomacy.ceasefire;
+    if (this.s.imag[0] < D.imag) return { ok: false, why: 'not enough Imagination' };
+    this.s.imag[0] -= D.imag;
+    this.s.relations[this.relKey(0, other)] = { left: D.turns };
+    this.say(`🏳️ Ceasefire with ${this.facLabel(other)} — ${D.turns} turns of quiet, bought with pure Imagination.`);
+    this.save();
+    return { ok: true };
   }
   // the human offers a pact; the rival weighs it in the open (deterministic)
   offerPact(other) {
@@ -205,6 +282,9 @@ export class Empire {
     if (save.eliminated === undefined) save.eliminated = [];
     if (save.nodes && !save.nodes.CAP_C) save.nodes.CAP_C = { owner: -1, garrison: null, looted: false, modules: [] };
     if (save.rogue === undefined) save.rogue = null; // round 15 (transient, no version bump)
+    if (save.trades === undefined) save.trades = {};
+    if (save.passages === undefined) save.passages = {};
+    if (save.bounty === undefined) save.bounty = null;
     save.v = 10;
     this.s = save; this.rng = makeRng(1); this.rng.setState(save.rng);
   }
@@ -305,6 +385,7 @@ export class Empire {
     const core = { t: this.s.turn, p: this.s.parts, pw: this.s.power, im: this.s.imag, u: this.s.upgrades, dc: this.s.doctrines, df: this.s.difficulty, r: this.s.rng,
       dip: JSON.stringify(this.s.relations || {}) + '|' + JSON.stringify(this.s.grudges || {}) + '|' + (this.s.eliminated || []).join(','),
       rg: this.s.rogue ? this.s.rogue.node + ':' + this.s.rogue.left + ':' + this.s.rogue.cards.map((c) => c.key + c.strength).join('') : '',
+      pol: JSON.stringify(this.s.trades || {}) + '|' + JSON.stringify(this.s.passages || {}) + '|' + JSON.stringify(this.s.bounty || null),
       cr: this.s.crown.owner + ':' + this.s.crown.turns, ev: this.s.event ? this.s.event.kind + this.s.event.route + this.s.event.phase + (this.s.event.node || '') : '',
       sp: this.s.pendingSpoils ? this.s.pendingSpoils.node : '',
       lt: this.s.lastLoot ? this.s.lastLoot.key : '',
@@ -406,7 +487,9 @@ export class Empire {
     return this.openRoutesOf(army.node).filter((r) => {
       if (r.cost > army.mp) return false;
       const st = this.s.nodes[r.to];
-      if (st.owner >= 0 && st.owner !== army.owner && this.atPeace(army.owner, st.owner)) return false;
+      // paid passage (round 17) opens a partner's provinces — never their capital
+      const transit = st.owner >= 0 && this.hasPassage(army.owner, st.owner) && E_NODES[r.to].type !== 'capital';
+      if (st.owner >= 0 && st.owner !== army.owner && this.atPeace(army.owner, st.owner) && !transit) return false;
       const other = this.armyAt(r.to);
       if (other && other.owner !== army.owner && this.atPeace(army.owner, other.owner)) return false;
       return true;
@@ -609,7 +692,10 @@ export class Empire {
     army.prev = army.node;
     army.node = to;
     const st = this.s.nodes[to];
-    const hostileArmy = this.s.armies.find((a) => a.owner !== army.owner && a.node === to && a.cards.length);
+    // passage transit (round 17): standing on a partner's province, no shots fired
+    if (st.owner >= 0 && st.owner !== army.owner && this.hasPassage(army.owner, st.owner)) return;
+    const hostileArmy = this.s.armies.find((a) => a.owner !== army.owner && a.node === to && a.cards.length
+      && !this.atPeace(army.owner, a.owner));
     const hostileNode = st.owner !== -1 && st.owner !== army.owner;
     if (hostileArmy || hostileNode || (st.owner === -1 && this.garrisonFor(to))) {
       this.createEncounter(army, to, hostileArmy || null);
@@ -1067,7 +1153,13 @@ export class Empire {
     // round 14: the rivals climb the rarity ladder with the night — by the
     // late turns they field the same rare and legendary toys the player does
     const t = this.s.turn, n = this.s.nextCard[p];
-    const pool = t >= 16 ? ['tank', 'knight', 'charger', 'sarge', 'teddy']
+    // round 17: from late night the rivals recruit from YOUR collection too —
+    // your own tricks, used against you (SP flavor; empty in headless tests)
+    const yours = t >= E_RULES.aiCollectedFrom
+      ? Object.keys(this.coll.owned || {}).filter((k) => E_CARDS[k] && E_CARDS[k].rarity !== 'common').sort()
+      : [];
+    const pool = yours.length && t >= E_RULES.aiCollectedFrom ? yours.concat(['sarge', 'knight'])
+      : t >= 16 ? ['tank', 'knight', 'charger', 'sarge', 'teddy']
       : t >= 12 ? ['sarge', 'knight', 'teddy', 'grenadier']
         : t >= 7 ? ['grenadier', 'raider', 'flinger', 'archer']
           : ['recruit', 'archer', 'spear'];
@@ -1147,6 +1239,8 @@ export class Empire {
       const n = E_NODES[id];
       let v = n.yield + (n.type === 'stronghold' ? 8 : 0) + (n.dominion ? 6 : 0) + (n.bonus ? 5 : 0)
         + (n.type === 'crown' ? 10 : 0) + (n.imagYield || 0) * 2;
+      // a posted bounty (round 17) makes the hired rival covet the target's land
+      if (this.s.bounty && this.s.bounty.hunter === p && st.owner === this.s.bounty.target) v += 6;
       const dist = this.hopDistance(a.node, id);
       if (dist === null) continue;
       scores.push({ id, score: v - dist * 2 });
@@ -1168,7 +1262,8 @@ export class Empire {
       const ratio = this.cardsPower(a.cards) * this.readyMul(a) / Math.max(0.001, this.cardsPower(defCards) * defMul);
       // a betrayed rival fights the betrayer bolder while the grudge burns (§15)
       const defOwner = hostile ? hostile.owner : st.owner;
-      const band = this.diff().aiBand - (defOwner >= 0 && this.grudgeVs(p, defOwner) ? E_RULES.pact.grudgeBand : 0);
+      let band = this.diff().aiBand - (defOwner >= 0 && this.grudgeVs(p, defOwner) ? E_RULES.pact.grudgeBand : 0);
+      if (this.s.bounty && this.s.bounty.hunter === p && defOwner === this.s.bounty.target) band -= E_RULES.diplomacy.bounty.band; // paid to be bold
       if (ratio > band) return c.id; // §13: bolder rivals attack at a lower edge
     }
     return null;
@@ -1379,18 +1474,27 @@ class EmpireUI {
   // §15 diplomacy (round 14): pacts with the rivals, and their pact with each other
   showDiplomacy() {
     const m = this.root.querySelector('#e-modal');
-    const emp = this.emp;
+    const emp = this.emp, s = emp.s;
     const rivals = emp.aliveSeats().filter((p) => p > 0);
     const rows = rivals.map((p) => {
       const pact = emp.atPeace(0, p);
       const r = emp.pactBetween(0, p);
       const grudge = emp.grudgeVs(p, 0);
+      const D = E_RULES.diplomacy;
+      const trade = (emp.s.trades || {})[p];
+      const pass = emp.hasPassage(0, p);
       return `<div class="e-guiderow">
         <span class="e-guideic" style="color:${emp.facColor(p)}">${pact ? '🕊️' : grudge ? '💢' : '⚔️'}</span>
-        <span><b style="color:${emp.facColor(p)}">${emp.facLabel(p)}</b> — ${pact ? `pact, <b>${r.left}</b> turn${r.left > 1 ? 's' : ''} left` : grudge ? 'at war, and they remember your betrayal' : 'at war'}<br>
+        <span><b style="color:${emp.facColor(p)}">${emp.facLabel(p)}</b> — ${pact ? `pact, <b>${r.left}</b> turn${r.left > 1 ? 's' : ''} left` : grudge ? 'at war, and they remember your betrayal' : 'at war'}
+        ${trade ? ` · ⇄ trading (${trade.left}t)` : ''}${pass ? ` · 🛂 passage (${emp.s.passages['0>' + p].left}t)` : ''}<br>
         ${pact
-    ? `<button class="diff-btn" data-break="${p}">💔 Break pact (−${E_RULES.pact.breakPower}⚡ −${E_RULES.pact.breakImag}💡, they hold a grudge)</button>`
-    : `<button class="diff-btn" data-offer="${p}">🕊️ Offer Non-Aggression Pact (${E_RULES.pact.turns} turns, no passage)</button>`}
+    ? `<button class="diff-btn" data-break="${p}">💔 Break pact (−${E_RULES.pact.breakPower}⚡ −${E_RULES.pact.breakImag}💡)</button>
+       ${!pass ? `<button class="diff-btn" data-passage="${p}" ${s.parts[0] >= D.passage.cost ? '' : 'disabled'}>🛂 Buy Passage (${D.passage.cost}🔩, ${D.passage.turns}t)</button>` : ''}`
+    : `<button class="diff-btn" data-offer="${p}">🕊️ Offer Pact (${E_RULES.pact.turns}t)</button>
+       <button class="diff-btn" data-cease="${p}" ${s.imag[0] >= D.ceasefire.imag ? '' : 'disabled'}>🏳️ Ceasefire (${D.ceasefire.imag}💡, ${D.ceasefire.turns}t)</button>`}
+        ${!trade && !grudge ? `<button class="diff-btn" data-tradep="${p}" ${s.parts[0] >= D.trade.give ? '' : 'disabled'}>⇄ Trade for ⚡ (${D.trade.give}🔩/t)</button>
+          <button class="diff-btn" data-tradei="${p}" ${s.parts[0] >= D.trade.give ? '' : 'disabled'}>⇄ Trade for 💡 (${D.trade.give}🔩/t)</button>` : ''}
+        ${!emp.s.bounty && emp.aliveSeats().filter((q) => q > 0).length >= 2 ? `<button class="diff-btn" data-bounty="${p}" ${s.parts[0] >= D.bounty.cost ? '' : 'disabled'}>🎯 Post Bounty ON them (${D.bounty.cost}🔩)</button>` : ''}
         </span></div>`;
     }).join('');
     const aiPact = rivals.length >= 2 && emp.atPeace(rivals[0], rivals[1]);
@@ -1412,6 +1516,12 @@ class EmpireUI {
       this.emp.breakPact(Number(b.dataset.break));
       this.render(); this.showDiplomacy();
     });
+    const verb = (sel, fn) => { for (const b of m.querySelectorAll(sel)) b.addEventListener('click', () => { esfx('select', 60); fn(b); this.render(); this.showDiplomacy(); }); };
+    verb('[data-tradep]', (b) => this.emp.offerTrade(Number(b.dataset.tradep), 'power'));
+    verb('[data-tradei]', (b) => this.emp.offerTrade(Number(b.dataset.tradei), 'imag'));
+    verb('[data-passage]', (b) => this.emp.offerPassage(Number(b.dataset.passage)));
+    verb('[data-cease]', (b) => this.emp.offerCeasefire(Number(b.dataset.cease)));
+    verb('[data-bounty]', (b) => this.emp.postBounty(Number(b.dataset.bounty)));
   }
 
   // first-run coach + reopenable help (bible §18)
@@ -2054,6 +2164,10 @@ export function empireTest(seed, turns = 8, script = [], difficulty = 'normal') 
       if (s.type === 'pact') emp.offerPact(s.other ?? 1);
       if (s.type === 'drill') { const a0 = emp.armiesOf(0)[0]; if (a0 && a0.cards[0]) emp.startDrill(a0.id, a0.cards[s.card || 0] ? a0.cards[s.card || 0].id : a0.cards[0].id); }
       if (s.type === 'breakpact') emp.breakPact(s.other ?? 1);
+      if (s.type === 'trade') emp.offerTrade(s.other ?? 1, s.mode || 'power');
+      if (s.type === 'passage') emp.offerPassage(s.other ?? 1);
+      if (s.type === 'bounty') emp.postBounty(s.other ?? 1);
+      if (s.type === 'ceasefire') emp.offerCeasefire(s.other ?? 1);
     }
     emp.endTurn();
     let guard = 0;

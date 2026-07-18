@@ -244,6 +244,14 @@ export const E_RULES = {
   // round 15: Rogue Toys — a wild gang squats a neutral node every few turns.
   // Clear them out (play it!) for a guaranteed card bounty + scraps.
   rogue: { earliest: 4, every: 5, stay: 4, scraps: 20 },
+  // round 17: the full §15 political toolkit
+  diplomacy: {
+    trade:     { give: 20, getPower: 2, getImag: 4, turns: 3 }, // 20🔩/turn for 2⚡ or 4💡/turn
+    passage:   { cost: 15, turns: 3 },                          // march through their land (not the capital)
+    bounty:    { cost: 25, turns: 4, band: 0.2 },               // the other rival hunts your target
+    ceasefire: { imag: 10, turns: 2 },                          // instant, always accepted, short
+  },
+  aiCollectedFrom: 14, // from this turn, rivals recruit from YOUR collection too
   armyMP: 3,
   routeCost: { road: 1, rough: 2 },
   forceMarchCost: 1,        // Power: +1 MP, once per army per turn (§6)

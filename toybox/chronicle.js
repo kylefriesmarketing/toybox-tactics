@@ -109,6 +109,16 @@ export const ACHIEVEMENTS = [
   { id: 'act4', icon: '🌿', name: 'The Book Has a Backyard', beyond: true,
     desc: 'Finish Act IV — The Great Outdoors, and bring Bun-Bun home.',
     check: () => ACT4.every((id) => campaignProgress()[id]) },
+  // 2026-07-18 map-life systems: tribes, lost toys, the menagerie
+  { id: 'flagteacher', icon: '🏕️', name: 'Teach Them the Flags', beyond: true,
+    desc: 'Win over both wild toy tribes in a single match.',
+    check: (c) => (c.g.players[c.g.myId].stats.tribes || 0) >= 2 },
+  { id: 'shepherd', icon: '🧸', name: 'No Toy Left Behind', beyond: true,
+    desc: 'Carry three lost toys home to your chest in one match.',
+    check: (c) => (c.g.players[c.g.myId].stats.strays || 0) >= 3 },
+  { id: 'floorfriend', icon: '🐾', name: 'Friend of the Floor', beyond: true,
+    desc: 'Befriend five critters in one match — the room knows your name.',
+    check: (c) => (c.g.players[c.g.myId].stats.mice || 0) >= 5 },
 ];
 
 // Called once per finished match. Updates the Chronicle, evaluates every
