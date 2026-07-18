@@ -9,13 +9,14 @@ import {
   MAP_N, POP_MAX, RES_TYPES, RES_META, UNITS, BUILDINGS, TECHS, MARKET, maskAt,
   AGES, AGE_UPS, PRODUCTION_BUILDINGS, START, AI, DIFFICULTIES, TEAM_NAMES, STICKER, WONDER, PERSONAS, MAPS, FACTIONS,
   TAUNTS, AI_LINES, NARRATOR, NARRATOR_NG,
-  CRITTERS, GAME_MODES, START_RES, SURVIVAL,
+  CRITTERS, CRITTER_TYPES, LOST_TOYS, GAME_MODES, START_RES, SURVIVAL,
 } from './data.js';
 import {
   createUnitView, createBuildingView, createResourceView,
   createGround, createObstacleMesh, createDecorMesh, createStickerView, createRallyFlag,
   makeRankBadge, createCritterView, createMilkSpill, createKingCrown, createThroneView,
   createWaterSurface, createWaterDecor, applyUnitTier, shadeGroundByHeight,
+  createLostToyView,
 } from './models.js';
 
 const N = MAP_N;
@@ -301,7 +302,7 @@ export class Game {
               atkMelee: 0, atkPierce: 0, armorInfantry: 0, armorOther: 0, atkSpeed: 1,
               buildingHp: 1, buildRate: 1, unitHp: 1, healRate: 1, atkVehicle: 0 },
       stats: { gathered: 0, trained: 0, lost: 0, kills: 0, razed: 0,
-        shipsBuilt: 0, shipsLost: 0, wallsBuilt: 0, megaBuilt: 0, mice: 0 },
+        shipsBuilt: 0, shipsLost: 0, wallsBuilt: 0, megaBuilt: 0, mice: 0, strays: 0 },
     }));
     // factions: humans bring their pick; AIs roll their own. The roll is
     // consumed for EVERY seat so the rng stream is identical whether a
@@ -877,15 +878,36 @@ export class Game {
       }
     }
 
-    // wind-up mice scatter around the middle of the room — but they are ground
-    // toys: never in the water, never up on the plateaus (a mouse that spawns
-    // somewhere toys can't walk can never be befriended or deliver). Water maps
-    // flood most of the center, so keep sampling until dry ground turns up.
-    for (let k = 0; k < CRITTERS.count; k++) {
-      for (let t = 0; t < 30; t++) {
-        const i = N / 2 - 16 + ((rng() * 32) | 0), j = N / 2 - 16 + ((rng() * 32) | 0);
-        if (this.blocked[idx(i, j)] || this.water[idx(i, j)] === 1 || this.height[idx(i, j)] > 0.01) continue;
-        this.addCritter(worldOf(i), worldOf(j));
+    // the menagerie scatters around the middle of the room — ground critters
+    // never spawn in water or up on plateaus (a mouse that spawns somewhere
+    // toys can't walk can never be befriended or deliver); water critters do
+    // the opposite and sample until they find open water. Every map states its
+    // cast in MAPS.<k>.critters; unlisted maps keep the classic wind-up mice.
+    const cast = this.map.critters || [{ type: 'mouse', count: CRITTERS.count }];
+    for (const grp of cast) {
+      const ct = CRITTER_TYPES[grp.type] || CRITTER_TYPES.mouse;
+      for (let k = 0; k < (grp.count || CRITTERS.count); k++) {
+        for (let t = 0; t < 30; t++) {
+          const i = N / 2 - 16 + ((rng() * 32) | 0), j = N / 2 - 16 + ((rng() * 32) | 0);
+          if (this.blocked[idx(i, j)]) continue;
+          const wet = this.water[idx(i, j)] === 1;
+          if (ct.water ? !wet : (wet || this.height[idx(i, j)] > 0.01)) continue;
+          this.addCritter(worldOf(i), worldOf(j), grp.type);
+          break;
+        }
+      }
+    }
+
+    // lost toys: strays scattered wide (they wandered off — that's the POINT),
+    // clear of home doorsteps so the find is always a little expedition
+    const lostClear = (i, j, r) =>
+      this.homes.every((h) => (worldOf(i) - h.x) ** 2 + (worldOf(j) - h.z) ** 2 > r * r);
+    for (let k = 0; k < LOST_TOYS.count; k++) {
+      for (let t = 0; t < 40; t++) {
+        const i = 8 + ((rng() * (N - 16)) | 0), j = 8 + ((rng() * (N - 16)) | 0);
+        if (this.blocked[idx(i, j)] || this.water[idx(i, j)] === 1) continue;
+        if (!lostClear(i, j, 11)) continue;
+        this.addLostToy(worldOf(i), worldOf(j), LOST_TOYS.kinds[k % LOST_TOYS.kinds.length]);
         break;
       }
     }
@@ -893,43 +915,134 @@ export class Game {
     this.fog.update(this.entities);
   }
 
-  addCritter(x, z) {
-    const view = createCritterView();
+  addCritter(x, z, type = 'mouse') {
+    const ct = CRITTER_TYPES[type] || CRITTER_TYPES.mouse;
+    const view = createCritterView(type);
     view.group.position.set(x, this.heightAtWorld(x, z), z);
     this.scene.add(view.group);
     this.entities.push({
-      id: this.nextId++, kind: 'critter', type: 'mouse', owner: -1,
-      x, z, radius: 0.25, captor: -1, facing: 0, wanderT: this.rng() * 3, scanT: 0,
-      def: { name: 'Wind-Up Mouse', desc: `Walk a toy up to it — it follows you home for +${CRITTERS.snack} Snacks.` },
+      id: this.nextId++, kind: 'critter', type, owner: -1,
+      x, z, hx: x, hz: z, // home patch (orbiters circle it)
+      radius: 0.25, captor: -1, facing: 0, wanderT: this.rng() * 3, scanT: 0,
+      def: { name: ct.name, desc: ct.desc },
       view, dead: false,
     });
+  }
+
+  addLostToy(x, z, type) {
+    const view = createLostToyView(type);
+    view.group.position.set(x, this.heightAtWorld(x, z), z);
+    this.scene.add(view.group);
+    this.entities.push({
+      id: this.nextId++, kind: 'lost', type, owner: -1,
+      x, z, radius: 0.5, carrier: -1, scanT: this.rng(),
+      def: { name: LOST_TOYS.names[type] || 'a lost toy', desc: `A stray. A worker who wanders close will carry it home for +${LOST_TOYS.bounty} Buttons.` },
+      view, dead: false,
+    });
+  }
+
+  // lost toys ride along with whichever worker found them — no orders change,
+  // the bounty just pays out the next time that worker passes its own chest
+  updateLostToy(l, dt) {
+    if (l.dead) return;
+    l.view.update(dt);
+    if (l.carrier < 0) {
+      l.scanT -= dt;
+      if (l.scanT <= 0) {
+        l.scanT = 0.5;
+        for (const e of this.entities) {
+          if (e.kind !== 'unit' || e.dead || e.owner < 0 || e.garrisoned || !e.def.gatherRate || e.carryLost != null) continue;
+          if (dist2(l, e) < LOST_TOYS.radius ** 2) {
+            l.carrier = e.id; e.carryLost = l.id;
+            if (e.owner === this.myId) this.alert(`Found ${l.def.name}! A worker is carrying it home.`, 'info', { x: l.x, z: l.z }, 4);
+            break;
+          }
+        }
+      }
+    } else {
+      const u = this.entities.find((e) => e.id === l.carrier);
+      if (!u || u.dead) { // the carrier fell — the stray tumbles loose right here
+        if (u) { l.x = u.x; l.z = u.z; u.carryLost = null; }
+        l.carrier = -1; l.scanT = 1.5;
+      } else {
+        l.x = u.x; l.z = u.z;
+        const chest = this.entities.find((e) =>
+          e.kind === 'building' && e.type === 'chest' && e.owner === u.owner && !e.dead && e.built >= 1);
+        if (chest && dist2(l, chest) < (chest.radius + 1.2) ** 2) {
+          this.players[u.owner].res.buttons += LOST_TOYS.bounty;
+          this.players[u.owner].stats.gathered += LOST_TOYS.bounty;
+          this.players[u.owner].stats.strays = (this.players[u.owner].stats.strays || 0) + 1;
+          u.carryLost = null;
+          this.fx && this.fx.spawnPop(l.x, l.z, 0x9ad0f0);
+          if (u.owner === this.myId) {
+            this.alert(`+${LOST_TOYS.bounty} Buttons — ${l.def.name} is home safe!`, 'info', null, 3);
+            this.sfx && this.sfx.play('trade');
+          }
+          l.dead = true; l.removed = true;
+          this.scene.remove(l.view.group);
+          return;
+        }
+      }
+    }
+    // ride high on the carrier's shoulders; sparkle at rest
+    const carried = l.carrier >= 0;
+    l.view.group.position.set(l.x, this.heightAtWorld(l.x, l.z) + (carried ? 1.15 : 0), l.z);
   }
 
   updateCritter(c, dt) {
     if (c.dead) return;
     c.view.update(dt);
+    const ct = CRITTER_TYPES[c.type] || CRITTER_TYPES.mouse;
     if (c.captor < 0) {
-      // any toy that gets close wins the mouse over
       c.scanT -= dt;
       if (c.scanT <= 0) {
         c.scanT = 0.4;
-        for (const e of this.entities) {
-          if (e.kind !== 'unit' || e.dead || e.owner < 0 || e.garrisoned) continue;
-          if (dist2(c, e) < CRITTERS.captureRadius ** 2) {
-            c.captor = e.owner;
-            c.tgt = null;
-            if (e.owner === this.myId) this.alert('Wind-up mouse befriended! It scurries home with Snacks.', 'info', { x: c.x, z: c.z }, 4);
-            break;
+        if (ct.flee) {
+          // uncatchable: startles from the nearest toy and bolts the other way
+          let near = null, best = 3.2 ** 2;
+          for (const e of this.entities) {
+            if (e.kind !== 'unit' || e.dead || e.owner < 0 || e.garrisoned) continue;
+            const d2 = dist2(c, e);
+            if (d2 < best) { best = d2; near = e; }
+          }
+          if (near) {
+            const dx = c.x - near.x, dz = c.z - near.z, d = Math.hypot(dx, dz) || 1;
+            const fx2 = c.x + (dx / d) * 3.5, fz2 = c.z + (dz / d) * 3.5;
+            if (this.tileOpenFor(fx2, fz2, -1)) { c.tgt = { x: fx2, z: fz2 }; c.wanderT = 1.2; }
+          }
+        } else if (ct.snack) {
+          // any toy that gets close wins it over
+          for (const e of this.entities) {
+            if (e.kind !== 'unit' || e.dead || e.owner < 0 || e.garrisoned) continue;
+            if (ct.water && this.water[idx(tileOf(e.x), tileOf(e.z))] === 1) continue; // befriend the duck from dry land
+            if (dist2(c, e) < CRITTERS.captureRadius ** 2) {
+              c.captor = e.owner;
+              c.tgt = null;
+              if (e.owner === this.myId) this.alert(`${ct.name} befriended! It heads home with Snacks.`, 'info', { x: c.x, z: c.z }, 4);
+              break;
+            }
           }
         }
       }
       c.wanderT -= dt;
       if (c.wanderT <= 0 || !c.tgt) {
         c.wanderT = 2 + this.rng() * 4;
-        const a = this.rng() * Math.PI * 2, r = 1.5 + this.rng() * 4;
-        const tx = Math.max(-N / 2 + 2, Math.min(N / 2 - 2, c.x + Math.sin(a) * r));
-        const tz = Math.max(-N / 2 + 2, Math.min(N / 2 - 2, c.z + Math.cos(a) * r));
-        c.tgt = this.tileOpenFor(tx, tz, -1) ? { x: tx, z: tz } : null;
+        let tx, tz;
+        if (ct.orbit) { // circles its home patch like it's still on the porch
+          const a = this.rng() * Math.PI * 2, r = 2 + this.rng() * 3;
+          tx = c.hx + Math.sin(a) * r; tz = c.hz + Math.cos(a) * r;
+        } else {
+          const a = this.rng() * Math.PI * 2, r = 1.5 + this.rng() * 4;
+          tx = c.x + Math.sin(a) * r; tz = c.z + Math.cos(a) * r;
+        }
+        tx = Math.max(-N / 2 + 2, Math.min(N / 2 - 2, tx));
+        tz = Math.max(-N / 2 + 2, Math.min(N / 2 - 2, tz));
+        const ok = ct.water
+          ? this.water[idx(tileOf(tx), tileOf(tz))] === 1  // paddlers stay in the basin
+          : ct.orbit
+            ? !this.blocked[idx(tileOf(tx), tileOf(tz))]   // fliers ignore ground rules, not walls
+            : this.tileOpenFor(tx, tz, -1);
+        c.tgt = ok ? { x: tx, z: tz } : null;
       }
     } else {
       const chest = this.entities.find((e) =>
@@ -939,12 +1052,13 @@ export class Game {
       if ((c.detourT || 0) > 0) c.detourT -= dt;
       else c.tgt = { x: chest.x, z: chest.z };
       if (dist2(c, chest) < (chest.radius + 0.9) ** 2) {
-        this.players[c.captor].res.snacks += CRITTERS.snack;
-        this.players[c.captor].stats.gathered += CRITTERS.snack;
+        const pay = (CRITTER_TYPES[c.type] || CRITTER_TYPES.mouse).snack || CRITTERS.snack;
+        this.players[c.captor].res.snacks += pay;
+        this.players[c.captor].stats.gathered += pay;
         this.players[c.captor].stats.mice++;
         this.fx && this.fx.spawnPop(c.x, c.z, 0xf9c74f);
         if (c.captor === this.myId) {
-          this.alert(`+${CRITTERS.snack} Snacks — the wind-up mouse delivered!`, 'info', null, 2);
+          this.alert(`+${pay} Snacks — the ${c.def.name.toLowerCase()} delivered!`, 'info', null, 2);
           this.sfx && this.sfx.play('trade');
         }
         c.dead = true; c.removed = true;
@@ -956,11 +1070,17 @@ export class Game {
       const dx = c.tgt.x - c.x, dz = c.tgt.z - c.z;
       const d = Math.hypot(dx, dz);
       if (d > 0.3) {
-        const sp = (c.captor >= 0 ? 1.8 : 1.0) * dt;
+        const ct2 = CRITTER_TYPES[c.type] || CRITTER_TYPES.mouse;
+        const sp = (c.captor >= 0 ? 1.8 : (ct2.speed || 1.0)) * dt;
         const nx = c.x + (dx / d) * sp, nz = c.z + (dz / d) * sp;
-        const cliff = Math.abs(this.tileHeight(tileOf(nx), tileOf(nz))
+        const cliff = !ct2.orbit && Math.abs(this.tileHeight(tileOf(nx), tileOf(nz))
           - this.tileHeight(tileOf(c.x), tileOf(c.z))) > CLIMB;
-        if (this.tileOpenFor(nx, nz, -1) && !cliff) { c.x = nx; c.z = nz; c.facing = Math.atan2(dx, dz); }
+        const open = ct2.orbit
+          ? !this.blocked[idx(tileOf(nx), tileOf(nz))] // fliers cross anything but walls
+          : ct2.water && c.captor < 0
+            ? this.water[idx(tileOf(nx), tileOf(nz))] === 1 // free ducks stay afloat
+            : this.tileOpenFor(nx, nz, -1);
+        if (open && !cliff) { c.x = nx; c.z = nz; c.facing = Math.atan2(dx, dz); }
         else if (c.captor >= 0) {
           // the straight way home is blocked: scurry a random step sideways,
           // then re-aim at the chest (random-restart beelines round any plateau)
@@ -1770,7 +1890,10 @@ export class Game {
           return { k: 'r', id: e.id, resType: e.resType, ti: e.ti, tj: e.tj, amount: e.amount };
         }
         if (e.kind === 'critter') {
-          return { k: 'c', id: e.id, x: e.x, z: e.z, captor: e.captor, facing: e.facing };
+          return { k: 'c', id: e.id, type: e.type, x: e.x, z: e.z, hx: e.hx, hz: e.hz, captor: e.captor, facing: e.facing };
+        }
+        if (e.kind === 'lost') {
+          return { k: 'l', id: e.id, type: e.type, x: e.x, z: e.z, carrier: e.carrier };
         }
         if (e.type === 'throne') {
           return { k: 'h', id: e.id, x: e.x, z: e.z, holder: e.holder, holdTime: e.holdTime || 0, holdTeam: e.holdTeam ?? -1 };
@@ -1854,14 +1977,27 @@ export class Game {
           view, dead: false,
         };
       } else if (se.k === 'c') {
-        const view = createCritterView();
+        const cType = se.type || 'mouse';
+        const ct = CRITTER_TYPES[cType] || CRITTER_TYPES.mouse;
+        const view = createCritterView(cType);
         view.group.position.set(se.x, this.heightAtWorld(se.x, se.z), se.z);
         this.scene.add(view.group);
         e = {
-          id: se.id, kind: 'critter', type: 'mouse', owner: -1,
-          x: se.x, z: se.z, radius: 0.25, captor: se.captor, facing: se.facing || 0,
+          id: se.id, kind: 'critter', type: cType, owner: -1,
+          x: se.x, z: se.z, hx: se.hx ?? se.x, hz: se.hz ?? se.z,
+          radius: 0.25, captor: se.captor, facing: se.facing || 0,
           wanderT: 1, scanT: 0.3,
-          def: { name: 'Wind-Up Mouse', desc: `Walk a toy up to it — it follows you home for +${CRITTERS.snack} Snacks.` },
+          def: { name: ct.name, desc: ct.desc },
+          view, dead: false,
+        };
+      } else if (se.k === 'l') {
+        const view = createLostToyView(se.type);
+        view.group.position.set(se.x, this.heightAtWorld(se.x, se.z), se.z);
+        this.scene.add(view.group);
+        e = {
+          id: se.id, kind: 'lost', type: se.type, owner: -1,
+          x: se.x, z: se.z, radius: 0.5, carrier: se.carrier ?? -1, scanT: 0.5,
+          def: { name: LOST_TOYS.names[se.type] || 'a lost toy', desc: `A stray. A worker who wanders close will carry it home for +${LOST_TOYS.bounty} Buttons.` },
           view, dead: false,
         };
       } else if (se.k === 'h') {
@@ -1897,6 +2033,14 @@ export class Game {
       u.oq = (se.oq || []).map((c) => this.decOrder(c, byId)).filter(Boolean);
       u.fleeResume = this.decOrder(se.fleeResume, byId);
       u.bellResume = this.decOrder(se.bellResume, byId);
+    }
+    // carried strays re-link to their carriers (the ride resumes mid-step)
+    for (const e of this.entities) {
+      if (e.kind === 'lost' && e.carrier >= 0) {
+        const u = byId.get(e.carrier);
+        if (u && !u.dead) u.carryLost = e.id;
+        else e.carrier = -1;
+      }
     }
     // restored wall lines pick their run direction back up
     for (const e of this.entities) {
@@ -4139,6 +4283,7 @@ export class Game {
       if (e.kind === 'unit') this.updateUnit(e, dt);
       else if (e.kind === 'building') this.updateBuilding(e, dt);
       else if (e.kind === 'critter') this.updateCritter(e, dt);
+      else if (e.kind === 'lost') this.updateLostToy(e, dt);
     }
     this.updateProjectiles(dt);
     this.updateObjectives(dt);

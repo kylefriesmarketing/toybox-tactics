@@ -3828,49 +3828,240 @@ export function createMilkSpill(rx, rz, rngSeed = 1) {
 }
 
 // wind-up mouse: the bedroom's version of a huntable sheep
-export function createCritterView() {
+export function createCritterView(type = 'mouse') {
   const g = new THREE.Group();
-  const grey = toyMat(0x9a94a8, 0.7);
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), grey);
-  body.scale.set(0.85, 0.8, 1.25);
-  body.position.y = 0.11;
-  body.castShadow = true;
-  g.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8), grey);
-  head.position.set(0, 0.13, 0.15);
-  head.castShadow = true;
-  g.add(head);
-  for (const sx of [-0.055, 0.055]) {
-    const ear = new THREE.Mesh(new THREE.CircleGeometry(0.045, 8), toyMat(0xe8a8b8, 0.8));
-    ear.position.set(sx, 0.21, 0.13);
-    g.add(ear);
-  }
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 5), toyMat(0xe86a8a, 0.5));
-  nose.position.set(0, 0.12, 0.235);
-  g.add(nose);
-  const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.006, 0.22, 6), toyMat(0xd8c8d0, 0.6));
-  tail.rotation.x = 1.1;
-  tail.position.set(0, 0.13, -0.2);
-  g.add(tail);
-  // the wind-up key spins as it scurries
-  const key = new THREE.Group();
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.06, 6), toyMat(0xd8b84a, 0.35));
-  stem.rotation.x = Math.PI / 2;
-  key.add(stem);
-  for (const sx of [-1, 1]) {
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.03, 0.015), toyMat(0xd8b84a, 0.35));
-    wing.position.set(sx * 0.05, 0, -0.04);
-    key.add(wing);
-  }
-  key.position.set(0, 0.2, -0.06);
-  g.add(key);
   let t = Math.random() * 9;
   const view = passiveView(g, 0.35);
+  const windupKey = (color = 0xd8b84a) => { // shared: the key that makes it a toy
+    const key = new THREE.Group();
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.06, 6), toyMat(color, 0.35));
+    stem.rotation.x = Math.PI / 2;
+    key.add(stem);
+    for (const sx of [-1, 1]) {
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.03, 0.015), toyMat(color, 0.35));
+      wing.position.set(sx * 0.05, 0, -0.04);
+      key.add(wing);
+    }
+    return key;
+  };
+  if (type === 'crab') {
+    // hermit crab: painted shell dome, sidling legs, one brave claw up
+    const shell = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), toyMat(0xc86a4a, 0.5));
+    shell.position.y = 0.1; shell.castShadow = true; g.add(shell);
+    const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.02, 6, 12), toyMat(0xf0d49a, 0.5));
+    stripe.rotation.x = Math.PI / 2; stripe.position.y = 0.13; g.add(stripe);
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), toyMat(0xe89a6a, 0.6));
+    body.position.set(0, 0.06, 0.1); g.add(body);
+    const claws = [];
+    for (const sx of [-0.08, 0.08]) {
+      const claw = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 5), toyMat(0xd87a4a, 0.5));
+      claw.position.set(sx, 0.06, 0.16); claw.scale.set(1, 0.8, 1.3); g.add(claw); claws.push(claw);
+    }
+    const legs = [];
+    for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.09, 4), toyMat(0xb85a3a, 0.6));
+      leg.position.set(sx * 0.12, 0.045, -0.02 + i * 0.05);
+      leg.rotation.z = sx * 0.9; g.add(leg); legs.push(leg);
+    }
+    view.update = (dt) => {
+      t += dt;
+      for (let i = 0; i < legs.length; i++) legs[i].rotation.x = Math.sin(t * 9 + i * 1.7) * 0.35;
+      claws[0].rotation.x = Math.sin(t * 2.2) * 0.3; // the occasional wave
+      g.children[0].position.y = 0.1 + Math.abs(Math.sin(t * 7)) * 0.008;
+    };
+  } else if (type === 'snail') {
+    // garden snail: soft body, candy-swirl shell, hopeful eyestalks
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.2, 4, 8), toyMat(0xc8d47a, 0.7));
+    body.rotation.x = Math.PI / 2; body.position.set(0, 0.05, 0.02); body.castShadow = true; g.add(body);
+    const shell = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.05, 8, 14), toyMat(0xa86a9a, 0.45));
+    shell.position.set(0, 0.13, -0.05); shell.castShadow = true; g.add(shell);
+    const swirl = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.018, 6, 10), toyMat(0xe8c8e0, 0.5));
+    swirl.position.set(0, 0.13, -0.045); g.add(swirl);
+    const stalks = [];
+    for (const sx of [-0.03, 0.03]) {
+      const st2 = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.08, 4), toyMat(0xc8d47a, 0.7));
+      st2.position.set(sx, 0.12, 0.14); g.add(st2); stalks.push(st2);
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.016, 6, 5), toyMat(0x3a3a4a, 0.4));
+      eye.position.set(sx, 0.165, 0.14); g.add(eye); stalks.push(eye);
+    }
+    view.update = (dt) => {
+      t += dt;
+      const squish = 1 + Math.sin(t * 3) * 0.06; // inchworm breathing
+      body.scale.set(squish, 1, 2 - squish * 0.9);
+      for (const s2 of stalks) s2.rotation.z = Math.sin(t * 2.1) * 0.12;
+    };
+  } else if (type === 'bunny') {
+    // dust bunny: a gray fluff-clump with two anxious eyes — barely a creature
+    const tufts = [];
+    for (let i = 0; i < 6; i++) {
+      const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.05 + Math.random() * 0.05, 7, 6), toyMat(0x8a8492, 0.95));
+      tuft.position.set((Math.random() - 0.5) * 0.12, 0.08 + (Math.random() - 0.5) * 0.06, (Math.random() - 0.5) * 0.12);
+      g.add(tuft); tufts.push(tuft);
+    }
+    for (const sx of [-0.035, 0.035]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.014, 6, 5), toyMat(0x2a2a34, 0.3));
+      eye.position.set(sx, 0.1, 0.1); g.add(eye);
+    }
+    view.update = (dt) => {
+      t += dt;
+      for (let i = 0; i < tufts.length; i++) {
+        tufts[i].position.y += Math.sin(t * 4 + i * 2.1) * 0.0009; // nervous shiver
+        tufts[i].rotation.y += dt * (0.4 + i * 0.13);
+      }
+    };
+  } else if (type === 'moth') {
+    // porch moth: pale flapping wings, flies above the grass
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.025, 0.09, 4, 6), toyMat(0xd8ceb8, 0.8));
+    body.rotation.x = Math.PI / 2; body.castShadow = true; g.add(body);
+    const wings = [];
+    for (const sx of [-1, 1]) {
+      const wing = new THREE.Mesh(new THREE.CircleGeometry(0.09, 8), toyMat(0xe8e0cc, 0.85));
+      wing.scale.set(1, 0.65, 1);
+      wing.position.set(sx * 0.06, 0.01, 0);
+      wing.rotation.y = sx * 0.2;
+      g.add(wing); wings.push(wing);
+    }
+    const spot = new THREE.Mesh(new THREE.CircleGeometry(0.02, 6), toyMat(0xa89468, 0.7));
+    spot.position.set(0.08, 0.015, 0.02); spot.rotation.x = -Math.PI / 2; g.add(spot);
+    g.position.y = 0.9; // it FLIES — the sim moves x/z, the view holds altitude
+    view.update = (dt) => {
+      t += dt;
+      for (let i = 0; i < 2; i++) wings[i].rotation.z = (i ? -1 : 1) * (0.5 + Math.sin(t * 22) * 0.55);
+      g.position.y = 0.9 + Math.sin(t * 3.1) * 0.12;
+    };
+  } else if (type === 'duck') {
+    // lil ducky: the classic, pocket-size
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), toyMat(0xf0d24a, 0.4));
+    body.scale.set(1, 0.8, 1.2); body.position.y = 0.08; body.castShadow = true; g.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), toyMat(0xf0d24a, 0.4));
+    head.position.set(0, 0.2, 0.09); g.add(head);
+    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.06, 6), toyMat(0xe8843a, 0.4));
+    beak.rotation.x = Math.PI / 2; beak.position.set(0, 0.19, 0.17); g.add(beak);
+    for (const sx of [-0.04, 0.04]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.013, 6, 5), toyMat(0x2a2a34, 0.3));
+      eye.position.set(sx, 0.225, 0.145); g.add(eye);
+    }
+    view.update = (dt) => {
+      t += dt;
+      g.rotation.z = Math.sin(t * 2.4) * 0.08;          // paddle wobble
+      body.position.y = 0.08 + Math.sin(t * 2.4) * 0.01; // bob on the water
+    };
+  } else if (type === 'ant') {
+    // wind-up ant: three beads and a key, marching with purpose
+    const beads = [];
+    const cols = [0x3a3a4a, 0x4a4a5e, 0x3a3a4a];
+    for (let i = 0; i < 3; i++) {
+      const bead = new THREE.Mesh(new THREE.SphereGeometry(0.055 - i * 0.008, 8, 6), toyMat(cols[i], 0.45));
+      bead.position.set(0, 0.06, 0.07 - i * 0.09);
+      bead.castShadow = true; g.add(bead); beads.push(bead);
+    }
+    const legs = [];
+    for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.08, 4), toyMat(0x2a2a34, 0.5));
+      leg.position.set(sx * 0.06, 0.04, 0.05 - i * 0.07);
+      leg.rotation.z = sx * 0.8; g.add(leg); legs.push(leg);
+    }
+    const key = windupKey(0xc8c8d8); key.scale.setScalar(0.7); key.position.set(0, 0.12, -0.13); g.add(key);
+    view.update = (dt) => {
+      t += dt;
+      key.rotation.z += dt * 7;
+      for (let i = 0; i < legs.length; i++) legs[i].rotation.x = Math.sin(t * 14 + i * 1.3) * 0.4;
+    };
+  } else {
+    // the wind-up mouse (default) — candy: its peppermint holiday cousin
+    const candy2 = type === 'candy';
+    const grey = toyMat(candy2 ? 0xe8b8c8 : 0x9a94a8, 0.7);
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), grey);
+    body.scale.set(0.85, 0.8, 1.25);
+    body.position.y = 0.11;
+    body.castShadow = true;
+    g.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8), grey);
+    head.position.set(0, 0.13, 0.15);
+    head.castShadow = true;
+    g.add(head);
+    for (const sx of [-0.055, 0.055]) {
+      const ear = new THREE.Mesh(new THREE.CircleGeometry(0.045, 8), toyMat(candy2 ? 0xf6f2e6 : 0xe8a8b8, 0.8));
+      ear.position.set(sx, 0.21, 0.13);
+      g.add(ear);
+    }
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 5), toyMat(candy2 ? 0xc23a3a : 0xe86a8a, 0.5));
+    nose.position.set(0, 0.12, 0.235);
+    g.add(nose);
+    const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.006, 0.22, 6), toyMat(candy2 ? 0xf6f2e6 : 0xd8c8d0, 0.6));
+    tail.rotation.x = 1.1;
+    tail.position.set(0, 0.13, -0.2);
+    g.add(tail);
+    if (candy2) { // peppermint stripe on the back
+      const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.018, 6, 12), toyMat(0xc23a3a, 0.5));
+      stripe.rotation.x = Math.PI / 2; stripe.position.y = 0.16; g.add(stripe);
+    }
+    const key = windupKey();
+    key.position.set(0, 0.2, -0.06);
+    g.add(key);
+    view.update = (dt) => {
+      t += dt;
+      key.rotation.z += dt * 6;
+      tail.rotation.z = Math.sin(t * 5) * 0.4;
+      body.position.y = 0.11 + Math.abs(Math.sin(t * 12)) * 0.015; // scurry hop
+    };
+  }
+  return view;
+}
+
+// lost toys: little neutral strays a worker can carry home for a bounty
+export function createLostToyView(kind = 'jack') {
+  const g = new THREE.Group();
+  if (kind === 'jack') {
+    for (const [rx, ry] of [[0, 0], [0, Math.PI / 2], [Math.PI / 2, 0]]) {
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.34, 8), toyMat(0xb8c4d8, 0.3));
+      bar.rotation.set(rx, ry, rx ? 0 : Math.PI / 2);
+      g.add(bar);
+    }
+    for (const s of [[0.17, 0, 0], [-0.17, 0, 0], [0, 0.17, 0], [0, -0.17, 0], [0, 0, 0.17], [0, 0, -0.17]]) {
+      const knob = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), toyMat(0xd8e0ec, 0.3));
+      knob.position.set(...s); g.add(knob);
+    }
+    g.position.y = 0.22; g.rotation.z = 0.4;
+  } else if (kind === 'domino') {
+    const tile = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.06, 0.42), toyMat(0xf2eee2, 0.35));
+    tile.castShadow = true; g.add(tile);
+    const line = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.005, 0.02), toyMat(0x2a2a34, 0.5));
+    line.position.y = 0.033; g.add(line);
+    for (const [px, pz] of [[-0.05, 0.1], [0.05, 0.1], [0, 0.16], [-0.05, -0.13], [0.05, -0.08]]) {
+      const pip = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.01, 8), toyMat(0x2a2a34, 0.5));
+      pip.position.set(px, 0.033, pz); g.add(pip);
+    }
+    g.position.y = 0.06; g.rotation.y = 0.7;
+  } else if (kind === 'marble') {
+    const sack = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), toyMat(0x8a6a4a, 0.85));
+    sack.scale.set(1, 1.1, 1); sack.position.y = 0.15; sack.castShadow = true; g.add(sack);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, 0.08, 8), toyMat(0x7a5a3e, 0.85));
+    neck.position.y = 0.31; g.add(neck);
+    for (const [px, pz, c] of [[0.12, 0.1, 0x7fd0e8], [-0.14, 0.02, 0xe05555], [0.02, 0.17, 0xf0d24a]]) {
+      const mb = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshStandardMaterial({ color: c, roughness: 0.15, metalness: 0.1 }));
+      mb.position.set(px, 0.045, pz); g.add(mb);
+    }
+  } else if (kind === 'bottlecap') {
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.17, 0.05, 16), new THREE.MeshStandardMaterial({ color: 0xc23a3a, roughness: 0.3, metalness: 0.55 }));
+    cap.position.y = 0.03; cap.castShadow = true; g.add(cap);
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.055, 16), new THREE.MeshStandardMaterial({ color: 0xe8e4d8, roughness: 0.25, metalness: 0.6 }));
+    top.position.y = 0.032; g.add(top);
+  } else { // crayon stub
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.3, 10), toyMat(0x3a6ea5, 0.55));
+    body.rotation.z = Math.PI / 2 - 0.15; body.position.y = 0.06; body.castShadow = true; g.add(body);
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.09, 10), toyMat(0x2a5a8a, 0.5));
+    tip.rotation.z = -0.15 - Math.PI / 2; tip.position.set(0.19, 0.033, 0); g.add(tip);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.057, 0.057, 0.1, 10), toyMat(0xf2eee2, 0.6));
+    band.rotation.z = Math.PI / 2 - 0.15; band.position.set(-0.04, 0.066, 0); g.add(band);
+  }
+  let t = Math.random() * 9;
+  const view = passiveView(g, 0.5);
+  const baseY = g.position.y;
   view.update = (dt) => {
     t += dt;
-    key.rotation.z += dt * 6;
-    tail.rotation.z = Math.sin(t * 5) * 0.4;
-    body.position.y = 0.11 + Math.abs(Math.sin(t * 12)) * 0.015; // scurry hop
+    g.rotation.y += dt * 0.5;                    // a slow show-off spin
+    g.position.y = baseY + Math.sin(t * 2) * 0.03; // hover-bob so it reads as special
   };
   return view;
 }

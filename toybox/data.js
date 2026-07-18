@@ -787,6 +787,7 @@ export const MAPS = {
     label: 'Under the Bed', icon: '🌑', ground: 'underbed', light: 'dark',
     obstacles: 11, canyon: false, resourceMul: 0.95, stickers: 3, plateaus: 2,
     features: { ranges: 2, forests: 2 },
+    critters: [{ type: 'bunny', count: 7 }], // dust bunnies scatter from your columns
     // two slipped rows of lost laundry, staggered — the only ways through bend
     // into an S, and something is always waiting at the bend (point-symmetric)
     ridges: [
@@ -822,6 +823,7 @@ export const MAPS = {
     obstacles: 4, canyon: false, resourceMul: 1.35, stickers: 2, plateaus: 2,
     // dinner-table spills read as impassable milk lakes — lots of them
     features: { milk: 3, ranges: 1, forests: 1 },
+    critters: [{ type: 'ant', count: 6 }], // crumb patrol
     decor: ['teacup', 'die', 'ball', 'crayon'],
     decorCount: 15,
     // one spilled line of flour, parted right at the middle: kitchen stays the
@@ -844,6 +846,7 @@ export const MAPS = {
     label: 'Living Room', icon: '🎄', ground: 'livingroom', light: 'warm',
     obstacles: 3, canyon: false, resourceMul: 1.3, stickers: 3, plateaus: 2,
     features: { forests: 1 },
+    critters: [{ type: 'candy', count: 6 }], // sugarplum mice under the tree
     decor: ['ornament', 'gift', 'die', 'ball'],
     decorCount: 16,
     // a garland slid off the tree and lies across the carpet — three sagging
@@ -856,6 +859,7 @@ export const MAPS = {
   bathtub: {
     label: 'Bathtub Armada', icon: '🛁', ground: 'bathtub', light: 'normal',
     obstacles: 3, canyon: false, resourceMul: 1.3, stickers: 2, plateaus: 1,
+    critters: [{ type: 'duck', count: 4 }], // lil duckies paddling the basin
     features: { forests: 1 },
     // a central basin of sailable water: build a Dock, launch boats, and rule
     // the bath while land toys ring the tub. water: ellipse half-axes in tiles.
@@ -875,6 +879,7 @@ export const MAPS = {
     // fills the mat — the rim stays thematic, the corners stop being wasted.
     mask: { type: 'kidney', rx: 35, rz: 33, bx: 0, bz: -30, br: 10 },
     dunes: { count: 8, rMin: 4, rMax: 7 },
+    critters: [{ type: 'crab', count: 5 }], // hermit crabs sidle the dunes
     // steep piled-sand crests nobody can climb, with sandy passes through them —
     // the sandbox's chokepoints. Authored (no rng): a long central wall with two
     // passes across the seat diagonal, plus one shorter wall guarding each wing.
@@ -900,6 +905,7 @@ export const MAPS = {
     obstacles: 5, canyon: false, resourceMul: 1.3, stickers: 3, plateaus: 4,
     // flower-bed terraces climb in real steps; sunflower groves are the forests
     groves: { kind: 'sunflower', count: 5 },
+    critters: [{ type: 'snail', count: 4 }, { type: 'moth', count: 3 }], // slow money + garden company
     weather: 'rain', // a golden sun-shower — the garden's favorite kind
     obstacleKinds: ['rock', 'tree'],
     decor: ['daisy', 'grass', 'mushroom', 'pebble'],
@@ -915,6 +921,7 @@ export const MAPS = {
     mask: { type: 'ellipse', rx: 35, rz: 34 },
     centerHill: { r: 9 },
     roots: true,
+    critters: [{ type: 'moth', count: 7 }], // porch moths circle the dusk
     weather: 'fireflies',
     obstacleKinds: ['rock', 'tree'],
     decor: ['mushroom', 'grass', 'pebble', 'daisy'],
@@ -1809,6 +1816,36 @@ export const STICKER = { incomePerSec: 0.4, captureRadius: 2.5 };
 // wind-up mice: neutral critters that wander mid-map; walk a toy up to one
 // and it follows you home for a snack bounty (the bedroom's huntable sheep)
 export const CRITTERS = { count: 6, snack: 60, captureRadius: 1.8 };
+
+// ---------------- the menagerie: every room keeps different company ----------
+// capturable types (snack > 0) use the wind-up-mouse rules; `flee` critters
+// scatter from approaching toys (uncatchable — the point is the chase you
+// didn't mean to start); `orbit` critters circle their home patch; `water`
+// critters paddle the basin. MAPS.<k>.critters picks each map's cast.
+export const CRITTER_TYPES = {
+  mouse: { name: 'Wind-Up Mouse', snack: 60, speed: 1.0, desc: 'Walk a toy up to it — it follows you home for +60 Snacks.' },
+  crab:  { name: 'Hermit Crab', snack: 60, speed: 0.7, desc: 'Sidles the dunes. Befriend it and it hauls its shell home with Snacks.' },
+  snail: { name: 'Garden Snail', snack: 80, speed: 0.3, desc: 'The slowest Snacks in the yard — but it always, always arrives.' },
+  candy: { name: 'Sugarplum Mouse', snack: 60, speed: 1.0, desc: 'A peppermint-pink wind-up. Follows you home for +60 Snacks.' },
+  ant:   { name: 'Wind-Up Ant', snack: 50, speed: 1.3, desc: 'Crumb patrol. Walk a toy close and it marches your way instead.' },
+  bunny: { name: 'Dust Bunny', flee: true, speed: 1.7, desc: 'Startles easy. Nobody has ever caught one. Nobody ever will.' },
+  moth:  { name: 'Porch Moth', orbit: true, speed: 1.5, desc: 'Circles the light it remembers. Pays no mind to any war.' },
+  duck:  { name: 'Lil Ducky', water: true, snack: 80, speed: 0.8, desc: 'Paddles the tub. Befriend it from the rim for +80 Snacks.' },
+};
+
+// ---------------- lost toys: the yard is full of strays ---------------------
+// Neutral pickups scattered at match start. Any WORKER that wanders close
+// scoops one up and carries it along — no orders change, it just rides — and
+// the bounty pays out the next time that worker passes its own Toy Chest.
+// If the carrier falls, the stray tumbles loose right there, up for grabs.
+export const LOST_TOYS = {
+  count: 5, bounty: 80, radius: 1.4,
+  kinds: ['jack', 'domino', 'marble', 'bottlecap', 'crayon'],
+  names: {
+    jack: 'a lost jack', domino: 'a lost domino', marble: 'a marble pouch',
+    bottlecap: 'a lucky bottlecap', crayon: 'a stub of crayon',
+  },
+};
 
 // ---------------- factions (brief §6.4, translated to toy tribes) ----------------
 // mods merge into the player's stat-modifier table at match start

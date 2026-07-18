@@ -2677,11 +2677,38 @@ function setupWeather() {
   scene.traverse((n) => {
     if (n.userData && n.userData.sway) sway.push({ o: n, ph: Math.random() * 9, amp: n.userData.sway, base: n.rotation.z });
   });
-  if (!kind && !sway.length) return;
+  // cloud shadows: the sky moving over the field — outdoor maps and the yard
+  const wantClouds = !!(game.map.outdoor || game.map.ground === 'playground');
+  if (!kind && !sway.length && !wantClouds) return;
   const group = new THREE.Group();
   scene.add(group);
   const parts = [];
   const span = N * 1.3;
+  const clouds = [];
+  if (wantClouds) {
+    // one shared soft-edged blob texture; each cloud drifts on the same slow wind
+    const cc = document.createElement('canvas'); cc.width = cc.height = 128;
+    const cx2 = cc.getContext('2d');
+    const grad = cx2.createRadialGradient(64, 64, 8, 64, 64, 62);
+    grad.addColorStop(0, 'rgba(0,0,0,0.55)');
+    grad.addColorStop(0.65, 'rgba(0,0,0,0.28)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    cx2.fillStyle = grad; cx2.fillRect(0, 0, 128, 128);
+    const cloudTex = new THREE.CanvasTexture(cc);
+    for (let i = 0; i < 4; i++) {
+      const size = 13 + Math.random() * 11;
+      const m = new THREE.Mesh(
+        new THREE.PlaneGeometry(size, size * (0.6 + Math.random() * 0.5)),
+        new THREE.MeshBasicMaterial({ map: cloudTex, transparent: true, opacity: 0.16, depthWrite: false })
+      );
+      m.rotation.x = -Math.PI / 2;
+      m.rotation.z = Math.random() * Math.PI;
+      m.position.set((Math.random() - 0.5) * span, 0.07 + i * 0.01, (Math.random() - 0.5) * span);
+      m.renderOrder = 1; // over the ground, under everything that matters
+      group.add(m);
+      clouds.push({ m, vx: 0.55 + Math.random() * 0.3, vz: 0.18 + Math.random() * 0.14 });
+    }
+  }
   if (kind === 'rain') {
     const rainM = new THREE.MeshBasicMaterial({ color: 0xbfd8f0, transparent: true, opacity: 0.55 });
     for (let i = 0; i < 110; i++) {
@@ -2707,7 +2734,7 @@ function setupWeather() {
       parts.push({ m: fly, ph: Math.random() * 9, cx: fly.position.x, cz: fly.position.z });
     }
   }
-  weather = { kind, group, parts, sway, t: Math.random() * 100 };
+  weather = { kind, group, parts, sway, clouds, t: Math.random() * 100 };
   if (kind === 'rain') { try { sfx.startRain(); } catch (e) { /* muted */ } }
 }
 function updateWeather(dt) {
@@ -2716,6 +2743,11 @@ function updateWeather(dt) {
   const t = weather.t;
   for (const s of weather.sway) s.o.rotation.z = s.base + Math.sin(t * 1.2 + s.ph) * s.amp;
   const span = N * 1.3;
+  for (const c of weather.clouds || []) { // the sky crosses the field, unhurried
+    c.m.position.x += c.vx * dt;
+    c.m.position.z += c.vz * dt;
+    if (c.m.position.x > span / 2 + 14) { c.m.position.x = -span / 2 - 14; c.m.position.z = (Math.random() - 0.5) * span; }
+  }
   if (weather.kind === 'rain') {
     for (const p of weather.parts) {
       p.m.position.y -= p.v * dt;
