@@ -9,14 +9,14 @@ import {
   MAP_N, POP_MAX, RES_TYPES, RES_META, UNITS, BUILDINGS, TECHS, MARKET, maskAt,
   AGES, AGE_UPS, PRODUCTION_BUILDINGS, START, AI, DIFFICULTIES, TEAM_NAMES, STICKER, WONDER, PERSONAS, MAPS, FACTIONS,
   TAUNTS, AI_LINES, NARRATOR, NARRATOR_NG,
-  CRITTERS, CRITTER_TYPES, LOST_TOYS, GAME_MODES, START_RES, SURVIVAL,
+  CRITTERS, CRITTER_TYPES, LOST_TOYS, WILD_TRIBES, GAME_MODES, START_RES, SURVIVAL,
 } from './data.js';
 import {
   createUnitView, createBuildingView, createResourceView,
   createGround, createObstacleMesh, createDecorMesh, createStickerView, createRallyFlag,
   makeRankBadge, createCritterView, createMilkSpill, createKingCrown, createThroneView,
   createWaterSurface, createWaterDecor, applyUnitTier, shadeGroundByHeight,
-  createLostToyView,
+  createLostToyView, createCampView,
 } from './models.js';
 
 const N = MAP_N;
@@ -302,7 +302,7 @@ export class Game {
               atkMelee: 0, atkPierce: 0, armorInfantry: 0, armorOther: 0, atkSpeed: 1,
               buildingHp: 1, buildRate: 1, unitHp: 1, healRate: 1, atkVehicle: 0 },
       stats: { gathered: 0, trained: 0, lost: 0, kills: 0, razed: 0,
-        shipsBuilt: 0, shipsLost: 0, wallsBuilt: 0, megaBuilt: 0, mice: 0, strays: 0 },
+        shipsBuilt: 0, shipsLost: 0, wallsBuilt: 0, megaBuilt: 0, mice: 0, strays: 0, tribes: 0 },
     }));
     // factions: humans bring their pick; AIs roll their own. The roll is
     // consumed for EVERY seat so the rng stream is identical whether a
@@ -906,6 +906,29 @@ export class Game {
       }
     }
 
+    // wild toy tribes: neutral camps at the midfield, placed as point-mirrored
+    // pairs so both seats get the same offer. Not in survival — the Forgotten
+    // don't parley, and neither should an uncontested defender get free troops.
+    if (this.map.tribes && this.gameMode !== 'survival') {
+      const camps = [];
+      for (let k = 0; k < Math.ceil(this.map.tribes / 2); k++) {
+        for (let t = 0; t < 40; t++) {
+          const ri = 10 + (rng() * 14); // midfield ring, off the exact center
+          const ra = rng() * Math.PI * 2;
+          const i = Math.round(N / 2 + Math.cos(ra) * ri), j = Math.round(N / 2 + Math.sin(ra) * ri);
+          const mi = N - 1 - i, mj = N - 1 - j; // the mirrored twin
+          const ok = (a, b) => inMap(a, b) && !this.blocked[idx(a, b)] && this.water[idx(a, b)] !== 1
+            && this.height[idx(a, b)] < 0.3 && clearHomes(a, b, 16)
+            && camps.every(([ci2, cj2]) => Math.hypot(a - ci2, b - cj2) > 10);
+          if (ok(i, j) && ok(mi, mj) && Math.hypot(i - mi, j - mj) > 12) {
+            camps.push([i, j], [mi, mj]);
+            break;
+          }
+        }
+      }
+      for (const [ci2, cj2] of camps) this.addCamp(worldOf(ci2), worldOf(cj2));
+    }
+
     // lost toys: strays scattered wide (they wandered off — that's the POINT),
     // clear of home doorsteps so the find is always a little expedition
     const lostClear = (i, j, r) =>
@@ -935,6 +958,68 @@ export class Game {
       def: { name: ct.name, desc: ct.desc },
       view, dead: false,
     });
+  }
+
+  addCamp(x, z) {
+    const view = createCampView();
+    view.group.position.set(x, this.heightAtWorld(x, z), z);
+    view.group.rotation.y = this.rng() * Math.PI * 2;
+    this.scene.add(view.group);
+    this.entities.push({
+      id: this.nextId++, kind: 'camp', owner: -1,
+      x, z, radius: 1.6, prog: 0, holdTeam: -1, captured: -1, scanT: this.rng() * 0.5,
+      def: { name: 'Wild Toy Camp', desc: WILD_TRIBES.desc },
+      view, dead: false,
+    });
+  }
+
+  // hold the camp uncontested with military toys and the tribe joins you:
+  // its wild toys re-muster under your flag, plus a little tribute
+  updateCamp(c, dt) {
+    if (c.dead) return;
+    c.view.update(dt);
+    if (c.captured >= 0) return; // already flying somebody's flag
+    c.scanT -= dt;
+    if (c.scanT <= 0) {
+      c.scanT = 0.5;
+      const present = new Set();
+      let lowPid = -1;
+      for (const e of this.entities) {
+        if (e.kind !== 'unit' || e.dead || e.owner < 0 || e.garrisoned) continue;
+        if (e.def.gatherRate || e.def.naval) continue; // military ground toys only
+        if (dist2(c, e) < WILD_TRIBES.holdRadius ** 2) {
+          present.add(this.players[e.owner].team);
+          if (lowPid < 0 || e.owner < lowPid) lowPid = e.owner;
+        }
+      }
+      if (present.size === 1) {
+        if (c.holdTeam !== [...present][0]) { c.holdTeam = [...present][0]; c.prog = 0; }
+        c.progPid = lowPid;
+      } else {
+        c.holdTeam = -1; c.prog = 0; // contested or abandoned: the tribe waits
+      }
+    }
+    if (c.holdTeam >= 0) {
+      c.prog += dt;
+      if (c.prog >= WILD_TRIBES.holdTime) {
+        const pid = c.progPid ?? 0;
+        c.captured = pid;
+        for (let k = 0; k < WILD_TRIBES.comp.length; k++) {
+          const a = (k / WILD_TRIBES.comp.length) * Math.PI * 2 + 0.7;
+          this.spawnUnit(WILD_TRIBES.comp[k], pid, c.x + Math.cos(a) * 2, c.z + Math.sin(a) * 2);
+        }
+        this.players[pid].res.buttons += WILD_TRIBES.bounty;
+        this.players[pid].stats.tribes = (this.players[pid].stats.tribes || 0) + 1;
+        c.view.setOwner(this.players[pid].team === this.myTeam ? 0x3b82f6 : 0xe4572e);
+        this.fx && this.fx.spawnPop(c.x, c.z, 0xf0c23a);
+        if (pid === this.myId) {
+          this.alert(`The wild tribe joins you! ${WILD_TRIBES.comp.length} toys learn your flag (+${WILD_TRIBES.bounty} Buttons).`, 'info', { x: c.x, z: c.z }, 5);
+          this.sfx && this.sfx.play('age');
+        } else if (this.isEnemy(this.myId, pid)) {
+          this.alert('A rival taught a wild tribe their flags!', 'warn', { x: c.x, z: c.z }, 5);
+        }
+      }
+    }
   }
 
   addLostToy(x, z, type) {
@@ -1903,6 +1988,9 @@ export class Game {
         if (e.kind === 'lost') {
           return { k: 'l', id: e.id, type: e.type, x: e.x, z: e.z, carrier: e.carrier };
         }
+        if (e.kind === 'camp') {
+          return { k: 'w', id: e.id, x: e.x, z: e.z, prog: e.prog, holdTeam: e.holdTeam, captured: e.captured, progPid: e.progPid ?? -1 };
+        }
         if (e.type === 'throne') {
           return { k: 'h', id: e.id, x: e.x, z: e.z, holder: e.holder, holdTime: e.holdTime || 0, holdTeam: e.holdTeam ?? -1 };
         }
@@ -2008,6 +2096,18 @@ export class Game {
           def: { name: LOST_TOYS.names[se.type] || 'a lost toy', desc: `A stray. A worker who wanders close will carry it home for +${LOST_TOYS.bounty} Buttons.` },
           view, dead: false,
         };
+      } else if (se.k === 'w') {
+        const view = createCampView();
+        view.group.position.set(se.x, this.heightAtWorld(se.x, se.z), se.z);
+        this.scene.add(view.group);
+        e = {
+          id: se.id, kind: 'camp', owner: -1,
+          x: se.x, z: se.z, radius: 1.6, prog: se.prog || 0, holdTeam: se.holdTeam ?? -1,
+          captured: se.captured ?? -1, progPid: (se.progPid ?? -1) >= 0 ? se.progPid : undefined, scanT: 0.5,
+          def: { name: 'Wild Toy Camp', desc: WILD_TRIBES.desc },
+          view, dead: false,
+        };
+        if (e.captured >= 0) view.setOwner(this.players[e.captured].team === this.myTeam ? 0x3b82f6 : 0xe4572e);
       } else if (se.k === 'h') {
         const view = createThroneView();
         view.group.position.set(se.x, this.heightAtWorld(se.x, se.z), se.z);
@@ -4292,6 +4392,7 @@ export class Game {
       else if (e.kind === 'building') this.updateBuilding(e, dt);
       else if (e.kind === 'critter') this.updateCritter(e, dt);
       else if (e.kind === 'lost') this.updateLostToy(e, dt);
+      else if (e.kind === 'camp') this.updateCamp(e, dt);
     }
     this.updateProjectiles(dt);
     this.updateObjectives(dt);

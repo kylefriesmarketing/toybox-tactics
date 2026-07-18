@@ -2687,6 +2687,7 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
     playground: [[2.3, 'rgba(92,94,38,0.32)'], [1.55, 'rgba(178,168,92,0.55)'], [0.65, 'rgba(230,216,140,0.6)']],   // dried clipping windrows
     kitchen:    [[2.3, 'rgba(118,84,44,0.35)'], [1.55, 'rgba(238,232,218,0.62)'], [0.65, 'rgba(255,252,244,0.72)']],// spilled flour
     livingroom: [[2.3, 'rgba(12,38,20,0.4)'], [1.55, 'rgba(47,100,62,0.6)'], [0.65, 'rgba(118,166,114,0.6)']],      // fallen garland
+    attic:      [[2.3, 'rgba(40,28,16,0.4)'], [1.55, 'rgba(122,90,52,0.6)'], [0.65, 'rgba(196,168,120,0.55)']],     // toppled atlases
   };
   const paintRidges = (ctx2) => {
     if (!(mapCfg && mapCfg.ridges)) return;
@@ -3982,6 +3983,102 @@ export function createCritterView(type = 'mouse') {
       g.rotation.z = Math.sin(t * 2.4) * 0.08;          // paddle wobble
       body.position.y = 0.08 + Math.sin(t * 2.4) * 0.01; // bob on the water
     };
+  } else if (type === 'ladybug') {
+    // a lucky red dome on busy little legs
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), toyMat(0xd23a2e, 0.35));
+    dome.position.y = 0.05; dome.scale.set(1, 0.75, 1.2); dome.castShadow = true; g.add(dome);
+    const split = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.05, 0.2), toyMat(0x2a1a1a, 0.5));
+    split.position.y = 0.09; g.add(split);
+    for (const [dx2, dz2] of [[-0.04, 0.03], [0.045, -0.02], [-0.03, -0.06], [0.03, 0.07]]) {
+      const dot = new THREE.Mesh(new THREE.CircleGeometry(0.016, 6), toyMat(0x2a1a1a, 0.5));
+      dot.rotation.x = -Math.PI / 2; dot.position.set(dx2, 0.115, dz2); g.add(dot);
+    }
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), toyMat(0x2a1a1a, 0.4));
+    head.position.set(0, 0.045, 0.12); g.add(head);
+    const legs = [];
+    for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.06, 4), toyMat(0x2a1a1a, 0.5));
+      leg.position.set(sx * 0.08, 0.03, 0.05 - i * 0.06); leg.rotation.z = sx * 0.8;
+      g.add(leg); legs.push(leg);
+    }
+    view.update = (dt) => {
+      t += dt;
+      for (let i = 0; i < legs.length; i++) legs[i].rotation.x = Math.sin(t * 12 + i * 1.5) * 0.35;
+    };
+  } else if (type === 'goldfish') {
+    // a flash of orange that never quite leaves the water
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), toyMat(0xe8842e, 0.35));
+    body.scale.set(0.8, 0.9, 1.4); body.position.y = 0.02; body.castShadow = true; g.add(body);
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.12, 6), toyMat(0xf0a04a, 0.4));
+    tail.rotation.x = -Math.PI / 2; tail.position.set(0, 0.02, -0.18); g.add(tail);
+    const fin = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.07, 5), toyMat(0xf0a04a, 0.4));
+    fin.position.set(0, 0.11, 0); g.add(fin);
+    for (const sx of [-0.05, 0.05]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.014, 6, 5), toyMat(0x2a2a34, 0.3));
+      eye.position.set(sx, 0.05, 0.11); g.add(eye);
+    }
+    view.update = (dt) => {
+      t += dt;
+      tail.rotation.y = Math.sin(t * 7) * 0.5;              // the happy sculling
+      g.position.y = -0.02 + Math.sin(t * 1.8) * 0.03;      // just under the surface
+      g.rotation.z = Math.sin(t * 2.3) * 0.06;
+    };
+  } else if (type === 'spider') {
+    // eight legs and somewhere better to be
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), toyMat(0x2e2a38, 0.6));
+    body.position.y = 0.09; body.castShadow = true; g.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), toyMat(0x3a3446, 0.6));
+    head.position.set(0, 0.08, 0.08); g.add(head);
+    const legs = [];
+    for (const sx of [-1, 1]) for (let i = 0; i < 4; i++) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.004, 0.16, 4), toyMat(0x2e2a38, 0.6));
+      leg.position.set(sx * 0.09, 0.08, 0.08 - i * 0.055);
+      leg.rotation.z = sx * 1.1;
+      g.add(leg); legs.push(leg);
+    }
+    view.update = (dt) => {
+      t += dt;
+      for (let i = 0; i < legs.length; i++) legs[i].rotation.x = Math.sin(t * 16 + i * 0.9) * 0.45; // the scuttle
+    };
+  } else if (type === 'bee') {
+    // a fat striped commuter between flowers
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8), toyMat(0xf0c23a, 0.5));
+    body.scale.set(0.9, 0.9, 1.25); body.castShadow = true; g.add(body);
+    for (const z2 of [-0.035, 0.035]) {
+      const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.017, 6, 12), toyMat(0x2a2418, 0.5));
+      stripe.rotation.x = 0; stripe.position.z = z2; g.add(stripe);
+    }
+    const wings = [];
+    for (const sx of [-1, 1]) {
+      const wing = new THREE.Mesh(new THREE.CircleGeometry(0.07, 8),
+        new THREE.MeshBasicMaterial({ color: 0xdce8f0, transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
+      wing.scale.set(1, 0.6, 1); wing.position.set(sx * 0.07, 0.07, -0.01); wing.rotation.y = sx * 0.25;
+      g.add(wing); wings.push(wing);
+    }
+    g.position.y = 0.8; // works flower height
+    view.update = (dt) => {
+      t += dt;
+      for (let i = 0; i < 2; i++) wings[i].rotation.z = (i ? -1 : 1) * (0.4 + Math.sin(t * 40) * 0.5); // the buzz
+      g.position.y = 0.8 + Math.sin(t * 2.6) * 0.1;
+    };
+  } else if (type === 'beetle') {
+    // a little lacquered tank out for an evening trundle
+    const shell = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), toyMat(0x3a4a2e, 0.3));
+    shell.position.y = 0.05; shell.scale.set(0.9, 0.8, 1.25); shell.castShadow = true; g.add(shell);
+    const sheen = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0x6a8a4e, roughness: 0.2, metalness: 0.4 }));
+    sheen.position.set(0.02, 0.09, 0); g.add(sheen);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), toyMat(0x2a3020, 0.4));
+    head.position.set(0, 0.045, 0.12); g.add(head);
+    const legs = [];
+    for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.07, 4), toyMat(0x2a3020, 0.5));
+      leg.position.set(sx * 0.09, 0.035, 0.05 - i * 0.07); leg.rotation.z = sx * 0.85;
+      g.add(leg); legs.push(leg);
+    }
+    view.update = (dt) => {
+      t += dt;
+      for (let i = 0; i < legs.length; i++) legs[i].rotation.x = Math.sin(t * 8 + i * 1.6) * 0.3; // unhurried
+    };
   } else if (type === 'ant') {
     // wind-up ant: three beads and a key, marching with purpose
     const beads = [];
@@ -4042,6 +4139,68 @@ export function createCritterView(type = 'mouse') {
       body.position.y = 0.11 + Math.abs(Math.sin(t * 12)) * 0.015; // scurry hop
     };
   }
+  return view;
+}
+
+// wild toy tribes: a campfire, a lean-to tent, and three sun-bleached toys
+// who haven't decided about you yet. setOwner(color) plants the new flag.
+export function createCampView() {
+  const g = new THREE.Group();
+  // the lean-to: two cloth panels over a stick ridge
+  const tentM = toyMat(0x9a8a6e, 0.9);
+  for (const sx of [-1, 1]) {
+    const panel = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.1), tentM);
+    panel.material.side = THREE.DoubleSide;
+    panel.rotation.z = sx * 0.85;
+    panel.position.set(sx * 0.42, 0.5, -0.8);
+    g.add(panel);
+  }
+  const ridgePole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.5, 6), toyMat(0x6a4a2c, 0.9));
+  ridgePole.rotation.x = Math.PI / 2; ridgePole.position.set(0, 0.95, -0.8); g.add(ridgePole);
+  // the campfire: stone ring, stick tripod, ember glow
+  const embers = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.1, 8),
+    new THREE.MeshStandardMaterial({ color: 0xe8843a, emissive: 0xd05a1e, emissiveIntensity: 1.2, roughness: 0.6 }));
+  embers.position.y = 0.05; g.add(embers);
+  for (let i = 0; i < 7; i++) {
+    const a = i / 7 * Math.PI * 2;
+    const stone = new THREE.Mesh(new THREE.SphereGeometry(0.07 + (i % 2) * 0.02, 6, 5), toyMat(0x8a8a92, 0.9));
+    stone.position.set(Math.cos(a) * 0.32, 0.05, Math.sin(a) * 0.32); g.add(stone);
+  }
+  for (let i = 0; i < 3; i++) {
+    const a = i / 3 * Math.PI * 2 + 0.4;
+    const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.55, 5), toyMat(0x6a4a2c, 0.9));
+    stick.position.set(Math.cos(a) * 0.12, 0.28, Math.sin(a) * 0.12);
+    stick.rotation.z = Math.cos(a) * 0.5; stick.rotation.x = -Math.sin(a) * 0.5;
+    g.add(stick);
+  }
+  // three sun-bleached wild toys around the fire (faded, patched, watchful)
+  const wildM = toyMat(0xb8b09a, 0.85);
+  for (let i = 0; i < 3; i++) {
+    const a = i / 3 * Math.PI * 2 + 1.1;
+    const wt = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.22, 4, 8), wildM);
+    body.position.y = 0.28; wt.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), wildM);
+    head.position.y = 0.5; wt.add(head);
+    wt.position.set(Math.cos(a) * 0.75, 0, Math.sin(a) * 0.75);
+    wt.lookAt(0, 0.3, 0);
+    wt.castShadow = true;
+    g.add(wt);
+  }
+  // the tribe's own banner: a ragged grey pennant until somebody earns it
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.3, 6), toyMat(0x6a4a2c, 0.9));
+  pole.position.set(0.9, 0.65, 0.4); g.add(pole);
+  const flagM = new THREE.MeshStandardMaterial({ color: 0x9a9aa2, roughness: 0.8, side: THREE.DoubleSide });
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.3), flagM);
+  flag.position.set(1.17, 1.15, 0.4); g.add(flag);
+  let t = Math.random() * 9;
+  const view = passiveView(g, 1.6);
+  view.update = (dt) => {
+    t += dt;
+    embers.material.emissiveIntensity = 0.9 + Math.sin(t * 7) * 0.25 + Math.sin(t * 23) * 0.12; // firelight
+    flag.rotation.y = Math.sin(t * 2.2) * 0.22;
+  };
+  view.setOwner = (color) => { flagM.color.setHex(color); flagM.emissive.setHex(color); flagM.emissiveIntensity = 0.25; };
   return view;
 }
 

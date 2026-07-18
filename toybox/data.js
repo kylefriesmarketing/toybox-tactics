@@ -776,6 +776,7 @@ export const MAPS = {
     obstacles: 5, canyon: false, resourceMul: 1, stickers: 2, plateaus: 3,
     features: { milk: 1, ranges: 2, forests: 2 },
     weather: 'motes', // dust drifting through the window light
+    tribes: 2,
     desc: 'The classic. Open center, safe corners, and everything left to prove.',
   },
   canyon: {
@@ -790,7 +791,8 @@ export const MAPS = {
     obstacles: 11, canyon: false, resourceMul: 0.95, stickers: 3, plateaus: 2,
     features: { ranges: 2, forests: 2 },
     weather: 'motes', // even the dark has dust
-    critters: [{ type: 'bunny', count: 7 }], // dust bunnies scatter from your columns
+    critters: [{ type: 'bunny', count: 6 }, { type: 'spider', count: 3 }], // dust bunnies + corner spiders scatter from your columns
+    tribes: 2,
     // two slipped rows of lost laundry, staggered — the only ways through bend
     // into an S, and something is always waiting at the bend (point-symmetric)
     ridges: [
@@ -804,6 +806,12 @@ export const MAPS = {
     obstacles: 4, canyon: false, resourceMul: 1.4, stickers: 2, plateaus: 3,
     features: { milk: 1, ranges: 2, forests: 1 },
     weather: 'motes', // attic air is mostly dust
+    critters: [{ type: 'spider', count: 4 }, { type: 'mouse', count: 3 }], // attic residents
+    tribes: 2,
+    // a stack of atlases toppled across the table — one gentle wall, two gaps
+    ridges: [
+      { i1: 26, j1: 26, i2: 46, j2: 46, w: 1, gaps: [{ t: 0.3, w: 6 }, { t: 0.7, w: 6 }] },
+    ],
     desc: 'Wide open, rich, and quiet as history. Boom, Commander — or be boomed.',
   },
   playground: {
@@ -814,6 +822,8 @@ export const MAPS = {
     // hedge thickets carve the lanes. Rich sandbox center — grab and hold it.
     decor: ['swingset', 'slide', 'seesaw', 'sandbucket', 'ball'],
     decorCount: 18,
+    critters: [{ type: 'mouse', count: 4 }, { type: 'ladybug', count: 3 }], // yard regulars
+    tribes: 2,
     // two windrows of mown clippings flank a wide central boulevard — armies
     // meet in the middle or squeeze around the windrow ends (point-symmetric)
     ridges: [
@@ -827,7 +837,7 @@ export const MAPS = {
     obstacles: 4, canyon: false, resourceMul: 1.35, stickers: 2, plateaus: 2,
     // dinner-table spills read as impassable milk lakes — lots of them
     features: { milk: 3, ranges: 1, forests: 1 },
-    critters: [{ type: 'ant', count: 6 }], // crumb patrol
+    critters: [{ type: 'ant', count: 5 }, { type: 'mouse', count: 2 }], // crumb patrol + a bold kitchen mouse
     weather: 'steam', // something is always simmering somewhere
     decor: ['teacup', 'die', 'ball', 'crayon'],
     decorCount: 15,
@@ -852,7 +862,7 @@ export const MAPS = {
     label: 'Living Room', icon: '🎄', ground: 'livingroom', light: 'warm',
     obstacles: 3, canyon: false, resourceMul: 1.3, stickers: 3, plateaus: 2,
     features: { forests: 1 },
-    critters: [{ type: 'candy', count: 6 }], // sugarplum mice under the tree
+    critters: [{ type: 'candy', count: 5 }, { type: 'spider', count: 2 }], // sugarplum mice + a spider up from the basement
     weather: 'glitter', // the tree sheds sparkle all season
     decor: ['ornament', 'gift', 'die', 'ball'],
     decorCount: 16,
@@ -866,7 +876,7 @@ export const MAPS = {
   bathtub: {
     label: 'Bathtub Armada', icon: '🛁', ground: 'bathtub', light: 'normal',
     obstacles: 3, canyon: false, resourceMul: 1.3, stickers: 2, plateaus: 1,
-    critters: [{ type: 'duck', count: 4 }], // lil duckies paddling the basin
+    critters: [{ type: 'duck', count: 3 }, { type: 'goldfish', count: 4 }], // duckies + goldfish in the basin
     weather: 'bubbles', // soap bubbles drift up from the suds
     features: { forests: 1 },
     // a central basin of sailable water: build a Dock, launch boats, and rule
@@ -887,7 +897,8 @@ export const MAPS = {
     // fills the mat — the rim stays thematic, the corners stop being wasted.
     mask: { type: 'kidney', rx: 35, rz: 33, bx: 0, bz: -30, br: 10 },
     dunes: { count: 8, rMin: 4, rMax: 7 },
-    critters: [{ type: 'crab', count: 5 }], // hermit crabs sidle the dunes
+    critters: [{ type: 'crab', count: 4 }, { type: 'ladybug', count: 3 }], // hermit crabs + wandering ladybugs
+    tribes: 2,
     // the hero landmark: somebody's magnificent sandcastle, north of the walls
     // by the bite — nobody attacks it, everybody fights around it
     landmark: { kind: 'sandcastle', i: 33, j: 18, size: 3 },
@@ -916,7 +927,8 @@ export const MAPS = {
     obstacles: 5, canyon: false, resourceMul: 1.3, stickers: 3, plateaus: 4,
     // flower-bed terraces climb in real steps; sunflower groves are the forests
     groves: { kind: 'sunflower', count: 5 },
-    critters: [{ type: 'snail', count: 4 }, { type: 'moth', count: 3 }], // slow money + garden company
+    critters: [{ type: 'snail', count: 4 }, { type: 'bee', count: 3 }, { type: 'ladybug', count: 3 }], // slow money + working bees + good luck
+    tribes: 2,
     weather: 'rain', // a golden sun-shower — the garden's favorite kind
     obstacleKinds: ['rock', 'tree'],
     decor: ['daisy', 'grass', 'mushroom', 'pebble'],
@@ -932,7 +944,8 @@ export const MAPS = {
     mask: { type: 'ellipse', rx: 35, rz: 34 },
     centerHill: { r: 9 },
     roots: true,
-    critters: [{ type: 'moth', count: 7 }], // porch moths circle the dusk
+    critters: [{ type: 'moth', count: 5 }, { type: 'beetle', count: 3 }], // porch moths + june beetles at dusk
+    tribes: 2,
     weather: 'fireflies',
     obstacleKinds: ['rock', 'tree'],
     decor: ['mushroom', 'grass', 'pebble', 'daisy'],
@@ -1842,6 +1855,22 @@ export const CRITTER_TYPES = {
   bunny: { name: 'Dust Bunny', flee: true, speed: 1.7, desc: 'Startles easy. Nobody has ever caught one. Nobody ever will.' },
   moth:  { name: 'Porch Moth', orbit: true, speed: 1.5, desc: 'Circles the light it remembers. Pays no mind to any war.' },
   duck:  { name: 'Lil Ducky', water: true, snack: 80, speed: 0.8, desc: 'Paddles the tub. Befriend it from the rim for +80 Snacks.' },
+  ladybug: { name: 'Ladybug', snack: 40, speed: 1.1, desc: 'Good luck on six little legs. Follows you home for +40 Snacks.' },
+  goldfish: { name: 'Goldfish', water: true, snack: 70, speed: 1.0, desc: 'A flash of orange under the suds. Befriend it from the rim.' },
+  spider: { name: 'Corner Spider', flee: true, speed: 2.0, desc: 'Eight legs, zero interest in your war. Scuttles for the shadows.' },
+  bee:    { name: 'Bumblebee', orbit: true, speed: 1.8, desc: 'Works its flowers in fat, happy circles. The war can wait.' },
+  beetle: { name: 'June Beetle', snack: 60, speed: 0.9, desc: 'A little lacquered tank. Trundles home with you for +60 Snacks.' },
+};
+
+// ---------------- wild toy tribes: the backyard has its own flags -----------
+// Neutral camps of sun-bleached, half-feral toys at the map's midfield. March
+// military toys up and HOLD the camp uncontested — teach them the flags — and
+// the tribe joins you: its wild toys spawn under your banner, plus a little
+// tribute. Camps are placed point-mirrored so both seats get the same offer.
+export const WILD_TRIBES = {
+  holdRadius: 3.2, holdTime: 8, bounty: 60,
+  comp: ['scout', 'soldier', 'soldier'], // who steps out of the tent
+  desc: 'Wild toys around a campfire. Hold the camp with military toys to win them over.',
 };
 
 // ---------------- lost toys: the yard is full of strays ---------------------
