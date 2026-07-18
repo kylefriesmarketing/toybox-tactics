@@ -2749,6 +2749,7 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
         tex.needsUpdate = true;
         groundMat.bumpMap = bumpFromCanvas(c, tex);
         groundMat.needsUpdate = true;
+        if (groundMat.userData.reshade) groundMat.userData.reshade(); // hillshade back on top
         return;
       }
       t.colorSpace = THREE.SRGBColorSpace;
@@ -2756,10 +2757,16 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
       groundMat.map = t;
       groundMat.bumpMap = bumpFromCanvas(t.image, t);
       groundMat.needsUpdate = true;
+      if (groundMat.userData.reshade) groundMat.userData.reshade(); // bakes art to canvas + shades
     },
     undefined,
     () => {} // keep the canvas art if no generated texture exists
   );
+
+  // remember the mat + its material so the hillshade pass (called from game.js
+  // once the height grid exists) can find and repaint them
+  g.userData.groundMat = groundMat;
+  g.userData.groundCanvas = c;
 
   // a believable bedroom around the battlefield (skip under the bed â€” no room)
   // the world past the mat matches the room the battle lives in
@@ -2775,6 +2782,58 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
   else if (style === 'oldoak') addOakSurround(g, N);
   else addBedroom(g, N, style);
   return g;
+}
+
+// ---- hillshade: bake painted light/shadow from the REAL height grid --------
+// Called from game.js after terrain generation (view-only, no rng — a pure
+// function of the deterministic height field). NW light: slopes facing the
+// window catch warm light, slopes falling away take soft shadow, so plateaus,
+// dunes and ridge walls read as sculpted ground even before mesh lighting.
+// Works in every texture mode: canvas maps shade in place; pure-art maps are
+// baked onto a canvas first. The art loader re-runs it after compositing.
+export function shadeGroundByHeight(scene, N, heightAt) {
+  const mesh = scene && scene.getObjectByName && scene.getObjectByName('playmat-ground');
+  if (!mesh) return;
+  const m = mesh.material;
+  const apply = () => {
+    let img = m.map && m.map.image;
+    if (!img) return;
+    let cnv;
+    if (img.tagName === 'CANVAS') cnv = img;
+    else { // generated-art texture: bake to canvas so we can paint on it
+      cnv = document.createElement('canvas');
+      cnv.width = cnv.height = 2048;
+      cnv.getContext('2d').drawImage(img, 0, 0, 2048, 2048);
+      const t = new THREE.CanvasTexture(cnv);
+      t.anisotropy = 8;
+      t.colorSpace = m.map.colorSpace;
+      m.map = t;
+    }
+    const S = cnv.width, px = S / N;
+    // paint tile shades on an offscreen layer, blur it, lay it over the ground
+    const sh = document.createElement('canvas');
+    sh.width = sh.height = S;
+    const sx = sh.getContext('2d');
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const h = heightAt(i, j);
+      const hE = heightAt(Math.min(N - 1, i + 1), j);
+      const hS = heightAt(i, Math.min(N - 1, j + 1));
+      const grade = (h - hE) * 0.7 + (h - hS) * 0.7; // + falls away SE = lit by NW
+      if (Math.abs(grade) < 0.03) continue;
+      sx.fillStyle = grade > 0
+        ? `rgba(255,242,208,${Math.min(0.26, grade * 0.30)})`
+        : `rgba(26,20,10,${Math.min(0.30, -grade * 0.34)})`;
+      sx.fillRect(i * px, j * px, px + 0.5, px + 0.5);
+    }
+    const ctx = cnv.getContext('2d');
+    ctx.save();
+    ctx.filter = 'blur(6px)'; // soften the tile grid into slopes
+    ctx.drawImage(sh, 0, 0);
+    ctx.restore();
+    m.map.needsUpdate = true;
+  };
+  apply();
+  m.userData.reshade = apply; // the ground-art loader re-applies after compositing
 }
 
 // shared toolkit for the themed surrounds (mirrors addBedroom's helpers)

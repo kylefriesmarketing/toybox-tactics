@@ -15,7 +15,7 @@ import {
   createUnitView, createBuildingView, createResourceView,
   createGround, createObstacleMesh, createDecorMesh, createStickerView, createRallyFlag,
   makeRankBadge, createCritterView, createMilkSpill, createKingCrown, createThroneView,
-  createWaterSurface, createWaterDecor, applyUnitTier,
+  createWaterSurface, createWaterDecor, applyUnitTier, shadeGroundByHeight,
 } from './models.js';
 
 const N = MAP_N;
@@ -623,6 +623,8 @@ export class Game {
     if (this.map.water) for (let k = 0; k < this.water.length; k++) if (this.water[k]) this.height[k] = 0;
     this.computeCorners();
     this.applyTerrainToGround();
+    // bake painted hillshade from the finished height grid (view-only, no rng)
+    shadeGroundByHeight(this.scene, N, (i, j) => this.height[idx(i, j)]);
     this.fog.drape((x, z) => this.heightAtWorld(x, z)); // fog sheet hugs the hills
     if (this.map.water) {
       this.waterSurface = createWaterSurface(N, this.water);
