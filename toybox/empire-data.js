@@ -31,6 +31,10 @@ export const E_NODES = {
              desc: 'A ticking contraption of springs and keys. +1 Power per turn, and worth fighting over.' },
   ARCHIVE: { name: 'Storybook Tower',      icon: '📖', type: 'crown',      mx: 520, my: 90,  yield: 6,  imagYield: 3, biome: 'attic', dominion: 2,
              desc: 'The tall stack of bedtime stories. Hold the crown here for four turns to win the night — and it brims with Imagination.' },
+  // the 13th node (round 14): a THIRD capital in the southern under-bed
+  // country, so the Bedroom War can seat three flags
+  CAP_C:   { name: 'Windowsill Keep',      icon: '🪟', type: 'capital',    mx: 500, my: 525, yield: 20, powerYield: 1, imagYield: 2, biome: 'underbed',
+             desc: 'The third power of the bedroom floor, watching from the sill. Twenty Parts a turn and a long memory.' },
 };
 
 // routes: [from, to, kind]; road = 1 MP, rough = 2 MP
@@ -43,6 +47,9 @@ export const E_ROUTES = [
   ['FORT_E', 'BAT_1', 'road'], ['RUG_3', 'CAP_B', 'road'],
   ['BAT_1', 'CAP_B', 'road'], ['BAT_1', 'POWER', 'road'],
   ['POWER', 'ARCHIVE', 'rough'],
+  // Windowsill Keep's roads: the southern kingdom reaches the cache country,
+  // the wind-up works, and (roughly) the workshop
+  ['CAP_C', 'CACHE', 'road'], ['CAP_C', 'POWER', 'road'], ['CAP_C', 'WORK_1', 'rough'],
 ];
 
 // how each node fights when contested: battle template → real RTS config.
@@ -103,6 +110,10 @@ export const E_DIFFICULTY = {
 export const E_FACTIONS = {
   bricks:  { color: '#4d9bff', armyName: 'Brick Column' },
   classic: { color: '#7fd06a', armyName: 'Green Patrol' },
+  bots:    { color: '#e4a72e', armyName: 'Tin Battalion' }, // seat 3 (round 14)
+  plush:   { color: '#e07ab8', armyName: 'Cuddle Guard' },
+  racers:  { color: '#e4572e', armyName: 'Pit Crew' },
+  knights: { color: '#b9a9e8', armyName: 'Tin Vanguard' },
 };
 
 // starting army roster — collection card keys (see empire-cards.js E_CARDS)
@@ -207,6 +218,10 @@ export const E_RULES = {
   chestScraps: 25,         // bonus scraps for cracking a treasure node (discovery)
   doctrineSlot2Turn: 8,    // the second doctrine slot unlocks midgame (§10)
   doctrineSwapCost: 2,     // Power to replace a committed doctrine (anti counter-pick)
+  // §15 diplomacy (round 14): Non-Aggression Pacts between any two seats.
+  // Free to offer, binding for pactTurns; breaking early costs Power+Imag and
+  // leaves a grudge (that rival fights you bolder for grudgeTurns).
+  pact: { turns: 4, breakPower: 3, breakImag: 6, grudgeTurns: 6, grudgeBand: 0.16 },
   armyMP: 3,
   routeCost: { road: 1, rough: 2 },
   forceMarchCost: 1,        // Power: +1 MP, once per army per turn (§6)

@@ -44,33 +44,41 @@ const routesOf = (id) => E_ROUTES.filter((r) => r[0] === id || r[1] === id)
 
 // ---------------------------------------------------------------- Empire (sim)
 export class Empire {
-  constructor(seedOrSave, factions = ['bricks', 'classic'], persist = true) {
+  constructor(seedOrSave, factions = ['bricks', 'classic', 'bots'], persist = true) {
     this.persist = persist; // headless tests run with persist=false (never touch storage)
     // the card collection is META — it lives across campaigns (tests get a throwaway)
     this.coll = persist ? loadCollection() : { owned: {}, scraps: 0, seen: [] };
     this.loot = []; // cards won this session (UI shows them; not authoritative state)
     if (seedOrSave && typeof seedOrSave === 'object') { this.load(seedOrSave); return; }
     const seed = seedOrSave || ((Math.random() * 2 ** 31) | 0);
+    const S = factions.length; // round 14: seat count comes from the roster (2 or 3)
+    const per = (v) => Array.from({ length: S }, () => (typeof v === 'function' ? v() : v));
     this.s = {
-      v: 9, seed, turn: 1, phase: 'plan', rng: 0,
+      v: 10, seed, turn: 1, phase: 'plan', rng: 0,
       difficulty: 'normal', difficultyChosen: false, // §13 challenge tier (picked on a fresh war)
-      factions, // seat 0 = human, seat 1 = AI
-      parts: [E_RULES.startParts, E_RULES.startParts],
-      power: [E_RULES.startPower, E_RULES.startPower],
-      imag: [E_RULES.startImag, E_RULES.startImag],
-      doctrines: [[], ['warrior']], // seat 0 human (unchosen), seat 1 AI (opens aggressive)
+      factions, // seat 0 = human, seats 1+ = AI rivals
+      parts: per(E_RULES.startParts),
+      power: per(E_RULES.startPower),
+      imag: per(E_RULES.startImag),
+      // seat 1 opens aggressive, seat 2 opens dug-in — different rivals, different wars
+      doctrines: Array.from({ length: S }, (_, p) => p === 0 ? [] : p === 1 ? ['warrior'] : ['fortified']),
       stats: { played: 0, simmed: 0, won: 0, lost: 0, captured: 0, cards: 0 },
       event: null, // { kind:'vacuum', phase:'warn'|'active', route, left }
       crown: { owner: -1, turns: 0 }, // §16 Crown Victory tracker
       aiIntent: null,                  // rival's current target (Master Plan reveals it)
       warned: {}, lastLoot: null,      // victory telegraphs + newest card won
-      upgrades: [[], []],
+      upgrades: per(() => []),
+      // §15 diplomacy: every PAIR of seats has a relation — war (default) or a
+      // Non-Aggression Pact with turns remaining. Grudges make a betrayed rival
+      // fight the betrayer bolder for a while.
+      relations: {}, grudges: {},
+      eliminated: [], // seats whose capital fell (their toys go back in the box)
       nodes: Object.fromEntries(Object.keys(E_NODES).map((id) => [id, {
-        owner: id === 'CAP_A' ? 0 : id === 'CAP_B' ? 1 : -1,
+        owner: id === 'CAP_A' ? 0 : id === 'CAP_B' ? 1 : (id === 'CAP_C' && S >= 3) ? 2 : -1,
         garrison: null, looted: false, modules: [],
       }])),
       armies: [],
-      nextCard: [0, 0],
+      nextCard: per(0),
       encounters: [], // queued this battle window
       pendingPlay: null, // BattleContext handed to the RTS (survives reload)
       pendingSpoils: null, // Aftermath Spoils reward awaiting the human's pick (survives reload)
@@ -79,14 +87,75 @@ export class Empire {
     };
     this.rng = makeRng(seed);
     // build the opening armies from card keys (deriving type/hp/vet per card)
-    for (const owner of [0, 1]) {
-      const node = owner === 0 ? 'CAP_A' : 'CAP_B';
+    for (let owner = 0; owner < S; owner++) {
+      const node = this.capOf(owner);
       this.s.armies.push({ id: 'A' + owner, owner, node, prev: node, mp: E_RULES.armyMP, marched: false, readiness: E_RULES.readiness.max,
         cards: E_START_ROSTER.map((key) => this.makeArmyCard(key, `A${owner}c${this.s.nextCard[owner]++}`, owner)), order: null });
     }
     this.s.rng = this.rng.getState();
-    this.say(`🌙 The Bedroom War begins. ${this.facLabel(0)} vs ${this.facLabel(1)} — first to ${E_RULES.dominionNeed} territories.`);
+    const names = this.seats().map((p) => this.facLabel(p)).join(' vs ');
+    this.say(`🌙 The Bedroom War begins. ${names} — first to ${E_RULES.dominionNeed} territories.`);
     this.upkeep();
+  }
+
+  // ---------- round 14: seats, capitals, diplomacy helpers ----------
+  seatCount() { return this.s.factions.length; }
+  seats() { return Array.from({ length: this.seatCount() }, (_, i) => i); }
+  aliveSeats() { return this.seats().filter((p) => !this.s.eliminated.includes(p)); }
+  isAlive(p) { return !this.s.eliminated.includes(p); }
+  capOf(p) { return ['CAP_A', 'CAP_B', 'CAP_C'][p]; }
+  relKey(a, b) { return a < b ? `${a}-${b}` : `${b}-${a}`; }
+  pactBetween(a, b) { return (this.s.relations || {})[this.relKey(a, b)] || null; }
+  atPeace(a, b) { const r = this.pactBetween(a, b); return !!(r && r.left > 0); }
+  grudgeVs(holder, target) { const g = (this.s.grudges || {})[`${holder}>${target}`]; return !!(g && g > 0); }
+  // pacts and grudges cool down one notch at the top of every turn
+  tickDiplomacy() {
+    for (const k of Object.keys(this.s.relations || {})) {
+      const r = this.s.relations[k];
+      if (r.left > 0) {
+        r.left--;
+        if (r.left === 0) {
+          const [a, b] = k.split('-').map(Number);
+          this.say(`🕊️ The pact between ${this.facLabel(a)} and ${this.facLabel(b)} expires.`);
+        }
+      }
+    }
+    for (const k of Object.keys(this.s.grudges || {})) if (this.s.grudges[k] > 0) this.s.grudges[k]--;
+  }
+  // the human offers a pact; the rival weighs it in the open (deterministic)
+  offerPact(other) {
+    if (this.s.over || !this.isAlive(other) || other === 0 || this.atPeace(0, other)) return { ok: false, why: 'no' };
+    // a rival accepts unless YOU are the clear leader — pacts never shield winners
+    const lead = this.ownedCount(0) - Math.max(...this.aliveSeats().filter((p) => p > 0).map((p) => this.ownedCount(p)));
+    const accepts = lead <= 1;
+    if (!accepts) { this.say(`${this.facLabel(other)} refuses the pact — you look like winning, and pacts shield winners.`); this.save(); return { ok: false, why: 'refused' }; }
+    this.s.relations[this.relKey(0, other)] = { left: E_RULES.pact.turns };
+    this.say(`🕊️ Non-Aggression Pact: you and ${this.facLabel(other)}, ${E_RULES.pact.turns} turns. No marches on each other's ground.`);
+    this.save();
+    return { ok: true };
+  }
+  breakPact(other) {
+    const r = this.pactBetween(0, other);
+    if (!r || r.left <= 0) return { ok: false };
+    delete this.s.relations[this.relKey(0, other)];
+    this.s.power[0] = Math.max(0, this.s.power[0] - E_RULES.pact.breakPower);
+    this.s.imag[0] = Math.max(0, this.s.imag[0] - E_RULES.pact.breakImag);
+    this.s.grudges[`${other}>0`] = E_RULES.pact.grudgeTurns;
+    this.say(`💔 You tear up the pact with ${this.facLabel(other)} (−${E_RULES.pact.breakPower}⚡ −${E_RULES.pact.breakImag}💡). They will remember.`);
+    this.save();
+    return { ok: true };
+  }
+  // rival-vs-rival politics: when the human leads the night, the rivals bury
+  // their quarrel and gang up; otherwise their own war resumes on expiry
+  aiDiplomacy() {
+    const ais = this.aliveSeats().filter((p) => p > 0);
+    if (ais.length < 2) return;
+    const [a, b] = ais;
+    const humanLead = this.ownedCount(0) >= Math.max(this.ownedCount(a), this.ownedCount(b)) + 2;
+    if (humanLead && !this.atPeace(a, b)) {
+      this.s.relations[this.relKey(a, b)] = { left: E_RULES.pact.turns };
+      this.say(`🤝 ${this.facLabel(a)} and ${this.facLabel(b)} strike a pact — the whole floor turns on YOU.`);
+    }
   }
 
   // build one army card from a collection card key (see empire-cards.js)
@@ -128,7 +197,13 @@ export class Empire {
     for (const a of (save.armies || [])) if (a.readiness === undefined) a.readiness = E_RULES.readiness.max;
     // v8 → v9: Empire difficulty (round 13) — in-progress wars keep Normal and skip the picker
     if (save.difficulty === undefined) { save.difficulty = 'normal'; save.difficultyChosen = true; }
-    save.v = 9;
+    // v9 → v10: third seat + diplomacy (round 14). In-progress 2-seat wars stay
+    // 2-seat wars (CAP_C sits neutral on their board); relations default to war
+    if (save.relations === undefined) save.relations = {};
+    if (save.grudges === undefined) save.grudges = {};
+    if (save.eliminated === undefined) save.eliminated = [];
+    if (save.nodes && !save.nodes.CAP_C) save.nodes.CAP_C = { owner: -1, garrison: null, looted: false, modules: [] };
+    save.v = 10;
     this.s = save; this.rng = makeRng(1); this.rng.setState(save.rng);
   }
   static stored() {
@@ -148,7 +223,7 @@ export class Empire {
   // friendly-owned nodes over OPEN routes. Unsupplied territory yields half and
   // cannot mend armies — cutting one route creates an isolated pocket.
   suppliedSet(p) {
-    const cap = p === 0 ? 'CAP_A' : 'CAP_B';
+    const cap = this.capOf(p);
     const set = new Set();
     if (this.s.nodes[cap].owner !== p) return set;
     set.add(cap);
@@ -176,7 +251,7 @@ export class Empire {
       if (supplied.has(id)) for (const k of (st.modules || [])) if (E_MODULES[k].parts_yield) inc += E_MODULES[k].parts_yield;
     }
     // Industry II: the capital runs a second workshop shift
-    const cap = p === 0 ? 'CAP_A' : 'CAP_B';
+    const cap = this.capOf(p);
     if (this.s.upgrades[p].includes('workshop') && this.s.nodes[cap].owner === p && supplied.has(cap)) inc += E_RULES.workshopBonus;
     return inc;
   }
@@ -226,6 +301,7 @@ export class Empire {
   // deterministic state fingerprint for tests + future MP hash checks
   stateHash() {
     const core = { t: this.s.turn, p: this.s.parts, pw: this.s.power, im: this.s.imag, u: this.s.upgrades, dc: this.s.doctrines, df: this.s.difficulty, r: this.s.rng,
+      dip: JSON.stringify(this.s.relations || {}) + '|' + JSON.stringify(this.s.grudges || {}) + '|' + (this.s.eliminated || []).join(','),
       cr: this.s.crown.owner + ':' + this.s.crown.turns, ev: this.s.event ? this.s.event.kind + this.s.event.route + this.s.event.phase + (this.s.event.node || '') : '',
       sp: this.s.pendingSpoils ? this.s.pendingSpoils.node : '',
       lt: this.s.lastLoot ? this.s.lastLoot.key : '',
@@ -240,10 +316,11 @@ export class Empire {
   // ---------- turn phases (§6, slice: sequential resolution) ----------
   upkeep() {
     this.tickEvent();
-    for (const p of [0, 1]) {
+    this.tickDiplomacy();
+    for (const p of this.aliveSeats()) {
       const sup = this.suppliedSet(p);
-      // §13: the challenge tier scales the RIVAL's Parts income (seat 1 only)
-      const ecoMul = p === 1 ? this.diff().aiIncomeMul : 1;
+      // §13: the challenge tier scales every RIVAL's Parts income (AI seats)
+      const ecoMul = p > 0 ? this.diff().aiIncomeMul : 1;
       this.s.parts[p] += Math.round(this.income(p, sup) * ecoMul) - this.upkeepCost(p);
       if (this.s.parts[p] < 0) this.s.parts[p] = 0;
       // Low Battery Night dims Power income for everyone while it lasts
@@ -320,7 +397,16 @@ export class Empire {
 
   // legal one-step moves for an army (UI highlights; orders validated the same way)
   reachable(army) {
-    return this.openRoutesOf(army.node).filter((r) => r.cost <= army.mp);
+    // a pact means NO PASSAGE (§15): you may not enter a partner's territory
+    // or a node their army stands on — the border is the whole point
+    return this.openRoutesOf(army.node).filter((r) => {
+      if (r.cost > army.mp) return false;
+      const st = this.s.nodes[r.to];
+      if (st.owner >= 0 && st.owner !== army.owner && this.atPeace(army.owner, st.owner)) return false;
+      const other = this.armyAt(r.to);
+      if (other && other.owner !== army.owner && this.atPeace(army.owner, other.owner)) return false;
+      return true;
+    });
   }
 
   // Force March (§6): burn 1 Power for +1 MP, once per army per turn
@@ -340,7 +426,7 @@ export class Empire {
 
   // Muster (§11): a second army at the capital, once the empire can feed it
   muster(p) {
-    const cap = p === 0 ? 'CAP_A' : 'CAP_B';
+    const cap = this.capOf(p);
     if (this.armiesOf(p).length >= E_RULES.maxArmies) return { ok: false, why: 'army cap reached' };
     if (this.ownedCount(p) < E_RULES.musterMinNodes) return { ok: false, why: `need ${E_RULES.musterMinNodes} territories` };
     if (this.s.parts[p] < E_RULES.musterCost) return { ok: false, why: 'not enough Parts' };
@@ -370,7 +456,7 @@ export class Empire {
   // recruit a collection card into an army. cardKey null = AI/quick pick (cycles
   // commons). Humans may only field cards they own (commons are always in hand).
   recruit(p, armyId = null, cardKey = null) {
-    const cap = p === 0 ? 'CAP_A' : 'CAP_B';
+    const cap = this.capOf(p);
     const a = armyId ? this.s.armies.find((x) => x.id === armyId && x.owner === p)
       : this.armiesOf(p).find((x) => this.canRecruitAt(p, x.node));
     if (!a || !this.canRecruitAt(p, a.node)) return { ok: false, why: 'stand at your capital or a Barracks' };
@@ -442,7 +528,7 @@ export class Empire {
   }
   // can this player recruit standing here? (capital, or a node with a Barracks)
   canRecruitAt(p, nodeId) {
-    const cap = p === 0 ? 'CAP_A' : 'CAP_B';
+    const cap = this.capOf(p);
     return nodeId === cap || (this.s.nodes[nodeId].owner === p && this.hasModule(nodeId, 'barracks'));
   }
 
@@ -475,8 +561,12 @@ export class Empire {
     if (this.s.phase !== 'plan' || this.s.over) return;
     this.s.phase = 'resolve';
     for (const a of this.armiesOf(0)) this.resolveMove(a);
-    this.aiPlan();
-    for (const a of this.armiesOf(1)) this.resolveMove(a);
+    // each rival plans and marches in seat order (IGO-UGO, deterministic)
+    for (const p of this.aliveSeats()) {
+      if (p === 0) continue;
+      this.aiPlan(p);
+      for (const a of this.armiesOf(p)) this.resolveMove(a);
+    }
     this.s.phase = 'battle';
     this.save();
     this.autoResolveAiBattles();
@@ -783,25 +873,41 @@ export class Empire {
 
   aftermath() {
     this.tickCrown();
-    // victory checks resolve together at the phase boundary (§16)
-    for (const p of [0, 1]) {
-      const capId = p === 0 ? 'CAP_A' : 'CAP_B';
-      if (this.s.nodes[capId].owner !== p) { this.finish(1 - p, 'capital'); return; }
+    // capital falls (§16): the human's capital ends the war; a RIVAL's capital
+    // eliminates that rival — their toys go back in the box, the war goes on
+    for (const p of this.aliveSeats()) {
+      if (this.s.nodes[this.capOf(p)].owner === p) continue;
+      if (p === 0) {
+        const taker = this.s.nodes[this.capOf(0)].owner;
+        this.finish(taker >= 0 ? taker : 1, 'capital');
+        return;
+      }
+      this.s.eliminated.push(p);
+      this.s.armies = this.s.armies.filter((a) => a.owner !== p);
+      this.say(`📦 ${this.facLabel(p)} is ELIMINATED — their capital has fallen and their toys go back in the box.`);
     }
-    for (const p of [0, 1]) {
+    // last flag standing wins outright
+    if (this.aliveSeats().length === 1) { this.finish(this.aliveSeats()[0], 'capital'); return; }
+    for (const p of this.aliveSeats()) {
       if (this.s.crown.owner === p && this.s.crown.turns >= E_RULES.crownNeed) { this.finish(p, 'crown'); return; }
       if (this.ownedCount(p) >= E_RULES.dominionNeed && this.fortCount(p) >= E_RULES.dominionForts) { this.finish(p, 'dominion'); return; }
     }
     if (this.s.turn >= E_RULES.turnCap) {
-      const d0 = this.ownedCount(0), d1 = this.ownedCount(1);
-      this.finish(d0 === d1 ? (this.s.parts[0] >= this.s.parts[1] ? 0 : 1) : (d0 > d1 ? 0 : 1), 'sunrise');
+      // sunrise: most territories among the living; Parts break ties
+      const alive = this.aliveSeats();
+      alive.sort((x, y) => this.ownedCount(y) - this.ownedCount(x) || this.s.parts[y] - this.s.parts[x] || x - y);
+      this.finish(alive[0], 'sunrise');
       return;
     }
+    this.aiDiplomacy(); // the rivals read the board and pick their politics
     // telegraph any rival within victoryWarn turns of a win (once each)
-    const rt = this.turnsToWin(1);
-    if (rt <= E_RULES.victoryWarn && rt > 0) {
-      const k = 'winwarn' + this.s.turn;
-      if (!this.s.warned[k]) { this.s.warned[k] = true; this.say(`⏳ ${this.facLabel(1)} is ${rt} turn${rt > 1 ? 's' : ''} from victory — disrupt them!`); }
+    for (const rp of this.aliveSeats()) {
+      if (rp === 0) continue;
+      const rt = this.turnsToWin(rp);
+      if (rt <= E_RULES.victoryWarn && rt > 0) {
+        const k = 'winwarn' + rp + '_' + this.s.turn;
+        if (!this.s.warned[k]) { this.s.warned[k] = true; this.say(`⏳ ${this.facLabel(rp)} is ${rt} turn${rt > 1 ? 's' : ''} from victory — disrupt them!`); }
+      }
     }
     this.s.turn++;
     this.s.phase = 'plan';
@@ -824,26 +930,36 @@ export class Empire {
 
   // the AI has no collection, but its recruits deepen as the night wears on so a
   // player fielding legendaries still meets resistance. Deterministic by turn+count.
-  aiRecruitKey() {
-    const t = this.s.turn, n = this.s.nextCard[1];
-    const pool = t >= 12 ? ['sarge', 'knight', 'teddy', 'grenadier']
-      : t >= 7 ? ['grenadier', 'raider', 'flinger', 'archer']
-        : ['recruit', 'archer', 'spear'];
+  aiRecruitKey(p = 1) {
+    // round 14: the rivals climb the rarity ladder with the night — by the
+    // late turns they field the same rare and legendary toys the player does
+    const t = this.s.turn, n = this.s.nextCard[p];
+    const pool = t >= 16 ? ['tank', 'knight', 'charger', 'sarge', 'teddy']
+      : t >= 12 ? ['sarge', 'knight', 'teddy', 'grenadier']
+        : t >= 7 ? ['grenadier', 'raider', 'flinger', 'archer']
+          : ['recruit', 'archer', 'spear'];
     return pool[n % pool.length];
   }
 
   // ---------- strategic AI seat (§21: legal orders, same rules) ----------
-  aiPlan() {
-    const p = 1;
-    if (this.s.over) return;
-    const home = 'CAP_B';
-    // claim the second doctrine slot once it opens (deterministic: turtle up)
-    if (this.doctrineSlots(p) >= 2 && !this.s.doctrines[p][1]) this.setDoctrine(p, 1, 'fortified');
+  aiPlan(p = 1) {
+    if (this.s.over || !this.isAlive(p)) return;
+    const home = this.capOf(p);
+    // claim the second doctrine slot once it opens (each rival turtles or
+    // sharpens by temperament: seat 1 adds walls, seat 2 adds teeth)
+    if (this.doctrineSlots(p) >= 2 && !this.s.doctrines[p][1]) this.setDoctrine(p, 1, p === 1 ? 'fortified' : 'warrior');
+    // round 14: doctrines beyond the pick — a rival rereads the board midgame
+    // and pays the swap cost to match it (losing → dig in; winning → press)
+    if (this.s.turn >= 12 && this.s.power[p] >= E_RULES.doctrineSwapCost + 1) {
+      const meN = this.ownedCount(p), leadN = Math.max(...this.aliveSeats().map((q) => this.ownedCount(q)));
+      const want = meN <= leadN - 3 ? 'fortified' : meN >= leadN ? 'warrior' : null;
+      if (want && !this.hasDoctrine(p, want)) this.setDoctrine(p, 0, want);
+    }
     // strategic buys happen once per turn, not per army
     if (this.armiesOf(p).some((a) => a.node === home)) {
       const capArmy = this.armiesOf(p).find((a) => a.node === home);
       // recruit scales with the night so a card-stocked player still gets a fight
-      while (this.s.parts[p] >= E_RULES.recruitCost + 20 && capArmy.cards.length < 6) this.recruit(p, capArmy.id, this.aiRecruitKey());
+      while (this.s.parts[p] >= E_RULES.recruitCost + 20 && capArmy.cards.length < 6) this.recruit(p, capArmy.id, this.aiRecruitKey(p));
       // climb the empire tree in a fixed priority when it can afford a node
       for (const key of ['salvage', 'reserves', 'relay', 'workshop', 'combined']) {
         const u = E_UPGRADES[key];
@@ -863,9 +979,11 @@ export class Empire {
     // muster a second front once the empire can feed it
     if (this.armiesOf(p).length < E_RULES.maxArmies && this.ownedCount(p) >= E_RULES.musterMinNodes
         && this.s.parts[p] >= E_RULES.musterCost + 60) this.muster(p);
-    // the human is one turn from crowning — the AI drops everything to contest it
-    const crownRush = this.s.crown.owner === 0 && this.s.crown.turns >= E_RULES.crownNeed - 2
-      && this.s.nodes[E_RULES.crownNode].owner !== 1;
+    // anyone one turn from crowning — this rival drops everything to contest it
+    const crownRush = this.s.crown.owner !== p && this.s.crown.owner !== -1
+      && this.s.crown.turns >= E_RULES.crownNeed - 2
+      && this.s.nodes[E_RULES.crownNode].owner !== p
+      && !this.atPeace(p, this.s.crown.owner);
     const claimed = new Set(); // two armies never chase the same prize
     let firstTarget = null;
     for (const a of this.armiesOf(p)) {
@@ -873,19 +991,23 @@ export class Empire {
       const avgStr = a.cards.reduce((s, c) => s + c.strength, 0) / a.cards.length;
       if ((a.cards.length <= 2 || avgStr < 45) && a.node !== home && !crownRush) { this.aiMoveToward(a, home); continue; }
       if (crownRush && !claimed.has(E_RULES.crownNode)) { claimed.add(E_RULES.crownNode); firstTarget = firstTarget || E_RULES.crownNode; this.aiMoveToward(a, E_RULES.crownNode); continue; }
-      // defend: an enemy army adjacent to home pulls one army back
-      const threat = this.armiesOf(0).some((h) => routesOf(home).some((r) => r.to === h.node));
+      // defend: any hostile army adjacent to home pulls one army back
+      const threat = this.s.armies.some((h) => h.owner !== p && h.cards.length
+        && !this.atPeace(p, h.owner) && routesOf(home).some((r) => r.to === h.node));
       if (threat && a.node !== home && !claimed.has(home)) { claimed.add(home); this.aiMoveToward(a, home); continue; }
       // expand/attack: nearest valuable node, Favored+ fights only
-      const target = this.aiPickTarget(a, claimed);
+      const target = this.aiPickTarget(a, claimed, p);
       if (target) { claimed.add(target); firstTarget = firstTarget || target; this.aiMoveToward(a, target); }
     }
-    this.s.aiIntent = firstTarget; // Master Plan surfaces this to the player
+    if (p === 1) this.s.aiIntent = firstTarget; // Master Plan surfaces seat 1's plan
   }
-  aiPickTarget(a, claimed = new Set()) {
+  aiPickTarget(a, claimed = new Set(), p = 1) {
     const scores = [];
     for (const [id, st] of Object.entries(this.s.nodes)) {
-      if (st.owner === 1 || claimed.has(id)) continue;
+      if (st.owner === p || claimed.has(id)) continue;
+      if (st.owner >= 0 && this.atPeace(p, st.owner)) continue; // pacts hold
+      const holder = this.armyAt(id);
+      if (holder && holder.owner !== p && this.atPeace(p, holder.owner)) continue;
       const n = E_NODES[id];
       let v = n.yield + (n.type === 'stronghold' ? 8 : 0) + (n.dominion ? 6 : 0) + (n.bonus ? 5 : 0)
         + (n.type === 'crown' ? 10 : 0) + (n.imagYield || 0) * 2;
@@ -896,17 +1018,20 @@ export class Empire {
     scores.sort((x, y) => y.score - x.score || (x.id < y.id ? -1 : 1)); // deterministic
     for (const c of scores) {
       const st = this.s.nodes[c.id];
-      const defended = st.owner === 0 || this.armyAt(c.id) || E_GARRISONS[E_NODES[c.id].type];
+      const defended = (st.owner >= 0 && st.owner !== p) || this.armyAt(c.id) || E_GARRISONS[E_NODES[c.id].type];
       if (!defended) return c.id;
       // fake an encounter to read the preview band before committing
-      const defCards = this.armyAt(c.id) && this.armyAt(c.id).owner === 0 ? this.armyAt(c.id).cards
+      const hostile = this.armyAt(c.id) && this.armyAt(c.id).owner !== p ? this.armyAt(c.id) : null;
+      const defCards = hostile ? hostile.cards
         : (this.s.nodes[c.id].garrison || (E_GARRISONS[E_NODES[c.id].type] || []).map((g) => ({ type: g.type, strength: 100, vet: 0 })));
       const tKey = E_NODE_TEMPLATE_OVERRIDE[c.id] || E_NODE_TEMPLATE[E_NODES[c.id].type] || 'field';
       const defMul = (E_TEMPLATES[tKey].defBoost || 1) * (E_NODES[c.id].tier ? 1 + 0.1 * E_NODES[c.id].tier : 1);
       // factor the army's readiness so the AI doesn't hurl a spent army into a defended node
       const ratio = this.cardsPower(a.cards) * this.readyMul(a) / Math.max(0.001, this.cardsPower(defCards) * defMul);
-      if (ratio > this.diff().aiBand) return c.id; // §13: bolder rivals attack at a lower edge
-
+      // a betrayed rival fights the betrayer bolder while the grudge burns (§15)
+      const defOwner = hostile ? hostile.owner : st.owner;
+      const band = this.diff().aiBand - (defOwner >= 0 && this.grudgeVs(p, defOwner) ? E_RULES.pact.grudgeBand : 0);
+      if (ratio > band) return c.id; // §13: bolder rivals attack at a lower edge
     }
     return null;
   }
@@ -947,7 +1072,11 @@ export class Empire {
       map: E_NODES[enc.nodeId].biome, gameMode: t.gameMode, startRes: t.startRes,
       difficulty: this.diff().rts, // §13: played battles inherit the campaign challenge tier
       humanIsAttacker,
-      humanFaction: this.facKey(0), aiFaction: this.facKey(1),
+      humanFaction: this.facKey(0),
+      // the OTHER side of this battle picks the RTS rival faction (round 14)
+      aiFaction: this.facKey(Math.max(humanIsAttacker
+        ? (enc.defender.owner >= 0 ? enc.defender.owner : 1)
+        : enc.attacker.owner, 1)),
       // Combined Arms (Warfare II) deploys tougher toys in PLAYED battles too
       attMul: this.ownerPowerMul(enc.attacker.owner),
       defMul: enc.defender.owner >= 0 ? this.ownerPowerMul(enc.defender.owner) : 1,
@@ -1064,7 +1193,7 @@ class EmpireUI {
     if (!this.root.classList.contains('show')) return;
     const m = this.root.querySelector('#e-modal');
     const battleModal = m && (m.querySelector('#e-sim') || m.querySelector('#sp-parts') || m.querySelector('[data-diff]')); // encounter/spoils/difficulty awaiting a decision
-    const infoModal = m && (m.querySelector('#e-tclose, #e-colclose, #e-rclose, #e-gclose, #e-dclose') || m.querySelector('.e-loot'));
+    const infoModal = m && (m.querySelector('#e-tclose, #e-colclose, #e-rclose, #e-gclose, #e-dclose, #e-pclose') || m.querySelector('.e-loot'));
     if (e.key === 'Escape') {
       if (battleModal) return; // must choose Play / Simulate / Withdraw (or claim spoils)
       if (infoModal) { m.innerHTML = ''; e.preventDefault(); return; }
@@ -1076,7 +1205,46 @@ class EmpireUI {
     else if (e.key === 'c' || e.key === 'C') { esfx('select', 60); this.showCollection(); }
     else if (e.key === 't' || e.key === 'T') { esfx('select', 60); this.showTree(); }
     else if (e.key === 'd' || e.key === 'D') { esfx('select', 60); this.showDoctrines(); }
+    else if ((e.key === 'p' || e.key === 'P') && this.emp.seatCount() > 2) { esfx('select', 60); this.showDiplomacy(); }
     else if (e.key === '?' || e.key === '/') { this.showGuide(); }
+  }
+
+  // §15 diplomacy (round 14): pacts with the rivals, and their pact with each other
+  showDiplomacy() {
+    const m = this.root.querySelector('#e-modal');
+    const emp = this.emp;
+    const rivals = emp.aliveSeats().filter((p) => p > 0);
+    const rows = rivals.map((p) => {
+      const pact = emp.atPeace(0, p);
+      const r = emp.pactBetween(0, p);
+      const grudge = emp.grudgeVs(p, 0);
+      return `<div class="e-guiderow">
+        <span class="e-guideic" style="color:${emp.facColor(p)}">${pact ? '🕊️' : grudge ? '💢' : '⚔️'}</span>
+        <span><b style="color:${emp.facColor(p)}">${emp.facLabel(p)}</b> — ${pact ? `pact, <b>${r.left}</b> turn${r.left > 1 ? 's' : ''} left` : grudge ? 'at war, and they remember your betrayal' : 'at war'}<br>
+        ${pact
+    ? `<button class="diff-btn" data-break="${p}">💔 Break pact (−${E_RULES.pact.breakPower}⚡ −${E_RULES.pact.breakImag}💡, they hold a grudge)</button>`
+    : `<button class="diff-btn" data-offer="${p}">🕊️ Offer Non-Aggression Pact (${E_RULES.pact.turns} turns, no passage)</button>`}
+        </span></div>`;
+    }).join('');
+    const aiPact = rivals.length >= 2 && emp.atPeace(rivals[0], rivals[1]);
+    m.innerHTML = `<div class="e-enc"><div class="e-enc-card e-guide-card">
+      <h3>🕊️ Diplomacy — the floor's politics</h3>
+      ${rows}
+      ${rivals.length >= 2 ? `<div class="e-guiderow"><span class="e-guideic">${aiPact ? '🤝' : '⚔️'}</span><span class="e-dim">${emp.facLabel(rivals[0])} and ${emp.facLabel(rivals[1])} are ${aiPact ? `allied against you (${emp.pactBetween(rivals[0], rivals[1]).left} turns)` : 'at each other\'s throats'}.</span></div>` : ''}
+      <div class="e-dim" style="margin-top:8px">Pacts forbid marching into each other's territory. They expire on their own; breaking one early costs Power, Imagination, and trust. Rivals gang up when you lead the night.</div>
+      <button id="e-pclose" class="diff-btn sel">Close</button>
+    </div></div>`;
+    m.querySelector('#e-pclose').addEventListener('click', () => { m.innerHTML = ''; });
+    for (const b of m.querySelectorAll('[data-offer]')) b.addEventListener('click', () => {
+      esfx('select', 60);
+      this.emp.offerPact(Number(b.dataset.offer));
+      this.render(); this.showDiplomacy();
+    });
+    for (const b of m.querySelectorAll('[data-break]')) b.addEventListener('click', () => {
+      esfx('select', 60);
+      this.emp.breakPact(Number(b.dataset.break));
+      this.render(); this.showDiplomacy();
+    });
   }
 
   // first-run coach + reopenable help (bible §18)
@@ -1100,7 +1268,7 @@ class EmpireUI {
 
   armyPos(a) {
     const n = E_NODES[a.node];
-    const dx = a.owner === 0 ? -30 : 30;
+    const dx = [-30, 30, 0][a.owner] ?? 30; // three flags share a node edge
     const dy = a.id.startsWith('B') ? 26 : -26; // second armies ride below the node
     return { x: n.mx + dx, y: n.my + dy };
   }
@@ -1173,7 +1341,7 @@ class EmpireUI {
     const logHtml = s.log.slice(-7).reverse().map((l) => `<div><b>T${l.t}</b> ${l.msg}</div>`).join('');
     const sup0 = supplied;
     const crownChip = s.crown.owner !== -1 && s.crown.turns > 0
-      ? `<span class="e-chip" title="Hold the Storybook Tower crown ${E_RULES.crownNeed} turns to win" style="border-color:${emp.facColor(s.crown.owner)}">👑 <b>${s.crown.turns}</b>/${E_RULES.crownNeed} <span class="e-dim">${s.crown.owner === 0 ? 'you' : 'rival'}</span></span>`
+      ? `<span class="e-chip" title="Hold the Storybook Tower crown ${E_RULES.crownNeed} turns to win" style="border-color:${emp.facColor(s.crown.owner)}">👑 <b>${s.crown.turns}</b>/${E_RULES.crownNeed} <span class="e-dim">${s.crown.owner === 0 ? 'you' : emp.facLabel(s.crown.owner)}</span></span>`
       : '';
     const myDoctrines = (s.doctrines[0] || []).filter(Boolean);
     const doctrineChip = `<span class="e-chip" title="Your doctrines — click 🎗️ below to change">🎗️ ${myDoctrines.length ? myDoctrines.map((k) => E_DOCTRINES[k].icon).join(' ') : '<span class="e-dim">choose one</span>'}</span>`;
@@ -1193,7 +1361,8 @@ class EmpireUI {
         <span class="e-chip" title="Parts: build, recruit, upgrade">🔩 <b>${s.parts[0]}</b> <span class="e-dim">+${emp.income(0, sup0) - emp.upkeepCost(0)}/t</span></span>
         <span class="e-chip" title="Power: force marches (cap ${E_RULES.powerCap})">🔋 <b>${s.power[0]}</b><span class="e-dim">/${E_RULES.powerCap}</span></span>
         <span class="e-chip" title="Imagination: the empire tree's currency">💡 <b>${s.imag[0]}</b> <span class="e-dim">+${emp.imagIncome(0, sup0)}/t</span></span>
-        <span class="e-chip" title="Territories held — first to ${E_RULES.dominionNeed} with a stronghold wins">🗺️ <b>${emp.ownedCount(0)}</b> vs ${emp.ownedCount(1)} <span class="e-dim">of ${E_RULES.dominionNeed}</span></span>
+        <span class="e-chip" title="Territories held — first to ${E_RULES.dominionNeed} with a stronghold wins">🗺️ <b>${emp.ownedCount(0)}</b> vs ${emp.aliveSeats().filter((p) => p > 0).map((p) => `<span style="color:${emp.facColor(p)}">${emp.ownedCount(p)}</span>`).join(' / ')} <span class="e-dim">of ${E_RULES.dominionNeed}</span></span>
+        ${emp.seatCount() > 2 ? `<span class="e-chip" id="e-pacts" title="Diplomacy — Non-Aggression Pacts (P)" style="cursor:pointer">🕊️ ${emp.aliveSeats().filter((p) => p > 0).map((p) => emp.atPeace(0, p) ? `<span style="color:${emp.facColor(p)}">${emp.pactBetween(0, p).left}t</span>` : `<span class="e-dim" style="color:${emp.facColor(p)}">war</span>`).join(' ')}</span>` : ''}
         ${crownChip}${doctrineChip}
         <span class="e-chip">🌙 Turn <b>${s.turn}</b><span class="e-dim">/${E_RULES.turnCap}</span></span>
         ${diffChip}
@@ -1403,6 +1572,8 @@ class EmpireUI {
     if (cards) cards.addEventListener('click', () => { esfx('select', 60); this.showCollection(); });
     const doc = this.root.querySelector('#e-doctrines');
     if (doc) doc.addEventListener('click', () => { esfx('select', 60); this.showDoctrines(); });
+    const pacts = this.root.querySelector('#e-pacts');
+    if (pacts) pacts.addEventListener('click', () => { esfx('select', 60); this.showDiplomacy(); });
     for (const b of this.root.querySelectorAll('.e-modbuild')) {
       b.addEventListener('click', () => { const r = emp.buildModule(0, b.dataset.node, b.dataset.mod); esfx(r.ok ? 'place' : 'error', 100); this.render(); });
     }
@@ -1686,6 +1857,8 @@ export function empireTest(seed, turns = 8, script = [], difficulty = 'normal') 
       if (s.type === 'muster') emp.muster(0);
       if (s.type === 'doctrine') emp.setDoctrine(0, s.slot || 0, s.key);
       if (s.type === 'module') emp.buildModule(0, s.node, s.key);
+      if (s.type === 'pact') emp.offerPact(s.other ?? 1);
+      if (s.type === 'breakpact') emp.breakPact(s.other ?? 1);
     }
     emp.endTurn();
     let guard = 0;
