@@ -431,7 +431,11 @@ export class Game {
     // classic layouts intact: 1v1 → SW vs NE, 2v2 → west side vs east side.
     const seatOrder = this.players.map((p) => p.id)
       .sort((a, b) => this.players[a].team - this.players[b].team || a - b);
-    const cx = N / 2, cz = N / 2, R = N / 2 - 15;
+    // R was N/2-15 (seats ±14.85 diagonal) for the game's first months; pushed
+    // to N/2-10 (±18.4) 2026-07-18 so bases hug the corners and the middle of
+    // the map reads as the long march it should be. Masks were re-checked: the
+    // kidney/ellipse rims keep 10+ tiles of start-clutter margin at this radius.
+    const cx = N / 2, cz = N / 2, R = N / 2 - 10;
     const startById = {};
     seatOrder.forEach((pid, k) => {
       const ang = (k / seatOrder.length) * Math.PI * 2 + Math.PI * 0.75;
