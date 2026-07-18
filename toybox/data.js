@@ -871,8 +871,10 @@ export const MAPS = {
     obstacles: 5, canyon: false, resourceMul: 1.1, stickers: 2, plateaus: 0,
     // the first non-square battlefield: a kidney-shaped sandbox — outside the
     // wooden rim is deck, and no toy marches on deck. Rolling dunes inside.
-    mask: { type: 'kidney', rx: 33, rz: 27, bx: 0, bz: -26, br: 12 },
-    dunes: { count: 7, rMin: 4, rMax: 7 },
+    // Grown 2026-07-18 (was rx33 rz27, ~50% of the mat): the kidney now nearly
+    // fills the mat — the rim stays thematic, the corners stop being wasted.
+    mask: { type: 'kidney', rx: 35, rz: 33, bx: 0, bz: -30, br: 10 },
+    dunes: { count: 8, rMin: 4, rMax: 7 },
     // steep piled-sand crests nobody can climb, with sandy passes through them —
     // the sandbox's chokepoints. Authored (no rng): a long central wall with two
     // passes across the seat diagonal, plus one shorter wall guarding each wing.
@@ -880,10 +882,12 @@ export const MAPS = {
     // seats sit on the ANTI-diagonal (21,51)/(51,21), so the central wall runs
     // down the MAIN diagonal to cut the seat axis, and the wing walls choke the
     // two flanking corridors. All endpoints hold 14+ tiles from both chests.
+    // wing walls run rim-to-rim on the grown kidney (tips past the mask are
+    // auto-trimmed) so the flank corridors stay real chokes, not suggestions
     ridges: [
       { i1: 24, j1: 24, i2: 48, j2: 48, w: 1, gaps: [{ t: 0.26, w: 5 }, { t: 0.74, w: 5 }] },
-      { i1: 10, j1: 22, i2: 16, j2: 40, w: 1, gaps: [{ t: 0.5, w: 4 }] },
-      { i1: 58, j1: 38, i2: 62, j2: 51, w: 1, gaps: [{ t: 0.5, w: 4 }] },
+      { i1: 8, j1: 16, i2: 16, j2: 44, w: 1, gaps: [{ t: 0.5, w: 4 }] },
+      { i1: 56, j1: 28, i2: 64, j2: 56, w: 1, gaps: [{ t: 0.5, w: 4 }] },
     ],
     weather: 'seeds',
     obstacleKinds: ['rock', 'bucket', 'shovel'],
@@ -906,7 +910,9 @@ export const MAPS = {
     label: 'The Old Oak', icon: '🌳', ground: 'oldoak', light: 'dusk', outdoor: true,
     obstacles: 6, canyon: false, resourceMul: 1.15, stickers: 3, plateaus: 1,
     // an oval lawn clearing around one enormous tree on a hill — THE high ground
-    mask: { type: 'ellipse', rx: 34, rz: 29 },
+    // Grown 2026-07-18 (was rx34 rz29, ~60% of the mat): the clearing nearly
+    // fills the mat now; the wild-lawn edge stays as a thin thematic ring.
+    mask: { type: 'ellipse', rx: 35, rz: 34 },
     centerHill: { r: 9 },
     roots: true,
     weather: 'fireflies',
