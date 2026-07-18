@@ -564,6 +564,35 @@ export class Game {
       }
     }
 
+    // ---- dune ridges: authored piled-sand crests too steep for any toy, with
+    // sandy passes through them — the map's chokepoints. Cores rise past CLIMB
+    // (a natural wall) and are marked blocked so nothing spawns on them; passes
+    // and skirts sit at E/3, one gentle step up from the flat. No rng: the same
+    // walls stand in every match, like the map was raked that way on purpose ----
+    if (this.map.ridges) {
+      for (const rd of this.map.ridges) {
+        const di = rd.i2 - rd.i1, dj = rd.j2 - rd.j1;
+        const len = Math.hypot(di, dj), w = rd.w || 1;
+        for (let t = 0; t <= len; t += 0.5) {
+          const f = t / len;
+          const inGap = (rd.gaps || []).some((gp) => Math.abs(f - gp.t) * len < (gp.w || 4) / 2);
+          const ci = Math.round(rd.i1 + di * f), cj = Math.round(rd.j1 + dj * f);
+          for (let b = -w - 1; b <= w + 1; b++) for (let a = -w - 1; a <= w + 1; a++) {
+            const i = ci + a, j = cj + b;
+            if (!inMap(i, j) || this.blocked[idx(i, j)]) continue;
+            if (!clearHomes(i, j, 14)) continue; // never wall in a doorstep
+            const skirt = Math.max(Math.abs(a), Math.abs(b)) > w;
+            if (inGap || skirt) {
+              this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], E / 3);
+            } else {
+              this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], E * 2.2);
+              this.blocked[idx(i, j)] = 1;
+            }
+          }
+        }
+      }
+    }
+
     // ---- the center hill: one deliberate two-step rise crowned by the map's
     // hero landmark (the Old Oak) — the high ground everyone is here for ----
     if (this.map.centerHill) {

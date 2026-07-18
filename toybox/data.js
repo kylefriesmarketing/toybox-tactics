@@ -850,11 +850,23 @@ export const MAPS = {
     // wooden rim is deck, and no toy marches on deck. Rolling dunes inside.
     mask: { type: 'kidney', rx: 33, rz: 27, bx: 0, bz: -26, br: 12 },
     dunes: { count: 7, rMin: 4, rMax: 7 },
+    // steep piled-sand crests nobody can climb, with sandy passes through them —
+    // the sandbox's chokepoints. Authored (no rng): a long central wall with two
+    // passes across the seat diagonal, plus one shorter wall guarding each wing.
+    // t = fraction along the line, w = pass width in tiles.
+    // seats sit on the ANTI-diagonal (21,51)/(51,21), so the central wall runs
+    // down the MAIN diagonal to cut the seat axis, and the wing walls choke the
+    // two flanking corridors. All endpoints hold 14+ tiles from both chests.
+    ridges: [
+      { i1: 24, j1: 24, i2: 48, j2: 48, w: 1, gaps: [{ t: 0.26, w: 5 }, { t: 0.74, w: 5 }] },
+      { i1: 10, j1: 22, i2: 16, j2: 40, w: 1, gaps: [{ t: 0.5, w: 4 }] },
+      { i1: 58, j1: 38, i2: 62, j2: 51, w: 1, gaps: [{ t: 0.5, w: 4 }] },
+    ],
     weather: 'seeds',
     obstacleKinds: ['rock', 'bucket', 'shovel'],
     decor: ['pebble', 'grass', 'seashell'],
     decorCount: 14,
-    desc: 'The kidney-shaped sandbox, mid-morning. Rolling dunes, buried treasure, no corners to hide in.',
+    desc: 'The kidney-shaped sandbox, mid-morning. Piled dunes wall the middle — hold the passes, own the day.',
   },
   garden: {
     label: 'The Garden', icon: '🌻', ground: 'garden', light: 'gold', outdoor: true,

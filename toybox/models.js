@@ -2161,10 +2161,27 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
       }
     }
   }
+  // depth on the cheap: a grayscale copy of any painted surface becomes its
+  // bump map, so plank grain / grass blades / carpet pile catch the light as
+  // relief instead of reading as flat print. Wrap/repeat mirror the color map.
+  const bumpFromCanvas = (src, likeTex) => {
+    const bc = document.createElement('canvas');
+    const w = Math.min(1024, src.width || 1024);
+    bc.width = bc.height = w;
+    const bx2 = bc.getContext('2d');
+    bx2.filter = 'grayscale(1) contrast(1.5)';
+    bx2.drawImage(src, 0, 0, w, w);
+    const bt = new THREE.CanvasTexture(bc);
+    bt.anisotropy = 4;
+    if (likeTex) { bt.wrapS = likeTex.wrapS; bt.wrapT = likeTex.wrapT; bt.repeat.copy(likeTex.repeat); }
+    return bt;
+  };
   const floorTex = new THREE.CanvasTexture(floorCanvas);
   floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
   floorTex.repeat.set(14, 14);
   const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.9 });
+  floorMat.bumpMap = bumpFromCanvas(floorCanvas, floorTex);
+  floorMat.bumpScale = 0.35;
   // big floor: its edge always sits far past the fog, so it dissolves into the
   // background instead of ending in a hard visible line
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(N * 7, N * 7), floorMat);
@@ -2183,6 +2200,7 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
       t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping;
       t.repeat.set(6, 6);
       floorMat.map = t;
+      floorMat.bumpMap = bumpFromCanvas(t.image, t); // relief from the art itself
       floorMat.needsUpdate = true;
     },
     undefined,
@@ -2337,10 +2355,30 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
     for (let i = 0; i < 32; i++) if (i % 2) { x.fillStyle = '#00000009'; x.fillRect(0, i * 64, S, 64); }
     let seedP = 24680;
     const rndP = () => (seedP = (seedP * 16807) % 2147483647) / 2147483647;
-    x.fillStyle = '#6ba449';
-    for (let i = 0; i < 2600; i++) x.fillRect(rndP() * S, rndP() * S, 3 + rndP() * 4, 2 + rndP() * 3);
-    x.fillStyle = '#93c96f';
-    for (let i = 0; i < 1600; i++) x.fillRect(rndP() * S, rndP() * S, 3, 2);
+    // real grass: thousands of leaning blade strokes in layered greens — shadow
+    // tufts first, mid-tones over them, sunlit tips last (reads as depth even
+    // before the bump map catches the strokes)
+    x.lineWidth = 2;
+    for (let i = 0; i < 5200; i++) {
+      const gx = rndP() * S, gy = rndP() * S, gl = 7 + rndP() * 11, lean = (rndP() - 0.5) * 7;
+      x.strokeStyle = `rgba(${36 + rndP() * 30 | 0}, ${96 + rndP() * 38 | 0}, ${34 + rndP() * 26 | 0}, 0.45)`;
+      x.beginPath(); x.moveTo(gx, gy); x.lineTo(gx + lean, gy - gl); x.stroke();
+    }
+    for (let i = 0; i < 4200; i++) {
+      const gx = rndP() * S, gy = rndP() * S, gl = 6 + rndP() * 9, lean = (rndP() - 0.5) * 6;
+      x.strokeStyle = `rgba(${88 + rndP() * 42 | 0}, ${158 + rndP() * 48 | 0}, ${70 + rndP() * 34 | 0}, 0.5)`;
+      x.beginPath(); x.moveTo(gx, gy); x.lineTo(gx + lean, gy - gl); x.stroke();
+    }
+    for (let i = 0; i < 1500; i++) { // sunlit tips
+      const gx = rndP() * S, gy = rndP() * S;
+      x.strokeStyle = `rgba(${168 + rndP() * 40 | 0}, ${210 + rndP() * 30 | 0}, ${120 + rndP() * 30 | 0}, 0.5)`;
+      x.beginPath(); x.moveTo(gx, gy); x.lineTo(gx + (rndP() - 0.5) * 4, gy - 4 - rndP() * 5); x.stroke();
+    }
+    for (let i = 0; i < 22; i++) { // clover patches breaking up the lawn
+      const cx2 = rndP() * S, cy2 = rndP() * S, cr = 30 + rndP() * 70;
+      x.fillStyle = `rgba(${46 + rndP() * 24 | 0}, ${120 + rndP() * 30 | 0}, ${52 + rndP() * 20 | 0}, 0.30)`;
+      x.beginPath(); x.ellipse(cx2, cy2, cr, cr * (0.6 + rndP() * 0.5), rndP() * 3, 0, Math.PI * 2); x.fill();
+    }
     // rubberized running track: a red-orange oval ring hugging the edge
     x.save();
     x.translate(S / 2, S / 2);
@@ -2394,9 +2432,24 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
       x.strokeStyle = 'rgba(70,40,15,0.4)'; x.lineWidth = 5;
       x.beginPath(); x.moveTo(0, p * 172); x.lineTo(S, p * 172); x.stroke();
     }
-    for (let i = 0; i < 30; i++) { // wood knots
+    // long wavering grain streaks riding each plank (two tones, subtle wander)
+    for (let i = 0; i < 260; i++) {
+      const plank = (rndK() * 12) | 0, gy0 = plank * 172 + 8 + rndK() * 156;
+      const wobble = 2 + rndK() * 5, seg = 90 + rndK() * 140, x0 = rndK() * S;
+      x.strokeStyle = rndK() < 0.5 ? `rgba(70,40,15,${0.10 + rndK() * 0.14})` : `rgba(235,205,160,${0.08 + rndK() * 0.10})`;
+      x.lineWidth = 1.5 + rndK() * 2;
+      x.beginPath(); x.moveTo(x0, gy0);
+      x.bezierCurveTo(x0 + seg * 0.35, gy0 + (rndK() - 0.5) * wobble * 2, x0 + seg * 0.65, gy0 + (rndK() - 0.5) * wobble * 2, x0 + seg, gy0 + (rndK() - 0.5) * wobble);
+      x.stroke();
+    }
+    for (let i = 0; i < 30; i++) { // wood knots with rings, the grain bending round them
+      const kx = rndK() * S, ky = rndK() * S, ka = rndK() * 3;
       x.strokeStyle = 'rgba(70,40,15,0.4)'; x.lineWidth = 3;
-      x.beginPath(); x.ellipse(rndK() * S, rndK() * S, 12 + rndK() * 12, 7 + rndK() * 7, rndK() * 3, 0, Math.PI * 2); x.stroke();
+      x.beginPath(); x.ellipse(kx, ky, 12 + rndK() * 12, 7 + rndK() * 7, ka, 0, Math.PI * 2); x.stroke();
+      x.strokeStyle = 'rgba(70,40,15,0.18)'; x.lineWidth = 2;
+      x.beginPath(); x.ellipse(kx, ky, 20 + rndK() * 14, 12 + rndK() * 9, ka, 0, Math.PI * 2); x.stroke();
+      x.fillStyle = 'rgba(55,30,10,0.35)';
+      x.beginPath(); x.ellipse(kx, ky, 4 + rndK() * 3, 3 + rndK() * 2, ka, 0, Math.PI * 2); x.fill();
     }
     // two gingham placemats with a plate on each (SW + NE seats)
     const mat = (mx, my) => {
@@ -2448,10 +2501,29 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
     let seedL = 71234;
     const rndL = () => (seedL = (seedL * 16807) % 2147483647) / 2147483647;
     x.fillStyle = '#8f2f37'; x.fillRect(0, 0, S, S); // cranberry carpet
-    x.fillStyle = 'rgba(255,255,255,0.05)';
-    for (let i = 0; i < 5000; i++) x.fillRect(rndL() * S, rndL() * S, 3, 6); // pile fibres
-    x.fillStyle = 'rgba(0,0,0,0.06)';
-    for (let i = 0; i < 2600; i++) x.fillRect(rndL() * S, rndL() * S, 3, 6);
+    // vacuum nap bands: alternating light/dark diagonal sweeps, like the pile
+    // was brushed two ways — the thing that makes carpet read as carpet
+    x.save(); x.translate(S / 2, S / 2); x.rotate(0.32);
+    for (let band = -8; band <= 8; band++) {
+      x.fillStyle = band % 2 ? 'rgba(255,235,235,0.045)' : 'rgba(30,0,5,0.05)';
+      x.fillRect(-S, band * 190, S * 2, 190);
+    }
+    x.restore();
+    // dense directional pile: short leaning fibre strokes in three tones
+    x.lineWidth = 2;
+    for (let i = 0; i < 6000; i++) {
+      const fx = rndL() * S, fy = rndL() * S, fl = 5 + rndL() * 6;
+      x.strokeStyle = `rgba(${190 + rndL() * 45 | 0}, ${95 + rndL() * 45 | 0}, ${100 + rndL() * 35 | 0}, 0.28)`;
+      x.beginPath(); x.moveTo(fx, fy); x.lineTo(fx + 1.5, fy + fl); x.stroke();
+    }
+    for (let i = 0; i < 3600; i++) {
+      const fx = rndL() * S, fy = rndL() * S, fl = 5 + rndL() * 6;
+      x.strokeStyle = `rgba(${60 + rndL() * 30 | 0}, ${10 + rndL() * 15 | 0}, ${15 + rndL() * 15 | 0}, 0.3)`;
+      x.beginPath(); x.moveTo(fx, fy); x.lineTo(fx - 1.5, fy + fl); x.stroke();
+    }
+    // the worn traffic path where a whole family shuffles to the couch
+    x.strokeStyle = 'rgba(60,15,20,0.14)'; x.lineWidth = 150; x.lineCap = 'round';
+    x.beginPath(); x.moveTo(140, 1700); x.bezierCurveTo(700, 1350, 1300, 1500, 1900, 900); x.stroke();
     // diagonal wrapping-ribbon lanes (green + gold candy stripes)
     const ribbon = (fn, col) => { x.strokeStyle = col; x.lineWidth = 70; x.lineCap = 'round'; x.beginPath(); fn(); x.stroke(); x.strokeStyle = 'rgba(255,255,255,0.5)'; x.lineWidth = 6; x.setLineDash([30, 26]); x.beginPath(); fn(); x.stroke(); x.setLineDash([]); };
     ribbon(() => { x.moveTo(180, 1000); x.bezierCurveTo(760, 620, 1300, 1420, 1868, 1040); }, '#2f6f45');
@@ -2598,9 +2670,39 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
       x.beginPath(); x.arc(cxp + (m.bx || 0) * px, czp + (m.bz || 0) * px, m.br * px, 0, Math.PI * 2); x.stroke();
     }
   }
+  // ridge walls get painted piles so a wall of sand LOOKS like a wall of sand:
+  // wind-shadow first, then the pile body, then a sunlit crest line. Gaps stay
+  // unpainted — the passes read as the flat sand they are. (Same authored data
+  // the sim rasterizes into blocked tiles, so paint and walls always agree.)
+  if (mapCfg && mapCfg.ridges) {
+    const px = S / N;
+    const tp = (t2) => t2 * px + px / 2; // tile -> canvas px (tile centers)
+    for (const rd of mapCfg.ridges) {
+      const di = rd.i2 - rd.i1, dj = rd.j2 - rd.j1, len = Math.hypot(di, dj);
+      const inGap = (f) => (rd.gaps || []).some((gp) => Math.abs(f - gp.t) * len < ((gp.w || 4) / 2 + 0.6));
+      for (const [rad, col] of [
+        [2.3, 'rgba(150,105,55,0.28)'],   // wind shadow
+        [1.55, 'rgba(210,165,100,0.55)'], // pile body
+        [0.65, 'rgba(246,224,170,0.6)'],  // sunlit crest
+      ]) {
+        for (let t2 = 0; t2 <= len; t2 += 0.4) {
+          const f = t2 / len;
+          if (inGap(f)) continue;
+          const ci2 = rd.i1 + di * f, cj2 = rd.j1 + dj * f;
+          const wob = 1 + 0.18 * Math.sin(t2 * 2.1); // hand-piled, not ruled
+          x.fillStyle = col;
+          x.beginPath();
+          x.ellipse(tp(ci2), tp(cj2), rad * px * wob, rad * px * 0.85 * wob, 0, 0, Math.PI * 2);
+          x.fill();
+        }
+      }
+    }
+  }
   const tex = new THREE.CanvasTexture(c);
   tex.anisotropy = 8;
   const groundMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 });
+  groundMat.bumpMap = bumpFromCanvas(c, tex);
+  groundMat.bumpScale = 0.4;
   // one segment per tile: the game displaces vertices for real elevation,
   // and the ambient breeze ripples on top of that base
   const mat = new THREE.Mesh(new THREE.PlaneGeometry(N, N, N, N), groundMat);
@@ -2616,6 +2718,7 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
       t.colorSpace = THREE.SRGBColorSpace;
       t.anisotropy = 8;
       groundMat.map = t;
+      groundMat.bumpMap = bumpFromCanvas(t.image, t);
       groundMat.needsUpdate = true;
     },
     undefined,
