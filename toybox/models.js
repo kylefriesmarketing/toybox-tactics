@@ -2670,34 +2670,55 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
       x.beginPath(); x.arc(cxp + (m.bx || 0) * px, czp + (m.bz || 0) * px, m.br * px, 0, Math.PI * 2); x.stroke();
     }
   }
-  // ridge walls get painted piles so a wall of sand LOOKS like a wall of sand:
-  // wind-shadow first, then the pile body, then a sunlit crest line. Gaps stay
-  // unpainted — the passes read as the flat sand they are. (Same authored data
-  // the sim rasterizes into blocked tiles, so paint and walls always agree.)
-  if (mapCfg && mapCfg.ridges) {
+  // ridge walls get painted piles so a wall LOOKS like what it's made of —
+  // shadow first, then the pile body, then a lit crest line, in each room's
+  // own material. Gaps stay unpainted: the passes read as the flat ground they
+  // are. (Same authored data the sim rasterizes into blocked tiles, so paint
+  // and walls always agree.)
+  const RIDGE_LOOKS = {
+    sandbox:    [[2.3, 'rgba(150,105,55,0.28)'], [1.55, 'rgba(210,165,100,0.55)'], [0.65, 'rgba(246,224,170,0.6)']], // piled sand
+    underbed:   [[2.3, 'rgba(14,10,26,0.45)'], [1.55, 'rgba(96,88,112,0.55)'], [0.65, 'rgba(172,164,186,0.5)']],    // lost laundry in the gloom
+    playground: [[2.3, 'rgba(92,94,38,0.32)'], [1.55, 'rgba(178,168,92,0.55)'], [0.65, 'rgba(230,216,140,0.6)']],   // dried clipping windrows
+    kitchen:    [[2.3, 'rgba(118,84,44,0.35)'], [1.55, 'rgba(238,232,218,0.62)'], [0.65, 'rgba(255,252,244,0.72)']],// spilled flour
+    livingroom: [[2.3, 'rgba(12,38,20,0.4)'], [1.55, 'rgba(47,100,62,0.6)'], [0.65, 'rgba(118,166,114,0.6)']],      // fallen garland
+  };
+  const paintRidges = (ctx2) => {
+    if (!(mapCfg && mapCfg.ridges)) return;
     const px = S / N;
     const tp = (t2) => t2 * px + px / 2; // tile -> canvas px (tile centers)
+    const look = RIDGE_LOOKS[style] || RIDGE_LOOKS.sandbox;
     for (const rd of mapCfg.ridges) {
       const di = rd.i2 - rd.i1, dj = rd.j2 - rd.j1, len = Math.hypot(di, dj);
       const inGap = (f) => (rd.gaps || []).some((gp) => Math.abs(f - gp.t) * len < ((gp.w || 4) / 2 + 0.6));
-      for (const [rad, col] of [
-        [2.3, 'rgba(150,105,55,0.28)'],   // wind shadow
-        [1.55, 'rgba(210,165,100,0.55)'], // pile body
-        [0.65, 'rgba(246,224,170,0.6)'],  // sunlit crest
-      ]) {
+      for (const [rad, col] of look) {
         for (let t2 = 0; t2 <= len; t2 += 0.4) {
           const f = t2 / len;
           if (inGap(f)) continue;
           const ci2 = rd.i1 + di * f, cj2 = rd.j1 + dj * f;
           const wob = 1 + 0.18 * Math.sin(t2 * 2.1); // hand-piled, not ruled
-          x.fillStyle = col;
-          x.beginPath();
-          x.ellipse(tp(ci2), tp(cj2), rad * px * wob, rad * px * 0.85 * wob, 0, 0, Math.PI * 2);
-          x.fill();
+          ctx2.fillStyle = col;
+          ctx2.beginPath();
+          ctx2.ellipse(tp(ci2), tp(cj2), rad * px * wob, rad * px * 0.85 * wob, 0, 0, Math.PI * 2);
+          ctx2.fill();
+        }
+      }
+      if (style === 'livingroom') { // baubles still threaded on the fallen garland
+        for (let t2 = 1.1; t2 < len; t2 += 2.3) {
+          const f = t2 / len;
+          if (inGap(f)) continue;
+          ctx2.fillStyle = ['#e5484d', '#e8c34a', '#4a86c8'][(t2 / 2.3 | 0) % 3];
+          ctx2.beginPath();
+          ctx2.arc(tp(rd.i1 + di * f) + px * 0.5, tp(rd.j1 + dj * f) - px * 0.4, px * 0.42, 0, Math.PI * 2);
+          ctx2.fill();
+          ctx2.fillStyle = 'rgba(255,255,255,0.55)';
+          ctx2.beginPath();
+          ctx2.arc(tp(rd.i1 + di * f) + px * 0.35, tp(rd.j1 + dj * f) - px * 0.55, px * 0.13, 0, Math.PI * 2);
+          ctx2.fill();
         }
       }
     }
-  }
+  };
+  paintRidges(x);
   const tex = new THREE.CanvasTexture(c);
   tex.anisotropy = 8;
   const groundMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 });
@@ -2711,10 +2732,19 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
   mat.receiveShadow = true;
   g.add(mat);
   // generated top-down ground art replaces the canvas when present
-  // (masked maps keep the canvas — the painted rim IS the map's shape)
+  // (masked maps keep the canvas — the painted rim IS the map's shape; ridge
+  // maps composite the art UNDER the painted walls so the piles stay visible)
   if (!(mapCfg && mapCfg.mask)) new THREE.TextureLoader().load(
     `assets/map/ground-${style}.png`,
     (t) => {
+      if (mapCfg && mapCfg.ridges) {
+        x.drawImage(t.image, 0, 0, S, S); // art becomes the base coat
+        paintRidges(x);                   // walls painted back on top
+        tex.needsUpdate = true;
+        groundMat.bumpMap = bumpFromCanvas(c, tex);
+        groundMat.needsUpdate = true;
+        return;
+      }
       t.colorSpace = THREE.SRGBColorSpace;
       t.anisotropy = 8;
       groundMat.map = t;

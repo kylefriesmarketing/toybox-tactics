@@ -787,6 +787,12 @@ export const MAPS = {
     label: 'Under the Bed', icon: '🌑', ground: 'underbed', light: 'dark',
     obstacles: 11, canyon: false, resourceMul: 0.95, stickers: 3, plateaus: 2,
     features: { ranges: 2, forests: 2 },
+    // two slipped rows of lost laundry, staggered — the only ways through bend
+    // into an S, and something is always waiting at the bend (point-symmetric)
+    ridges: [
+      { i1: 22, j1: 30, i2: 40, j2: 48, w: 1, gaps: [{ t: 0.5, w: 5 }] },
+      { i1: 32, j1: 24, i2: 50, j2: 42, w: 1, gaps: [{ t: 0.5, w: 5 }] },
+    ],
     desc: 'Dark, cluttered, and older than anyone admits. Bring a scout — and your courage.',
   },
   attic: {
@@ -803,6 +809,12 @@ export const MAPS = {
     // hedge thickets carve the lanes. Rich sandbox center — grab and hold it.
     decor: ['swingset', 'slide', 'seesaw', 'sandbucket', 'ball'],
     decorCount: 18,
+    // two windrows of mown clippings flank a wide central boulevard — armies
+    // meet in the middle or squeeze around the windrow ends (point-symmetric)
+    ridges: [
+      { i1: 24, j1: 16, i2: 35, j2: 27, w: 1 },
+      { i1: 37, j1: 45, i2: 48, j2: 56, w: 1 },
+    ],
     desc: 'A sunny backyard: the sandbox in the middle, swings and slides all around it.',
   },
   kitchen: {
@@ -812,6 +824,12 @@ export const MAPS = {
     features: { milk: 3, ranges: 1, forests: 1 },
     decor: ['teacup', 'die', 'ball', 'crayon'],
     decorCount: 15,
+    // one spilled line of flour, parted right at the middle: kitchen stays the
+    // OPEN-pool map, this is a single gentle wall with one wide central pass
+    // (KotH's throne lands in the parting — worth fighting over)
+    ridges: [
+      { i1: 28, j1: 28, i2: 44, j2: 44, w: 1, gaps: [{ t: 0.5, w: 7 }] },
+    ],
     desc: 'A crumb-strewn table of plenty — but mind the milk. Nothing marches through milk.',
   },
   bookshelf: {
@@ -828,6 +846,11 @@ export const MAPS = {
     features: { forests: 1 },
     decor: ['ornament', 'gift', 'die', 'ball'],
     decorCount: 16,
+    // a garland slid off the tree and lies across the carpet — three sagging
+    // gaps make a beaded curtain of passes (self-symmetric through center)
+    ridges: [
+      { i1: 25, j1: 25, i2: 47, j2: 47, w: 1, gaps: [{ t: 0.25, w: 4 }, { t: 0.5, w: 4 }, { t: 0.75, w: 4 }] },
+    ],
     desc: 'The holiday carpet: presents worth claiming and a tree skirt worth holding.',
   },
   bathtub: {

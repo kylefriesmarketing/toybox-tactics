@@ -472,19 +472,50 @@ export class Game {
       }
     }
 
-    // ---- elevation: plateaus hiding under the mat, ramps as choke points ----
+    // ---- ridge walls: authored piled-terrain crests too steep for any toy,
+    // with passes through them — each map's chokepoints, themed per room (sand
+    // piles, lost laundry, grass clippings, spilled flour, fallen garland).
+    // Cores rise past CLIMB (a natural wall) and are marked blocked; passes and
+    // skirts sit at E/3, one gentle step up. No rng — the same walls stand in
+    // every match. Ridges lay down FIRST: plateaus/dunes/hills all skip blocked
+    // tiles, so later terrain shapes itself around the walls (like the mask) ----
     const E = this.ELEV;
+    if (this.map.ridges) {
+      for (const rd of this.map.ridges) {
+        const di = rd.i2 - rd.i1, dj = rd.j2 - rd.j1;
+        const len = Math.hypot(di, dj), w = rd.w || 1;
+        for (let t = 0; t <= len; t += 0.5) {
+          const f = t / len;
+          const inGap = (rd.gaps || []).some((gp) => Math.abs(f - gp.t) * len < (gp.w || 4) / 2);
+          const ci = Math.round(rd.i1 + di * f), cj = Math.round(rd.j1 + dj * f);
+          for (let b = -w - 1; b <= w + 1; b++) for (let a = -w - 1; a <= w + 1; a++) {
+            const i = ci + a, j = cj + b;
+            if (!inMap(i, j) || this.blocked[idx(i, j)]) continue;
+            if (!clearHomes(i, j, 14)) continue; // never wall in a doorstep
+            const skirt = Math.max(Math.abs(a), Math.abs(b)) > w;
+            if (inGap || skirt) {
+              this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], E / 3);
+            } else {
+              this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], E * 2.2);
+              this.blocked[idx(i, j)] = 1;
+            }
+          }
+        }
+      }
+    }
+
+    // ---- elevation: plateaus hiding under the mat, ramps as choke points ----
     for (let k = 0; k < (this.map.plateaus ?? 3); k++) {
       let ci = 0, cj = 0, placed = false;
       for (let tries = 0; tries < 30 && !placed; tries++) {
         ci = 15 + (rng() * (N - 30)) | 0; cj = 15 + (rng() * (N - 30)) | 0;
-        if (clearHomes(ci, cj, 17)) placed = true;
+        if (clearHomes(ci, cj, 17) && !this.blocked[idx(ci, cj)]) placed = true;
       }
       if (!placed) continue;
       const rx = 4 + (rng() * 3 | 0), rz = 4 + (rng() * 3 | 0), wob = rng() * 9;
       for (let b = -rz - 1; b <= rz + 1; b++) for (let a = -rx - 1; a <= rx + 1; a++) {
         const i = ci + a, j = cj + b;
-        if (!inMap(i, j)) continue;
+        if (!inMap(i, j) || this.blocked[idx(i, j)]) continue; // ridges/mask win
         const w = 0.85 + 0.15 * Math.sin(Math.atan2(b, a) * 3 + wob);
         if ((a * a) / (rx * rx * w) + (b * b) / (rz * rz * w) <= 1) {
           this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], E);
@@ -507,7 +538,7 @@ export class Game {
           for (let wOff = -2; wOff <= 2; wOff++) {
             const i = Math.round(ci + dx * (d + s) - dz * wOff);
             const j = Math.round(cj + dz * (d + s) + dx * wOff);
-            if (inMap(i, j)) this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], hVal);
+            if (inMap(i, j) && !this.blocked[idx(i, j)]) this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], hVal);
           }
         }
       }
@@ -515,7 +546,7 @@ export class Game {
       if (k === 0 && Math.min(rx, rz) >= 5) {
         for (let b = -rz + 3; b <= rz - 3; b++) for (let a = -rx + 3; a <= rx - 3; a++) {
           const i = ci + a, j = cj + b;
-          if (!inMap(i, j)) continue;
+          if (!inMap(i, j) || this.blocked[idx(i, j)]) continue;
           if ((a * a) / ((rx - 3) ** 2) + (b * b) / ((rz - 3) ** 2) <= 1) {
             this.height[idx(i, j)] = E * 2;
           }
@@ -533,7 +564,7 @@ export class Game {
           for (let wOff = -2; wOff <= 2; wOff++) {
             const i = Math.round(ci + dx * (d + s) - dz * wOff);
             const j = Math.round(cj + dz * (d + s) + dx * wOff);
-            if (inMap(i, j) && this.height[idx(i, j)] <= E + 0.01) {
+            if (inMap(i, j) && !this.blocked[idx(i, j)] && this.height[idx(i, j)] <= E + 0.01) {
               this.height[idx(i, j)] = hVal;
             }
           }
@@ -562,35 +593,6 @@ export class Game {
             const w = 0.8 + 0.2 * Math.sin(Math.atan2(b, a) * 3 + wob);
             if ((a * a + b * b) <= band * band * w) {
               this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], E * hMul);
-            }
-          }
-        }
-      }
-    }
-
-    // ---- dune ridges: authored piled-sand crests too steep for any toy, with
-    // sandy passes through them — the map's chokepoints. Cores rise past CLIMB
-    // (a natural wall) and are marked blocked so nothing spawns on them; passes
-    // and skirts sit at E/3, one gentle step up from the flat. No rng: the same
-    // walls stand in every match, like the map was raked that way on purpose ----
-    if (this.map.ridges) {
-      for (const rd of this.map.ridges) {
-        const di = rd.i2 - rd.i1, dj = rd.j2 - rd.j1;
-        const len = Math.hypot(di, dj), w = rd.w || 1;
-        for (let t = 0; t <= len; t += 0.5) {
-          const f = t / len;
-          const inGap = (rd.gaps || []).some((gp) => Math.abs(f - gp.t) * len < (gp.w || 4) / 2);
-          const ci = Math.round(rd.i1 + di * f), cj = Math.round(rd.j1 + dj * f);
-          for (let b = -w - 1; b <= w + 1; b++) for (let a = -w - 1; a <= w + 1; a++) {
-            const i = ci + a, j = cj + b;
-            if (!inMap(i, j) || this.blocked[idx(i, j)]) continue;
-            if (!clearHomes(i, j, 14)) continue; // never wall in a doorstep
-            const skirt = Math.max(Math.abs(a), Math.abs(b)) > w;
-            if (inGap || skirt) {
-              this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], E / 3);
-            } else {
-              this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], E * 2.2);
-              this.blocked[idx(i, j)] = 1;
             }
           }
         }
@@ -974,8 +976,10 @@ export class Game {
 
   // nudge a world point off the water onto the nearest dry tile (for objectives)
   snapToLand(x, z) {
+    // objectives step off water AND blocked terrain (ridge crests, mask edges) —
+    // a golden throne belongs beside the wall's pass, not perched on top of it
     let i = tileOf(x), j = tileOf(z);
-    if (!inMap(i, j) || !this.water[idx(i, j)]) return { x, z };
+    if (!inMap(i, j) || (!this.water[idx(i, j)] && !this.blocked[idx(i, j)])) return { x, z };
     for (let r = 1; r <= 20; r++) {
       for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
         if (Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
