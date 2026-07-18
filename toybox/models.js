@@ -2629,8 +2629,11 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
   }
   // irregular playable shapes: repaint everything outside the mask as the
   // scenery it really is (deck planks around the sandbox, wilder lawn beyond
-  // the oak clearing), with a rim stroke tracing the play-area edge
-  if (mapCfg && mapCfg.mask) {
+  // the oak clearing), with a rim stroke tracing the play-area edge.
+  // Pulled into a function so the ground-art loader can repaint the border
+  // AFTER compositing generated art (art under, deck/rim back on top).
+  const paintMaskBorder = () => {
+    if (!(mapCfg && mapCfg.mask)) return;
     const m = mapCfg.mask, px = S / N, cxp = S / 2, czp = S / 2;
     const paintBorder = () => {
       if (style === 'sandbox') {
@@ -2669,7 +2672,8 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
     if (m.type === 'kidney') {
       x.beginPath(); x.arc(cxp + (m.bx || 0) * px, czp + (m.bz || 0) * px, m.br * px, 0, Math.PI * 2); x.stroke();
     }
-  }
+  };
+  paintMaskBorder();
   // ridge walls get painted piles so a wall LOOKS like what it's made of —
   // shadow first, then the pile body, then a lit crest line, in each room's
   // own material. Gaps stay unpainted: the passes read as the flat ground they
@@ -2731,14 +2735,16 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
   mat.rotation.x = -Math.PI / 2;
   mat.receiveShadow = true;
   g.add(mat);
-  // generated top-down ground art replaces the canvas when present
-  // (masked maps keep the canvas — the painted rim IS the map's shape; ridge
-  // maps composite the art UNDER the painted walls so the piles stay visible)
-  if (!(mapCfg && mapCfg.mask)) new THREE.TextureLoader().load(
+  // generated top-down ground art replaces the canvas when present.
+  // Masked and ridge maps COMPOSITE instead of replacing: the art becomes the
+  // base coat, then the deck/rim border and the painted walls go back on top —
+  // the map's shape and chokepoints always win over the art.
+  new THREE.TextureLoader().load(
     `assets/map/ground-${style}.png`,
     (t) => {
-      if (mapCfg && mapCfg.ridges) {
+      if (mapCfg && (mapCfg.mask || mapCfg.ridges)) {
         x.drawImage(t.image, 0, 0, S, S); // art becomes the base coat
+        paintMaskBorder();                // deck + rim retrace the shape
         paintRidges(x);                   // walls painted back on top
         tex.needsUpdate = true;
         groundMat.bumpMap = bumpFromCanvas(c, tex);
