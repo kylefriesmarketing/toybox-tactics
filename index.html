@@ -474,6 +474,19 @@
     filter: drop-shadow(0 0 7px #ffca6390); }
   .e-node-ic { font-size: 22px; }
   .e-node-lb { font-size: 12.5px; fill: #e8dcc2; paint-order: stroke; stroke: #16100a; stroke-width: 3px; }
+  /* round 16: the fantasy-atlas layer — realm names, cartouche, compass */
+  .e-region { pointer-events: none; }
+  .e-region-n { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 15px;
+    letter-spacing: 4px; opacity: 0.55; paint-order: stroke; stroke: #16100a; stroke-width: 3px; }
+  .e-region-h { font-family: Georgia, serif; font-style: italic; font-size: 10px;
+    letter-spacing: 2px; opacity: 0.5; paint-order: stroke; stroke: #16100a; stroke-width: 2.5px; }
+  .e-cartouche rect { fill: #1d1508; opacity: 0.72; stroke: #8a744e; stroke-width: 1.2; }
+  .e-cartouche .e-cart-t { font-family: Georgia, serif; font-size: 14px; letter-spacing: 3px; fill: #e8dcc2; }
+  .e-cartouche .e-cart-s { font-family: Georgia, serif; font-style: italic; font-size: 9.5px; letter-spacing: 1px; fill: #b8a67e; }
+  .e-compass { opacity: 0.6; pointer-events: none; }
+  .e-compass circle { fill: none; stroke: #8a744e; stroke-width: 1.2; }
+  .e-compass path { fill: #cbb98e; }
+  .e-compass text { font-family: Georgia, serif; font-size: 11px; fill: #cbb98e; }
   .e-army { cursor: pointer; }
   .e-army circle { stroke: #16100a; stroke-width: 2.5; filter: drop-shadow(0 2px 3px #000a); }
   .e-army.sel circle { stroke: var(--gold-2); stroke-width: 3.5; }

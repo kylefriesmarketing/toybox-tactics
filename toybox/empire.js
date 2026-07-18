@@ -13,7 +13,7 @@ import { UNITS, FACTIONS } from './data.js';
 import {
   E_NODES, E_ROUTES, E_TEMPLATES, E_NODE_TEMPLATE, E_NODE_TEMPLATE_OVERRIDE, E_TEMPLATE_VARIANTS,
   E_FACTIONS, E_START_ROSTER, E_GARRISONS, E_UPGRADES, E_BRANCHES, E_RULES, E_SIM,
-  E_MODULES, E_MODULE_SLOTS, E_DOCTRINES, E_EVENTS, E_DIFFICULTY,
+  E_MODULES, E_MODULE_SLOTS, E_DOCTRINES, E_EVENTS, E_DIFFICULTY, E_REGIONS,
 } from './empire-data.js';
 import {
   E_CARDS, E_RARITY, E_COMMON_KEYS, E_CARD_ORDER,
@@ -481,7 +481,9 @@ export class Empire {
   hasDoctrine(p, key) { return (this.s.doctrines[p] || []).includes(key); }
   doctrineSlots(p) { return this.s.turn >= E_RULES.doctrineSlot2Turn ? 2 : 1; }
   setDoctrine(p, slot, key) {
-    if (this.s.phase !== 'plan' || this.s.over) return { ok: false, why: 'plan phase only' };
+    // the phase gate is a HUMAN-input rule; the AI plans during resolve
+    // (⚠️ round 16 fix: this guard silently blocked every AI doctrine since R14)
+    if (p === 0 && (this.s.phase !== 'plan' || this.s.over)) return { ok: false, why: 'plan phase only' };
     if (slot >= this.doctrineSlots(p)) return { ok: false, why: 'that slot unlocks midgame' };
     const cur = this.s.doctrines[p];
     if (key && this.s.doctrines[p].includes(key) && cur[slot] !== key) return { ok: false, why: 'already active' };
@@ -509,11 +511,33 @@ export class Empire {
 
   // ---- stronghold modules (§8) ----
   moduleSlots(nodeId) { return E_MODULE_SLOTS[E_NODES[nodeId].type] || 0; }
+  // round 16: the kingdoms of the floor — which realm a province belongs to,
+  // and which flag flies over the realm (majority holder, ties fly no flag)
+  regionOf(nodeId) {
+    for (const [k, r] of Object.entries(E_REGIONS)) if (r.nodes.includes(nodeId)) return k;
+    return null;
+  }
+  regionOwner(regionKey) {
+    const r = E_REGIONS[regionKey];
+    if (!r) return -1;
+    const counts = {};
+    for (const id of r.nodes) {
+      const o = this.s.nodes[id].owner;
+      if (o >= 0) counts[o] = (counts[o] || 0) + 1;
+    }
+    let best = -1, bestN = 0, tie = false;
+    for (const [o, n] of Object.entries(counts)) {
+      if (n > bestN) { best = Number(o); bestN = n; tie = false; }
+      else if (n === bestN) tie = true;
+    }
+    return tie || bestN * 2 <= r.nodes.length ? -1 : best; // must hold a true majority
+  }
   hasModule(nodeId, key) { return (this.s.nodes[nodeId].modules || []).includes(key); }
   buildModule(p, nodeId, key) {
     const st = this.s.nodes[nodeId], mod = E_MODULES[key];
     if (!mod || st.owner !== p) return { ok: false, why: 'not yours' };
-    if (this.s.phase !== 'plan') return { ok: false, why: 'plan phase only' };
+    // human-only phase gate (⚠️ round 16 fix: blocked every AI build since R5)
+    if (p === 0 && this.s.phase !== 'plan') return { ok: false, why: 'plan phase only' };
     if (this.hasModule(nodeId, key)) return { ok: false, why: 'already built' };
     if (st.modules.length >= this.moduleSlots(nodeId)) return { ok: false, why: 'no free sockets' };
     if (this.s.parts[p] < mod.parts) return { ok: false, why: 'not enough Parts' };
@@ -1077,12 +1101,15 @@ export class Empire {
         if (this.s.parts[p] >= u.parts + 40 && this.s.imag[p] >= u.imag) { this.buyUpgrade(p, key); break; }
       }
     }
-    // fortify its strongholds: Block Walls, a Workshop, then a Power Cell for the 3rd (Citadel) slot
+    // develop the realm: forts get walls/workshops/power; every little
+    // province earns a Scrap Mill once the treasury can spare it (round 16)
     for (const [id, st] of Object.entries(this.s.nodes)) {
       if (st.owner !== p || this.moduleSlots(id) === 0) continue;
-      for (const mk of ['walls', 'workshop', 'generator']) {
+      const wish = this.moduleSlots(id) >= 2 ? ['walls', 'workshop', 'generator'] : ['mill'];
+      const buffer = this.moduleSlots(id) >= 2 ? 25 : 10; // a mill pays for itself — build it sooner
+      for (const mk of wish) {
         if (this.hasModule(id, mk) || st.modules.length >= this.moduleSlots(id)) continue;
-        if (this.s.parts[p] >= E_MODULES[mk].parts + 25 && this.s.imag[p] >= (E_MODULES[mk].imag || 0)) { this.buildModule(p, id, mk); break; }
+        if (this.s.parts[p] >= E_MODULES[mk].parts + buffer && this.s.imag[p] >= (E_MODULES[mk].imag || 0)) { this.buildModule(p, id, mk); break; }
       }
     }
     // muster a second front once the empire can feed it
@@ -1517,6 +1544,24 @@ class EmpireUI {
           <defs><marker id="e-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#ffd97a"/></marker></defs>
           <image href="assets/ui/empire-board.jpg" x="0" y="0" width="1000" height="560" preserveAspectRatio="xMidYMid slice" opacity="0.62"/>
           <rect x="0" y="0" width="1000" height="560" fill="#16100a" opacity="0.28"/>
+          ${Object.entries(E_REGIONS).map(([rk, r]) => {
+    const ro = emp.regionOwner(rk);
+    const col = ro >= 0 ? emp.facColor(ro) : '#cbb98e';
+    return `<g class="e-region" transform="translate(${r.lx},${r.ly})">
+              <text text-anchor="middle" class="e-region-n" style="fill:${col}">${r.name.toUpperCase()}</text>
+              ${ro >= 0 ? `<text y="16" text-anchor="middle" class="e-region-h" style="fill:${col}">— held by ${emp.facLabel(ro)} —</text>` : ''}
+            </g>`;
+  }).join('')}
+          <g class="e-cartouche" transform="translate(18,20)">
+            <rect x="0" y="0" width="196" height="52" rx="4"/>
+            <text x="98" y="20" text-anchor="middle" class="e-cart-t">THE BEDROOM FLOOR</text>
+            <text x="98" y="38" text-anchor="middle" class="e-cart-s">a night war of the toy kingdoms</text>
+          </g>
+          <g class="e-compass" transform="translate(958,512)">
+            <circle r="24"/>
+            <path d="M0,-20 L5,0 L0,20 L-5,0 Z"/>
+            <text y="-28" text-anchor="middle">N</text>
+          </g>
           ${routeSvg}${orderSvg}${nodeSvg}${armySvg}
         </svg>
         <div class="e-side">${this.sidePanel(selArmy)}</div>
@@ -1628,8 +1673,12 @@ class EmpireUI {
           ${built ? `<div class="e-mods">${built}</div>` : ''}
           ${buildBtns ? `<div class="e-dim" style="margin-top:2px">Build:</div><div class="e-modbuilds">${buildBtns}</div>` : (st.owner === 0 && free === 0 ? '<div class="e-dim">All sockets full.</div>' : '')}`;
       }
+      const regionKey = emp.regionOf(id);
+      const region = regionKey ? E_REGIONS[regionKey] : null;
+      const regOwner = regionKey ? emp.regionOwner(regionKey) : -1;
       return `<div class="e-panel">
         <div class="e-ttl">${n.icon} ${n.name}</div>
+        ${region ? `<div class="e-dim" style="font-style:italic">a province of <b style="color:${regOwner >= 0 ? emp.facColor(regOwner) : '#cbb98e'}">${region.name}</b>${regOwner >= 0 ? `, held by ${emp.facLabel(regOwner)}` : ''}</div>` : ''}
         <div class="e-dim">${n.desc}</div>
         <div class="e-kv"><span>Owner</span><b style="color:${st.owner === -1 ? '#b9a888' : emp.facColor(st.owner)}">${owner}</b></div>
         ${n.yield ? `<div class="e-kv"><span>Yield</span><b>${n.yield}🔩${n.powerYield ? ` + ${n.powerYield}⚡` : ''}/turn</b></div>` : ''}

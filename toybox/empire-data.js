@@ -145,9 +145,23 @@ export const E_MODULES = {
                 desc: '+2 Power each turn this node is supplied — fuel for Force Marches.' },
   library:    { name: 'Dream Library', icon: '📚', parts: 45, imag: 20, imag_yield: 3,
                 desc: '+3 Imagination each turn this node is supplied — fuel for the Empire Tree.' },
+  mill:       { name: 'Scrap Mill',    icon: '⚙️', parts: 40, imag: 0,  parts_yield: 5,
+                desc: '+5 Parts/turn — the little holding earns its keep. (Round 16: every province can build.)' },
 };
-// how many module sockets a node offers, by type. The capital is your Citadel — 3 sockets (§8).
-export const E_MODULE_SLOTS = { capital: 3, stronghold: 2, crown: 0, mission: 0, resource: 0, market: 0, discovery: 0 };
+// how many module sockets a node offers, by type. The capital is your Citadel —
+// 3 sockets (§8); round 16: EVERY province offers at least one socket, so each
+// holding you take can be developed into something (a mill, a watch, a wall).
+export const E_MODULE_SLOTS = { capital: 3, stronghold: 2, crown: 1, mission: 1, resource: 1, market: 1, discovery: 1 };
+
+// ---------------- round 16: the kingdoms of the floor -----------------------
+// The board reads as a fantasy atlas: four named realms, each a cluster of
+// provinces. A realm's label takes the color of whoever holds most of it.
+export const E_REGIONS = {
+  WEST:  { name: 'The Brick Marches',    lx: 218, ly: 322, nodes: ['CAP_A', 'RUG_1', 'WORK_1', 'FORT_W'] },
+  EAST:  { name: 'The Green Dominion',   lx: 802, ly: 322, nodes: ['CAP_B', 'RUG_3', 'BAT_1', 'FORT_E'] },
+  SOUTH: { name: 'The Windowsill Reach', lx: 502, ly: 448, nodes: ['CAP_C', 'CACHE', 'POWER'] },
+  NORTH: { name: 'The Old Heartlands',   lx: 645, ly: 98,  nodes: ['CENTER', 'ARCHIVE'] },
+};
 
 // House events (§5): the room is alive after bedtime. One brews at a time,
 // telegraphed a full turn before it strikes (fair-warning rule). Each is
