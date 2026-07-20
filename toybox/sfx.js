@@ -461,6 +461,17 @@ export class SFX {
   _alarm()   { [620, 460, 620, 460].forEach((f, i) => this.tone(f, 0.1, { type: 'square', gain: 0.06, when: i * 0.12 })); }
   _trade()   { this.tone(1568, 0.07, { type: 'triangle', gain: 0.1 }); this.tone(2093, 0.12, { type: 'triangle', gain: 0.1, when: 0.07 }); }
   _pop()     { this.tone(400, 0.07, { type: 'sine', gain: 0.13, slide: 700 }); }
+  // pets get their own soft voices (positional via playAt) so a bark or whir
+  // every few seconds reads as life, never as an annoying repeated UI blip
+  _woof()    { // a friendly two-note toy bark, low and round
+    this.tone(150, 0.1, { type: 'triangle', gain: 0.12, slide: 110 });
+    this.tone(120, 0.14, { type: 'triangle', gain: 0.1, slide: 85, when: 0.11 });
+    this.noise(0.06, { freq: 300, gain: 0.03 });
+  }
+  _whir()    { // the roomba's soft low motor sweep — no sharp edges
+    this.tone(90, 0.5, { type: 'triangle', gain: 0.05, slide: 105 });
+    this.noise(0.5, { freq: 220, gain: 0.015, type: 'lowpass' });
+  }
   _victory() {
     // triumphant fanfare: a rising run into a big major chord + sparkles
     [523, 659, 784, 1047, 1319].forEach((f, i) => this.tone(f, 0.18, { type: 'triangle', gain: 0.14, when: i * 0.12 }));

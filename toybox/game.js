@@ -1146,7 +1146,7 @@ export class Game {
     c.barkT -= dt;
     if (c.barkT <= 0) {
       c.barkT = YARD_DOG.barkEvery + this.rng() * 4;
-      this.sfx && this.sfx.playAt && this.sfx.playAt('bonk', c.x, c.z, 200); // a distant WOOF (toy-bugle stand-in)
+      this.sfx && this.sfx.playAt && this.sfx.playAt('woof', c.x, c.z, 200); // a friendly distant bark
     }
     if (c.state === 'trot') {
       c.stateT -= dt;
@@ -1232,7 +1232,7 @@ export class Game {
     c.view.update(dt);
     c.shoveT = Math.max(0, c.shoveT - dt);
     c.whirT -= dt;
-    if (c.whirT <= 0) { c.whirT = ROOMBA.whirEvery; this.sfx && this.sfx.playAt && this.sfx.playAt('select', c.x, c.z, 300); }
+    if (c.whirT <= 0) { c.whirT = ROOMBA.whirEvery; this.sfx && this.sfx.playAt && this.sfx.playAt('whir', c.x, c.z, 300); }
     const sp = ROOMBA.speed * dt;
     let nx = c.x + Math.sin(c.heading) * sp, nz = c.z + Math.cos(c.heading) * sp;
     const blocked = !this.tileOpenFor(nx, nz, -1) || Math.abs(nx) > N / 2 - 2 || Math.abs(nz) > N / 2 - 2;
