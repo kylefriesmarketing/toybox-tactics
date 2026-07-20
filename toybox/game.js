@@ -727,6 +727,7 @@ export class Game {
         i > si - 5 && i < si + 7 && j > sj - 5 && j < sj + 7)) continue;
       const decor = createDecorMesh(kinds[(rng() * kinds.length) | 0], k + 3);
       decor.position.set(worldOf(i), this.heightAtWorld(worldOf(i), worldOf(j)), worldOf(j));
+      decor.userData.decor = true; // view-only tag: THE KID may take these
       this.scene.add(decor);
     }
     // resource abundance scales with the map theme

@@ -1754,6 +1754,7 @@ window.__ttGL = () => ({ renderer, scene, camera }); // perf probes
 window.__ttAmbient = () => ambient; // ambience debug handle
 window.__ttSfx = () => sfx; // audio debug handle (ambKind checks)
 window.__ttWeather = () => weather; // weather/flyover debug handle
+window.__ttKid = () => kidEvent; // THE KID debug handle (set .t=0.1 to summon)
 window.__ttCam = (x, z, dist = 24) => {
   cam.tx = cam.x = x; cam.tz = cam.z = z; cam.tdist = cam.dist = dist;
   applyCamera(1);
@@ -1972,6 +1973,14 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
         $('go-stats').insertAdjacentHTML('beforeend',
           `<div style="margin-top:8px"><button class="diff-btn sel" onclick="location.reload()">🗺️ Return to the Empire</button></div>`);
       }
+      // the room remembers: tonight's wear becomes tomorrow's faint history
+      try {
+        if (tracks && !tracks.fading) {
+          const sm = document.createElement('canvas'); sm.width = sm.height = 256;
+          sm.getContext('2d').drawImage(tracks.c, 0, 0, 256, 256);
+          localStorage.setItem('tt-wear-' + game.map.ground, sm.toDataURL('image/png'));
+        }
+      } catch { /* storage full — the room forgets, no harm */ }
       // the Chronicle remembers, and new Bedtime Stories get their moment
       const newly = recordMatch(game, win);
       if (newly.length) {
@@ -2020,6 +2029,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   setupTracks(); // footprints, trampled paths, and the scars of razed forts
   setupNight();  // the night deepens as the match grows old
   setupBaseLife(); // settlements act like settlements
+  setupKidEvent(); // and somewhere beyond the rim, THE KID is awake
   // the bedside lamp stays indoors — outdoor maps get sun, dusk, and porch light
   const outdoorMap = !!(game.map && game.map.outdoor);
   lampProp.group.visible = !outdoorMap;
@@ -2713,6 +2723,16 @@ function setupTracks() {
   // sandbox keeps fast-fading footprints; every other room accumulates WEAR —
   // trampled paths and battle scars that persist and tell the war's story
   tracks = { c, ctx, tex, t: 0, fading: game.map.ground === 'sandbox', deadSeen: new Set() };
+  // the room remembers: last night's wear ghosts in under tonight's (35%,
+  // so it fades naturally over a few sessions instead of blackening forever)
+  try {
+    const prev = localStorage.getItem('tt-wear-' + game.map.ground);
+    if (prev) {
+      const img = new Image();
+      img.onload = () => { ctx.globalAlpha = 0.35; ctx.drawImage(img, 0, 0, 512, 512); ctx.globalAlpha = 1; tex.needsUpdate = true; };
+      img.src = prev;
+    }
+  } catch { /* storage unavailable */ }
 }
 function updateTracks(dt) {
   if (!tracks || !game) return;
@@ -2829,6 +2849,87 @@ function updateBaseLife(dt) {
   }
   for (const g2 of baseLife.glows.values()) {
     g2.spr.material.opacity = nightF * 0.5 * (0.85 + Math.sin(performance.now() * 0.0018 + g2.e.id) * 0.15);
+  }
+}
+
+// ---------------- THE KID (view-only spectacle) ------------------------------
+// Once in a long while, the owner of every toy on this floor reaches into the
+// war and takes something. Footsteps, a colossal shadow, a hand from the sky —
+// and a crayon is gone. The sim never knows; only the toys do.
+let kidEvent = null;
+function setupKidEvent() {
+  kidEvent = { t: 420 + Math.random() * 300, phase: null, pt: 0, hand: null, shadow: null, target: null };
+}
+function updateKidEvent(dt) {
+  if (!kidEvent || !game || game.zeroEra) return;
+  if (!kidEvent.phase) {
+    kidEvent.t -= dt;
+    if (kidEvent.t > 0) return;
+    const decors = [];
+    scene.traverse((n) => { if (n.userData && n.userData.decor && n.visible) decors.push(n); });
+    if (!decors.length) { kidEvent.t = 300; return; }
+    kidEvent.target = decors[(Math.random() * decors.length) | 0];
+    // the shadow: a colossal soft blob that sweeps in over the target
+    const cc = document.createElement('canvas'); cc.width = cc.height = 128;
+    const cx2 = cc.getContext('2d');
+    const grad = cx2.createRadialGradient(64, 64, 10, 64, 64, 62);
+    grad.addColorStop(0, 'rgba(0,0,0,0.5)'); grad.addColorStop(1, 'rgba(0,0,0,0)');
+    cx2.fillStyle = grad; cx2.fillRect(0, 0, 128, 128);
+    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(55, 40),
+      new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cc), transparent: true, opacity: 0, depthWrite: false }));
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.set(kidEvent.target.position.x + 10, 0.09, kidEvent.target.position.z + 6);
+    shadow.renderOrder = 2;
+    scene.add(shadow);
+    // the hand: five plush-pink fingers and a palm, big as a battleship
+    const hand = new THREE.Group();
+    const skin = new THREE.MeshStandardMaterial({ color: 0xe8b48c, roughness: 0.7 });
+    const palm = new THREE.Mesh(new THREE.BoxGeometry(6.5, 1.8, 7.5), skin);
+    palm.castShadow = true;
+    hand.add(palm);
+    for (let f = 0; f < 4; f++) {
+      const fin = new THREE.Mesh(new THREE.CapsuleGeometry(0.75, 3.4, 4, 8), skin);
+      fin.rotation.x = Math.PI / 2 + 0.5;
+      fin.position.set(-2.4 + f * 1.6, -0.4, 4.6);
+      fin.castShadow = true;
+      hand.add(fin);
+    }
+    const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.8, 2.6, 4, 8), skin);
+    thumb.rotation.z = 1.0; thumb.rotation.x = 0.4;
+    thumb.position.set(-3.8, -0.4, 1);
+    hand.add(thumb);
+    hand.position.set(kidEvent.target.position.x + 4, 44, kidEvent.target.position.z - 3);
+    hand.rotation.z = 0.18;
+    scene.add(hand);
+    kidEvent.hand = hand; kidEvent.shadow = shadow;
+    kidEvent.phase = 'foot'; kidEvent.pt = 0;
+    try { sfx.footsteps(); } catch { /* muted */ }
+    game.alert && game.alert('🖐️ Footsteps… THE KID is looking for something.', 'warn', { x: kidEvent.target.position.x, z: kidEvent.target.position.z }, 5);
+    return;
+  }
+  kidEvent.pt += dt;
+  const ease = (x) => x < 0.5 ? 2 * x * x : 1 - ((-2 * x + 2) ** 2) / 2;
+  const K = kidEvent, tgt = K.target;
+  if (K.phase === 'foot' && K.pt > 2.2) { K.phase = 'shadow'; K.pt = 0; shakeCam(0.12); }
+  else if (K.phase === 'shadow') {
+    K.shadow.material.opacity = Math.min(0.55, K.pt * 0.3);
+    if (K.pt > 2.4) { K.phase = 'descend'; K.pt = 0; }
+  } else if (K.phase === 'descend') {
+    const f = ease(Math.min(1, K.pt / 2.4));
+    K.hand.position.y = 44 - f * (44 - (tgt.position.y + 2.6));
+    if (K.pt > 2.4) { K.phase = 'grab'; K.pt = 0; }
+  } else if (K.phase === 'grab') {
+    if (K.pt > 0.7 && tgt.visible) { tgt.visible = false; shakeCam(0.08); try { sfx.play('pop', 80); } catch { /* muted */ } }
+    if (K.pt > 0.9) { K.phase = 'lift'; K.pt = 0; }
+  } else if (K.phase === 'lift') {
+    const f = ease(Math.min(1, K.pt / 2.2));
+    K.hand.position.y = (tgt.position.y + 2.6) + f * 46;
+    K.shadow.material.opacity = Math.max(0, 0.55 - f * 0.55);
+    if (K.pt > 2.4) {
+      scene.remove(K.hand); scene.remove(K.shadow);
+      game.alert && game.alert('…and just like that, something small is gone from the room.', 'info', null, 4);
+      kidEvent = { t: 520 + Math.random() * 420, phase: null, pt: 0, hand: null, shadow: null, target: null };
+    }
   }
 }
 
@@ -3498,6 +3599,7 @@ function loop() {
   updateTracks(dt);             // footprints press in, the wind smooths them out
   updateNight();                // the moon keeps its own slow time
   updateBaseLife(dt);           // chimneys smoke, windows glow
+  updateKidEvent(dt);           // footsteps, a shadow, a hand from the sky
   if (sfx.setListener) sfx.setListener(cam.x, cam.z);
   updateObjectives(dt);         // the goal, live, where eyes already are
   // the lamp breathes a little, like a real filament (only while it exists)
@@ -3532,6 +3634,7 @@ setInterval(() => {
     updateTracks(elapsed);
     updateNight();
     updateBaseLife(elapsed);
+    updateKidEvent(elapsed);
     if (sfx.setListener) sfx.setListener(cam.x, cam.z);
     updateObjectives(elapsed);
     updateCamMoment(elapsed);
