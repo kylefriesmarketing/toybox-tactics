@@ -1067,6 +1067,40 @@ function applyMissionMods(g, mission) {
   g.missionEvents = (MISSION_EVENTS[mission.id] || []).map((e) => ({ ...e }));
 }
 const ACT_CLOSERS = { finale: 1, shelfking: 2, wayhome: 3, oakcrown: 4 };
+// The Long Night has its own game-over card — waves held, not rivals crushed.
+function survivalGameOver(win) {
+  const g = game, S = g.survival || { wave: 0, bestWave: 0 };
+  const dawn = SURVIVAL.dawnWave;
+  const me = g.players[g.myId];
+  const held = Math.max(S.wave - (win ? 0 : 1), 0); // a loss means the current wave broke you
+  const t = Math.floor(g.time);
+  $('go-title').textContent = win ? '☀️ DAWN' : '🌑 OVERRUN';
+  $('go-title').className = win ? 'win' : 'lose';
+  $('go-sub').textContent = win
+    ? 'You held the room until the sun came up. The Forgotten crawl back under the bed.'
+    : `The Forgotten broke through at wave ${S.wave}. The room belongs to the dark — until tomorrow night.`;
+  const art = $('go-art'); if (art) { art.style.display = 'none'; art.removeAttribute('src'); }
+  // a wave-progress ladder + the night's tally (no rival columns — there are none)
+  const pct = Math.min(100, Math.round(held / dawn * 100));
+  const rows = [
+    ['Waves held', `${held} / ${dawn}`],
+    ['Furthest wave reached', S.bestWave || S.wave],
+    ['The Forgotten unmade', me.stats.kills],
+    ['Toys lost holding the line', me.stats.lost],
+    ['Resources scavenged', Math.floor(me.stats.gathered)],
+    ['Stood through the night', `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`],
+  ];
+  $('go-stats').innerHTML =
+    `<div class="statline" style="margin-bottom:8px">The Long Night — you reached <b style="color:#ffd94a">wave ${held}</b> of ${dawn}</div>` +
+    `<div style="height:14px;background:#241a10;border-radius:7px;overflow:hidden;border:1px solid #5a4a2e;margin-bottom:12px">
+       <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#8a5a2c,#ffd94a);transition:width .6s"></div></div>` +
+    '<table>' + rows.map((r) =>
+      `<tr><td class="label">${r[0]}</td><td>${r[1]}</td></tr>`).join('') + '</table>';
+  $('go-story').textContent = win
+    ? `Six waves, then twelve, and never once did the walls come down for good. When the grey light finally reached under the door, ${me.stats.kills} of the Forgotten had been sent back to wherever lost toys go — and every toy that fell, fell facing the dark. Sleep now. You earned the morning.`
+    : `They came in numbers the walls were never built for. You held ${held} wave${held === 1 ? '' : 's'} of the twelve, and the room remembers every one. The Forgotten always come back — but so do you. Tomorrow night, build the walls higher.`;
+}
+
 function campaignGameOver(win) {
   const m = campaignMission;
   if (win) markCampaignDone(m.id);
@@ -1955,6 +1989,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
     gameOver: (win, stats, timeline) => {
       ui.gameOver(win, stats, timeline);
       if (campaignMission) campaignGameOver(win);
+      else if (game.gameMode === 'survival') survivalGameOver(win);
       else {
         // skirmish: the storyteller retells the match on the game-over card
         $('go-story').textContent = game.matchStory(win);

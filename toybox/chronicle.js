@@ -119,6 +119,16 @@ export const ACHIEVEMENTS = [
   { id: 'floorfriend', icon: '🐾', name: 'Friend of the Floor', beyond: true,
     desc: 'Befriend five critters in one match — the room knows your name.',
     check: (c) => (c.g.players[c.g.myId].stats.mice || 0) >= 5 },
+  // The Long Night (survival mode)
+  { id: 'firstlight', icon: '🌒', name: 'First Light', beyond: true,
+    desc: 'Hold to wave 6 in The Long Night.',
+    check: (c) => c.g.gameMode === 'survival' && (c.g.survival ? c.g.survival.bestWave : 0) >= 6 },
+  { id: 'seenthedawn', icon: '☀️', name: 'Seen the Dawn', beyond: true,
+    desc: 'Survive The Long Night — hold until sunrise.',
+    check: (c) => c.g.gameMode === 'survival' && !!c.g.survivalWon },
+  { id: 'longestnight', icon: '🕯️', name: 'The Longest Night', beyond: true,
+    desc: 'Lose not a single toy through the first three waves of The Long Night.',
+    check: (c) => c.g.gameMode === 'survival' && (c.g.survival ? c.g.survival.bestWave : 0) >= 3 && c.me.stats.lost === 0 },
 ];
 
 // Called once per finished match. Updates the Chronicle, evaluates every
