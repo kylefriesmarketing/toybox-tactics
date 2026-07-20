@@ -167,6 +167,18 @@ const LOAD_LORE = [
   'Every Tin Bot spends its ticks carefully. Ask Captain Cogsworth what they\'re saving up for.',
   'Set a rally on a Snack pile — new Worker Buddies will march straight to work.',
   'The Hypno-Top only ever asks one question: whose side were you on, again?',
+  // the room is alive — teach the player what shares the floor with them
+  'Keep your toys together. The house cat only ever swats the ones who wander off alone.',
+  'The yard dog cannot be reasoned with. It can only be out-run, and not for long.',
+  'A lone toy is a snack. A squad is a problem the cat would rather nap through.',
+  'The Roomba means no harm. It simply does not see you — right up until it shoves you aside.',
+  'March military toys onto a wild camp and hold it. Teach them your flags, and the tribe is yours.',
+  'A Worker Buddy who wanders past a lost toy will carry it home for a fistful of Buttons.',
+  'Befriend a critter and it scurries home with Snacks. The dust bunnies, though, are uncatchable.',
+  'The night deepens as the war drags on. Whoever wins by moonlight fought longest in the dark.',
+  'The room keeps score in the carpet. Fight the same ground twice and you\'ll see last night\'s paths.',
+  'Somewhere past the rim, a giant is awake. Sometimes a hand comes down and a crayon simply… goes.',
+  'In The Long Night, there is no winning — only the twelve waves, and the dawn on the far side.',
 ];
 function startLoadLore() {
   const el = $('loadlore');
