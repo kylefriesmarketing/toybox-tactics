@@ -1408,7 +1408,8 @@ const playIntro = (function initIntro() {
         ['💛 Favorite tribe', favFac ? (FACTIONS[favFac[0]] || {}).label || favFac[0] : '—'],
         ['🗡️ Toys unmade', c.kills], ['🪦 Toys carried home', c.lost],
         ['🌾 Resources gathered', c.gathered.toLocaleString()],
-        ['⚓ Ships launched', c.shipsBuilt], ['🐭 Mice befriended', c.mice],
+        ['⚓ Ships launched', c.shipsBuilt], ['🐾 Critters befriended', c.mice],
+        ['🏕️ Tribes won over', c.tribes || 0], ['🧸 Lost toys returned', c.strays || 0],
         ['⭐ Best score', c.bestScore.toLocaleString()],
         ['📚 Bedtime Stories earned', earnedCount + ' / ' + ACHIEVEMENTS.length],
       ];

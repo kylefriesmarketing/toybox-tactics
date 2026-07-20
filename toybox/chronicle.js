@@ -13,7 +13,8 @@ export function loadChronicle() {
 }
 function blank() {
   return { games: 0, wins: 0, playSec: 0, winsByFaction: {}, gamesByFaction: {},
-    kills: 0, lost: 0, razed: 0, gathered: 0, mice: 0, shipsBuilt: 0, bestScore: 0 };
+    kills: 0, lost: 0, razed: 0, gathered: 0, mice: 0, shipsBuilt: 0, bestScore: 0,
+    tribes: 0, strays: 0 };
 }
 
 export function loadEarned() {
@@ -146,6 +147,8 @@ export function recordMatch(g, win) {
   chron.gathered += Math.round(me.stats.gathered);
   chron.mice += me.stats.mice || 0;
   chron.shipsBuilt += me.stats.shipsBuilt || 0;
+  chron.tribes = (chron.tribes || 0) + (me.stats.tribes || 0);
+  chron.strays = (chron.strays || 0) + (me.stats.strays || 0);
   const last = g.timeline[g.timeline.length - 1];
   const score = last && last.p[g.myId] ? last.p[g.myId].score : 0;
   if (score > chron.bestScore) chron.bestScore = score;
