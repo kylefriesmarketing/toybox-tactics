@@ -9,14 +9,14 @@ import {
   MAP_N, POP_MAX, RES_TYPES, RES_META, UNITS, BUILDINGS, TECHS, MARKET, maskAt,
   AGES, AGE_UPS, PRODUCTION_BUILDINGS, START, AI, DIFFICULTIES, TEAM_NAMES, STICKER, WONDER, PERSONAS, MAPS, FACTIONS,
   TAUNTS, AI_LINES, NARRATOR, NARRATOR_NG,
-  CRITTERS, CRITTER_TYPES, LOST_TOYS, WILD_TRIBES, HOUSE_CAT, GAME_MODES, START_RES, SURVIVAL,
+  CRITTERS, CRITTER_TYPES, LOST_TOYS, WILD_TRIBES, HOUSE_CAT, YARD_DOG, ROOMBA, GAME_MODES, START_RES, SURVIVAL,
 } from './data.js';
 import {
   createUnitView, createBuildingView, createResourceView,
   createGround, createObstacleMesh, createDecorMesh, createStickerView, createRallyFlag,
   makeRankBadge, createCritterView, createMilkSpill, createKingCrown, createThroneView,
   createWaterSurface, createWaterDecor, applyUnitTier, shadeGroundByHeight,
-  createLostToyView, createCampView, createCatView,
+  createLostToyView, createCampView, createCatView, createDogView, createRoombaView,
 } from './models.js';
 
 const N = MAP_N;
@@ -944,17 +944,28 @@ export class Game {
       }
     }
 
-    // the house cat: one per land map, spawned at the midfield ring
-    if (this.map.cat !== false) {
-      for (let t = 0; t < 30; t++) {
-        const a = rng() * Math.PI * 2, r = 8 + rng() * 10;
+    // the pets patrol the midfield ring: an apex predator (cat indoors, dog in
+    // the yard) plus a Roomba on the flat floors. Same seeded placement scan.
+    const placePet = (spawn, clearR = 14) => {
+      // try the midfield ring first (the pet reads as "in the thick of it")…
+      for (let t = 0; t < 40; t++) {
+        const a = rng() * Math.PI * 2, r = 7 + rng() * 12;
         const i = Math.round(N / 2 + Math.cos(a) * r), j = Math.round(N / 2 + Math.sin(a) * r);
-        if (this.blocked[idx(i, j)] || this.water[idx(i, j)] === 1) continue;
-        if (!clearHomes(i, j, 14)) continue;
-        this.addCat(worldOf(i), worldOf(j));
-        break;
+        if (!inMap(i, j) || this.blocked[idx(i, j)] || this.water[idx(i, j)] === 1) continue;
+        if (!clearHomes(i, j, clearR)) continue;
+        spawn(worldOf(i), worldOf(j)); return;
       }
-    }
+      // …then guarantee placement with a deterministic full-board scan (hill/
+      // ridge maps can starve the ring; a pet that never spawns is a bug)
+      for (let i = 6; i < N - 6; i++) for (let j = 6; j < N - 6; j++) {
+        if (this.blocked[idx(i, j)] || this.water[idx(i, j)] === 1) continue;
+        if (!clearHomes(i, j, clearR)) continue;
+        spawn(worldOf(i), worldOf(j)); return;
+      }
+    };
+    if (this.map.cat !== false) placePet((x, z) => this.addCat(x, z));
+    if (this.map.dog) placePet((x, z) => this.addDog(x, z));
+    if (this.map.roomba) placePet((x, z) => this.addRoomba(x, z), 12);
 
     this.fog.update(this.entities);
   }
@@ -1113,6 +1124,140 @@ export class Game {
     c.view.group.rotation.y = c.facing;
   }
 
+  addDog(x, z) {
+    const view = createDogView();
+    view.group.position.set(x, this.heightAtWorld(x, z), z);
+    this.scene.add(view.group);
+    this.entities.push({
+      id: this.nextId++, kind: 'dog', owner: -1,
+      x, z, radius: 1.3, facing: 0,
+      state: 'trot', stateT: 3 + this.rng() * 4, tgt: null, chaseId: -1, pounceT: 0, barkT: this.rng() * YARD_DOG.barkEvery,
+      def: { name: 'The Yard Dog', desc: 'Pure enthusiasm on four legs. It will chase anything that moves.' },
+      view, dead: false,
+    });
+  }
+
+  // the dog's whole life: trot until something MOVES, then charge it, bowl it
+  // over with joy, bark, and flop down panting — forever, tirelessly delighted
+  updateDog(c, dt) {
+    if (c.dead) return;
+    c.view.update(dt);
+    c.pounceT = Math.max(0, c.pounceT - dt);
+    c.barkT -= dt;
+    if (c.barkT <= 0) {
+      c.barkT = YARD_DOG.barkEvery + this.rng() * 4;
+      this.sfx && this.sfx.playAt && this.sfx.playAt('bonk', c.x, c.z, 200); // a distant WOOF (toy-bugle stand-in)
+    }
+    if (c.state === 'trot') {
+      c.stateT -= dt;
+      // spot the nearest mover and commit to the chase
+      let best = null, bestD = YARD_DOG.chaseRadius ** 2;
+      for (const e of this.entities) {
+        if (e.dead || e.garrisoned) continue;
+        const moving = (e.kind === 'unit' && e.owner >= 0 && !e.def.naval && e.wasMoving)
+          || (e.kind === 'critter' && e.tgt);
+        if (!moving) continue;
+        const d2 = dist2(c, e);
+        if (d2 < bestD) { bestD = d2; best = e; }
+      }
+      if (best) { c.state = 'chase'; c.chaseId = best.id; c.stateT = YARD_DOG.giveUp; c.view.setGait && c.view.setGait(true); }
+      else {
+        if (!c.tgt || c.stateT <= 0) {
+          c.stateT = 3 + this.rng() * 4;
+          for (let t = 0; t < 8; t++) {
+            const a = this.rng() * Math.PI * 2, r = 5 + this.rng() * 9;
+            const tx = Math.max(-N / 2 + 3, Math.min(N / 2 - 3, c.x + Math.sin(a) * r));
+            const tz = Math.max(-N / 2 + 3, Math.min(N / 2 - 3, c.z + Math.cos(a) * r));
+            if (!this.blocked[idx(tileOf(tx), tileOf(tz))] && this.water[idx(tileOf(tx), tileOf(tz))] !== 1) { c.tgt = { x: tx, z: tz }; break; }
+          }
+        }
+        this.moveDog(c, dt, YARD_DOG.trotSpeed, c.tgt);
+      }
+    } else if (c.state === 'chase') {
+      c.stateT -= dt;
+      const prey = this.entities.find((e) => e.id === c.chaseId && !e.dead && !e.garrisoned);
+      if (!prey || c.stateT <= 0) { c.state = 'rest'; c.stateT = YARD_DOG.restMin + this.rng() * (YARD_DOG.restMax - YARD_DOG.restMin); c.chaseId = -1; c.view.setGait && c.view.setGait(false); }
+      else {
+        this.moveDog(c, dt, YARD_DOG.runSpeed, prey);
+        if (c.pounceT <= 0 && dist2(c, prey) < YARD_DOG.pounceRadius ** 2) {
+          if (prey.kind === 'unit') {
+            prey.hp -= YARD_DOG.pounceDamage;
+            const dx = prey.x - c.x, dz = prey.z - c.z, d = Math.hypot(dx, dz) || 1;
+            const kx = prey.x + (dx / d) * YARD_DOG.pounceKnock, kz = prey.z + (dz / d) * YARD_DOG.pounceKnock;
+            if (this.tileOpenFor(kx, kz, prey.owner)) { prey.x = kx; prey.z = kz; }
+            this.fx && this.fx.spawnPop(prey.x, prey.z, 0xd8c8a8);
+            if (prey.owner === this.myId) this.alert('🐕 The yard dog POUNCES on your toy! Scatter and regroup.', 'warn', { x: c.x, z: c.z }, 4);
+            if (prey.hp <= 0 && !prey.dead) this.kill(prey, null);
+          }
+          c.pounceT = YARD_DOG.pounceCooldown;
+          c.state = 'rest'; c.stateT = YARD_DOG.restMin + this.rng() * (YARD_DOG.restMax - YARD_DOG.restMin); c.chaseId = -1;
+          c.view.setGait && c.view.setGait(false);
+        }
+      }
+    } else { // rest: flop and pant
+      c.stateT -= dt;
+      if (c.stateT <= 0) { c.state = 'trot'; c.stateT = 3 + this.rng() * 4; c.tgt = null; }
+    }
+    c.view.group.position.set(c.x, this.heightAtWorld(c.x, c.z), c.z);
+    c.view.group.rotation.y = c.facing;
+  }
+  moveDog(c, dt, speed, tgt) {
+    if (!tgt) return;
+    const dx = tgt.x - c.x, dz = tgt.z - c.z, d = Math.hypot(dx, dz);
+    if (d < 0.4) { if (c.state === 'trot') c.tgt = null; return; }
+    const sp = speed * dt;
+    const nx = c.x + (dx / d) * sp, nz = c.z + (dz / d) * sp;
+    const cliff = Math.abs(this.tileHeight(tileOf(nx), tileOf(nz)) - this.tileHeight(tileOf(c.x), tileOf(c.z))) > CLIMB;
+    if (!this.blocked[idx(tileOf(nx), tileOf(nz))] && this.water[idx(tileOf(nx), tileOf(nz))] !== 1 && !cliff) {
+      c.x = nx; c.z = nz; c.facing = Math.atan2(dx, dz);
+    } else if (c.state === 'trot') c.tgt = null;
+  }
+
+  addRoomba(x, z) {
+    const view = createRoombaView();
+    view.group.position.set(x, this.heightAtWorld(x, z), z);
+    this.scene.add(view.group);
+    this.entities.push({
+      id: this.nextId++, kind: 'roomba', owner: -1,
+      x, z, radius: 0.66, heading: this.rng() * Math.PI * 2, shoveT: 0, whirT: this.rng() * ROOMBA.whirEvery,
+      def: { name: 'The Roomba', desc: 'A tireless robot vacuum. It does not see your toys. It never will.' },
+      view, dead: false,
+    });
+  }
+
+  // the Roomba: a straight-line trundle that bounces off walls and shoves any
+  // toy out of its way — no malice, no damage, it simply does not perceive them
+  updateRoomba(c, dt) {
+    if (c.dead) return;
+    c.view.update(dt);
+    c.shoveT = Math.max(0, c.shoveT - dt);
+    c.whirT -= dt;
+    if (c.whirT <= 0) { c.whirT = ROOMBA.whirEvery; this.sfx && this.sfx.playAt && this.sfx.playAt('select', c.x, c.z, 300); }
+    const sp = ROOMBA.speed * dt;
+    let nx = c.x + Math.sin(c.heading) * sp, nz = c.z + Math.cos(c.heading) * sp;
+    const blocked = !this.tileOpenFor(nx, nz, -1) || Math.abs(nx) > N / 2 - 2 || Math.abs(nz) > N / 2 - 2;
+    if (blocked) {
+      // bounce: reflect with a little scatter so it doesn't loop forever
+      c.heading = c.heading + Math.PI + (this.rng() - 0.5) * 1.2;
+      nx = c.x; nz = c.z;
+    }
+    c.x = nx; c.z = nz;
+    // the shove: anything it bumps gets pushed along its heading
+    if (c.shoveT <= 0) {
+      for (const e of this.entities) {
+        if (e.kind !== 'unit' || e.dead || e.owner < 0 || e.garrisoned || e.def.naval) continue;
+        if (dist2(c, e) > ROOMBA.shoveRadius ** 2) continue;
+        const kx = e.x + Math.sin(c.heading) * ROOMBA.shoveKnock, kz = e.z + Math.cos(c.heading) * ROOMBA.shoveKnock;
+        if (this.tileOpenFor(kx, kz, e.owner)) { e.x = kx; e.z = kz; }
+        this.fx && this.fx.spawnPop(e.x, e.z, 0x9ad0e0);
+        c.shoveT = ROOMBA.shoveCooldown;
+        break;
+      }
+    }
+    c.view.group.position.set(c.x, this.heightAtWorld(c.x, c.z), c.z);
+    c.view.group.rotation.y = c.heading;
+  }
+
   addLostToy(x, z, type) {
     const view = createLostToyView(type);
     view.group.position.set(x, this.heightAtWorld(x, z), z);
@@ -1182,8 +1327,11 @@ export class Game {
       if (c.scanT <= 0) {
         c.scanT = 0.4;
         const cat = this.entities.find((x) => x.kind === 'cat' && !x.dead);
-        if (cat && dist2(c, cat) < HOUSE_CAT.scatterRadius ** 2 && !ct.water) {
-          const dx = c.x - cat.x, dz = c.z - cat.z, d = Math.hypot(dx, dz) || 1;
+        const dog = this.entities.find((x) => x.kind === 'dog' && !x.dead);
+        const beast = cat || dog;
+        const scareR = dog ? YARD_DOG.scatterRadius : HOUSE_CAT.scatterRadius;
+        if (beast && dist2(c, beast) < scareR ** 2 && !ct.water) {
+          const dx = c.x - beast.x, dz = c.z - beast.z, d = Math.hypot(dx, dz) || 1;
           const fx2 = c.x + (dx / d) * 4, fz2 = c.z + (dz / d) * 4;
           if (this.tileOpenFor(fx2, fz2, -1)) { c.tgt = { x: fx2, z: fz2 }; c.wanderT = 1.5; }
         } else if (ct.flee) {
@@ -2103,6 +2251,12 @@ export class Game {
         if (e.kind === 'cat') {
           return { k: 'ct', id: e.id, x: e.x, z: e.z, state: e.state, stateT: e.stateT, swatT: e.swatT, facing: e.facing };
         }
+        if (e.kind === 'dog') {
+          return { k: 'dg', id: e.id, x: e.x, z: e.z, state: e.state, stateT: e.stateT, chaseId: e.chaseId, pounceT: e.pounceT, barkT: e.barkT, facing: e.facing };
+        }
+        if (e.kind === 'roomba') {
+          return { k: 'rm', id: e.id, x: e.x, z: e.z, heading: e.heading, shoveT: e.shoveT, whirT: e.whirT };
+        }
         if (e.type === 'throne') {
           return { k: 'h', id: e.id, x: e.x, z: e.z, holder: e.holder, holdTime: e.holdTime || 0, holdTeam: e.holdTeam ?? -1 };
         }
@@ -2230,6 +2384,29 @@ export class Game {
           x: se.x, z: se.z, radius: 1.1, facing: se.facing || 0,
           state: se.state || 'walk', stateT: se.stateT ?? 5, tgt: null, swatT: se.swatT || 0,
           def: { name: 'The House Cat', desc: 'She cannot be fought, only respected. Keep your toys together.' },
+          view, dead: false,
+        };
+      } else if (se.k === 'dg') {
+        const view = createDogView();
+        view.group.position.set(se.x, this.heightAtWorld(se.x, se.z), se.z);
+        if (se.state === 'chase') view.setGait(true);
+        this.scene.add(view.group);
+        e = {
+          id: se.id, kind: 'dog', owner: -1,
+          x: se.x, z: se.z, radius: 1.3, facing: se.facing || 0,
+          state: se.state || 'trot', stateT: se.stateT ?? 4, tgt: null,
+          chaseId: se.chaseId ?? -1, pounceT: se.pounceT || 0, barkT: se.barkT ?? 3,
+          def: { name: 'The Yard Dog', desc: 'Pure enthusiasm on four legs. It will chase anything that moves.' },
+          view, dead: false,
+        };
+      } else if (se.k === 'rm') {
+        const view = createRoombaView();
+        view.group.position.set(se.x, this.heightAtWorld(se.x, se.z), se.z);
+        this.scene.add(view.group);
+        e = {
+          id: se.id, kind: 'roomba', owner: -1,
+          x: se.x, z: se.z, radius: 0.66, heading: se.heading ?? 0, shoveT: se.shoveT || 0, whirT: se.whirT ?? 3,
+          def: { name: 'The Roomba', desc: 'A tireless robot vacuum. It does not see your toys. It never will.' },
           view, dead: false,
         };
       } else if (se.k === 'h') {
@@ -4518,6 +4695,8 @@ export class Game {
       else if (e.kind === 'lost') this.updateLostToy(e, dt);
       else if (e.kind === 'camp') this.updateCamp(e, dt);
       else if (e.kind === 'cat') this.updateCat(e, dt);
+      else if (e.kind === 'dog') this.updateDog(e, dt);
+      else if (e.kind === 'roomba') this.updateRoomba(e, dt);
     }
     this.updateProjectiles(dt);
     this.updateObjectives(dt);

@@ -776,6 +776,7 @@ export const MAPS = {
     obstacles: 5, canyon: false, resourceMul: 1, stickers: 2, plateaus: 3,
     features: { milk: 1, ranges: 2, forests: 2 },
     weather: 'motes', // dust drifting through the window light
+    roomba: true, // a robot vacuum patrols the open floor
     tribes: 2,
     desc: 'The classic. Open center, safe corners, and everything left to prove.',
   },
@@ -823,6 +824,7 @@ export const MAPS = {
     decor: ['swingset', 'slide', 'seesaw', 'sandbucket', 'ball'],
     decorCount: 18,
     critters: [{ type: 'mouse', count: 4 }, { type: 'ladybug', count: 3 }], // yard regulars
+    cat: false, dog: true, // the backyard belongs to the dog
     tribes: 2,
     // two windrows of mown clippings flank a wide central boulevard — armies
     // meet in the middle or squeeze around the windrow ends (point-symmetric)
@@ -838,6 +840,7 @@ export const MAPS = {
     // dinner-table spills read as impassable milk lakes — lots of them
     features: { milk: 3, ranges: 1, forests: 1 },
     critters: [{ type: 'ant', count: 5 }, { type: 'mouse', count: 2 }], // crumb patrol + a bold kitchen mouse
+    roomba: true, // it noses under the table for crumbs
     weather: 'steam', // something is always simmering somewhere
     decor: ['teacup', 'die', 'ball', 'crayon'],
     decorCount: 15,
@@ -863,6 +866,7 @@ export const MAPS = {
     obstacles: 3, canyon: false, resourceMul: 1.3, stickers: 3, plateaus: 2,
     features: { forests: 1 },
     critters: [{ type: 'candy', count: 5 }, { type: 'spider', count: 2 }], // sugarplum mice + a spider up from the basement
+    roomba: true, // circling the tree skirt all season
     weather: 'glitter', // the tree sheds sparkle all season
     decor: ['ornament', 'gift', 'die', 'ball'],
     decorCount: 16,
@@ -899,6 +903,7 @@ export const MAPS = {
     mask: { type: 'kidney', rx: 35, rz: 33, bx: 0, bz: -30, br: 10 },
     dunes: { count: 8, rMin: 4, rMax: 7 },
     critters: [{ type: 'crab', count: 4 }, { type: 'ladybug', count: 3 }], // hermit crabs + wandering ladybugs
+    cat: false, dog: true, // a dog WILL dig in a sandbox
     tribes: 2,
     // the hero landmark: somebody's magnificent sandcastle, north of the walls
     // by the bite — nobody attacks it, everybody fights around it
@@ -929,6 +934,7 @@ export const MAPS = {
     // flower-bed terraces climb in real steps; sunflower groves are the forests
     groves: { kind: 'sunflower', count: 5 },
     critters: [{ type: 'snail', count: 4 }, { type: 'bee', count: 3 }, { type: 'ladybug', count: 3 }], // slow money + working bees + good luck
+    cat: false, dog: true, // trampling the flowerbeds, joyfully
     tribes: 2,
     weather: 'rain', // a golden sun-shower — the garden's favorite kind
     obstacleKinds: ['rock', 'tree'],
@@ -946,6 +952,7 @@ export const MAPS = {
     centerHill: { r: 9 },
     roots: true,
     critters: [{ type: 'moth', count: 5 }, { type: 'beetle', count: 3 }], // porch moths + june beetles at dusk
+    cat: false, dog: true, // the old dog knows this tree well
     tribes: 2,
     weather: 'fireflies',
     obstacleKinds: ['rock', 'tree'],
@@ -1884,6 +1891,27 @@ export const HOUSE_CAT = {
   swatRadius: 2.1, swatDamage: 9, swatKnock: 1.8, swatCooldown: 6,
   loneRadius: 4,      // a toy is "lone" if no other same-team toy stands this close
   scatterRadius: 3.5, // critters bolt when she's this near
+};
+
+// ---------------- the yard dog: the outdoor predator ------------------------
+// Where the cat is aloof and patient, the DOG is a galloping menace of pure
+// enthusiasm. It TROTS the yard until it spots a mover, then CHARGES — a
+// committed sprint — and play-pounces (a big shove, a small nip), barks its
+// fool head off, and flops down panting before doing it all again. It rules
+// the outdoor maps; the cat wouldn't be caught dead sharing a lawn with it.
+export const YARD_DOG = {
+  trotSpeed: 0.9, runSpeed: 2.0, chaseRadius: 15, pounceRadius: 2.4,
+  pounceDamage: 6, pounceKnock: 2.8, pounceCooldown: 4.5,
+  restMin: 5, restMax: 10, giveUp: 7, barkEvery: 7,
+  scatterRadius: 4.5, // critters bolt even wider from a dog than a cat
+};
+
+// ---------------- the Roomba: a dumb, tireless indoor hazard ----------------
+// Not a predator — a robot vacuum. It trundles the flat floors in straight
+// lines, bounces off walls, and SHOVES any toy it bumps clean out of the way
+// (no malice, no damage — it simply does not see them). Formations dread it.
+export const ROOMBA = {
+  speed: 1.15, shoveRadius: 1.5, shoveKnock: 1.7, shoveCooldown: 0.7, whirEvery: 3.5,
 };
 
 // ---------------- lost toys: the yard is full of strays ---------------------

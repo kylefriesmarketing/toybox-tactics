@@ -1755,6 +1755,7 @@ window.__ttAmbient = () => ambient; // ambience debug handle
 window.__ttSfx = () => sfx; // audio debug handle (ambKind checks)
 window.__ttWeather = () => weather; // weather/flyover debug handle
 window.__ttKid = () => kidEvent; // THE KID debug handle (set .t=0.1 to summon)
+window.__ttSeason = (key) => { setupSeason(key); return season && season.key; }; // force a season
 window.__ttCam = (x, z, dist = 24) => {
   cam.tx = cam.x = x; cam.tz = cam.z = z; cam.tdist = cam.dist = dist;
   applyCamera(1);
@@ -2029,6 +2030,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   setupTracks(); // footprints, trampled paths, and the scars of razed forts
   setupNight();  // the night deepens as the match grows old
   setupBaseLife(); // settlements act like settlements
+  setupSeason(); // the room knows what time of year it is
   setupKidEvent(); // and somewhere beyond the rim, THE KID is awake
   // the bedside lamp stays indoors — outdoor maps get sun, dusk, and porch light
   const outdoorMap = !!(game.map && game.map.outdoor);
@@ -2852,6 +2854,59 @@ function updateBaseLife(dt) {
   }
 }
 
+// ---------------- seasonal skins (view-only) --------------------------------
+// The room knows what time of year it is. From the real calendar month we tint
+// the whole scene a touch and, outdoors, let the season drift down: snow in
+// winter, petals in spring, extra leaves in autumn. Pure view — the sim (and
+// every headless soak) never sees a season.
+let season = null;
+const SEASONS = {
+  winter: { tint: 0xbcd0ec, tintAmt: 0.14, drift: 'snow',  driftCol: 0xffffff },
+  spring: { tint: 0xf0d0e4, tintAmt: 0.09, drift: 'petal', driftCol: 0xf5c6dc },
+  summer: { tint: 0xfff2c8, tintAmt: 0.06, drift: null,    driftCol: 0 },
+  autumn: { tint: 0xe0a860, tintAmt: 0.11, drift: 'leaf',  driftCol: 0xd68a3a },
+};
+function currentSeason() {
+  const m = new Date().getMonth(); // 0=Jan
+  return m === 11 || m <= 1 ? 'winter' : m <= 4 ? 'spring' : m <= 7 ? 'summer' : 'autumn';
+}
+function setupSeason(forceKey) {
+  if (season && season.group) scene.remove(season.group);
+  season = null;
+  if (!game || game.zeroEra) return; // page zero is out of time
+  const key = forceKey || currentSeason(), cfg = SEASONS[key];
+  const group = new THREE.Group();
+  scene.add(group);
+  const parts = [];
+  // a gentle season-grade over whatever the map's lighting set the fog to
+  if (scene.fog) scene.fog.color.lerp(new THREE.Color(cfg.tint), cfg.tintAmt);
+  const outdoor = !!(game.map.outdoor || game.map.ground === 'playground');
+  if (cfg.drift && outdoor) {
+    const span = N * 1.3;
+    const mat = cfg.drift === 'snow'
+      ? new THREE.MeshBasicMaterial({ color: cfg.driftCol, transparent: true, opacity: 0.85 })
+      : new THREE.MeshBasicMaterial({ color: cfg.driftCol, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
+    for (let i = 0; i < 34; i++) {
+      const geo = cfg.drift === 'snow' ? new THREE.SphereGeometry(0.06, 5, 4) : new THREE.PlaneGeometry(0.16, 0.11);
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set((Math.random() - 0.5) * span, Math.random() * 14, (Math.random() - 0.5) * span);
+      m.rotation.set(Math.random() * 3, Math.random() * 3, 0);
+      group.add(m);
+      parts.push({ m, ph: Math.random() * 9, v: 0.4 + Math.random() * 0.6, sway: 0.6 + Math.random() });
+    }
+  }
+  season = { key, cfg, group, parts };
+}
+function updateSeason(dt) {
+  if (!season || !game) return;
+  for (const p of season.parts) {
+    p.m.position.y -= p.v * dt;
+    p.m.position.x += Math.sin((game.time || 0) * 0.6 + p.ph) * dt * p.sway;
+    p.m.rotation.z += dt * 0.8;
+    if (p.m.position.y < 0.1) { p.m.position.set((Math.random() - 0.5) * N * 1.3, 12 + Math.random() * 3, (Math.random() - 0.5) * N * 1.3); }
+  }
+}
+
 // ---------------- THE KID (view-only spectacle) ------------------------------
 // Once in a long while, the owner of every toy on this floor reaches into the
 // war and takes something. Footsteps, a colossal shadow, a hand from the sky —
@@ -3598,6 +3653,7 @@ function loop() {
   updateWeather(dt);            // wind in the sunflowers, seeds on the breeze
   updateTracks(dt);             // footprints press in, the wind smooths them out
   updateNight();                // the moon keeps its own slow time
+  updateSeason(dt);             // snow, petals, or falling leaves
   updateBaseLife(dt);           // chimneys smoke, windows glow
   updateKidEvent(dt);           // footsteps, a shadow, a hand from the sky
   if (sfx.setListener) sfx.setListener(cam.x, cam.z);
@@ -3633,6 +3689,7 @@ setInterval(() => {
     updateWeather(elapsed);
     updateTracks(elapsed);
     updateNight();
+    updateSeason(elapsed);
     updateBaseLife(elapsed);
     updateKidEvent(elapsed);
     if (sfx.setListener) sfx.setListener(cam.x, cam.z);

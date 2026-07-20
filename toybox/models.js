@@ -4199,6 +4199,83 @@ export function createCatView() {
   return view;
 }
 
+// the yard dog: a plush tan mutt, all floppy ears and wag. view.setGait()
+// swaps a lazy trot for a bounding gallop; the tail reads its whole mood.
+export function createDogView() {
+  const g = new THREE.Group();
+  const fur = toyMat(0xc89a5e, 0.9), furD = toyMat(0xa87e46, 0.9);
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.6, 1.4, 6, 12), fur);
+  body.rotation.x = Math.PI / 2; body.position.y = 0.78; body.castShadow = true; g.add(body);
+  const chest = new THREE.Mesh(new THREE.SphereGeometry(0.6, 12, 9), fur);
+  chest.position.set(0, 0.78, 0.7); chest.scale.set(1, 0.95, 0.9); g.add(chest);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.46, 12, 9), fur);
+  head.position.set(0, 1.05, 1.15); head.castShadow = true; g.add(head);
+  const snout = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.35, 4, 8), fur);
+  snout.rotation.x = Math.PI / 2; snout.position.set(0, 0.95, 1.6); g.add(snout);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), toyMat(0x2a2028, 0.4));
+  nose.position.set(0, 0.98, 1.82); g.add(nose);
+  const ears = [];
+  for (const sx of [-1, 1]) {
+    const ear = new THREE.Mesh(new THREE.CapsuleGeometry(0.14, 0.4, 4, 8), furD);
+    ear.position.set(sx * 0.34, 1.15, 1.0); ear.rotation.z = sx * 0.4; ear.castShadow = true;
+    g.add(ear); ears.push(ear);
+  }
+  for (const sx of [-0.17, 0.17]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), toyMat(0x2a2028, 0.3));
+    eye.position.set(sx, 1.12, 1.5); g.add(eye);
+  }
+  const legs = [];
+  for (const [sx, sz] of [[-0.34, 0.62], [0.34, 0.62], [-0.34, -0.6], [0.34, -0.6]]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.7, 8), fur);
+    leg.position.set(sx, 0.35, sz); leg.castShadow = true; g.add(leg); legs.push(leg);
+  }
+  const tail = new THREE.Group();
+  const tailM = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.05, 0.95, 7), fur);
+  tailM.position.y = 0.47; tail.add(tailM);
+  tail.position.set(0, 0.95, -1.15); tail.rotation.x = -0.7;
+  g.add(tail);
+  let t = Math.random() * 9, running = false;
+  const view = passiveView(g, 1.3);
+  view.update = (dt) => {
+    t += dt;
+    const wag = running ? 8 : 3.5, amp = running ? 0.7 : 0.35;
+    tail.rotation.z = Math.sin(t * wag) * amp; // the wag never, ever stops
+    const gait = running ? 11 : 5;
+    for (let i = 0; i < 4; i++) legs[i].rotation.x = Math.sin(t * gait + (i % 2 ? Math.PI : 0) + (i > 1 ? 0.6 : 0)) * (running ? 0.7 : 0.3);
+    body.position.y = 0.78 + (running ? Math.abs(Math.sin(t * 5.5)) * 0.12 : 0); // the bound
+    ears[0].rotation.x = ears[1].rotation.x = running ? Math.sin(t * 5.5) * 0.4 : 0; // ears flap on the run
+  };
+  view.setGait = (run) => { running = run; };
+  return view;
+}
+
+// the Roomba: a squat robot vacuum disc with a blinking eye and a bumper.
+export function createRoombaView() {
+  const g = new THREE.Group();
+  const shell = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.66, 0.28, 24), new THREE.MeshStandardMaterial({ color: 0x2e3038, roughness: 0.4, metalness: 0.3 }));
+  shell.position.y = 0.15; shell.castShadow = true; g.add(shell);
+  const bumper = new THREE.Mesh(new THREE.CylinderGeometry(0.67, 0.67, 0.1, 24), toyMat(0x1a1c22, 0.6));
+  bumper.position.y = 0.06; g.add(bumper);
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.04, 24), new THREE.MeshStandardMaterial({ color: 0x3a3d47, roughness: 0.3, metalness: 0.4 }));
+  top.position.y = 0.3; g.add(top);
+  const eye = new THREE.Mesh(new THREE.CircleGeometry(0.09, 12), new THREE.MeshStandardMaterial({ color: 0x4ad0e0, emissive: 0x2a9aa8, emissiveIntensity: 1, roughness: 0.2 }));
+  eye.rotation.x = -Math.PI / 2; eye.position.set(0, 0.325, 0.32); g.add(eye);
+  const brush = new THREE.Group(); // the underside brush spins
+  for (let i = 0; i < 3; i++) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.02, 0.05), toyMat(0xd8b84a, 0.7));
+    b.rotation.y = (i / 3) * Math.PI * 2; brush.add(b);
+  }
+  brush.position.set(0.35, 0.02, 0.35); g.add(brush);
+  let t = Math.random() * 9;
+  const view = passiveView(g, 0.66);
+  view.update = (dt) => {
+    t += dt;
+    brush.rotation.y += dt * 9;
+    eye.material.emissiveIntensity = 0.7 + Math.abs(Math.sin(t * 2.4)) * 0.5; // it's thinking
+  };
+  return view;
+}
+
 // wild toy tribes: a campfire, a lean-to tent, and three sun-bleached toys
 // who haven't decided about you yet. setOwner(color) plants the new flag.
 export function createCampView() {
