@@ -15,6 +15,7 @@ import {
   E_FACTIONS, E_START_ROSTER, E_GARRISONS, E_UPGRADES, E_BRANCHES, E_RULES, E_SIM,
   E_MODULES, E_MODULE_SLOTS, E_DOCTRINES, E_EVENTS, E_DIFFICULTY, E_REGIONS,
 } from './empire-data.js';
+import { EmpireNet, applyEmpireCmd } from './empire-net.js';
 import {
   E_CARDS, E_RARITY, E_COMMON_KEYS, E_CARD_ORDER,
   loadCollection, saveCollection, ownsCard, grantCard, craftCard, rollLoot,
@@ -773,15 +774,15 @@ export class Empire {
   }
 
   // ---------- round 15: the Drill Yard (playable training) ----------
-  startDrill(armyId, cardId) {
+  startDrill(armyId, cardId, me = 0) {
     if (this.s.phase !== 'plan' || this.s.over) return { ok: false, why: 'not now' };
-    const a = this.s.armies.find((x) => x.id === armyId && x.owner === 0);
-    if (!a || a.node !== this.capOf(0)) return { ok: false, why: 'army must rest at your capital' };
+    const a = this.s.armies.find((x) => x.id === armyId && x.owner === me);
+    if (!a || a.node !== this.capOf(me)) return { ok: false, why: 'army must rest at your capital' };
     const card = a.cards.find((c) => c.id === cardId);
     if (!card) return { ok: false, why: 'no such card' };
-    if (this.s.parts[0] < E_RULES.drill.cost) return { ok: false, why: 'not enough Parts' };
+    if (this.s.parts[me] < E_RULES.drill.cost) return { ok: false, why: 'not enough Parts' };
     if (this.s.encounters.some((e) => e.drill && !e.applied)) return { ok: false, why: 'the yard is busy' };
-    this.s.parts[0] -= E_RULES.drill.cost;
+    this.s.parts[me] -= E_RULES.drill.cost;
     const t = this.s.turn;
     const enc = {
       encId: `drill_t${t}_${cardId}`,
@@ -792,7 +793,7 @@ export class Empire {
         { id: `sp_${t}_1`, key: 'recruit', type: 'soldier', strength: 75, vet: 0, hp: 1 },
         { id: `sp_${t}_2`, key: 'archer', type: 'archer', strength: 75, vet: 0, hp: 1 },
       ],
-      attacker: { owner: 0, armyId },
+      attacker: { owner: me, armyId },
       defender: { owner: -1, armyId: null },
       applied: false,
     };
@@ -1393,6 +1394,21 @@ export function openEmpire(forceNew = false) {
 }
 
 class EmpireUI {
+  get ME() { return this.mySeat || 0; } // phase 3: which seat this client plays
+  // every state-mutating click funnels through here: SP applies directly;
+  // in MP the host stamps + echoes and the guest waits for the echo
+  issue(cmd, sfxOk = 'place') {
+    cmd.seat = this.ME;
+    if (!this.net) {
+      const r = applyEmpireCmd(this.emp, cmd);
+      esfx(r && r.ok === false ? 'error' : sfxOk, 100);
+      this.render();
+      return r;
+    }
+    this.net.sendCmd(cmd);
+    esfx(sfxOk, 80);
+    return { ok: true };
+  }
   constructor(emp) {
     this.emp = emp;
     this.sel = null;     // selected army id
@@ -1455,11 +1471,84 @@ class EmpireUI {
     else if (e.key === '?' || e.key === '/') { this.showGuide(); }
   }
 
+  // ---- phase 3: the multiplayer lobby + lifecycle ----
+  showMpLobby() {
+    const m = this.root.querySelector('#e-modal');
+    m.innerHTML = `<div class="e-enc"><div class="e-enc-card e-guide-card">
+      <h3>🌐 The Bedroom War — vs a Friend</h3>
+      <div class="e-dim">Two commanders, one board, and the Tin Battalion scheming in the south.
+      Every battle resolves by the war table (no RTS side-battles in multiplayer — yet).</div>
+      <button id="e-mphost" class="diff-btn sel">🏠 Host — get a room code</button>
+      <div style="margin:6px 0"><input id="e-mpcode" maxlength="4" placeholder="CODE" style="width:70px;text-transform:uppercase">
+      <button id="e-mpjoin" class="diff-btn">🚪 Join a friend's war</button></div>
+      <div id="e-mpstatus" class="e-dim"></div>
+      <button id="e-mpcancel" class="diff-btn">Close</button>
+    </div></div>`;
+    const status = (t) => { const el = m.querySelector('#e-mpstatus'); if (el) el.innerHTML = t; };
+    m.querySelector('#e-mpcancel').addEventListener('click', () => { if (this.pendingNet) { this.pendingNet.close(); this.pendingNet = null; } m.innerHTML = ''; });
+    m.querySelector('#e-mphost').addEventListener('click', async () => {
+      try {
+        const net = this.pendingNet = new EmpireNet();
+        status('Opening a room…');
+        const { code } = await net.host((kind) => {
+          if (kind === 'join') {
+            status('A challenger arrives! Starting…');
+            const seed = (Math.random() * 2 ** 31) | 0;
+            net.startMatch(seed);
+          }
+        });
+        net.onStart = ({ seed }) => { m.innerHTML = ''; this.beginMp(net, 0, seed); };
+        status(`Room open — tell your friend the code: <b style="font-size:1.4em">${code}</b>`);
+      } catch (e) { status('⚠ ' + (e.message || e)); }
+    });
+    m.querySelector('#e-mpjoin').addEventListener('click', async () => {
+      const code = (m.querySelector('#e-mpcode').value || '').trim();
+      if (code.length !== 4) { status('Enter the 4-letter room code.'); return; }
+      try {
+        const net = this.pendingNet = new EmpireNet();
+        status('Knocking on the door…');
+        net.onStart = ({ seed }) => { m.innerHTML = ''; this.beginMp(net, 1, seed); };
+        await net.join(code, () => {});
+        status('Seated! Waiting for the host to deal the seed…');
+      } catch (e) { status('⚠ ' + (e.message || e)); }
+    });
+  }
+  beginMp(net, seat, seed) {
+    this.pendingNet = null;
+    this.net = net;
+    this.mySeat = seat;
+    this.mpWaiting = false;
+    this.emp = new Empire(seed, ['bricks', 'classic', 'bots'], false); // never touches the SP save
+    this.emp.s.humans = [0, 1];
+    this.emp.s.difficultyChosen = true; // MP plays Lights-Out rules
+    this.sel = null; this.selNode = null; this.lastPos = {};
+    net.onCmd = (cmd) => { applyEmpireCmd(this.emp, cmd); this.render(); };
+    net.onAdvance = () => {
+      this.emp.endTurn();
+      this.mpWaiting = false;
+      net.reportHash(this.emp.s.turn, this.emp.stateHash());
+      this.render();
+    };
+    net.onPeerReady = () => { /* could badge the rival's readiness */ };
+    net.onDrop = () => this.leaveMp('Your rival left the war — the toys stand down.');
+    net.onDesync = () => this.leaveMp('⚠ The two boards disagreed (desync) — the war is abandoned.');
+    this.render();
+  }
+  leaveMp(msg) {
+    if (this.net) { this.net.close(); this.net = null; }
+    this.mySeat = 0; this.mpWaiting = false;
+    const saved = Empire.stored();
+    this.emp = saved ? new Empire(saved) : new Empire();
+    this.sel = null; this.selNode = null; this.lastPos = {};
+    this.emp.say(msg);
+    this.render();
+  }
+
   // Drill Yard (round 15): pick which toy steps into the sparring ring
   showDrill() {
     const m = this.root.querySelector('#e-modal');
     const emp = this.emp;
-    const a = emp.s.armies.find((x) => x.id === this.sel && x.owner === 0);
+    const a = emp.s.armies.find((x) => x.id === this.sel && x.owner === this.ME);
     if (!a) return;
     const rows = a.cards.map((c) => {
       const card = E_CARDS[c.key] || { name: c.type, icon: '', rarity: 'common' };
@@ -1477,8 +1566,7 @@ class EmpireUI {
     </div></div>`;
     m.querySelector('#e-drillclose').addEventListener('click', () => { m.innerHTML = ''; });
     for (const b of m.querySelectorAll('[data-drill]')) b.addEventListener('click', () => {
-      const r = this.emp.startDrill(this.sel, b.dataset.drill);
-      esfx(r.ok ? 'place' : 'error', 100);
+      const r = this.issue({ type: 'drill', army: this.sel, card: b.dataset.drill }) || { ok: true };
       m.innerHTML = '';
       this.render(); // the encounter card appears with Play / Simulate
     });
@@ -1488,7 +1576,7 @@ class EmpireUI {
   showDiplomacy() {
     const m = this.root.querySelector('#e-modal');
     const emp = this.emp, s = emp.s;
-    const rivals = emp.aliveSeats().filter((p) => p > 0);
+    const rivals = emp.aliveSeats().filter((p) => p !== this.ME);
     const rows = rivals.map((p) => {
       const pact = emp.atPeace(0, p);
       const r = emp.pactBetween(0, p);
@@ -1502,12 +1590,12 @@ class EmpireUI {
         ${trade ? ` · ⇄ trading (${trade.left}t)` : ''}${pass ? ` · 🛂 passage (${emp.s.passages['0>' + p].left}t)` : ''}<br>
         ${pact
     ? `<button class="diff-btn" data-break="${p}">💔 Break pact (−${E_RULES.pact.breakPower}⚡ −${E_RULES.pact.breakImag}💡)</button>
-       ${!pass ? `<button class="diff-btn" data-passage="${p}" ${s.parts[0] >= D.passage.cost ? '' : 'disabled'}>🛂 Buy Passage (${D.passage.cost}🔩, ${D.passage.turns}t)</button>` : ''}`
+       ${!pass ? `<button class="diff-btn" data-passage="${p}" ${s.parts[this.ME] >= D.passage.cost ? '' : 'disabled'}>🛂 Buy Passage (${D.passage.cost}🔩, ${D.passage.turns}t)</button>` : ''}`
     : `<button class="diff-btn" data-offer="${p}">🕊️ Offer Pact (${E_RULES.pact.turns}t)</button>
-       <button class="diff-btn" data-cease="${p}" ${s.imag[0] >= D.ceasefire.imag ? '' : 'disabled'}>🏳️ Ceasefire (${D.ceasefire.imag}💡, ${D.ceasefire.turns}t)</button>`}
-        ${!trade && !grudge ? `<button class="diff-btn" data-tradep="${p}" ${s.parts[0] >= D.trade.give ? '' : 'disabled'}>⇄ Trade for ⚡ (${D.trade.give}🔩/t)</button>
-          <button class="diff-btn" data-tradei="${p}" ${s.parts[0] >= D.trade.give ? '' : 'disabled'}>⇄ Trade for 💡 (${D.trade.give}🔩/t)</button>` : ''}
-        ${!emp.s.bounty && emp.aliveSeats().filter((q) => q > 0).length >= 2 ? `<button class="diff-btn" data-bounty="${p}" ${s.parts[0] >= D.bounty.cost ? '' : 'disabled'}>🎯 Post Bounty ON them (${D.bounty.cost}🔩)</button>` : ''}
+       <button class="diff-btn" data-cease="${p}" ${s.imag[this.ME] >= D.ceasefire.imag ? '' : 'disabled'}>🏳️ Ceasefire (${D.ceasefire.imag}💡, ${D.ceasefire.turns}t)</button>`}
+        ${!trade && !grudge ? `<button class="diff-btn" data-tradep="${p}" ${s.parts[this.ME] >= D.trade.give ? '' : 'disabled'}>⇄ Trade for ⚡ (${D.trade.give}🔩/t)</button>
+          <button class="diff-btn" data-tradei="${p}" ${s.parts[this.ME] >= D.trade.give ? '' : 'disabled'}>⇄ Trade for 💡 (${D.trade.give}🔩/t)</button>` : ''}
+        ${!emp.s.bounty && emp.aliveSeats().filter((q) => q > 0).length >= 2 ? `<button class="diff-btn" data-bounty="${p}" ${s.parts[this.ME] >= D.bounty.cost ? '' : 'disabled'}>🎯 Post Bounty ON them (${D.bounty.cost}🔩)</button>` : ''}
         </span></div>`;
     }).join('');
     const aiPact = rivals.length >= 2 && emp.atPeace(rivals[0], rivals[1]);
@@ -1521,20 +1609,20 @@ class EmpireUI {
     m.querySelector('#e-pclose').addEventListener('click', () => { m.innerHTML = ''; });
     for (const b of m.querySelectorAll('[data-offer]')) b.addEventListener('click', () => {
       esfx('select', 60);
-      this.emp.offerPact(Number(b.dataset.offer));
+      this.issue({ type: 'pact', other: Number(b.dataset.offer) });
       this.render(); this.showDiplomacy();
     });
     for (const b of m.querySelectorAll('[data-break]')) b.addEventListener('click', () => {
       esfx('select', 60);
-      this.emp.breakPact(Number(b.dataset.break));
+      this.issue({ type: 'breakpact', other: Number(b.dataset.break) });
       this.render(); this.showDiplomacy();
     });
     const verb = (sel, fn) => { for (const b of m.querySelectorAll(sel)) b.addEventListener('click', () => { esfx('select', 60); fn(b); this.render(); this.showDiplomacy(); }); };
-    verb('[data-tradep]', (b) => this.emp.offerTrade(Number(b.dataset.tradep), 'power'));
-    verb('[data-tradei]', (b) => this.emp.offerTrade(Number(b.dataset.tradei), 'imag'));
-    verb('[data-passage]', (b) => this.emp.offerPassage(Number(b.dataset.passage)));
-    verb('[data-cease]', (b) => this.emp.offerCeasefire(Number(b.dataset.cease)));
-    verb('[data-bounty]', (b) => this.emp.postBounty(Number(b.dataset.bounty)));
+    verb('[data-tradep]', (b) => this.issue({ type: 'trade', other: Number(b.dataset.tradep), mode: 'power' }));
+    verb('[data-tradei]', (b) => this.issue({ type: 'trade', other: Number(b.dataset.tradei), mode: 'imag' }));
+    verb('[data-passage]', (b) => this.issue({ type: 'passage', other: Number(b.dataset.passage) }));
+    verb('[data-cease]', (b) => this.issue({ type: 'cease', other: Number(b.dataset.cease) }));
+    verb('[data-bounty]', (b) => this.issue({ type: 'bounty', other: Number(b.dataset.bounty) }));
   }
 
   // first-run coach + reopenable help (bible §18)
@@ -1566,7 +1654,7 @@ class EmpireUI {
   render() {
     const emp = this.emp, s = emp.s;
     const nodePos = (id) => E_NODES[id];
-    const supplied = emp.suppliedSet(0);
+    const supplied = emp.suppliedSet(this.ME);
     const ev = s.event;
     const evDef = ev ? E_EVENTS[ev.kind] : null;
     const evHasRoute = ev && evDef.closesRoute && ev.route !== undefined;
@@ -1585,13 +1673,13 @@ class EmpireUI {
     }).join('');
     const selArmy = s.armies.find((a) => a.id === this.sel);
     const reach = selArmy && s.phase === 'plan' ? emp.reachable(selArmy).map((r) => r.to) : [];
-    const knowsAiTarget = (s.upgrades[0].includes('masterplan') || emp.hasDoctrine(0, 'spymaster')) && s.aiIntent;
+    const knowsAiTarget = (s.upgrades[this.ME].includes('masterplan') || emp.hasDoctrine(this.ME, 'spymaster')) && s.aiIntent;
     const nodeSvg = Object.entries(E_NODES).map(([id, n]) => {
       const st = s.nodes[id];
       const ring = st.owner === -1 ? '#7a6a52' : emp.facColor(st.owner);
       const hot = reach.includes(id) ? ' hot' : '';
       const insp = this.selNode === id ? ' insp' : '';
-      const unsup = st.owner === 0 && !supplied.has(id);
+      const unsup = st.owner === this.ME && !supplied.has(id);
       const crownProg = n.type === 'crown' && s.crown.owner !== -1 && s.crown.turns > 0
         ? `<text y="-32" text-anchor="middle" class="e-crownmark" style="fill:${emp.facColor(s.crown.owner)}">👑${s.crown.turns}/${E_RULES.crownNeed}</text>`
         : (n.type === 'crown' ? '<text y="-32" text-anchor="middle" class="e-crownmark">👑</text>' : '');
@@ -1628,13 +1716,13 @@ class EmpireUI {
       </g>`;
     }).join('');
 
-    const owned0 = s.upgrades[0].length;
+    const owned0 = s.upgrades[this.ME].length;
     const logHtml = s.log.slice(-7).reverse().map((l) => `<div><b>T${l.t}</b> ${l.msg}</div>`).join('');
     const sup0 = supplied;
     const crownChip = s.crown.owner !== -1 && s.crown.turns > 0
-      ? `<span class="e-chip" title="Hold the Storybook Tower crown ${E_RULES.crownNeed} turns to win" style="border-color:${emp.facColor(s.crown.owner)}">👑 <b>${s.crown.turns}</b>/${E_RULES.crownNeed} <span class="e-dim">${s.crown.owner === 0 ? 'you' : emp.facLabel(s.crown.owner)}</span></span>`
+      ? `<span class="e-chip" title="Hold the Storybook Tower crown ${E_RULES.crownNeed} turns to win" style="border-color:${emp.facColor(s.crown.owner)}">👑 <b>${s.crown.turns}</b>/${E_RULES.crownNeed} <span class="e-dim">${s.crown.owner === this.ME ? 'you' : emp.facLabel(s.crown.owner)}</span></span>`
       : '';
-    const myDoctrines = (s.doctrines[0] || []).filter(Boolean);
+    const myDoctrines = (s.doctrines[this.ME] || []).filter(Boolean);
     const doctrineChip = `<span class="e-chip" title="Your doctrines — click 🎗️ below to change">🎗️ ${myDoctrines.length ? myDoctrines.map((k) => E_DOCTRINES[k].icon).join(' ') : '<span class="e-dim">choose one</span>'}</span>`;
     const dcfg = emp.diff();
     const diffChip = `<span class="e-chip" title="${dcfg.desc}">${dcfg.icon} <span class="e-dim">${dcfg.label}</span></span>`;
@@ -1649,17 +1737,20 @@ class EmpireUI {
       <div class="e-top">
         <button id="e-back" class="diff-btn">← Menu</button>
         <button id="e-guide" class="diff-btn" title="How to play (?)">❔</button>
-        <span class="e-chip" title="Parts: build, recruit, upgrade">🔩 <b>${s.parts[0]}</b> <span class="e-dim">+${emp.income(0, sup0) - emp.upkeepCost(0)}/t</span></span>
-        <span class="e-chip" title="Power: force marches (cap ${E_RULES.powerCap})">🔋 <b>${s.power[0]}</b><span class="e-dim">/${E_RULES.powerCap}</span></span>
-        <span class="e-chip" title="Imagination: the empire tree's currency">💡 <b>${s.imag[0]}</b> <span class="e-dim">+${emp.imagIncome(0, sup0)}/t</span></span>
-        <span class="e-chip" title="Territories held — first to ${E_RULES.dominionNeed} with a stronghold wins">🗺️ <b>${emp.ownedCount(0)}</b> vs ${emp.aliveSeats().filter((p) => p > 0).map((p) => `<span style="color:${emp.facColor(p)}">${emp.ownedCount(p)}</span>`).join(' / ')} <span class="e-dim">of ${E_RULES.dominionNeed}</span></span>
-        ${emp.seatCount() > 2 ? `<span class="e-chip" id="e-pacts" title="Diplomacy — Non-Aggression Pacts (P)" style="cursor:pointer">🕊️ ${emp.aliveSeats().filter((p) => p > 0).map((p) => emp.atPeace(0, p) ? `<span style="color:${emp.facColor(p)}">${emp.pactBetween(0, p).left}t</span>` : `<span class="e-dim" style="color:${emp.facColor(p)}">war</span>`).join(' ')}</span>` : ''}
+        <span class="e-chip" title="Parts: build, recruit, upgrade">🔩 <b>${s.parts[this.ME]}</b> <span class="e-dim">+${emp.income(this.ME, sup0) - emp.upkeepCost(this.ME)}/t</span></span>
+        <span class="e-chip" title="Power: force marches (cap ${E_RULES.powerCap})">🔋 <b>${s.power[this.ME]}</b><span class="e-dim">/${E_RULES.powerCap}</span></span>
+        <span class="e-chip" title="Imagination: the empire tree's currency">💡 <b>${s.imag[this.ME]}</b> <span class="e-dim">+${emp.imagIncome(this.ME, sup0)}/t</span></span>
+        <span class="e-chip" title="Territories held — first to ${E_RULES.dominionNeed} with a stronghold wins">🗺️ <b>${emp.ownedCount(this.ME)}</b> vs ${emp.aliveSeats().filter((p) => p !== this.ME).map((p) => `<span style="color:${emp.facColor(p)}">${emp.ownedCount(p)}</span>`).join(' / ')} <span class="e-dim">of ${E_RULES.dominionNeed}</span></span>
+        ${emp.seatCount() > 2 ? `<span class="e-chip" id="e-pacts" title="Diplomacy — Non-Aggression Pacts (P)" style="cursor:pointer">🕊️ ${emp.aliveSeats().filter((p) => p !== this.ME).map((p) => emp.atPeace(0, p) ? `<span style="color:${emp.facColor(p)}">${emp.pactBetween(0, p).left}t</span>` : `<span class="e-dim" style="color:${emp.facColor(p)}">war</span>`).join(' ')}</span>` : ''}
         ${crownChip}${doctrineChip}
         <span class="e-chip">🌙 Turn <b>${s.turn}</b><span class="e-dim">/${E_RULES.turnCap}</span></span>
         ${diffChip}
         <span class="e-phase">${phaseLbl}</span>
         <span class="e-spring"></span>
-        <button id="e-new" class="diff-btn" title="Abandon this war and start fresh">🔄 New War</button>
+        ${this.net
+    ? `<span class="e-chip" style="border-color:#7fd06a">🌐 vs a friend${this.mpWaiting ? ' · <b>waiting…</b>' : ''}</span><button id="e-mpleave" class="diff-btn">✕ Leave</button>`
+    : `<button id="e-mp" class="diff-btn" title="Play the Bedroom War against a friend">🌐 Play a Friend</button>
+       <button id="e-new" class="diff-btn" title="Abandon this war and start fresh">🔄 New War</button>`}
       </div>
       ${evBanner}
       <div class="e-main">
@@ -1732,10 +1823,10 @@ class EmpireUI {
          <div class="e-hp"><div style="width:${c.strength}%"></div></div></div>`;
       }).join('');
       const atCap = selArmy.node === emp.capOf(0);
-      const canRec = emp.canRecruitAt(0, selArmy.node);
+      const canRec = emp.canRecruitAt(this.ME, selArmy.node);
       const mpPips = '●'.repeat(selArmy.mp) + '○'.repeat(Math.max(0, E_RULES.armyMP + (selArmy.marched ? 1 : 0) - selArmy.mp));
-      const canMuster = emp.armiesOf(0).length < E_RULES.maxArmies
-        && emp.ownedCount(0) >= E_RULES.musterMinNodes && s.parts[0] >= E_RULES.musterCost;
+      const canMuster = emp.armiesOf(this.ME).length < E_RULES.maxArmies
+        && emp.ownedCount(this.ME) >= E_RULES.musterMinNodes && s.parts[this.ME] >= E_RULES.musterCost;
       return `<div class="e-panel">
         <div class="e-ttl">🚩 ${selArmy.id.startsWith('B') ? 'Second Army' : 'Grand Army'} — ${E_NODES[selArmy.node].name}</div>
         <div class="e-dim">March ${mpPips} · ${selArmy.cards.length}/${E_RULES.maxCards} toys
@@ -1743,11 +1834,11 @@ class EmpireUI {
         ${cards}
         <button id="e-recruit" class="diff-btn" ${canRec && selArmy.cards.length < E_RULES.maxCards ? '' : 'disabled'}
           title="${canRec ? 'Field a collection card here' : 'Recruit at your capital or a Barracks'}">➕ Field a Card…</button>
-        <button id="e-march" class="diff-btn" ${!selArmy.marched && s.power[0] >= E_RULES.forceMarchCost && s.phase === 'plan' ? '' : 'disabled'}
+        <button id="e-march" class="diff-btn" ${!selArmy.marched && s.power[this.ME] >= E_RULES.forceMarchCost && s.phase === 'plan' ? '' : 'disabled'}
           title="+1 movement this turn">🔋 Force March (${E_RULES.forceMarchCost}⚡)</button>
         ${atCap ? `<button id="e-muster" class="diff-btn" ${canMuster ? '' : 'disabled'}
           title="A second army — needs ${E_RULES.musterMinNodes} territories">🚩 Muster 2nd Army (${E_RULES.musterCost}🔩)</button>` : ''}
-        ${atCap ? `<button id="e-drill" class="diff-btn" ${s.parts[0] >= E_RULES.drill.cost && s.phase === 'plan' ? '' : 'disabled'}
+        ${atCap ? `<button id="e-drill" class="diff-btn" ${s.parts[this.ME] >= E_RULES.drill.cost && s.phase === 'plan' ? '' : 'disabled'}
           title="A playable training bout — WIN IT PLAYED for +1 vet">🎯 Drill Yard (${E_RULES.drill.cost}🔩)</button>` : ''}
         ${selArmy.order ? '<button id="e-cancel" class="diff-btn">✕ Cancel move</button>' : '<div class="e-dim">Click a glowing node to march.</div>'}
       </div>`;
@@ -1759,15 +1850,15 @@ class EmpireUI {
       const t = E_TEMPLATES[tKey];
       // scouting fog (§15): garrison details only near your territory —
       // Scouting Kites (Intelligence I) doubles that reach to two routes
-      const near1 = routesOf(id).some((r) => s.nodes[r.to].owner === 0)
-        || st.owner === 0 || emp.armiesOf(0).some((a) => a.node === id || routesOf(id).some((r) => r.to === a.node));
-      const near2 = s.upgrades[0].includes('kites') && routesOf(id).some((r) => routesOf(r.to).some((r2) => s.nodes[r2.to].owner === 0));
+      const near1 = routesOf(id).some((r) => s.nodes[r.to].owner === this.ME)
+        || st.owner === this.ME || emp.armiesOf(this.ME).some((a) => a.node === id || routesOf(id).some((r) => r.to === a.node));
+      const near2 = s.upgrades[this.ME].includes('kites') && routesOf(id).some((r) => routesOf(r.to).some((r2) => s.nodes[r2.to].owner === this.ME));
       // a Watchtower you own reveals garrisons within two routes of the fort
-      const near3 = routesOf(id).some((r) => (s.nodes[r.to].owner === 0 && emp.hasModule(r.to, 'watchtower'))
-        || routesOf(r.to).some((r2) => s.nodes[r2.to].owner === 0 && emp.hasModule(r2.to, 'watchtower')));
-      const adjacent = near1 || near2 || near3 || emp.hasDoctrine(0, 'spymaster'); // Spymaster sees all
+      const near3 = routesOf(id).some((r) => (s.nodes[r.to].owner === this.ME && emp.hasModule(r.to, 'watchtower'))
+        || routesOf(r.to).some((r2) => s.nodes[r2.to].owner === this.ME && emp.hasModule(r2.to, 'watchtower')));
+      const adjacent = near1 || near2 || near3 || emp.hasDoctrine(this.ME, 'spymaster'); // Spymaster sees all
       let garrisonLine = '';
-      if (st.owner !== 0) {
+      if (st.owner !== this.ME) {
         const gTmpl = st.garrison || E_GARRISONS[n.type];
         if (gTmpl && gTmpl.length) {
           garrisonLine = adjacent
@@ -1785,16 +1876,16 @@ class EmpireUI {
         const built = (st.modules || []).map((k) => `<span class="e-modchip" title="${E_MODULES[k].desc}">${E_MODULES[k].icon} ${E_MODULES[k].name}</span>`).join('');
         const free = slots - (st.modules || []).length;
         let buildBtns = '';
-        if (st.owner === 0 && free > 0) {
+        if (st.owner === this.ME && free > 0) {
           buildBtns = Object.entries(E_MODULES).filter(([k]) => !emp.hasModule(id, k)).map(([k, mod]) => {
-            const afford = s.parts[0] >= mod.parts && s.imag[0] >= (mod.imag || 0);
+            const afford = s.parts[this.ME] >= mod.parts && s.imag[this.ME] >= (mod.imag || 0);
             return `<button class="e-modbuild" data-node="${id}" data-mod="${k}" ${afford && s.phase === 'plan' ? '' : 'disabled'} title="${mod.desc}">
               ${mod.icon} ${mod.name} — ${mod.parts}🔩${mod.imag ? ` ${mod.imag}💡` : ''}</button>`;
           }).join('');
         }
         modBlock = `<div class="e-kv"><span>Modules</span><b>${(st.modules || []).length}/${slots}</b></div>
           ${built ? `<div class="e-mods">${built}</div>` : ''}
-          ${buildBtns ? `<div class="e-dim" style="margin-top:2px">Build:</div><div class="e-modbuilds">${buildBtns}</div>` : (st.owner === 0 && free === 0 ? '<div class="e-dim">All sockets full.</div>' : '')}`;
+          ${buildBtns ? `<div class="e-dim" style="margin-top:2px">Build:</div><div class="e-modbuilds">${buildBtns}</div>` : (st.owner === this.ME && free === 0 ? '<div class="e-dim">All sockets full.</div>' : '')}`;
       }
       const regionKey = emp.regionOf(id);
       const region = regionKey ? E_REGIONS[regionKey] : null;
@@ -1827,16 +1918,22 @@ class EmpireUI {
     this.root.querySelector('#e-back').addEventListener('click', () => { this.hide(); });
     const gd = this.root.querySelector('#e-guide');
     if (gd) gd.addEventListener('click', () => { esfx('select', 60); this.showGuide(); });
-    this.root.querySelector('#e-new').addEventListener('click', () => {
+    const newBtn = this.root.querySelector('#e-new');
+    if (newBtn) newBtn.addEventListener('click', () => {
       if (this.confirmNew) { Empire.clear(); this.emp = new Empire(); this.sel = null; this.selNode = null; this.lastPos = {}; this.confirmNew = false; this.render(); }
-      else { this.confirmNew = true; this.root.querySelector('#e-new').textContent = '⚠ Sure? Click again'; }
+      else { this.confirmNew = true; newBtn.textContent = '⚠ Sure? Click again'; }
     });
+    const mpBtn = this.root.querySelector('#e-mp');
+    if (mpBtn) mpBtn.addEventListener('click', () => { esfx('select', 60); this.showMpLobby(); });
+    const mpLeave = this.root.querySelector('#e-mpleave');
+    if (mpLeave) mpLeave.addEventListener('click', () => { this.leaveMp('You left the war.'); });
     const endBtn = this.root.querySelector('#e-end');
     if (endBtn) endBtn.addEventListener('click', () => {
       this.confirmNew = false;
       const capturedBefore = emp.s.stats.captured;
       const lootBefore = emp.loot.length;
       esfx('command', 120);
+      if (this.net) { this.net.ready(emp.s.turn); this.mpWaiting = true; this.render(); return; }
       emp.endTurn();
       this.sel = null;
       this.render();
@@ -1849,7 +1946,7 @@ class EmpireUI {
       g.addEventListener('click', (e) => {
         e.stopPropagation();
         const a = emp.s.armies.find((x) => x.id === g.dataset.army);
-        if (!a || a.owner !== 0) return;
+        if (!a || a.owner !== this.ME) return;
         this.sel = this.sel === a.id ? null : a.id; // click again to deselect
         this.selNode = null;
         esfx('select', 60);
@@ -1861,7 +1958,7 @@ class EmpireUI {
         e.stopPropagation();
         const id = g.dataset.node;
         if (this.sel && emp.s.phase === 'plan') {
-          const r = emp.issueMove(this.sel, id);
+          const r = this.issue({ type: 'move', army: this.sel, to: id }, 'select') || { ok: true };
           if (r.ok) { esfx('command', 60); this.render(); return; }
           esfx('error', 120);
         }
@@ -1878,9 +1975,9 @@ class EmpireUI {
     const act = (id, fn, snd = 'place') => { const el = this.root.querySelector(id); if (el) el.addEventListener('click', () => { const r = fn(); esfx(r && r.ok === false ? 'error' : snd, 100); this.render(); }); };
     const rec = this.root.querySelector('#e-recruit');
     if (rec) rec.addEventListener('click', () => { esfx('select', 60); this.showRecruit(); });
-    act('#e-march', () => emp.forceMarch(this.sel), 'twang');
-    act('#e-muster', () => emp.muster(0), 'charge');
-    act('#e-cancel', () => emp.cancelMove(this.sel), 'select');
+    act('#e-march', () => this.issue({ type: 'march', army: this.sel }, 'twang'), 'twang');
+    act('#e-muster', () => this.issue({ type: 'muster' }, 'charge'), 'charge');
+    act('#e-cancel', () => this.issue({ type: 'cancel', army: this.sel }, 'select'), 'select');
     const drill = this.root.querySelector('#e-drill');
     if (drill) drill.addEventListener('click', () => { esfx('select', 60); this.showDrill(); });
     const tree = this.root.querySelector('#e-tree');
@@ -1892,7 +1989,7 @@ class EmpireUI {
     const pacts = this.root.querySelector('#e-pacts');
     if (pacts) pacts.addEventListener('click', () => { esfx('select', 60); this.showDiplomacy(); });
     for (const b of this.root.querySelectorAll('.e-modbuild')) {
-      b.addEventListener('click', () => { const r = emp.buildModule(0, b.dataset.node, b.dataset.mod); esfx(r.ok ? 'place' : 'error', 100); this.render(); });
+      b.addEventListener('click', () => { this.issue({ type: 'module', node: b.dataset.node, key: b.dataset.mod }); });
     }
   }
 
@@ -1903,7 +2000,7 @@ class EmpireUI {
       .filter(([k]) => ownsCard(emp.coll, k))
       .sort((a, b) => E_CARD_ORDER.indexOf(a[1].rarity) - E_CARD_ORDER.indexOf(b[1].rarity) || a[1].cost - b[1].cost)
       .map(([k, c]) => {
-        const afford = s.parts[0] >= c.cost;
+        const afford = s.parts[this.ME] >= c.cost;
         return `<button class="e-rcard ${afford ? '' : 'poor'}" data-card="${k}" ${afford ? '' : 'disabled'} style="border-color:${E_RARITY[c.rarity].color}88">
           <span class="e-rname">${c.icon} ${c.name}</span>
           <span class="e-rrar" style="color:${E_RARITY[c.rarity].color}">${E_RARITY[c.rarity].name}</span>
@@ -1918,7 +2015,7 @@ class EmpireUI {
     </div></div>`;
     for (const b of m.querySelectorAll('.e-rcard')) {
       b.addEventListener('click', () => {
-        const r = emp.recruit(0, armyId, b.dataset.card);
+        const r = this.issue({ type: 'recruit', army: armyId, key: b.dataset.card }) || { ok: true };
         esfx(r.ok ? 'place' : 'error', 100);
         this.render();
         if (r.ok) this.showRecruit(); // stay open to field more
@@ -1961,14 +2058,14 @@ class EmpireUI {
 
   // the Doctrines modal (§10): pick a strategic identity per slot
   showDoctrines() {
-    const emp = this.emp, s = emp.s, cur = s.doctrines[0] || [];
+    const emp = this.emp, s = emp.s, cur = s.doctrines[this.ME] || [];
     const slots = emp.doctrineSlots(0);
     const cell = (k, slot) => {
       const d = E_DOCTRINES[k];
       const active = cur[slot] === k;
       const elsewhere = cur.includes(k) && !active; // already in the other slot
       const occupied = !!cur[slot];
-      const canPay = !occupied || active || s.power[0] >= E_RULES.doctrineSwapCost;
+      const canPay = !occupied || active || s.power[this.ME] >= E_RULES.doctrineSwapCost;
       const cls = active ? 'active' : elsewhere ? 'elsewhere' : canPay ? '' : 'poor';
       const tag = active ? '✓ active' : elsewhere ? 'in other slot' : occupied ? `swap (${E_RULES.doctrineSwapCost}⚡)` : 'commit';
       return `<button class="e-doc ${cls}" data-doc="${k}" data-slot="${slot}" ${elsewhere || (!active && !canPay) ? 'disabled' : ''}>
@@ -1981,14 +2078,14 @@ class EmpireUI {
     };
     const m = this.root.querySelector('#e-modal');
     m.innerHTML = `<div class="e-enc"><div class="e-enc-card e-tree-card">
-      <div class="e-ttl">🎗️ Doctrines <span class="e-dim">🔋 ${s.power[0]} Power</span></div>
+      <div class="e-ttl">🎗️ Doctrines <span class="e-dim">🔋 ${s.power[this.ME]} Power</span></div>
       <div class="e-dim">A focused edge that shapes your whole campaign. Committing to an empty slot is free; swapping a chosen one costs ${E_RULES.doctrineSwapCost} Power.</div>
       ${slotBlock(0)}${slotBlock(1)}
       <div class="e-enc-btns"><button id="e-dclose" class="diff-btn sel">Done</button></div>
     </div></div>`;
     for (const b of m.querySelectorAll('.e-doc')) {
       b.addEventListener('click', () => {
-        const r = emp.setDoctrine(0, +b.dataset.slot, b.dataset.doc);
+        const r = this.issue({ type: 'doctrine', slot: +b.dataset.slot, key: b.dataset.doc }) || { ok: true };
         esfx(r.ok ? 'charge' : 'error', 120);
         this.render(); this.showDoctrines();
       });
@@ -2002,9 +2099,9 @@ class EmpireUI {
     const cols = Object.entries(E_BRANCHES).map(([bk, b]) => {
       const nodes = Object.entries(E_UPGRADES).filter(([, u]) => u.branch === bk).sort((a, c) => a[1].tier - c[1].tier);
       const cells = nodes.map(([k, u]) => {
-        const owned = s.upgrades[0].includes(k);
-        const locked = u.prereq && !s.upgrades[0].includes(u.prereq);
-        const afford = s.parts[0] >= u.parts && s.imag[0] >= u.imag;
+        const owned = s.upgrades[this.ME].includes(k);
+        const locked = u.prereq && !s.upgrades[this.ME].includes(u.prereq);
+        const afford = s.parts[this.ME] >= u.parts && s.imag[this.ME] >= u.imag;
         const cls = owned ? 'owned' : locked ? 'locked' : afford ? 'afford' : 'poor';
         return `<button class="e-tnode ${cls}" data-upg="${k}" ${owned || locked ? 'disabled' : ''}>
           <div class="e-tname">${u.icon} ${u.name}</div>
@@ -2017,13 +2114,13 @@ class EmpireUI {
     const m = this.root.querySelector('#e-modal');
     m.innerHTML = `<div class="e-enc"><div class="e-enc-card e-tree-card">
       <div class="e-ttl">🌳 The Empire Tree</div>
-      <div class="e-dim">🔩 <b>${s.parts[0]}</b> Parts · 💡 <b>${s.imag[0]}</b> Imagination — spend them to shape a distinct empire.</div>
+      <div class="e-dim">🔩 <b>${s.parts[this.ME]}</b> Parts · 💡 <b>${s.imag[this.ME]}</b> Imagination — spend them to shape a distinct empire.</div>
       <div class="e-tree">${cols}</div>
       <div class="e-enc-btns"><button id="e-tclose" class="diff-btn sel">Done</button></div>
     </div></div>`;
     for (const b of m.querySelectorAll('.e-tnode')) {
       b.addEventListener('click', () => {
-        const r = emp.buyUpgrade(0, b.dataset.upg);
+        const r = this.issue({ type: 'upgrade', key: b.dataset.upg }) || { ok: true };
         esfx(r.ok ? 'charge' : 'error', 120);
         this.render();
         this.showTree(); // refresh the open modal
@@ -2058,7 +2155,7 @@ class EmpireUI {
     const emp = this.emp;
     const p = emp.preview(enc);
     const n = E_NODES[enc.nodeId];
-    const youAttack = enc.attacker.owner === 0;
+    const youAttack = enc.attacker.owner === this.ME;
     const { attCards, defCards } = emp.encCards(enc);
     const chip = (c) => `<span class="e-uchip" title="${UNITS[c.type].name} ${c.strength}%${c.vet ? ' · veteran' : ''}">
       ${UNITS[c.type].name.split(' ')[0]}${'★'.repeat(c.vet || 0)}<i style="width:${c.strength}%"></i></span>`;
@@ -2089,7 +2186,7 @@ class EmpireUI {
       </div></div>`;
     m.querySelector('#e-sim').addEventListener('click', () => {
       const res = emp.simulate(enc);
-      const humanWon = res.attackerWon === (enc.attacker.owner === 0);
+      const humanWon = res.attackerWon === (enc.attacker.owner === this.ME);
       emp.finishEncounter(enc, res);
       esfx(humanWon ? 'place' : 'bonk', 100);
       this.render();
