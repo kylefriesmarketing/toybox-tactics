@@ -2019,6 +2019,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   setupWeather(); // wind, seeds, rain, fireflies — whatever this map's sky does
   setupTracks(); // footprints, trampled paths, and the scars of razed forts
   setupNight();  // the night deepens as the match grows old
+  setupBaseLife(); // settlements act like settlements
   // the bedside lamp stays indoors — outdoor maps get sun, dusk, and porch light
   const outdoorMap = !!(game.map && game.map.outdoor);
   lampProp.group.visible = !outdoorMap;
@@ -2762,6 +2763,75 @@ function updateTracks(dt) {
   tracks.tex.needsUpdate = true;
 }
 
+// ---------------- living bases (view-only) ----------------------------------
+// Settlements act like settlements: production buildings puff chimney smoke
+// while their queue works, and house windows glow warmer as the night deepens.
+let baseLife = null;
+let nightF = 0; // current depth-of-night factor (written by updateNight)
+function setupBaseLife() {
+  baseLife = { smokes: new Map(), glows: new Map(), scanT: 0 };
+}
+function updateBaseLife(dt) {
+  if (!baseLife || !game) return;
+  baseLife.scanT -= dt;
+  if (baseLife.scanT <= 0) {
+    baseLife.scanT = 1; // 1Hz bookkeeping; particles animate every frame below
+    for (const e of game.entities) {
+      if (e.kind !== 'building' || e.dead || e.built < 1) continue;
+      // smoke: anything actively training puffs away at its work
+      const busy = e.queue && e.queue.length > 0;
+      if (busy && !baseLife.smokes.has(e.id)) {
+        const puffs = [];
+        for (let i = 0; i < 3; i++) {
+          const m = new THREE.Mesh(new THREE.SphereGeometry(0.16, 6, 5),
+            new THREE.MeshBasicMaterial({ color: 0xcfc8bc, transparent: true, opacity: 0.3, depthWrite: false }));
+          m.position.set(e.x + 0.4, 2 + i * 0.7, e.z - 0.3);
+          scene.add(m);
+          puffs.push({ m, ph: Math.random() * 9, v: 0.5 + Math.random() * 0.3 });
+        }
+        baseLife.smokes.set(e.id, { x: e.x + 0.4, z: e.z - 0.3, puffs });
+      } else if (!busy && baseLife.smokes.has(e.id)) {
+        for (const p of baseLife.smokes.get(e.id).puffs) scene.remove(p.m);
+        baseLife.smokes.delete(e.id);
+      }
+      // window glow: houses light up as the night deepens
+      if (e.type && e.type.startsWith('house') && !baseLife.glows.has(e.id)) {
+        const spr = new THREE.Sprite(new THREE.SpriteMaterial({
+          color: 0xffd9a0, transparent: true, opacity: 0, depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        }));
+        spr.scale.set(1.6, 1.2, 1);
+        spr.position.set(e.x, 1.1, e.z);
+        scene.add(spr);
+        baseLife.glows.set(e.id, { spr, e });
+      }
+    }
+    // sweep glows/smokes whose buildings died
+    for (const [id, g2] of baseLife.glows) {
+      if (g2.e.dead) { scene.remove(g2.spr); baseLife.glows.delete(id); }
+    }
+    for (const [id, sm] of baseLife.smokes) {
+      if (!game.entities.some((e) => e.id === id && !e.dead)) {
+        for (const p of sm.puffs) scene.remove(p.m);
+        baseLife.smokes.delete(id);
+      }
+    }
+  }
+  for (const sm of baseLife.smokes.values()) {
+    for (const p of sm.puffs) {
+      p.m.position.y += p.v * dt;
+      p.m.position.x = sm.x + Math.sin(p.m.position.y * 1.3 + p.ph) * 0.2;
+      const s2 = 1 + (p.m.position.y - 2) * 0.35;
+      p.m.scale.setScalar(Math.max(0.4, s2));
+      p.m.material.opacity = Math.max(0, 0.3 - (p.m.position.y - 2) * 0.09);
+      if (p.m.position.y > 5.4) p.m.position.y = 2;
+    }
+  }
+  for (const g2 of baseLife.glows.values()) {
+    g2.spr.material.opacity = nightF * 0.5 * (0.85 + Math.sin(performance.now() * 0.0018 + g2.e.id) * 0.15);
+  }
+}
+
 // ---------------- the deepening night (view-only) ---------------------------
 // A match is a whole night passing: over ~20 sim-minutes the room's light
 // slides deeper — dimmer, bluer, the moon further along its arc. The sim
@@ -2783,6 +2853,7 @@ function setupNight() {
 function updateNight() {
   if (!nightLights || !game) return;
   const f = Math.min(1, (game.time || 0) / 1200) * 0.5; // halfway to full depth at 20 min
+  nightF = f; // the living-bases window glow reads the same clock
   for (const rec of nightLights) {
     rec.l.intensity = rec.base * (1 - f * 0.3);                     // the room dims…
     rec.l.color.copy(rec.baseColor).lerp(NIGHT_TINT, f * 0.4);      // …and cools toward moonlight
@@ -2858,7 +2929,7 @@ function setupWeather() {
     for (let i = 0; i < 26; i++) {
       const fly = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5),
         new THREE.MeshStandardMaterial({ color: 0xfff2b0, emissive: 0xffe27a, emissiveIntensity: 1 }));
-      fly.position.set((Math.random() - 0.5) * span, 0.6 + Math.random() * 3.2, (Math.random() - 0.5) * span);
+      fly.position.set((Math.random() - 0.5) * span * 0.45, 0.6 + Math.random() * 3.2, (Math.random() - 0.5) * span * 0.45); // they keep to the old tree's company
       group.add(fly);
       parts.push({ m: fly, ph: Math.random() * 9, cx: fly.position.x, cz: fly.position.z });
     }
@@ -3426,6 +3497,8 @@ function loop() {
   updateWeather(dt);            // wind in the sunflowers, seeds on the breeze
   updateTracks(dt);             // footprints press in, the wind smooths them out
   updateNight();                // the moon keeps its own slow time
+  updateBaseLife(dt);           // chimneys smoke, windows glow
+  if (sfx.setListener) sfx.setListener(cam.x, cam.z);
   updateObjectives(dt);         // the goal, live, where eyes already are
   // the lamp breathes a little, like a real filament (only while it exists)
   if (lampProp.group.visible) {
@@ -3458,6 +3531,8 @@ setInterval(() => {
     updateWeather(elapsed);
     updateTracks(elapsed);
     updateNight();
+    updateBaseLife(elapsed);
+    if (sfx.setListener) sfx.setListener(cam.x, cam.z);
     updateObjectives(elapsed);
     updateCamMoment(elapsed);
     applyCamera(elapsed);

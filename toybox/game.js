@@ -1216,6 +1216,19 @@ export class Game {
       if (c.wanderT <= 0 || !c.tgt) {
         c.wanderT = 2 + this.rng() * 4;
         let tx, tz;
+        if (c.type === 'ant' && c.captor < 0) { // crumb patrol: home to the spill and back
+          c.trailFlip = !c.trailFlip;
+          if (c.trailFlip) { tx = c.hx * 0.35; tz = c.hz * 0.35; }
+          else { tx = c.hx; tz = c.hz; }
+          tx += (this.rng() - 0.5) * 2; tz += (this.rng() - 0.5) * 2;
+          c.tgt = this.tileOpenFor(tx, tz, -1) ? { x: tx, z: tz } : null;
+          c.wanderT = 4 + this.rng() * 3;
+          return;
+        }
+        if (ct.orbit && this.rng() < 0.25) { // a feeding pause: hover where the flowers are
+          c.tgt = null; c.wanderT = 2 + this.rng() * 2;
+          return;
+        }
         if (ct.orbit) { // circles its home patch like it's still on the porch
           const a = this.rng() * Math.PI * 2, r = 2 + this.rng() * 3;
           tx = c.hx + Math.sin(a) * r; tz = c.hz + Math.cos(a) * r;
@@ -2078,7 +2091,7 @@ export class Game {
           return { k: 'r', id: e.id, resType: e.resType, ti: e.ti, tj: e.tj, amount: e.amount };
         }
         if (e.kind === 'critter') {
-          return { k: 'c', id: e.id, type: e.type, x: e.x, z: e.z, hx: e.hx, hz: e.hz, captor: e.captor, facing: e.facing };
+          return { k: 'c', id: e.id, type: e.type, x: e.x, z: e.z, hx: e.hx, hz: e.hz, captor: e.captor, facing: e.facing, tf: e.trailFlip ? 1 : 0 };
         }
         if (e.kind === 'lost') {
           return { k: 'l', id: e.id, type: e.type, x: e.x, z: e.z, carrier: e.carrier };
@@ -2178,7 +2191,7 @@ export class Game {
         this.scene.add(view.group);
         e = {
           id: se.id, kind: 'critter', type: cType, owner: -1,
-          x: se.x, z: se.z, hx: se.hx ?? se.x, hz: se.hz ?? se.z,
+          x: se.x, z: se.z, hx: se.hx ?? se.x, hz: se.hz ?? se.z, trailFlip: !!se.tf,
           radius: 0.25, captor: se.captor, facing: se.facing || 0,
           wanderT: 1, scanT: 0.3,
           def: { name: ct.name, desc: ct.desc },
@@ -2506,7 +2519,7 @@ export class Game {
       if (spec.atkType === 'siege' && this.cb.shake) this.cb.shake(target.kind === 'building' ? 0.32 : 0.2);
     }
     if (this.sfx && this.fog.state(target.x, target.z) === 2) {
-      this.sfx.play(spec.atkType === 'siege' ? 'thud' : spec.atkType === 'pierce' ? 'twang' : 'bonk', 90);
+      this.sfx.playAt(spec.atkType === 'siege' ? 'thud' : spec.atkType === 'pierce' ? 'twang' : 'bonk', target.x, target.z, 90);
     }
     if (target.owner === this.myId) {
       // your King under fire gets the enemy's own gloat, once
@@ -2589,11 +2602,11 @@ export class Game {
       e.removeT = e.view.startDeath();
       this.fx && this.fx.death(e.x, e.z, e.def.debris || { colors: [e.def.color] });
       if (this.sfx && this.fog.state(e.x, e.z) === 2) {
-        this.sfx.play('squeak', 150);
+        this.sfx.playAt('squeak', e.x, e.z, 150);
         // the material decides the sound: fluff whumps, buttons jingle, plastic clatters
         const d = e.def.debris;
         const mat = d && d.fluff ? 'whump' : d && d.shapes && d.shapes.includes('disc') ? 'jingle' : 'clatter';
-        this.sfx.play(mat, 120);
+        this.sfx.playAt(mat, e.x, e.z, 120);
       }
     } else if (e.kind === 'building' || e.kind === 'resource') {
       if (e.kind === 'building') {
@@ -2617,7 +2630,7 @@ export class Game {
         this.recalcPop(e.owner);
         this.fx && this.fx.buildingDeath(e.x, e.z, s, e.def.debris);
         this.cb.shake && this.fog.state(e.x, e.z) === 2 && this.cb.shake(0.3 + s * 0.12);
-        this.sfx && this.sfx.play('crash', 300);
+        this.sfx && this.sfx.playAt('crash', e.x, e.z, 300);
         if (!quiet && e.owner === this.myId) this.alert(`${e.def.name} destroyed!`, 'attack', { x: e.x, z: e.z }, 4);
       } else {
         this.blocked[idx(e.ti, e.tj)] = 0;
@@ -2691,7 +2704,7 @@ export class Game {
           const r = spec.projectile.splash;
           this.fx && this.fx.explosion(pr.to.x, pr.to.z, r);
           this.cb.shake && this.fog.state(pr.to.x, pr.to.z) === 2 && this.cb.shake(0.38);
-          this.sfx && this.sfx.play('thud', 120);
+          this.sfx && this.sfx.playAt('thud', pr.to.x, pr.to.z, 120);
           for (const e of this.entities) {
             if (e.dead || e.owner === pr.attacker.owner || e.owner === -1) continue;
             if (e.kind !== 'unit' && e.kind !== 'building') continue;

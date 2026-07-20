@@ -346,7 +346,14 @@ export class SFX {
     if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, slide), t + dur);
     g.gain.setValueAtTime(gain, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    o.connect(g); g.connect(bus || this.sfxBus);
+    let out = g;
+    if (this._spat && ctx.createStereoPanner) {
+      g.gain.setValueAtTime(gain * this._spat.vol, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      const p = ctx.createStereoPanner(); p.pan.value = this._spat.pan;
+      g.connect(p); out = p;
+    }
+    o.connect(g); out.connect(bus || this.sfxBus);
     o.start(t); o.stop(t + dur + 0.02);
   }
   noise(dur, { freq = 800, q = 1, gain = 0.25, type = 'lowpass', when = 0 } = {}) {
@@ -371,6 +378,18 @@ export class SFX {
   }
 
   // ---------- game sounds ----------
+  // world-positioned playback: pan by screen-side, fade by camera distance.
+  // setListener is fed the camera focus every frame by main.js.
+  setListener(x, z) { this.lx = x; this.lz = z; }
+  playAt(name, x, z, throttleMs = 60) {
+    if (this.lx === undefined || x === undefined) return this.play(name, throttleMs);
+    const dx = x - this.lx, dz = z - this.lz;
+    const dist = Math.hypot(dx, dz);
+    if (dist > 55) return; // beyond earshot
+    this._spat = { pan: Math.max(-0.8, Math.min(0.8, dx / 24)), vol: 1 / (1 + dist / 18) };
+    this.play(name, throttleMs);
+    this._spat = null;
+  }
   play(name, throttleMs = 60) {
     if (!this.ctx || this.muted) return;
     const now = performance.now();
