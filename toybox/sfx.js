@@ -125,8 +125,13 @@ export class SFX {
     this.ambKind = kind;
     if (this.ambTimers) for (const t of this.ambTimers) clearTimeout(t);
     this.ambTimers = [];
+    // stop every continuous bed from the previous soundscape — beds must never
+    // stack or outlive their room (the source of the dreaded background hum)
+    if (this.ambNodes) for (const n of this.ambNodes) { try { n.stop(); } catch { /* already stopped */ } }
+    this.ambNodes = [];
     if (!kind) return;
     const ctx = this.ctx;
+    const keep = (...nodes) => { this.ambNodes.push(...nodes); return nodes[0]; };
     const OUTDOOR = kind === 'day' || kind === 'gold' || kind === 'dusk';
     if (OUTDOOR) {
       // the breeze: every outdoor hour has one, softer at dusk
@@ -141,19 +146,28 @@ export class SFX {
       lfo.connect(lfoG); lfoG.connect(g.gain);
       src.connect(f); f.connect(g); g.connect(this.sfxBus);
       src.start(); lfo.start();
+      keep(src, lfo);
     }
     // ---- indoor room-tones: the house going about its evening -------------
-    const hum = (freq, gain, lp = 400) => { // a steady appliance/house drone
-      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = freq;
+    // a BREATHING appliance murmur — triangle wave (no buzzy harmonics), very
+    // quiet, with a slow swell so it reads as "the house" and never as a drone
+    const hum = (freq, gain, lp = 300) => {
+      const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = freq;
       const f2 = ctx.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = lp;
-      const g2 = ctx.createGain(); g2.gain.value = gain;
-      o.connect(f2); f2.connect(g2); g2.connect(this.sfxBus); o.start();
+      const g2 = ctx.createGain(); g2.gain.value = gain * 0.4;
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.09;
+      const lfoG = ctx.createGain(); lfoG.gain.value = gain * 0.25;
+      lfo.connect(lfoG); lfoG.connect(g2.gain);
+      o.connect(f2); f2.connect(g2); g2.connect(this.sfxBus);
+      o.start(); lfo.start();
+      keep(o, lfo);
     };
-    const hush = (lp, gain) => { // filtered room-noise floor
+    const hush = (lp, gain) => { // filtered room-noise floor (soft, breathing)
       const src2 = ctx.createBufferSource(); src2.buffer = this.noiseBuf; src2.loop = true;
       const f2 = ctx.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = lp;
-      const g2 = ctx.createGain(); g2.gain.value = gain;
+      const g2 = ctx.createGain(); g2.gain.value = gain * 0.7;
       src2.connect(f2); f2.connect(g2); g2.connect(this.sfxBus); src2.start();
+      keep(src2);
     };
     const tickTock = (which) => { // the hallway clock, alternating
       if (this.ambKind !== kind || this.muted) return;
@@ -201,19 +215,20 @@ export class SFX {
       this.ambTimers.push(setTimeout(() => tickTock(false), 700));
       this.ambTimers.push(setTimeout(creak, 14000));
     } else if (kind === 'kitchen') { // the fridge never sleeps; the tap almost
-      hum(118, 0.005, 500);
-      hush(300, 0.003);
+      hum(118, 0.004, 400);
+      hush(300, 0.0025);
       this.ambTimers.push(setTimeout(() => drip(false), 5000));
     } else if (kind === 'tv') { // a TV murmuring in the next room
       const src2 = ctx.createBufferSource(); src2.buffer = this.noiseBuf; src2.loop = true;
       const f2 = ctx.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 320; f2.Q.value = 1.4;
-      const g2 = ctx.createGain(); g2.gain.value = 0.006;
+      const g2 = ctx.createGain(); g2.gain.value = 0.004;
       const wob = ctx.createOscillator(); wob.frequency.value = 0.31; // speech-ish swell
-      const wobG = ctx.createGain(); wobG.gain.value = 0.004;
+      const wobG = ctx.createGain(); wobG.gain.value = 0.003;
       wob.connect(wobG); wobG.connect(g2.gain);
       src2.connect(f2); f2.connect(g2); g2.connect(this.sfxBus);
       src2.start(); wob.start();
-      hush(200, 0.003);
+      keep(src2, wob);
+      hush(200, 0.0025);
     } else if (kind === 'tub') { // porcelain acoustics
       hush(600, 0.0035);
       this.ambTimers.push(setTimeout(() => drip(true), 2500));
@@ -226,10 +241,10 @@ export class SFX {
       lfo2.connect(lfoG2); lfoG2.connect(g2.gain);
       src2.connect(f2); f2.connect(g2); g2.connect(this.sfxBus);
       src2.start(); lfo2.start();
+      keep(src2, lfo2);
       this.ambTimers.push(setTimeout(creak, 9000));
     } else if (kind === 'dark') { // under here you can hear the whole house
-      hush(160, 0.005);
-      hum(52, 0.003, 120);
+      hush(160, 0.004); // the deep hush alone — no drone under the bed
       this.ambTimers.push(setTimeout(creak, 11000));
     }
     const chirp = () => { // one birdsong phrase: 2-4 falling whistles
@@ -281,12 +296,13 @@ export class SFX {
     if (kind === 'gold') { // the bees: a low warm drone that wanders the rows
       const bee = ctx.createOscillator(); bee.type = 'sawtooth'; bee.frequency.value = 190;
       const bf = ctx.createBiquadFilter(); bf.type = 'lowpass'; bf.frequency.value = 800;
-      const bg = ctx.createGain(); bg.gain.value = 0.006;
+      const bg = ctx.createGain(); bg.gain.value = 0.004;
       const wob = ctx.createOscillator(); wob.frequency.value = 0.9;
       const wobG = ctx.createGain(); wobG.gain.value = 14;
       wob.connect(wobG); wobG.connect(bee.frequency);
       bee.connect(bf); bf.connect(bg); bg.connect(this.sfxBus);
       bee.start(); wob.start();
+      keep(bee, wob);
     }
     if (kind === 'day') this.ambTimers.push(setTimeout(chirp, 1200));
     if (kind === 'dusk') {
