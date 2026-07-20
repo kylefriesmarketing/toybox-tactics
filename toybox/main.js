@@ -2017,7 +2017,8 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   game.zeroEra = zeroEra; // the Chronicle checks this for 'The Page Under the Pages'
   game.setup();
   setupWeather(); // wind, seeds, rain, fireflies — whatever this map's sky does
-  setupTracks(); // toy footsteps press into the sand and slowly smooth away
+  setupTracks(); // footprints, trampled paths, and the scars of razed forts
+  setupNight();  // the night deepens as the match grows old
   // the bedside lamp stays indoors — outdoor maps get sun, dusk, and porch light
   const outdoorMap = !!(game.map && game.map.outdoor);
   lampProp.group.visible = !outdoorMap;
@@ -2685,9 +2686,17 @@ function clearWeather() {
 // wherever toys walk, and the wind smooths them away over ~half a minute.
 // Pure view: reads unit positions, never touches the sim.
 let tracks = null;
+// per-room wear colors: what ground looks like when ten thousand feet cross it
+const WEAR_COLORS = {
+  sandbox: 'rgba(115,84,45,0.16)', playground: 'rgba(96,72,38,0.05)',
+  garden: 'rgba(60,44,26,0.06)', oldoak: 'rgba(88,64,36,0.05)',
+  livingroom: 'rgba(60,22,26,0.05)', kitchen: 'rgba(70,45,22,0.04)',
+  playmat: 'rgba(70,90,50,0.045)', underbed: 'rgba(20,16,30,0.06)',
+  attic: 'rgba(60,42,22,0.045)', bookshelf: 'rgba(40,26,14,0.045)',
+};
 function setupTracks() {
   tracks = null;
-  if (!game || game.map.ground !== 'sandbox') return;
+  if (!game) return;
   const c = document.createElement('canvas');
   c.width = c.height = 512;
   const ctx = c.getContext('2d');
@@ -2700,7 +2709,9 @@ function setupTracks() {
   plane.position.y = 0.045; // over the mat, under the cloud shadows
   plane.renderOrder = 1;
   scene.add(plane);
-  tracks = { c, ctx, tex, t: 0 };
+  // sandbox keeps fast-fading footprints; every other room accumulates WEAR —
+  // trampled paths and battle scars that persist and tell the war's story
+  tracks = { c, ctx, tex, t: 0, fading: game.map.ground === 'sandbox', deadSeen: new Set() };
 }
 function updateTracks(dt) {
   if (!tracks || !game) return;
@@ -2708,26 +2719,83 @@ function updateTracks(dt) {
   if (tracks.t < 0.13) return; // 8Hz is plenty for footprints
   tracks.t = 0;
   const x2 = tracks.ctx;
-  // the wind's half of the bargain: everything fades, always
-  x2.globalCompositeOperation = 'destination-out';
-  x2.fillStyle = 'rgba(0,0,0,0.012)';
-  x2.fillRect(0, 0, 512, 512);
-  x2.globalCompositeOperation = 'source-over';
+  if (tracks.fading) { // the wind's half of the bargain (sand only)
+    x2.globalCompositeOperation = 'destination-out';
+    x2.fillStyle = 'rgba(0,0,0,0.012)';
+    x2.fillRect(0, 0, 512, 512);
+    x2.globalCompositeOperation = 'source-over';
+  }
   const px = 512 / N;
+  const wearCol = WEAR_COLORS[game.map.ground] || 'rgba(80,60,35,0.05)';
   for (const e of game.entities) {
-    if (e.dead || e.garrisoned) continue;
-    const moving = (e.kind === 'unit' && e.wasMoving) || (e.kind === 'critter' && e.tgt);
+    if (e.garrisoned) continue;
+    // battle scars: a building that died leaves a scorch that never fades
+    if (e.kind === 'building' && e.dead && !tracks.deadSeen.has(e.id)) {
+      tracks.deadSeen.add(e.id);
+      const cx2 = (e.x + N / 2) * px, cz2 = (e.z + N / 2) * px;
+      const r = (e.def && e.def.size ? e.def.size : 2) * px * 0.8;
+      const g2 = x2.createRadialGradient(cx2, cz2, r * 0.2, cx2, cz2, r);
+      g2.addColorStop(0, 'rgba(26,18,12,0.55)');
+      g2.addColorStop(0.7, 'rgba(30,22,14,0.3)');
+      g2.addColorStop(1, 'rgba(30,22,14,0)');
+      x2.fillStyle = g2;
+      x2.beginPath(); x2.arc(cx2, cz2, r, 0, Math.PI * 2); x2.fill();
+      for (let k = 0; k < 7; k++) { // flung debris
+        const a = Math.random() * Math.PI * 2, rr = r * (0.5 + Math.random() * 0.9);
+        x2.fillStyle = 'rgba(40,30,18,0.4)';
+        x2.beginPath(); x2.arc(cx2 + Math.cos(a) * rr, cz2 + Math.sin(a) * rr, 1 + Math.random() * 2, 0, Math.PI * 2); x2.fill();
+      }
+      continue;
+    }
+    if (e.dead) continue;
+    const moving = (e.kind === 'unit' && e.wasMoving) || (e.kind === 'critter' && e.tgt) || (e.kind === 'cat' && e.tgt);
     if (!moving) continue;
     const cx2 = (e.x + N / 2) * px, cz2 = (e.z + N / 2) * px;
     const small = e.kind === 'critter';
-    x2.fillStyle = small ? 'rgba(120,88,48,0.10)' : 'rgba(115,84,45,0.16)';
+    const big = e.kind === 'cat';
+    x2.fillStyle = tracks.fading ? (small ? 'rgba(120,88,48,0.10)' : 'rgba(115,84,45,0.16)') : wearCol;
     x2.beginPath();
     x2.ellipse(cx2 + (Math.random() - 0.5) * 1.4, cz2 + (Math.random() - 0.5) * 1.4,
-               small ? 1.1 : 1.9, small ? 0.8 : 1.4, Math.random() * 3, 0, Math.PI * 2);
+               big ? 2.6 : small ? 1.1 : 1.9, big ? 2 : small ? 0.8 : 1.4, Math.random() * 3, 0, Math.PI * 2);
     x2.fill();
   }
   tracks.tex.needsUpdate = true;
 }
+
+// ---------------- the deepening night (view-only) ---------------------------
+// A match is a whole night passing: over ~20 sim-minutes the room's light
+// slides deeper — dimmer, bluer, the moon further along its arc. The sim
+// never reads any of this; it reads game.time and paints.
+let nightLights = null;
+function setupNight() {
+  nightLights = null;
+  if (!game || game.zeroEra) return; // page zero stays sepia-frozen
+  const found = [];
+  scene.traverse((n) => { if (n.isDirectionalLight || n.isHemisphereLight || n.isAmbientLight) found.push(n); });
+  if (!found.length) return;
+  nightLights = found.map((l) => ({
+    l,
+    base: l.intensity,
+    baseColor: l.color.clone(),
+    basePos: l.position ? l.position.clone() : null,
+  }));
+}
+function updateNight() {
+  if (!nightLights || !game) return;
+  const f = Math.min(1, (game.time || 0) / 1200) * 0.5; // halfway to full depth at 20 min
+  for (const rec of nightLights) {
+    rec.l.intensity = rec.base * (1 - f * 0.3);                     // the room dims…
+    rec.l.color.copy(rec.baseColor).lerp(NIGHT_TINT, f * 0.4);      // …and cools toward moonlight
+    if (rec.l.isDirectionalLight && rec.basePos) {                  // …as the moon walks its arc
+      rec.l.position.set(
+        rec.basePos.x * Math.cos(f * 0.5) - rec.basePos.z * Math.sin(f * 0.5),
+        rec.basePos.y,
+        rec.basePos.x * Math.sin(f * 0.5) + rec.basePos.z * Math.cos(f * 0.5)
+      );
+    }
+  }
+}
+const NIGHT_TINT = new THREE.Color(0x6a7ab8);
 
 function setupWeather() {
   clearWeather();
@@ -3357,6 +3425,7 @@ function loop() {
   updateAmbient(dt);            // moths, headlights, the cat
   updateWeather(dt);            // wind in the sunflowers, seeds on the breeze
   updateTracks(dt);             // footprints press in, the wind smooths them out
+  updateNight();                // the moon keeps its own slow time
   updateObjectives(dt);         // the goal, live, where eyes already are
   // the lamp breathes a little, like a real filament (only while it exists)
   if (lampProp.group.visible) {
@@ -3388,6 +3457,7 @@ setInterval(() => {
     updateAmbient(elapsed);
     updateWeather(elapsed);
     updateTracks(elapsed);
+    updateNight();
     updateObjectives(elapsed);
     updateCamMoment(elapsed);
     applyCamera(elapsed);

@@ -878,6 +878,7 @@ export const MAPS = {
     obstacles: 3, canyon: false, resourceMul: 1.3, stickers: 2, plateaus: 1,
     critters: [{ type: 'duck', count: 3 }, { type: 'goldfish', count: 4 }], // duckies + goldfish in the basin
     weather: 'bubbles', // soap bubbles drift up from the suds
+    cat: false, // the tub is beneath her dignity
     features: { forests: 1 },
     // a central basin of sailable water: build a Dock, launch boats, and rule
     // the bath while land toys ring the tub. water: ellipse half-axes in tiles.
@@ -1871,6 +1872,18 @@ export const WILD_TRIBES = {
   holdRadius: 3.2, holdTime: 8, bounty: 60,
   comp: ['scout', 'soldier', 'soldier'], // who steps out of the tent
   desc: 'Wild toys around a campfire. Hold the camp with military toys to win them over.',
+};
+
+// ---------------- the house cat: the room's apex predator -------------------
+// One cat prowls every land map (the tub is beneath her dignity). She patrols,
+// naps wherever she pleases — including chokepoints — and SWATS lone toys that
+// wander too close when no friends are near. She cannot be fought, only
+// respected. Every critter on the floor knows to scatter.
+export const HOUSE_CAT = {
+  speed: 0.85, napMin: 18, napMax: 40, walkMin: 10, walkMax: 22,
+  swatRadius: 2.1, swatDamage: 9, swatKnock: 1.8, swatCooldown: 6,
+  loneRadius: 4,      // a toy is "lone" if no other same-team toy stands this close
+  scatterRadius: 3.5, // critters bolt when she's this near
 };
 
 // ---------------- lost toys: the yard is full of strays ---------------------

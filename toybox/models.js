@@ -4142,6 +4142,63 @@ export function createCritterView(type = 'mouse') {
   return view;
 }
 
+// the house cat: a plush grey tabby, big as a siege engine to the toys below.
+// view.setNap(bool) curls her up; the tail always has its own opinions.
+export function createCatView() {
+  const g = new THREE.Group();
+  const fur = toyMat(0x8a8494, 0.95), furD = toyMat(0x6e6878, 0.95);
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.55, 1.1, 6, 12), fur);
+  body.rotation.x = Math.PI / 2; body.position.y = 0.62; body.castShadow = true; g.add(body);
+  for (const z2 of [-0.3, 0.35]) { // tabby stripes
+    const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.53, 0.06, 6, 14), furD);
+    stripe.position.set(0, 0.62, z2); g.add(stripe);
+  }
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 9), fur);
+  head.position.set(0, 0.95, 0.85); head.castShadow = true; g.add(head);
+  for (const sx of [-0.2, 0.2]) {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.26, 4), furD);
+    ear.position.set(sx, 1.32, 0.78); ear.rotation.y = 0.6; g.add(ear);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6),
+      new THREE.MeshStandardMaterial({ color: 0x9ad04a, emissive: 0x557a1e, emissiveIntensity: 0.6, roughness: 0.2 }));
+    eye.position.set(sx * 0.85, 1.0, 1.2); g.add(eye);
+  }
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.06, 4), toyMat(0xd88a9a, 0.5));
+  nose.rotation.x = Math.PI / 2; nose.position.set(0, 0.9, 1.27); g.add(nose);
+  const legs = [];
+  for (const [sx, sz] of [[-0.32, 0.45], [0.32, 0.45], [-0.32, -0.5], [0.32, -0.5]]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.55, 8), fur);
+    leg.position.set(sx, 0.27, sz); leg.castShadow = true; g.add(leg); legs.push(leg);
+  }
+  const tail = new THREE.Group();
+  const tailM = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 1.1, 7), furD);
+  tailM.position.y = 0.55; tail.add(tailM);
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.1, 7, 6), fur);
+  tip.position.y = 1.1; tail.add(tip);
+  tail.position.set(0, 0.7, -1.05); tail.rotation.x = 0.7;
+  g.add(tail);
+  let t = Math.random() * 9, napping = false;
+  const view = passiveView(g, 1.2);
+  view.update = (dt) => {
+    t += dt;
+    tail.rotation.z = Math.sin(t * (napping ? 0.7 : 2.1)) * (napping ? 0.12 : 0.4); // the tail never fully sleeps
+    if (napping) {
+      body.scale.y = 1 + Math.sin(t * 1.1) * 0.03; // slow breathing
+    } else {
+      for (let i = 0; i < 4; i++) legs[i].rotation.x = Math.sin(t * 6 + (i % 2 ? Math.PI : 0) + (i > 1 ? 0.5 : 0)) * 0.3;
+    }
+  };
+  view.setNap = (n) => {
+    napping = n;
+    // curl: head tucks, body sinks, legs fold under
+    head.position.set(0, n ? 0.62 : 0.95, n ? 0.55 : 0.85);
+    body.position.y = n ? 0.45 : 0.62;
+    for (const leg of legs) { leg.visible = !n; }
+    tail.rotation.x = n ? 1.5 : 0.7;
+    tail.position.z = n ? -0.7 : -1.05;
+  };
+  return view;
+}
+
 // wild toy tribes: a campfire, a lean-to tent, and three sun-bleached toys
 // who haven't decided about you yet. setOwner(color) plants the new flag.
 export function createCampView() {

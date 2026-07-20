@@ -9,14 +9,14 @@ import {
   MAP_N, POP_MAX, RES_TYPES, RES_META, UNITS, BUILDINGS, TECHS, MARKET, maskAt,
   AGES, AGE_UPS, PRODUCTION_BUILDINGS, START, AI, DIFFICULTIES, TEAM_NAMES, STICKER, WONDER, PERSONAS, MAPS, FACTIONS,
   TAUNTS, AI_LINES, NARRATOR, NARRATOR_NG,
-  CRITTERS, CRITTER_TYPES, LOST_TOYS, WILD_TRIBES, GAME_MODES, START_RES, SURVIVAL,
+  CRITTERS, CRITTER_TYPES, LOST_TOYS, WILD_TRIBES, HOUSE_CAT, GAME_MODES, START_RES, SURVIVAL,
 } from './data.js';
 import {
   createUnitView, createBuildingView, createResourceView,
   createGround, createObstacleMesh, createDecorMesh, createStickerView, createRallyFlag,
   makeRankBadge, createCritterView, createMilkSpill, createKingCrown, createThroneView,
   createWaterSurface, createWaterDecor, applyUnitTier, shadeGroundByHeight,
-  createLostToyView, createCampView,
+  createLostToyView, createCampView, createCatView,
 } from './models.js';
 
 const N = MAP_N;
@@ -943,6 +943,18 @@ export class Game {
       }
     }
 
+    // the house cat: one per land map, spawned at the midfield ring
+    if (this.map.cat !== false) {
+      for (let t = 0; t < 30; t++) {
+        const a = rng() * Math.PI * 2, r = 8 + rng() * 10;
+        const i = Math.round(N / 2 + Math.cos(a) * r), j = Math.round(N / 2 + Math.sin(a) * r);
+        if (this.blocked[idx(i, j)] || this.water[idx(i, j)] === 1) continue;
+        if (!clearHomes(i, j, 14)) continue;
+        this.addCat(worldOf(i), worldOf(j));
+        break;
+      }
+    }
+
     this.fog.update(this.entities);
   }
 
@@ -1022,6 +1034,84 @@ export class Game {
     }
   }
 
+  addCat(x, z) {
+    const view = createCatView();
+    view.group.position.set(x, this.heightAtWorld(x, z), z);
+    this.scene.add(view.group);
+    this.entities.push({
+      id: this.nextId++, kind: 'cat', owner: -1,
+      x, z, radius: 1.1, facing: 0,
+      state: 'walk', stateT: 4 + this.rng() * 6, tgt: null, swatT: 0,
+      def: { name: 'The House Cat', desc: 'She cannot be fought, only respected. Keep your toys together.' },
+      view, dead: false,
+    });
+  }
+
+  // the cat's whole philosophy: walk where she likes, nap where she likes,
+  // and swat any LONE toy that forgets whose floor this really is
+  updateCat(c, dt) {
+    if (c.dead) return;
+    c.view.update(dt);
+    c.swatT = Math.max(0, c.swatT - dt);
+    c.stateT -= dt;
+    if (c.stateT <= 0) {
+      if (c.state === 'walk') {
+        c.state = 'nap'; c.stateT = HOUSE_CAT.napMin + this.rng() * (HOUSE_CAT.napMax - HOUSE_CAT.napMin);
+        c.tgt = null;
+        c.view.setNap && c.view.setNap(true);
+      } else {
+        c.state = 'walk'; c.stateT = HOUSE_CAT.walkMin + this.rng() * (HOUSE_CAT.walkMax - HOUSE_CAT.walkMin);
+        c.view.setNap && c.view.setNap(false);
+      }
+    }
+    if (c.state === 'walk') {
+      if (!c.tgt) {
+        for (let t = 0; t < 8; t++) {
+          const a = this.rng() * Math.PI * 2, r = 5 + this.rng() * 9;
+          const tx = Math.max(-N / 2 + 3, Math.min(N / 2 - 3, c.x + Math.sin(a) * r));
+          const tz = Math.max(-N / 2 + 3, Math.min(N / 2 - 3, c.z + Math.cos(a) * r));
+          const ti = tileOf(tx), tj = tileOf(tz);
+          if (!this.blocked[idx(ti, tj)] && this.water[idx(ti, tj)] !== 1) { c.tgt = { x: tx, z: tz }; break; }
+        }
+      }
+      if (c.tgt) {
+        const dx = c.tgt.x - c.x, dz = c.tgt.z - c.z, d = Math.hypot(dx, dz);
+        if (d < 0.5) c.tgt = null;
+        else {
+          const sp = HOUSE_CAT.speed * dt;
+          const nx = c.x + (dx / d) * sp, nz = c.z + (dz / d) * sp;
+          const cliff = Math.abs(this.tileHeight(tileOf(nx), tileOf(nz)) - this.tileHeight(tileOf(c.x), tileOf(c.z))) > CLIMB;
+          if (!this.blocked[idx(tileOf(nx), tileOf(nz))] && this.water[idx(tileOf(nx), tileOf(nz))] !== 1 && !cliff) {
+            c.x = nx; c.z = nz; c.facing = Math.atan2(dx, dz);
+          } else c.tgt = null;
+        }
+      }
+    }
+    // the swat: a lone toy in reach, and she's in the mood
+    if (c.swatT <= 0) {
+      for (const e of this.entities) {
+        if (e.kind !== 'unit' || e.dead || e.owner < 0 || e.garrisoned || e.def.naval) continue;
+        if (dist2(c, e) > HOUSE_CAT.swatRadius ** 2) continue;
+        const hasFriend = this.entities.some((f) => f !== e && f.kind === 'unit' && !f.dead
+          && f.owner >= 0 && this.players[f.owner].team === this.players[e.owner].team
+          && dist2(e, f) < HOUSE_CAT.loneRadius ** 2);
+        if (hasFriend) continue; // she only bullies the stragglers
+        e.hp -= HOUSE_CAT.swatDamage;
+        const dx = e.x - c.x, dz = e.z - c.z, d = Math.hypot(dx, dz) || 1;
+        const kx = e.x + (dx / d) * HOUSE_CAT.swatKnock, kz = e.z + (dz / d) * HOUSE_CAT.swatKnock;
+        if (this.tileOpenFor(kx, kz, e.owner)) { e.x = kx; e.z = kz; }
+        c.swatT = HOUSE_CAT.swatCooldown;
+        c.facing = Math.atan2(dx, dz);
+        this.fx && this.fx.spawnPop(e.x, e.z, 0xe8a8b8);
+        if (e.owner === this.myId) this.alert('🐈 The house cat SWATS your lone toy! Keep them together.', 'warn', { x: c.x, z: c.z }, 4);
+        if (e.hp <= 0 && !e.dead) this.kill(e, null);
+        break;
+      }
+    }
+    c.view.group.position.set(c.x, this.heightAtWorld(c.x, c.z), c.z);
+    c.view.group.rotation.y = c.facing;
+  }
+
   addLostToy(x, z, type) {
     const view = createLostToyView(type);
     view.group.position.set(x, this.heightAtWorld(x, z), z);
@@ -1090,7 +1180,12 @@ export class Game {
       c.scanT -= dt;
       if (c.scanT <= 0) {
         c.scanT = 0.4;
-        if (ct.flee) {
+        const cat = this.entities.find((x) => x.kind === 'cat' && !x.dead);
+        if (cat && dist2(c, cat) < HOUSE_CAT.scatterRadius ** 2 && !ct.water) {
+          const dx = c.x - cat.x, dz = c.z - cat.z, d = Math.hypot(dx, dz) || 1;
+          const fx2 = c.x + (dx / d) * 4, fz2 = c.z + (dz / d) * 4;
+          if (this.tileOpenFor(fx2, fz2, -1)) { c.tgt = { x: fx2, z: fz2 }; c.wanderT = 1.5; }
+        } else if (ct.flee) {
           // uncatchable: startles from the nearest toy and bolts the other way
           let near = null, best = 3.2 ** 2;
           for (const e of this.entities) {
@@ -1991,6 +2086,9 @@ export class Game {
         if (e.kind === 'camp') {
           return { k: 'w', id: e.id, x: e.x, z: e.z, prog: e.prog, holdTeam: e.holdTeam, captured: e.captured, progPid: e.progPid ?? -1 };
         }
+        if (e.kind === 'cat') {
+          return { k: 'ct', id: e.id, x: e.x, z: e.z, state: e.state, stateT: e.stateT, swatT: e.swatT, facing: e.facing };
+        }
         if (e.type === 'throne') {
           return { k: 'h', id: e.id, x: e.x, z: e.z, holder: e.holder, holdTime: e.holdTime || 0, holdTeam: e.holdTeam ?? -1 };
         }
@@ -2108,6 +2206,18 @@ export class Game {
           view, dead: false,
         };
         if (e.captured >= 0) view.setOwner(this.players[e.captured].team === this.myTeam ? 0x3b82f6 : 0xe4572e);
+      } else if (se.k === 'ct') {
+        const view = createCatView();
+        view.group.position.set(se.x, this.heightAtWorld(se.x, se.z), se.z);
+        this.scene.add(view.group);
+        if (se.state === 'nap') view.setNap(true);
+        e = {
+          id: se.id, kind: 'cat', owner: -1,
+          x: se.x, z: se.z, radius: 1.1, facing: se.facing || 0,
+          state: se.state || 'walk', stateT: se.stateT ?? 5, tgt: null, swatT: se.swatT || 0,
+          def: { name: 'The House Cat', desc: 'She cannot be fought, only respected. Keep your toys together.' },
+          view, dead: false,
+        };
       } else if (se.k === 'h') {
         const view = createThroneView();
         view.group.position.set(se.x, this.heightAtWorld(se.x, se.z), se.z);
@@ -4393,6 +4503,7 @@ export class Game {
       else if (e.kind === 'critter') this.updateCritter(e, dt);
       else if (e.kind === 'lost') this.updateLostToy(e, dt);
       else if (e.kind === 'camp') this.updateCamp(e, dt);
+      else if (e.kind === 'cat') this.updateCat(e, dt);
     }
     this.updateProjectiles(dt);
     this.updateObjectives(dt);
