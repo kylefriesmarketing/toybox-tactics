@@ -73,6 +73,7 @@ export class Empire {
       // fight the betrayer bolder for a while.
       relations: {}, grudges: {},
       trades: {}, passages: {}, bounty: null, // round 17: the political toolkit
+      humans: [0], // phase 3: which seats are human (MP campaigns list several)
       eliminated: [], // seats whose capital fell (their toys go back in the box)
       nodes: Object.fromEntries(Object.keys(E_NODES).map((id) => [id, {
         owner: id === 'CAP_A' ? 0 : id === 'CAP_B' ? 1 : (id === 'CAP_C' && S >= 3) ? 2 : -1,
@@ -126,18 +127,18 @@ export class Empire {
     // round 17: trades transfer every turn — and collapse the turn a side can't pay
     for (const k of Object.keys(this.s.trades || {})) {
       const t = this.s.trades[k];
-      const other = Number(k);
+      const [payer, other] = k.includes('>') ? k.split('>').map(Number) : [0, Number(k)];
       const D = E_RULES.diplomacy.trade;
       const rivalPays = t.mode === 'power' ? this.s.power[other] >= D.getPower : this.s.imag[other] >= D.getImag;
-      if (this.s.parts[0] < D.give || !rivalPays || !this.isAlive(other)) {
+      if (this.s.parts[payer] < D.give || !rivalPays || !this.isAlive(other) || !this.isAlive(payer)) {
         delete this.s.trades[k];
         this.say(`⇄ The trade with ${this.facLabel(other)} collapses — somebody's pockets ran dry.`);
         continue;
       }
-      this.s.parts[0] -= D.give;
+      this.s.parts[payer] -= D.give;
       this.s.parts[other] += D.give;
-      if (t.mode === 'power') { this.s.power[other] -= D.getPower; this.s.power[0] = Math.min(E_RULES.powerCap, this.s.power[0] + D.getPower); }
-      else { this.s.imag[other] -= D.getImag; this.s.imag[0] += D.getImag; }
+      if (t.mode === 'power') { this.s.power[other] -= D.getPower; this.s.power[payer] = Math.min(E_RULES.powerCap, this.s.power[payer] + D.getPower); }
+      else { this.s.imag[other] -= D.getImag; this.s.imag[payer] += D.getImag; }
       t.left--;
       if (t.left <= 0) { delete this.s.trades[k]; this.say(`⇄ The trade with ${this.facLabel(other)} concludes, honestly and in full.`); }
     }
@@ -155,70 +156,71 @@ export class Empire {
   }
   // round 17 verbs — trade, passage, bounty, ceasefire (§15)
   hasPassage(payer, grantor) { const p2 = (this.s.passages || {})[`${payer}>${grantor}`]; return !!(p2 && p2.left > 0); }
-  offerTrade(other, mode = 'power') {
-    if (this.s.over || other === 0 || !this.isAlive(other) || (this.s.trades || {})[other]) return { ok: false };
-    if (this.grudgeVs(other, 0)) { this.say(`${this.facLabel(other)} won't trade with a betrayer.`); this.save(); return { ok: false, why: 'grudge' }; }
+  offerTrade(other, mode = 'power', me = 0) {
+    const tk = `${me}>${other}`;
+    if (this.s.over || other === me || !this.isAlive(other) || (this.s.trades || {})[tk]) return { ok: false };
+    if (this.grudgeVs(other, me)) { this.say(`${this.facLabel(other)} won't trade with a betrayer.`); this.save(); return { ok: false, why: 'grudge' }; }
     const D = E_RULES.diplomacy.trade;
-    if (this.s.parts[0] < D.give) return { ok: false, why: 'not enough Parts' };
-    this.s.trades[other] = { left: D.turns, mode };
+    if (this.s.parts[me] < D.give) return { ok: false, why: 'not enough Parts' };
+    this.s.trades[tk] = { left: D.turns, mode };
     this.say(`⇄ Trade struck with ${this.facLabel(other)}: ${D.give}🔩/turn for ${mode === 'power' ? D.getPower + '⚡' : D.getImag + '💡'}/turn, ${D.turns} turns.`);
     this.save();
     return { ok: true };
   }
-  offerPassage(other) {
-    if (this.s.over || other === 0 || !this.isAlive(other) || this.hasPassage(0, other)) return { ok: false };
-    if (!this.atPeace(0, other)) { this.say(`${this.facLabel(other)} sells passage only to pact partners.`); this.save(); return { ok: false, why: 'no pact' }; }
+  offerPassage(other, me = 0) {
+    if (this.s.over || other === me || !this.isAlive(other) || this.hasPassage(me, other)) return { ok: false };
+    if (!this.atPeace(me, other)) { this.say(`${this.facLabel(other)} sells passage only to pact partners.`); this.save(); return { ok: false, why: 'no pact' }; }
     const D = E_RULES.diplomacy.passage;
-    if (this.s.parts[0] < D.cost) return { ok: false, why: 'not enough Parts' };
-    this.s.parts[0] -= D.cost;
+    if (this.s.parts[me] < D.cost) return { ok: false, why: 'not enough Parts' };
+    this.s.parts[me] -= D.cost;
     this.s.parts[other] += D.cost;
-    this.s.passages[`0>${other}`] = { left: D.turns };
+    this.s.passages[`${me}>${other}`] = { left: D.turns };
     this.say(`🛂 ${this.facLabel(other)} opens their roads to you for ${D.turns} turns (their capital stays shut).`);
     this.save();
     return { ok: true };
   }
-  postBounty(target) {
-    if (this.s.over || target === 0 || !this.isAlive(target) || this.s.bounty) return { ok: false };
-    const hunter = this.aliveSeats().find((p) => p > 0 && p !== target);
+  postBounty(target, me = 0) {
+    if (this.s.over || target === me || !this.isAlive(target) || this.s.bounty) return { ok: false };
+    const hunter = this.aliveSeats().find((p) => p !== me && p !== target && !(this.s.humans || [0]).includes(p));
     if (hunter == null) return { ok: false, why: 'nobody left to hunt' };
     const D = E_RULES.diplomacy.bounty;
-    if (this.s.parts[0] < D.cost) return { ok: false, why: 'not enough Parts' };
-    this.s.parts[0] -= D.cost;
+    if (this.s.parts[me] < D.cost) return { ok: false, why: 'not enough Parts' };
+    this.s.parts[me] -= D.cost;
     this.s.parts[hunter] += D.cost;
     this.s.bounty = { hunter, target, left: D.turns };
     this.say(`🎯 Bounty posted: ${this.facLabel(hunter)} takes your coin to harry ${this.facLabel(target)} for ${D.turns} turns. A proxy war, and your hands stay clean.`);
     this.save();
     return { ok: true };
   }
-  offerCeasefire(other) {
-    if (this.s.over || other === 0 || !this.isAlive(other) || this.atPeace(0, other)) return { ok: false };
+  offerCeasefire(other, me = 0) {
+    if (this.s.over || other === me || !this.isAlive(other) || this.atPeace(me, other)) return { ok: false };
     const D = E_RULES.diplomacy.ceasefire;
-    if (this.s.imag[0] < D.imag) return { ok: false, why: 'not enough Imagination' };
-    this.s.imag[0] -= D.imag;
-    this.s.relations[this.relKey(0, other)] = { left: D.turns };
+    if (this.s.imag[me] < D.imag) return { ok: false, why: 'not enough Imagination' };
+    this.s.imag[me] -= D.imag;
+    this.s.relations[this.relKey(me, other)] = { left: D.turns };
     this.say(`🏳️ Ceasefire with ${this.facLabel(other)} — ${D.turns} turns of quiet, bought with pure Imagination.`);
     this.save();
     return { ok: true };
   }
   // the human offers a pact; the rival weighs it in the open (deterministic)
-  offerPact(other) {
-    if (this.s.over || !this.isAlive(other) || other === 0 || this.atPeace(0, other)) return { ok: false, why: 'no' };
+  offerPact(other, me = 0) {
+    if (this.s.over || !this.isAlive(other) || other === me || this.atPeace(me, other)) return { ok: false, why: 'no' };
     // a rival accepts unless YOU are the clear leader — pacts never shield winners
-    const lead = this.ownedCount(0) - Math.max(...this.aliveSeats().filter((p) => p > 0).map((p) => this.ownedCount(p)));
+    const lead = this.ownedCount(me) - Math.max(...this.aliveSeats().filter((p) => p !== me).map((p) => this.ownedCount(p)));
     const accepts = lead <= 1;
     if (!accepts) { this.say(`${this.facLabel(other)} refuses the pact — you look like winning, and pacts shield winners.`); this.save(); return { ok: false, why: 'refused' }; }
-    this.s.relations[this.relKey(0, other)] = { left: E_RULES.pact.turns };
-    this.say(`🕊️ Non-Aggression Pact: you and ${this.facLabel(other)}, ${E_RULES.pact.turns} turns. No marches on each other's ground.`);
+    this.s.relations[this.relKey(me, other)] = { left: E_RULES.pact.turns };
+    this.say(`🕊️ Non-Aggression Pact: ${this.facLabel(me)} and ${this.facLabel(other)}, ${E_RULES.pact.turns} turns. No marches on each other's ground.`);
     this.save();
     return { ok: true };
   }
-  breakPact(other) {
-    const r = this.pactBetween(0, other);
+  breakPact(other, me = 0) {
+    const r = this.pactBetween(me, other);
     if (!r || r.left <= 0) return { ok: false };
-    delete this.s.relations[this.relKey(0, other)];
-    this.s.power[0] = Math.max(0, this.s.power[0] - E_RULES.pact.breakPower);
-    this.s.imag[0] = Math.max(0, this.s.imag[0] - E_RULES.pact.breakImag);
-    this.s.grudges[`${other}>0`] = E_RULES.pact.grudgeTurns;
+    delete this.s.relations[this.relKey(me, other)];
+    this.s.power[me] = Math.max(0, this.s.power[me] - E_RULES.pact.breakPower);
+    this.s.imag[me] = Math.max(0, this.s.imag[me] - E_RULES.pact.breakImag);
+    this.s.grudges[`${other}>${me}`] = E_RULES.pact.grudgeTurns;
     this.say(`💔 You tear up the pact with ${this.facLabel(other)} (−${E_RULES.pact.breakPower}⚡ −${E_RULES.pact.breakImag}💡). They will remember.`);
     this.save();
     return { ok: true };
@@ -226,10 +228,10 @@ export class Empire {
   // rival-vs-rival politics: when the human leads the night, the rivals bury
   // their quarrel and gang up; otherwise their own war resumes on expiry
   aiDiplomacy() {
-    const ais = this.aliveSeats().filter((p) => p > 0);
+    const ais = this.aliveSeats().filter((p) => !(this.s.humans || [0]).includes(p));
     if (ais.length < 2) return;
     const [a, b] = ais;
-    const humanLead = this.ownedCount(0) >= Math.max(this.ownedCount(a), this.ownedCount(b)) + 2;
+    const humanLead = Math.max(...(this.s.humans || [0]).filter((h) => this.isAlive(h)).map((h) => this.ownedCount(h)), 0) >= Math.max(this.ownedCount(a), this.ownedCount(b)) + 2;
     if (humanLead && !this.atPeace(a, b)) {
       this.s.relations[this.relKey(a, b)] = { left: E_RULES.pact.turns };
       this.say(`🤝 ${this.facLabel(a)} and ${this.facLabel(b)} strike a pact — the whole floor turns on YOU.`);
@@ -285,6 +287,8 @@ export class Empire {
     if (save.trades === undefined) save.trades = {};
     if (save.passages === undefined) save.passages = {};
     if (save.bounty === undefined) save.bounty = null;
+    if (save.humans === undefined) save.humans = [0];
+    for (const k of Object.keys(save.trades || {})) if (!k.includes('>')) { save.trades['0>' + k] = save.trades[k]; delete save.trades[k]; }
     save.v = 10;
     this.s = save; this.rng = makeRng(1); this.rng.setState(save.rng);
   }
@@ -385,7 +389,7 @@ export class Empire {
     const core = { t: this.s.turn, p: this.s.parts, pw: this.s.power, im: this.s.imag, u: this.s.upgrades, dc: this.s.doctrines, df: this.s.difficulty, r: this.s.rng,
       dip: JSON.stringify(this.s.relations || {}) + '|' + JSON.stringify(this.s.grudges || {}) + '|' + (this.s.eliminated || []).join(','),
       rg: this.s.rogue ? this.s.rogue.node + ':' + this.s.rogue.left + ':' + this.s.rogue.cards.map((c) => c.key + c.strength).join('') : '',
-      pol: JSON.stringify(this.s.trades || {}) + '|' + JSON.stringify(this.s.passages || {}) + '|' + JSON.stringify(this.s.bounty || null),
+      pol: JSON.stringify(this.s.trades || {}) + '|' + JSON.stringify(this.s.passages || {}) + '|' + JSON.stringify(this.s.bounty || null) + '|' + (this.s.humans || [0]).join(','),
       cr: this.s.crown.owner + ':' + this.s.crown.turns, ev: this.s.event ? this.s.event.kind + this.s.event.route + this.s.event.phase + (this.s.event.node || '') : '',
       sp: this.s.pendingSpoils ? this.s.pendingSpoils.node : '',
       lt: this.s.lastLoot ? this.s.lastLoot.key : '',
@@ -671,17 +675,26 @@ export class Empire {
   endTurn() {
     if (this.s.phase !== 'plan' || this.s.over) return;
     this.s.phase = 'resolve';
-    for (const a of this.armiesOf(0)) this.resolveMove(a);
-    // each rival plans and marches in seat order (IGO-UGO, deterministic)
+    // seats resolve in order (IGO-UGO): humans march their queued orders,
+    // AI seats plan then march (phase 3: any seat may be human)
     for (const p of this.aliveSeats()) {
-      if (p === 0) continue;
-      this.aiPlan(p);
+      if (!(this.s.humans || [0]).includes(p)) this.aiPlan(p);
       for (const a of this.armiesOf(p)) this.resolveMove(a);
     }
     this.s.phase = 'battle';
     this.save();
     this.autoResolveAiBattles();
-    if (!this.s.encounters.length) this.aftermath();
+    if ((this.s.humans || [0]).length > 1) {
+      // phase 3: MP campaigns settle every battle by the deterministic formula
+      // (played battles remain the SP fantasy — no reloads mid-connection)
+      this.mpDrain();
+      if (this.s.phase === 'battle') this.aftermath();
+    } else if (!this.s.encounters.length) this.aftermath();
+  }
+  mpDrain() {
+    let g = 0, enc;
+    while ((enc = this.nextEncounter()) && g++ < 12) this.finishEncounter(enc, this.simulate(enc));
+    if (this.s.pendingSpoils) this.resolveSpoils('parts'); // MP: spoils auto-salvage, deterministically
   }
 
   resolveMove(army) {
@@ -1096,9 +1109,9 @@ export class Empire {
     // eliminates that rival — their toys go back in the box, the war goes on
     for (const p of this.aliveSeats()) {
       if (this.s.nodes[this.capOf(p)].owner === p) continue;
-      if (p === 0) {
-        const taker = this.s.nodes[this.capOf(0)].owner;
-        this.finish(taker >= 0 ? taker : 1, 'capital');
+      if ((this.s.humans || [0]).includes(p)) {
+        const taker = this.s.nodes[this.capOf(p)].owner;
+        this.finish(taker >= 0 ? taker : this.aliveSeats().find((q) => q !== p), 'capital');
         return;
       }
       this.s.eliminated.push(p);
@@ -2187,4 +2200,46 @@ export function empireTest(seed, turns = 8, script = [], difficulty = 'normal') 
     pendingSpoils: emp.s.pendingSpoils ? emp.s.pendingSpoils.node : null,
     lastLoot: emp.s.lastLoot ? emp.s.lastLoot.key : null, cardsWon: emp.loot.map((l) => l.key),
     log: emp.s.log.slice(-3) };
+}
+
+// ---------------------------------------------------------------- phase 3
+// Two-human campaign harness: both "clients" run their own Empire; commands
+// apply in the HOST-canonical order on both; endTurn advances in lockstep.
+// Same seed + same ordered commands ⇒ identical stateHash on both clients.
+// This is exactly the contract the PeerJS relay must keep (see EmpireNet).
+export function empireNetTest(seed, turns = 12, scripts = [[], []]) {
+  const mk = () => {
+    const e = new Empire(seed, ['bricks', 'classic', 'bots'], false);
+    e.s.humans = [0, 1];
+    e.s.difficulty = 'normal'; e.s.difficultyChosen = true;
+    return e;
+  };
+  const A = mk(), B = mk();
+  const apply = (e, cmd) => {
+    const fns = {
+      move: (c) => e.issueMove(c.army || 'A' + c.seat, c.to),
+      march: (c) => e.forceMarch(c.army || 'A' + c.seat),
+      recruit: (c) => e.recruit(c.seat, c.army || 'A' + c.seat),
+      pact: (c) => e.offerPact(c.other, c.seat),
+      breakpact: (c) => e.breakPact(c.other, c.seat),
+      trade: (c) => e.offerTrade(c.other, c.mode || 'power', c.seat),
+      passage: (c) => e.offerPassage(c.other, c.seat),
+      cease: (c) => e.offerCeasefire(c.other, c.seat),
+      module: (c) => e.buildModule(c.seat, c.node, c.key),
+    };
+    fns[cmd.type] && fns[cmd.type](cmd);
+  };
+  for (let t = 0; t < turns && !A.s.over; t++) {
+    const cmds = [];
+    for (const seat of [0, 1]) {
+      for (const c of (scripts[seat] || []).filter((c) => c.turn === A.s.turn)) cmds.push({ ...c, seat });
+    }
+    for (const c of cmds) { apply(A, c); apply(B, c); } // canonical order, both clients
+    A.endTurn(); B.endTurn();
+  }
+  return {
+    hashA: A.stateHash(), hashB: B.stateHash(), same: A.stateHash() === B.stateHash(),
+    over: A.s.over, winner: A.s.winner, turn: A.s.turn,
+    seatsAlive: A.aliveSeats(), oversMatch: A.s.over === B.s.over && A.s.winner === B.s.winner,
+  };
 }

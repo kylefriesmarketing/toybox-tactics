@@ -15,7 +15,7 @@ import { recordMatch, ACHIEVEMENTS, loadChronicle, loadEarned } from './chronicl
 import { VFX } from './vfx.js';
 import { SFX } from './sfx.js';
 import { Net, TICK, INPUT_DELAY } from './net.js';
-import { Empire, setEmpireHooks, openEmpire, empireBattleContext, empireShouldAutoOpen, empireTest } from './empire.js';
+import { Empire, setEmpireHooks, openEmpire, empireBattleContext, empireShouldAutoOpen, empireTest, empireNetTest } from './empire.js';
 
 const N = MAP_N;
 const $ = (id) => document.getElementById(id);
@@ -837,6 +837,7 @@ setEmpireHooks({ startGame: (d, m) => startGame(d, m), showMenuScreen, sfx });
 const heBtn = $('home-empire');
 if (heBtn) heBtn.addEventListener('click', () => { sfx.init(); openEmpire(); });
 window.__ttEmpire = empireTest; // headless determinism harness (persist=false)
+window.__ttEmpireNet = empireNetTest; // phase 3: two-client lockstep harness
 for (const b of document.querySelectorAll('.setup-back')) b.addEventListener('click', () => { mpReset(); showMenuScreen('home'); });
 window.__ttStart = (d, m) => startGame(d || 'normal', m); // headless test hook
 window.__ttRandom = generateRandomMap; // headless: build a random-map config to soak
