@@ -112,6 +112,30 @@ export class Empire {
   pactBetween(a, b) { return (this.s.relations || {})[this.relKey(a, b)] || null; }
   atPeace(a, b) { const r = this.pactBetween(a, b); return !!(r && r.left > 0); }
   grudgeVs(holder, target) { const g = (this.s.grudges || {})[`${holder}>${target}`]; return !!(g && g > 0); }
+  // ⚠️ A dead seat keeps its provinces (you still have to take them) — but its
+  // TREATIES must die with it. A surviving pact meant `reachable()` refused to
+  // enter a corpse's territory, locking that land away from everyone until the
+  // pact happened to expire. Wipe every agreement naming the fallen seat.
+  purgeDiplomacy(p) {
+    for (const k of Object.keys(this.s.relations || {})) {
+      const [a, b] = k.split('-').map(Number);
+      if (a === p || b === p) delete this.s.relations[k];
+    }
+    for (const k of Object.keys(this.s.grudges || {})) {
+      const [a, b] = k.split('>').map(Number);
+      if (a === p || b === p) delete this.s.grudges[k];
+    }
+    for (const k of Object.keys(this.s.trades || {})) {
+      const [a, b] = k.includes('>') ? k.split('>').map(Number) : [0, Number(k)];
+      if (a === p || b === p) delete this.s.trades[k];
+    }
+    for (const k of Object.keys(this.s.passages || {})) {
+      const [a, b] = k.split('>').map(Number);
+      if (a === p || b === p) delete this.s.passages[k];
+    }
+    if (this.s.bounty && (this.s.bounty.hunter === p || this.s.bounty.target === p)) this.s.bounty = null;
+  }
+
   // pacts and grudges cool down one notch at the top of every turn
   tickDiplomacy() {
     for (const k of Object.keys(this.s.relations || {})) {
@@ -1117,6 +1141,7 @@ export class Empire {
       }
       this.s.eliminated.push(p);
       this.s.armies = this.s.armies.filter((a) => a.owner !== p);
+      this.purgeDiplomacy(p); // no treaties with a corpse (see purgeDiplomacy)
       this.say(`📦 ${this.facLabel(p)} is ELIMINATED — their capital has fallen and their toys go back in the box.`);
     }
     // last flag standing wins outright
