@@ -945,7 +945,8 @@ function renderCampaignList() {
     5: '✦ Act II — The Sleepover',
     10: '✦ Act III — The Yard Sale',
     15: '🌿 Act IV — The Great Outdoors',
-    20: '🕛 After the Trilogy',
+    20: '🏰 Act V — The Kingdom Arrives',
+    25: '🕛 After the Trilogy',
   };
   $('cm-list').innerHTML = CAMPAIGN.map((m, i) => {
     const unlocked = missionUnlocked(i), done = campaignDone(m.id);
@@ -1078,7 +1079,7 @@ function applyMissionMods(g, mission) {
   // scripted moments: hand the game its own copy so retries start fresh
   g.missionEvents = (MISSION_EVENTS[mission.id] || []).map((e) => ({ ...e }));
 }
-const ACT_CLOSERS = { finale: 1, shelfking: 2, wayhome: 3, oakcrown: 4 };
+const ACT_CLOSERS = { finale: 1, shelfking: 2, wayhome: 3, oakcrown: 4, hearth: 5 };
 // The Long Night has its own game-over card — waves held, not rivals crushed.
 function survivalGameOver(win) {
   const g = game, S = g.survival || { wave: 0, bestWave: 0 };
@@ -1192,6 +1193,9 @@ function showBookend(act, me) {
     4: ['End of Act IV — The Great Outdoors',
       `The backyard belongs to the brave now. Dunes crossed, gardens sieged, sprinklers survived — and one old rabbit carried home under the porch light. ${stats}`,
       'Bun-Bun tells his story every night now, to anyone who will listen, and everyone listens. The book has a backyard. The room has a horizon. And you, Commander, have read it all into being.'],
+    5: ['End of Act V — The Kingdom Arrives',
+      `A castle came in a box eleven days ago and the room did what rooms do: it made space. Doorways held, a rug forgiven, a sandbox lost and won. ${stats}`,
+      'On the warm boards by the vent there is a knight-shaped gap in the row now, and it is never filled by anyone else. Nobody was replaced. The room simply got bigger — which is the only kind of ending this book has ever believed in.'],
   }[act];
   el.innerHTML = `<div class="bk-page"><div class="bk-act">${pages[0]}</div>`
     + `<p>${pages[1]}</p><p>${pages[2]}</p>`

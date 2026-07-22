@@ -1554,6 +1554,128 @@ export const CAMPAIGN = [
     enemyBoost: 1.35,
   },
 
+  // ---------------- ACT V — THE KINGDOM ARRIVES ----------------
+  // The knights were a PRESENT. They came in a box with a cardboard drawbridge
+  // and a sticker sheet, and the room's oldest toys watched them come out shiny.
+  // This act is the oldest fear in any toy room — being replaced — and how it
+  // ends: not with a winner, but with a bigger family. Every map is terraced or
+  // chokepointed, because that is where knights were always meant to fight.
+  {
+    id: 'unboxing', name: 'Some Assembly Required', icon: '📯', beyondTrilogy: true,
+    map: 'bookshelf', faction: 'knights', enemy: 'classic',
+    gameMode: 'standard', difficulty: 'normal', startRes: 'standard',
+    brief: 'The box said A CASTLE FOR AGES 4 AND UP, and at 6:14 this evening it '
+      + 'was opened. Now there is a keep on the second shelf that was not there '
+      + 'this morning, and forty knights blinking in the lamplight with the '
+      + 'creases still in their banners. Sir Hector of the Second Shelf has been '
+      + 'awake for ninety minutes and has already written a code of laws. Down '
+      + 'on the rug, General Greenboots has done what Greenboots does when '
+      + 'something new arrives: he has sent a patrol to draw a line around it. '
+      + 'It is not cruelty, Commander. It is procedure. It will feel like cruelty.',
+    objective: 'Hold the shelf: raze the Classic patrol\'s outpost.',
+    victory: 'The patrol withdraws in good order, which is the only order '
+      + 'Greenboots keeps. Sir Hector, who has never lost anything because he has '
+      + 'never had anything, stands in his new doorway a long while. "They will '
+      + 'like us," he tells the drawbridge. The drawbridge, being cardboard, '
+      + 'says nothing. He takes it as agreement.',
+    defeat: 'The knights are pushed back inside their own gate, banners still '
+      + 'creased. "A first day," says Sir Hector, "is not a life." He straightens '
+      + 'a pennant nobody is looking at. "Again, Commander. From the top of the stair."',
+  },
+  {
+    id: 'portcullis', name: 'The Portcullis', icon: '⛓️', beyondTrilogy: true,
+    map: 'canyon', faction: 'knights', enemy: 'bots',
+    gameMode: 'standard', difficulty: 'normal', startRes: 'standard',
+    brief: 'Word travels. By the second night Captain Cogsworth has decided the '
+      + 'new arrivals must be MEASURED, CATALOGUED and FILED, and has sent a '
+      + 'column of Tin Bots through the pillow canyon to do it. Sir Hector\'s '
+      + 'answer is the only answer a knight has ever given a narrow place: he '
+      + 'puts his body in it. "A gate," he says, lowering the portcullis with '
+      + 'both hands because the winch is still in the box, "is a promise you '
+      + 'make to whatever is behind you."',
+    objective: 'Hold the canyon: destroy the Bots\' survey camp.',
+    victory: 'The column files home unmeasured. Cogsworth logs the engagement as '
+      + 'DATA INSUFFICIENT — the closest a Tin Bot comes to respect. In the pass, '
+      + 'the knights find they have been standing shoulder to shoulder for six '
+      + 'hours and none of them wants to be the first to step back.',
+    defeat: 'The bots come through and count everything: forty knights, one keep, '
+      + 'two banners, no history. "We are not a NUMBER," says Sir Hector, to a '
+      + 'clipboard already leaving. "…Are we, Commander?"',
+  },
+  {
+    id: 'carpetkings', name: 'Kings of the Carpet', icon: '🧸', beyondTrilogy: true,
+    map: 'livingroom', faction: 'knights', enemy: 'plush',
+    gameMode: 'koth', difficulty: 'hard', startRes: 'standard',
+    brief: 'This is the part nobody wanted. The plush have held the carpet since '
+      + 'before the carpet was a carpet — Colonel Snug has hugged three '
+      + 'generations of this house to sleep — and tonight they have formed a '
+      + 'line across the tree skirt and will not say why. They will not taunt. '
+      + 'They will not boast. They will only stand there being soft and being '
+      + 'frightened, and a toy that is frightened of being replaced does not '
+      + 'know how to say so. It only knows how to hold ground.',
+    objective: 'Hold the tree skirt for two minutes. Be gentle about it.',
+    victory: 'The line gives, the way soft things give. Colonel Snug sits down in '
+      + 'the middle of the carpet and says the true thing at last: "You are very '
+      + 'new." Sir Hector kneels in front of him, all his armour creaking. "You '
+      + 'are very old," he says, "and I have been trying all week to be worth '
+      + 'standing next to." Neither of them wins that. Both of them stop losing.',
+    defeat: 'The plush hold, and hold, and are still holding when the knights '
+      + 'withdraw. Sir Hector will not let his toys speak badly of them on the '
+      + 'walk home. "They are not defending a rug," he says. "Work out what they '
+      + 'ARE defending, Commander, and we will not need to fight them at all."',
+  },
+  {
+    id: 'oldguard', name: 'The Old Guard', icon: '🎖️', beyondTrilogy: true,
+    map: 'sandbox', faction: 'knights', enemy: 'classic',
+    foes: [{ faction: 'plush' }],
+    gameMode: 'sudden', difficulty: 'hard', startRes: 'high',
+    brief: 'They have stopped arguing with each other. That is the bad sign. '
+      + 'Greenboots and Snug have made camp together in the sandbox — the green '
+      + 'and the soft, the two oldest things in the room — and between them they '
+      + 'have every year this house has ever had. Sir Hector reads the field and '
+      + 'understands, finally, what he has been fighting since the box opened: '
+      + 'not an army. A memory. One chest each, Commander. No second chances. '
+      + 'Whatever is standing at the end gets to say what this room is now.',
+    objective: 'Sudden Death: take the veterans\' Toy Chest before they take yours.',
+    victory: 'The chest goes over and the sand goes quiet. Greenboots climbs out '
+      + 'of the wreck of it, dusts his boots, and does the thing nobody expected: '
+      + 'he salutes. "You held a doorway for toys you hadn\'t met," he says. '
+      + '"That\'s the whole job, kid." Sir Hector cannot answer. His visor, he '
+      + 'says later, had sand in it.',
+    defeat: 'The knights lose the sand and something worse than the sand. "They '
+      + 'were here first," says Sir Hector quietly, to nobody, to the whole yard. '
+      + '"Perhaps first is a thing you cannot argue with." He is wrong, Commander. '
+      + 'Go and prove it.',
+    enemyBoost: 1.2,
+  },
+  {
+    id: 'hearth', name: 'A Place at the Hearth', icon: '🔥', beyondTrilogy: true,
+    map: 'garden', faction: 'knights', enemy: 'racers',
+    allies: [{ faction: 'classic' }], foes: [{ faction: 'bots' }],
+    gameMode: 'koth', difficulty: 'hard', startRes: 'standard',
+    brief: 'It is the garden — the proper country, the place Sir Hector fell in '
+      + 'love with in the sun-shower — and tonight it is not his to win. The '
+      + 'Racers and the Bots have come over the fence for the terraces, and the '
+      + 'banner that goes up beside the knights\' banner is a small green one on '
+      + 'a matchstick pole. Greenboots did not ask permission. He simply arrived, '
+      + 'the way family arrives. "Your left, my right," he says. "Try to keep up, '
+      + 'Your Majesty." Sir Hector has waited his entire life — eleven days — to '
+      + 'be teased like that.',
+    objective: 'Hold the garden throne for two minutes. Together.',
+    victory: 'The terraces hold under two flags knotted at the pole. Afterwards, '
+      + 'on the warm boards by the vent where the good sleeping is, the old toys '
+      + 'shuffle along without being asked and leave a knight-shaped gap in the '
+      + 'row. Sir Hector sits down in it in full armour, which is not comfortable, '
+      + 'and does not move all night in case it stops being true. The room is '
+      + 'bigger tonight than it was eleven days ago. That is all a new toy has '
+      + 'ever wanted: not to replace anybody. Just a place in the row.',
+    defeat: 'The garden changes paws and the two banners come down together, '
+      + 'which is at least a kind of togetherness. "Again," says Greenboots. '
+      + '"We\'re not done." He says WE. Sir Hector notices. He would fight this '
+      + 'battle a hundred more times to keep hearing it.',
+    enemyBoost: 1.15,
+  },
+
   // ---------------- THE MIDNIGHT CHAPTER ----------------
   // A secret sixteenth page. It does not exist until the trilogy is finished —
   // then it appears at the bottom of the book, the way midnight appears at the
@@ -1666,6 +1788,11 @@ export const CMDR_LINES = {
   gardenwar: 'Sir Hector plants his half-painted sword before the garden map. "Terraces. Banners. A GNOME, Commander. This is destiny."',
   washout: 'Hector and Greenboots knot their banners together over the map. "Until the water comes," they say — accidentally in unison.',
   oakcrown: 'Greenboots looks up at the drawn oak a long time. "The first toy is up that tree. The last march brings him down. All of us."',
+  unboxing: 'Sir Hector, ninety minutes old, has already drafted a code of laws. Article One: "We are guests until told otherwise."',
+  portcullis: 'Sir Hector tests the pass with his shield. "Narrow," he says, delighted. "Commander, they have brought us a DOORWAY."',
+  carpetkings: 'Sir Hector lowers his lance before the briefing starts. "Softly today," he says. "They are not our enemies. They are only afraid."',
+  oldguard: 'Sir Hector looks at the two old banners across the sand for a long moment. "I would rather lose to them," he says, "than to anyone else."',
+  hearth: 'Two commanders share the war table. Greenboots taps the throne. Hector taps the same spot. Neither moves his hand.',
 };
 
 // ---------------- scripted mission moments ----------------
@@ -1820,6 +1947,35 @@ export const MISSION_EVENTS = {
     { at: 300, speaker: 'classic', text: 'Hector. Your knights are sharing their kettle with my men. My men are sharing their rations. If we survive the sprinklers, I am forming ONE army.' },
     { at: 420, speaker: 'knights', text: 'Agreed, General — though we shall argue about the uniforms. Stripes ARE noble. But so, I concede, is green.' },
     { at: 900, speaker: 'narrator', text: 'The sprinkler heads rise an inch out of the grass, curious. Time, Commander, is now officially weather.' },
+  ],
+  unboxing: [
+    { at: 70, speaker: 'knights', text: 'The creases are still in the banners, Commander. I have ordered them ironed under a dictionary. Morale is a flat pennant.' },
+    { at: 220, speaker: 'classic', text: 'Nothing personal, tin-plate. New arrivals get a perimeter. That is the whole of it.' },
+    { at: 400, speaker: 'knights', text: 'They drew a line around us. I have decided to regard it as a moat. It is a very fine moat. I am grateful for it.' },
+  ],
+  portcullis: [
+    { at: 80, speaker: 'bots', text: 'STATE YOUR PRODUCTION DATE. STATE YOUR PIECE COUNT. THE ARCHIVE IS WAITING AND THE ARCHIVE IS PATIENT.' },
+    { at: 260, speaker: 'knights', text: 'We are forty-one, sir, and a drawbridge — and you may have none of those numbers.' },
+    { at: 520, type: 'spawn', unit: 'crossbow', n: 2, owner: 0, kind: 'info', speaker: 'knights',
+      text: 'Two crossbows up from the keep, Commander. They took the stairs two at a time. I shall pretend not to have seen it.' },
+  ],
+  carpetkings: [
+    { at: 60, speaker: 'plush', text: '…' },
+    { at: 200, speaker: 'knights', text: 'They have not said one word, Commander. Not a taunt, not a challenge. I find I would very much prefer a taunt.' },
+    { at: 420, speaker: 'plush', text: 'You are shiny. That is all. You are so very shiny, and we are so very old.' },
+    { at: 600, speaker: 'knights', text: 'Shields DOWN on the advance. If we take this rug by frightening them we have not taken anything at all.' },
+  ],
+  oldguard: [
+    { at: 65, speaker: 'narrator', text: 'Two old banners over one sandbox. Nobody in the room has ever seen them fly on the same pole before.' },
+    { at: 230, speaker: 'classic', text: 'You held a pass for us on night two, kid. Doesn\'t change tonight. Might change tomorrow.' },
+    { at: 430, speaker: 'knights', text: 'He called me kid, Commander. In eleven days that is the kindest thing anyone in this room has said to me.' },
+  ],
+  hearth: [
+    { at: 70, speaker: 'classic', text: 'Your left, my right. Don\'t get precious about the flowers, Your Majesty.' },
+    { at: 250, speaker: 'racers', text: 'Aww, the tin-can made a FRIEND! Hey greenie, does he know you replace toys every Christmas?' },
+    { at: 300, speaker: 'classic', text: 'Nobody replaces anybody. Room just gets bigger. Now drive into that hedge and be quiet.' },
+    { at: 700, type: 'spawn', unit: 'paladin', n: 1, owner: 0, kind: 'info', speaker: 'knights',
+      text: 'The keep sends its best, Commander — and the rug sends soup. I do not know what to do with soup. I am deeply moved by the soup.' },
   ],
   oakcrown: [
     { at: 90, speaker: 'narrator', text: 'Bun-Bun waves from the roots — unhurried, unafraid. The oldest toy in the world knows exactly who is coming for him.' },
