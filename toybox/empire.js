@@ -735,7 +735,12 @@ export class Empire {
     const hostileArmy = this.s.armies.find((a) => a.owner !== army.owner && a.node === to && a.cards.length
       && !this.atPeace(army.owner, a.owner));
     const hostileNode = st.owner !== -1 && st.owner !== army.owner;
-    if (hostileArmy || hostileNode || (st.owner === -1 && this.garrisonFor(to))) {
+    // Rogue toys make a node hostile in their OWN right. Today every node type
+    // happens to carry a garrison template, so the check below would catch them
+    // by luck — state that dependency explicitly so a future template-less node
+    // type can never let an army stroll past a squatting gang uncontested.
+    const rogueHolds = !!(this.s.rogue && this.s.rogue.node === to && this.s.rogue.cards.length);
+    if (hostileArmy || hostileNode || rogueHolds || (st.owner === -1 && this.garrisonFor(to))) {
       this.createEncounter(army, to, hostileArmy || null);
     } else {
       this.capture(army.owner, to);
@@ -753,7 +758,11 @@ export class Empire {
 
   createEncounter(attArmy, nodeId, defArmy) {
     const st = this.s.nodes[nodeId];
-    const defCards = defArmy ? defArmy.cards : this.garrisonFor(nodeId);
+    // a squatting rogue gang IS the defence — resolve it before the node's own
+    // garrison, and never let a template-less node hand the attacker a free walk-in
+    const rogueCards = (this.s.rogue && this.s.rogue.node === nodeId && this.s.rogue.cards.length)
+      ? this.s.rogue.cards : null;
+    const defCards = defArmy ? defArmy.cards : (rogueCards || this.garrisonFor(nodeId));
     if (!defCards || !defCards.length) { this.capture(attArmy.owner, nodeId); return; }
     const tKey = E_NODE_TEMPLATE_OVERRIDE[nodeId] || E_NODE_TEMPLATE[E_NODES[nodeId].type] || 'field';
     // deterministic mission-template variant for THIS encounter (§7) — a salted seed so it's
