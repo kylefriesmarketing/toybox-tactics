@@ -1695,6 +1695,9 @@ window.__ttSoak = (opts = {}, maxTicks = 9000) => {
   let winnerTeam = null;
   const _end = g.endGame.bind(g);
   g.endGame = (team) => { winnerTeam = team; _end(team); };
+  // page-zero QA: startGame sets this before setup(), so the soak must too —
+  // it suppresses household pets and wild tribes in the sepia prequel
+  if (opts.zeroEra) g.zeroEra = true;
   g.setup();
   // survival QA: shorten the night so the dawn-victory branch is testable headlessly
   const survDawnBak = opts.survivalDawn ? SURVIVAL.dawnWave : null;
@@ -1721,7 +1724,10 @@ window.__ttSoak = (opts = {}, maxTicks = 9000) => {
   const fp = g.entities.reduce((a, e) => a + (e.dead ? 0 : ((e.x * 71 + e.z * 137 + (e.hp || 0) * 13) | 0)), 0) +
     '|' + g.entities.length + '|' + g.rng.getState();
   const surv = g.survival ? { wave: g.survival.wave, bestWave: g.survival.bestWave, active: g.survival.active, won: !!g.survivalWon } : null;
-  return { seed, winnerTeam, over: g.over, ticks: t, simSec: Math.round(t * 0.1), err, armies, ages, res, facs, fp, surv };
+  // entity census by kind — lets a test assert what the room is populated with
+  const kinds = {};
+  for (const e of g.entities) if (!e.dead) kinds[e.kind] = (kinds[e.kind] || 0) + 1;
+  return { seed, winnerTeam, over: g.over, ticks: t, simSec: Math.round(t * 0.1), err, armies, ages, res, facs, fp, surv, kinds };
 };
 // in-memory lockstep harness: wires N real Net instances in a star (fake conns
 // deliver synchronously) driving N headless Games. Exercises the ACTUAL net.js

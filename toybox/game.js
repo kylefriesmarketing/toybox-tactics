@@ -910,7 +910,7 @@ export class Game {
     // wild toy tribes: neutral camps at the midfield, placed as point-mirrored
     // pairs so both seats get the same offer. Not in survival — the Forgotten
     // don't parley, and neither should an uncontested defender get free troops.
-    if (this.map.tribes && this.gameMode !== 'survival') {
+    if (this.map.tribes && this.gameMode !== 'survival' && !this.zeroEra) {
       const camps = [];
       for (let k = 0; k < Math.ceil(this.map.tribes / 2); k++) {
         for (let t = 0; t < 40; t++) {
@@ -963,9 +963,13 @@ export class Game {
         spawn(worldOf(i), worldOf(j)); return;
       }
     };
-    if (this.map.cat !== false) placePet((x, z) => this.addCat(x, z));
-    if (this.map.dog) placePet((x, z) => this.addDog(x, z));
-    if (this.map.roomba) placePet((x, z) => this.addRoomba(x, z), 12);
+    // Toy Box Zero is the page BEFORE the room had any of this: no household
+    // pets, no robot vacuum, and (per its own briefing) no tribes either
+    if (!this.zeroEra) {
+      if (this.map.cat !== false) placePet((x, z) => this.addCat(x, z));
+      if (this.map.dog) placePet((x, z) => this.addDog(x, z));
+      if (this.map.roomba) placePet((x, z) => this.addRoomba(x, z), 12);
+    }
 
     this.fog.update(this.entities);
   }
