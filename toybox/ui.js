@@ -78,7 +78,7 @@ export class UI {
     setTimeout(() => b.classList.remove('show'), 2600);
   }
 
-  gameOver(win, stats, timeline) {
+  gameOver(win, stats, timeline, reason = null) {
     $('go-title').textContent = win ? 'VICTORY!' : 'DEFEAT';
     $('go-title').className = win ? 'win' : 'lose';
     // close every match like a bedtime story, in the player's tribe's voice
@@ -87,6 +87,29 @@ export class UI {
       || (win
         ? `The ${TEAM_NAMES[1]} have no toys left to fight with. The bedroom is yours.`
         : 'The last of your buildings has fallen. Back in the toy box…');
+    // ...and say plainly WHICH rule ended it. The epilogue above is flavour and
+    // is written per tribe, so it can't name the mode — this line always can.
+    const mode = this.game.gameMode;
+    const CAUSE = {
+      elimination: win
+        ? 'Every rival was reduced to nothing they could rebuild from.'
+        : (mode === 'sudden'
+          ? 'Your Toy Chest was broken open — and Sudden Death allows no rebuilding.'
+          : mode === 'regicide'
+            ? 'Your King was cut down. In Regicide the crown is the whole war.'
+            : 'You were left with no production building and no worker to rebuild from.'),
+      throne: win ? 'Your toys held the Throne for the full count.'
+        : 'A rival sat the Throne for the full count while your army was elsewhere.',
+      wonder: win ? 'Your Wonder finished its countdown untouched.'
+        : 'A rival Wonder finished its countdown. It had to be razed, and it wasn\'t.',
+      relics: win ? 'You gathered the Lost Stickers and held them to zero.'
+        : 'The rivals gathered every Lost Sticker and held them to zero.',
+      overrun: 'The Forgotten broke the last of your defenders before dawn.',
+      dawn: 'You held the long night all the way to morning.',
+    };
+    const cause = CAUSE[reason];
+    const el = $('go-cause');
+    if (el) { el.textContent = cause || ''; el.style.display = cause ? '' : 'none'; }
     const t = Math.floor(this.game.time);
     const g = this.game, me = g.myId;
     // columns: you first, then ally, then the rivals

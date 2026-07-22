@@ -326,4 +326,9 @@ export const BARKS = {
     move: ['Row, row, ROW.', 'Heraldry on the high seas!'],
     atk: ['Fire arrows — nocked!', 'Board them? No. Burn them.'],
   },
+  galleon: {
+    sel: ['Full sail, bathwater fleet.', 'Three decks of opinion.', 'She floats. She judges.'],
+    move: ['Coming about!', 'Making way — mind the soap.'],
+    atk: ['Broadside! Every last cannon!', 'Strike the colours or strike the water!'],
+  },
 };

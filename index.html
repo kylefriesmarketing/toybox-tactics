@@ -252,6 +252,13 @@
   #go-title.win { color: var(--gold-2); text-shadow: 0 0 40px #e8ca7766; }
   #go-title.lose { color: #e5484d; text-shadow: 0 0 40px #e5484d66; }
   #go-sub { color: var(--ink-2); font-size: 15px; max-width: 460px; text-align: center; }
+  /* accessibility — text scaling. Applied as zoom to self-contained text panels
+     only: the 3D canvas and the HUD's anchored layout must never rescale with
+     it, so #hud is deliberately absent from this list. */
+  #alerts, #dlg-bar, #objectives, #gameover, #tutorial, #gm-card { zoom: var(--ui-text, 1); }
+  /* the plain-language reason the match ended, under the storybook epilogue */
+  #go-cause { color: var(--gold-2); font-size: 13.5px; max-width: 460px; text-align: center;
+    margin-top: 2px; opacity: .92; font-style: italic; }
   #go-restart { margin-top: 8px; font-size: 17px; font-weight: 800; letter-spacing: .5px;
     padding: 12px 32px; border-radius: 14px; cursor: pointer; color: #2c1a04;
     border: 2px solid #b8862e; text-transform: uppercase;
@@ -1029,6 +1036,7 @@
   <div id="gameover">
     <div id="go-title"></div>
     <div id="go-sub"></div>
+    <div id="go-cause"></div>
     <div id="go-stats"></div>
     <img id="go-art" alt="" style="display:none">
     <div id="go-story"></div>
@@ -1264,6 +1272,8 @@
       <div class="gm-set"><span>🔈 Sound effects</span><button id="gm-sfx" class="gm-toggle">On</button></div>
       <div class="gm-set" id="gm-speedrow"><span>⏩ Game speed</span><input id="gm-speed" type="range" min="50" max="300" step="25" value="100"><span id="gm-speedval">1.0×</span></div>
       <div class="gm-set"><span>🖱️ Edge scroll</span><button id="gm-edge" class="gm-toggle">On</button></div>
+      <div class="gm-set"><span>👁️ Colourblind flags</span><button id="gm-cb" class="gm-toggle">Off</button></div>
+      <div class="gm-set"><span>🔠 Text size</span><input id="gm-textsize" type="range" min="100" max="150" step="10" value="100"><span id="gm-textval">100%</span></div>
       <button id="gm-save" class="diff-btn">💾 Save game</button>
       <button id="gm-help" class="diff-btn">📖 How to play</button>
       <button id="gm-quit" class="diff-btn">🚪 Quit to main menu</button>

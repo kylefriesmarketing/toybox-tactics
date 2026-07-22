@@ -3,7 +3,7 @@
 // ============================================================
 
 import * as THREE from 'three';
-import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, SURVIVAL, DIFFICULTIES, CAMPAIGN, INTRO, MISSION_EVENTS, CMDR_LINES, generateRandomMap } from './data.js';
+import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, SURVIVAL, DIFFICULTIES, CAMPAIGN, INTRO, MISSION_EVENTS, CMDR_LINES, TEAM_COLORS, generateRandomMap } from './data.js';
 import {
   loadUnitModels, loadBuildingModels, loadMapModels, loadFurnitureModels, setBuildingFootprints,
   createGhostMesh, createMoveMarker, createLamp, renderPortraits, applyUnitTier, refreshFactionBuildingIcons,
@@ -352,7 +352,7 @@ $('tt-close').addEventListener('click', () => toggleTechTree(false));
 
 // ---------------- settings (persisted) ----------------
 const settings = Object.assign(
-  { vol: 50, music: true, sfx: true, edge: true },
+  { vol: 50, music: true, sfx: true, edge: true, colorblind: false, textsize: 100 },
   JSON.parse(localStorage.getItem('tt-settings') || '{}')
 );
 function saveSettings() { localStorage.setItem('tt-settings', JSON.stringify(settings)); }
@@ -366,6 +366,25 @@ function applySettings() {
   setTog('gm-music', settings.music);
   setTog('gm-sfx', settings.sfx);
   setTog('gm-edge', settings.edge);
+  setTog('gm-cb', settings.colorblind);
+  // text scaling: zoom the self-contained text panels (see the CSS note)
+  document.documentElement.style.setProperty('--ui-text', settings.textsize / 100);
+  const ts = $('gm-textsize'); if (ts) ts.value = settings.textsize;
+  const tsv = $('gm-textval'); if (tsv) tsv.textContent = settings.textsize + '%';
+  applyTeamPalette();
+}
+
+// Okabe-Ito: the four hues stay mutually distinguishable under deuteranopia,
+// protanopia and tritanopia — unlike the default green/vermillion pair, which
+// collapses for the two commonest kinds. Mutated in place because every module
+// holds the same TEAM_COLORS array reference, and materials read it at build time.
+const TEAM_PALETTES = {
+  default: [0x3b82f6, 0xe4572e, 0x59c96a, 0xb14fe0],
+  cb:      [0x0072b2, 0xd55e00, 0xf0e442, 0xcc79a7],
+};
+function applyTeamPalette() {
+  const src = TEAM_PALETTES[settings.colorblind ? 'cb' : 'default'];
+  for (let i = 0; i < src.length; i++) TEAM_COLORS[i] = src[i];
 }
 
 // in-game menu buttons
@@ -380,6 +399,15 @@ $('gm-vol').addEventListener('input', (e) => {
 $('gm-music').addEventListener('click', () => { settings.music = !settings.music; sfx.setMusicEnabled(settings.music); applySettings(); saveSettings(); });
 $('gm-sfx').addEventListener('click', () => { settings.sfx = !settings.sfx; sfx.setSfxEnabled(settings.sfx); applySettings(); saveSettings(); });
 $('gm-edge').addEventListener('click', () => { settings.edge = !settings.edge; applySettings(); saveSettings(); });
+$('gm-cb').addEventListener('click', () => {
+  settings.colorblind = !settings.colorblind; applySettings(); saveSettings();
+  // materials bake their colour when the scene is built, so a live match keeps
+  // the old flags — say so rather than letting the toggle look broken.
+  if (window.game) ui && ui.alert && ui.alert('Colourblind flags apply from the next battle.', 'info', null, 4);
+});
+$('gm-textsize').addEventListener('input', (e) => {
+  settings.textsize = +e.target.value; applySettings(); saveSettings();
+});
 $('gm-speed').addEventListener('input', (e) => {
   const s = +e.target.value / 100; setSpeed(s);
   $('gm-speedval').textContent = s.toFixed(1) + '×';
@@ -2012,8 +2040,8 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   game = new Game(scene, registryCache, {
     alert: (msg, kind, pos) => ui.alert(msg, kind, pos),
     selection: () => ui.refreshSelection(),
-    gameOver: (win, stats, timeline) => {
-      ui.gameOver(win, stats, timeline);
+    gameOver: (win, stats, timeline, reason) => {
+      ui.gameOver(win, stats, timeline, reason);
       if (campaignMission) campaignGameOver(win);
       else if (game.gameMode === 'survival') survivalGameOver(win);
       else {

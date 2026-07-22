@@ -2282,6 +2282,12 @@ export const NARRATOR = {
   armylost: 'And then the floor went quiet. The terrible kind of quiet a room makes after it swallows an army whole.',
   wonderrace: 'Two wonders rose at once, brick by desperate brick — and every toy understood: the war would be decided by patience now.',
   foothold: 'Their workshops are ash — but toys rebuild from a single standing wall. Raze every last building, or the story starts itself over.',
+  // the room's own inhabitants: beats for the things that happen TO you
+  tribewon: 'Out past the safe part of the floor, a campfire changed colours. The wild ones had been waiting all along for somebody to teach them a flag worth carrying.',
+  tribelost: 'A strange flag went up over the campfire, and it was not yours. The wild toys never did care who asked first — only who bothered to come.',
+  strayhome: 'A toy that had been lost under the furniture since some forgotten afternoon was carried home in somebody\'s arms. The chest opened for it like nothing had happened.',
+  catswat: 'The cat had been part of the furniture for so long the toys forgot she was a predator. She reminded them, once, and went back to sleep.',
+  wallbreach: 'The wall came down in the middle, the way walls do — all at once, after pretending for so long that it never would.',
 };
 
 // The Second Night (NG+): the same beats, told the second time through —
@@ -2299,7 +2305,20 @@ export const NARRATOR_NG = {
   firstfleet: 'A hull touched the water, and the bath said "armada" before the ripples even settled. It had been practicing the word all day.',
   wonderrace: 'Two wonders rose at once — again — and the room leaned in close, hoping this telling would end a different way.',
   foothold: 'They rebuilt from one standing wall last night too. The room has seen this trick. Raze everything, and mean it this time.',
+  tribewon: 'The campfire changed colours again, and the wild ones fell in behind you without being asked twice. Some loyalties, it turns out, survive the closing of a book.',
+  tribelost: 'They went to the other flag again. The room did not think this was unfair — only early, and you were late, the same as last time.',
+  strayhome: 'Another one carried home out of the dark under the furniture. The chest has done this before; it opened without a sound.',
+  catswat: 'The cat did it again, in the same spot, to somebody standing alone. The room has stopped calling this a surprise.',
+  wallbreach: 'The wall came down in the middle again. It had been pretending, again, and the room had let it, again.',
 };
+
+// Which beats have a recorded reading. VO is billed per SECOND, so most beats
+// ship as text only — gating here keeps narrate() from chasing a 404 every time
+// an unvoiced beat fires (the `foothold` beat had been doing exactly that).
+export const NARRATOR_VO = new Set([
+  'firstblood', 'age2', 'age3', 'mega', 'clock10',
+  'comeback', 'boom', 'firstfleet', 'armylost', 'wonderrace',
+]);
 
 // ---------------- opening cutscene ----------------
 // four hand-painted plates + narration; plays once on first launch (skippable)

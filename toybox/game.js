@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import {
   MAP_N, POP_MAX, RES_TYPES, RES_META, UNITS, BUILDINGS, TECHS, MARKET, maskAt,
   AGES, AGE_UPS, PRODUCTION_BUILDINGS, START, AI, DIFFICULTIES, TEAM_NAMES, STICKER, WONDER, PERSONAS, MAPS, FACTIONS,
-  TAUNTS, AI_LINES, NARRATOR, NARRATOR_NG,
+  TAUNTS, AI_LINES, NARRATOR, NARRATOR_NG, NARRATOR_VO, TEAM_COLORS,
   CRITTERS, CRITTER_TYPES, LOST_TOYS, WILD_TRIBES, HOUSE_CAT, YARD_DOG, ROOMBA, GAME_MODES, START_RES, SURVIVAL,
 } from './data.js';
 import {
@@ -1038,13 +1038,15 @@ export class Game {
         }
         this.players[pid].res.buttons += WILD_TRIBES.bounty;
         this.players[pid].stats.tribes = (this.players[pid].stats.tribes || 0) + 1;
-        c.view.setOwner(this.players[pid].team === this.myTeam ? 0x3b82f6 : 0xe4572e);
+        c.view.setOwner(this.players[pid].team === this.myTeam ? TEAM_COLORS[0] : TEAM_COLORS[1]);
         this.fx && this.fx.spawnPop(c.x, c.z, 0xf0c23a);
         if (pid === this.myId) {
           this.alert(`The wild tribe joins you! ${WILD_TRIBES.comp.length} toys learn your flag (+${WILD_TRIBES.bounty} Buttons).`, 'info', { x: c.x, z: c.z }, 5);
           this.sfx && this.sfx.play('age');
+          this.narrate('tribewon');
         } else if (this.isEnemy(this.myId, pid)) {
           this.alert('A rival taught a wild tribe their flags!', 'warn', { x: c.x, z: c.z }, 5);
+          this.narrate('tribelost');
         }
       }
     }
@@ -1119,7 +1121,10 @@ export class Game {
         c.swatT = HOUSE_CAT.swatCooldown;
         c.facing = Math.atan2(dx, dz);
         this.fx && this.fx.spawnPop(e.x, e.z, 0xe8a8b8);
-        if (e.owner === this.myId) this.alert('🐈 The house cat SWATS your lone toy! Keep them together.', 'warn', { x: c.x, z: c.z }, 4);
+        if (e.owner === this.myId) {
+          this.alert('🐈 The house cat SWATS your lone toy! Keep them together.', 'warn', { x: c.x, z: c.z }, 4);
+          this.narrate('catswat');
+        }
         if (e.hp <= 0 && !e.dead) this.kill(e, null);
         break;
       }
@@ -1310,6 +1315,7 @@ export class Game {
           if (u.owner === this.myId) {
             this.alert(`+${LOST_TOYS.bounty} Buttons — ${l.def.name} is home safe!`, 'info', null, 3);
             this.sfx && this.sfx.play('trade');
+            this.narrate('strayhome');
           }
           l.dead = true; l.removed = true;
           this.scene.remove(l.view.group);
@@ -1517,7 +1523,7 @@ export class Game {
       const newHolder = present.size === 1 ? [...present][0] : s.holder;
       if (newHolder !== s.holder && present.size === 1) {
         s.holder = newHolder;
-        s.view.setHolder(newHolder < 0 ? null : (newHolder === this.myTeam ? 0x3b82f6 : 0xe4572e));
+        s.view.setHolder(newHolder < 0 ? null : (newHolder === this.myTeam ? TEAM_COLORS[0] : TEAM_COLORS[1]));
         if (newHolder === this.myTeam) this.alert('Lost Sticker captured! Buttons trickle in while your team holds it.', 'info', { x: s.x, z: s.z });
         else this.alert(`${TEAM_NAMES[1]} grabbed a Lost Sticker!`, 'warn', { x: s.x, z: s.z }, 5);
       }
@@ -2377,7 +2383,7 @@ export class Game {
           def: { name: 'Wild Toy Camp', desc: WILD_TRIBES.desc },
           view, dead: false,
         };
-        if (e.captured >= 0) view.setOwner(this.players[e.captured].team === this.myTeam ? 0x3b82f6 : 0xe4572e);
+        if (e.captured >= 0) view.setOwner(this.players[e.captured].team === this.myTeam ? TEAM_COLORS[0] : TEAM_COLORS[1]);
       } else if (se.k === 'ct') {
         const view = createCatView();
         view.group.position.set(se.x, this.heightAtWorld(se.x, se.z), se.z);
@@ -2751,6 +2757,9 @@ export class Game {
     if (killer && killer.owner >= 0 && killer.owner !== e.owner && e.kind !== 'resource') {
       const ks = this.players[killer.owner].stats;
       if (e.kind === 'unit') { ks.kills++; this.narrate('firstblood'); } else ks.razed++;
+      // a line of wall only matters until the first hole: say so when it's yours
+      if (e.kind === 'building' && (e.type === 'wall' || e.type === 'gate')
+        && this.players[e.owner] && this.players[e.owner].team === this.myTeam) this.narrate('wallbreach');
       if (killer.kind === 'unit') {
         killer.kills = (killer.kills || 0) + 1;
         // veteran promotions: ⭐ at 3 (+1), ⭐⭐ at 6 (+2), 👑 Legend at 10 (+3)
@@ -4307,11 +4316,14 @@ export class Game {
     this.cb.alert(msg, kind, pos);
   }
 
-  endGame(winnerTeam) {
+  // `reason` names the rule that actually ended the match, so the game-over card
+  // can tell the player WHY instead of assuming a razed base every time.
+  endGame(winnerTeam, reason = null) {
     this.over = true;
+    this.endReason = reason;
     const win = winnerTeam === this.myTeam;
     this.sfx && this.sfx.play(win ? 'victory' : 'defeat');
-    this.cb.gameOver(win, this.players.map((p) => p.stats), this.timeline);
+    this.cb.gameOver(win, this.players.map((p) => p.stats), this.timeline, reason);
   }
 
   // is a player still in the match? depends on the game mode
@@ -4341,13 +4353,13 @@ export class Game {
       // every defender is wiped (defeat) or the dawn wave is cleared (handled in
       // updateSurvival). The den seat is ignored here entirely.
       const defenders = this.players.filter((p) => p.team === 0 && !p.den);
-      if (!defenders.some((p) => this.playerAlive(p))) this.endGame(-1);
+      if (!defenders.some((p) => this.playerAlive(p))) this.endGame(-1, 'overrun');
       return;
     }
     const aliveTeams = new Set();
     for (const p of this.players) if (this.playerAlive(p)) aliveTeams.add(p.team);
-    if (aliveTeams.size === 1) this.endGame([...aliveTeams][0]);
-    else if (aliveTeams.size === 0) this.endGame(-1);
+    if (aliveTeams.size === 1) this.endGame([...aliveTeams][0], 'elimination');
+    else if (aliveTeams.size === 0) this.endGame(-1, 'elimination');
   }
 
   // ---------- Survival: "The Long Night" wave defense ----------
@@ -4412,7 +4424,7 @@ export class Game {
         if (p.team !== 0 || p.den) continue;
         for (const r of C.bounty.spread) p.res[r] = (p.res[r] || 0) + amt;
       }
-      if (S.wave >= C.dawnWave) { this.survivalWon = true; this.endGame(0); return; }
+      if (S.wave >= C.dawnWave) { this.survivalWon = true; this.endGame(0, 'dawn'); return; }
       this.alert(`Wave ${S.wave} repelled — the toy box coughs up a reward.`, 'info', null, 0);
     }
 
@@ -4470,7 +4482,7 @@ export class Game {
       this.alert('One minute left on the Wonder countdown!', 'attack', ping2);
     }
     if (this.wonderState.t <= 0) {
-      this.endGame(this.teamOf(this.wonderState.owner));
+      this.endGame(this.teamOf(this.wonderState.owner), 'wonder');
     }
   }
 
@@ -4503,7 +4515,7 @@ export class Game {
       this.relicState.warned = true;
       this.alert('20 seconds left on the Lost Sticker countdown!', 'attack');
     }
-    if (this.relicState.t <= 0) this.endGame(team);
+    if (this.relicState.t <= 0) this.endGame(team, 'relics');
   }
 
   // King of the Hill: a team alone on the golden Throne banks hold time
@@ -4519,14 +4531,14 @@ export class Game {
     const holder = teams.size === 1 ? [...teams][0] : -1;
     if (holder !== throne.holder) {
       throne.holder = holder;
-      throne.view.setHolder(holder < 0 ? null : (holder === this.myTeam ? 0x4d9bff : 0xe4572e));
+      throne.view.setHolder(holder < 0 ? null : (holder === this.myTeam ? TEAM_COLORS[0] : TEAM_COLORS[1]));
       if (holder === this.myTeam) this.alert('Your team holds the Golden Throne!', 'info', { x: throne.x, z: throne.z });
       else if (holder >= 0) this.alert(`${TEAM_NAMES[1]} seized the Throne — push them off!`, 'warn', { x: throne.x, z: throne.z }, 6);
     }
     if (holder >= 0) {
       throne.holdTeam = holder;
       throne.holdTime = (throne.holdTime || 0) + dt;
-      if (throne.holdTime >= KOTH_HOLD) this.endGame(holder);
+      if (throne.holdTime >= KOTH_HOLD) this.endGame(holder, 'throne');
     } else {
       // slowly bleed progress back when nobody rules
       throne.holdTime = Math.max(0, (throne.holdTime || 0) - dt * 0.5);
@@ -4606,8 +4618,9 @@ export class Game {
     if (this[flag] || !line) return;
     this[flag] = true;
     this.alert(line, 'story', null, 6);
-    // the storyteller reads the beat aloud (respects the SFX mute; UI-only)
-    if (this.sfx && !this.sfx.muted) {
+    // the storyteller reads the beat aloud (respects the SFX mute; UI-only).
+    // Only the recorded beats have a file — the rest are read on the page.
+    if (this.sfx && !this.sfx.muted && NARRATOR_VO.has(key)) {
       try {
         const vo = new Audio('assets/audio/vo/' + key + '.wav');
         vo.volume = Math.min(1, (this.sfx.volume || 0.5) * 1.4);
