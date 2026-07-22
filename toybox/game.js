@@ -4156,6 +4156,30 @@ export class Game {
       }
     }
 
+    // --- tribe manager: a wild camp is a contest, not a gift. Send a small
+    // squad to stand in the circle; a rival already mid-hold is worth crossing
+    // the room for, since arriving at all resets their progress to nothing.
+    ai.tribeT = (ai.tribeT === undefined ? 18 : ai.tribeT) - AI.tick;
+    if (ai.tribeT <= 0) {
+      ai.tribeT = 20;
+      const myTeam = this.teamOf(owner);
+      if (!ai.attacking && military.length >= 4) {
+        const base = chest || mine.find((e) => e.kind === 'building');
+        let best = null, bestScore = Infinity;
+        for (const c of this.entities) {
+          if (c.kind !== 'camp' || c.dead || c.captured >= 0) continue;
+          const d = base ? Math.hypot(c.x - base.x, c.z - base.z) : 0;
+          const score = d - (c.holdTeam >= 0 && c.holdTeam !== myTeam ? 60 : 0);
+          if (score < bestScore) { bestScore = score; best = c; }
+        }
+        if (best) {
+          // ground toys only — the camp scan ignores workers and boats
+          const squad = military.filter((m) => !m.def.naval && (!m.order || m.order.type === 'move')).slice(0, 3);
+          for (const m of squad) this.setOrder(m, { type: 'amove', x: best.x, z: best.z }, false);
+        }
+      }
+    }
+
     // --- defense / attack managers ---
     const home = chest || mine.find((e) => e.kind === 'building');
     if (home) {

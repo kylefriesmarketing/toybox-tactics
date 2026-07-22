@@ -1731,7 +1731,10 @@ window.__ttSoak = (opts = {}, maxTicks = 9000) => {
   // entity census by kind — lets a test assert what the room is populated with
   const kinds = {};
   for (const e of g.entities) if (!e.dead) kinds[e.kind] = (kinds[e.kind] || 0) + 1;
-  return { seed, winnerTeam, over: g.over, ticks: t, simSec: Math.round(t * 0.1), err, armies, ages, res, facs, fp, surv, kinds };
+  // per-player stat blocks — lets a test assert whether a seat ENGAGED with a
+  // system (tribes taught, strays carried home) rather than merely coexisting with it
+  const stats = g.players.map((p) => ({ ...p.stats }));
+  return { seed, winnerTeam, over: g.over, ticks: t, simSec: Math.round(t * 0.1), err, armies, ages, res, facs, fp, surv, kinds, stats };
 };
 // in-memory lockstep harness: wires N real Net instances in a star (fake conns
 // deliver synchronously) driving N headless Games. Exercises the ACTUAL net.js
