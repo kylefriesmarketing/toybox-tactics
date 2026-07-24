@@ -2699,8 +2699,10 @@ export class Game {
           this.fx.slash(target.x, hy, target.z, ang, spec.atkType === 'siege' ? 0xffcaa0 : 0xffffff);
           this.fx.hit(target.x, hy, target.z, c, spec.atkType === 'siege' ? 12 : 6);
         }
-        if (Math.random() < (spec.atkType === 'siege' ? 0.85 : 0.3)) {
-          this.fx.chip(target.x, hy, target.z, target.def.debris); // hard hits chip a piece
+        // toys shed material when struck — the toybox's spatter. Sprayed along the
+        // blow, more from siege, and reliably enough that hits read as damage.
+        if (Math.random() < (spec.atkType === 'siege' ? 1 : 0.55)) {
+          this.fx.chip(target.x, hy, target.z, target.def.debris, ang, spec.atkType === 'siege');
         }
       }
       // big siege blows rattle the camera
@@ -2791,7 +2793,9 @@ export class Game {
       }
       e.order = null; e.oq.length = 0; e.swing = null;
       e.removeT = e.view.startDeath();
-      this.fx && this.fx.death(e.x, e.z, e.def.debris || { colors: [e.def.color] });
+      // fan the death burst away from whatever landed the killing blow
+      const kd = (killer && killer.x !== undefined) ? Math.atan2(e.x - killer.x, e.z - killer.z) : null;
+      this.fx && this.fx.death(e.x, e.z, e.def.debris || { colors: [e.def.color] }, kd);
       if (this.sfx && this.fog.state(e.x, e.z) === 2) {
         this.sfx.playAt('squeak', e.x, e.z, 150);
         // the material decides the sound: fluff whumps, buttons jingle, plastic clatters

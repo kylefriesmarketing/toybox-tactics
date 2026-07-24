@@ -153,14 +153,23 @@ class PiecePool {
     this.dummy = new THREE.Object3D();
     this.color = new THREE.Color();
   }
-  spawn(shape, x, y, z, color, { speed = 2.2, life = 1.6, scale = 1 } = {}) {
+  // dir/spread bias the spray along the strike vector — the toy-blood spatter
+  // reads as "knocked THAT way" rather than a symmetric puff. up scales the toss.
+  spawn(shape, x, y, z, color, { speed = 2.2, life = 1.6, scale = 1, dir = null, spread = Math.PI, up = 1 } = {}) {
     const p = this.pools[shape] || this.pools.cube;
     if (p.n >= p.cap) return;
-    const a = Math.random() * Math.PI * 2;
-    const s = speed * (0.5 + Math.random() * 0.8);
+    let vx, vz;
+    if (dir === null) { // isotropic scatter (unchanged)
+      const a = Math.random() * Math.PI * 2, s = speed * (0.5 + Math.random() * 0.8);
+      vx = Math.cos(a) * s; vz = Math.sin(a) * s;
+    } else { // directional cone about `dir`, in the game's (sinθ,cosθ) convention
+      const a = dir + (Math.random() - 0.5) * 2 * spread;
+      const s = speed * (0.75 + Math.random() * 0.8);
+      vx = Math.sin(a) * s; vz = Math.cos(a) * s;
+    }
     p.data[p.n] = {
       px: x, py: y + Math.random() * 0.2, pz: z,
-      vx: Math.cos(a) * s, vy: 1.6 + Math.random() * 2.2, vz: Math.sin(a) * s,
+      vx, vy: (1.6 + Math.random() * 2.2) * up, vz,
       rx: Math.random() * 3, ry: Math.random() * 3, rz: Math.random() * 3,
       wx: (Math.random() - 0.5) * 14, wy: (Math.random() - 0.5) * 14, wz: (Math.random() - 0.5) * 14,
       life: life * (0.8 + Math.random() * 0.4), life0: life, scale: scale * (0.75 + Math.random() * 0.6),
@@ -319,6 +328,59 @@ class SplatPool {
   }
 }
 
+// ---------------- material stains ----------------
+// The toybox has no blood. When a toy is struck or falls it leaves a mark in its
+// OWN material — a scuff of plastic, a mat of dropped fluff, a smear of oil — a
+// soft blotch that lingers where the hit landed and fades over ~half a minute.
+// One shared soft-edged texture, tinted per stain via the mesh material color.
+class StainPool {
+  constructor(scene, cap = 48) {
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const g = c.getContext('2d');
+    const grad = g.createRadialGradient(32, 32, 2, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.55, 'rgba(255,255,255,0.7)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad; g.beginPath(); g.arc(32, 32, 32, 0, 7); g.fill();
+    const tex = new THREE.CanvasTexture(c);
+    this.items = [];
+    for (let i = 0; i < cap; i++) {
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(1, 1),
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false })
+      );
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.y = 0.028;
+      mesh.renderOrder = 350; // under sticker splats (400), over the ground
+      mesh.visible = false;
+      scene.add(mesh);
+      this.items.push({ mesh, t: 0, dur: 1, peak: 0.5 });
+    }
+    this.next = 0;
+  }
+  stain(x, z, color, radius = 0.5, peak = 0.5) {
+    const it = this.items[this.next];
+    this.next = (this.next + 1) % this.items.length;
+    it.mesh.visible = true;
+    it.mesh.position.set(x, 0.026 + (this.next % 12) * 0.0005, z); // stagger to avoid z-fight
+    it.mesh.rotation.z = Math.random() * Math.PI * 2;
+    it.mesh.scale.setScalar(radius * (0.8 + Math.random() * 0.5));
+    // duller than the live material — spilled stuffing greys, oil darkens
+    it.mesh.material.color.setHex(color).offsetHSL(0, -0.06, -0.14);
+    it.t = it.dur = rand(24, 34); it.peak = peak;
+  }
+  update(dt) {
+    for (const it of this.items) {
+      if (!it.mesh.visible) continue;
+      it.t -= dt;
+      if (it.t <= 0) { it.mesh.visible = false; continue; }
+      // pop to peak fast, then a long slow fade
+      const f = it.t / it.dur;
+      it.mesh.material.opacity = it.peak * Math.min(1, f * 3) * Math.min(1, f * 1.3 + 0.15);
+    }
+  }
+}
+
 const CONFETTI = [0xf94144, 0xf3722c, 0xf9c74f, 0x90be6d, 0x4d9bff, 0x9b5de5, 0xff8fd0];
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[(Math.random() * arr.length) | 0];
@@ -384,9 +446,10 @@ export class VFX {
   constructor(scene) {
     this.sparks = new ParticlePool(scene, 2600, THREE.AdditiveBlending);
     this.dust = new ParticlePool(scene, 900, THREE.NormalBlending);
-    this.pieces = new PiecePool(scene, 72);
+    this.pieces = new PiecePool(scene, 84);
     this.litter = new LitterPool(scene, 96);
     this.splats = new SplatPool(scene, 14);
+    this.stains = new StainPool(scene, 48);
     this.dmgNums = new DamageNumberPool(scene, 30);
     this.moteT = 0;
   }
@@ -396,6 +459,7 @@ export class VFX {
     this.pieces.update(dt);
     this.litter.update(dt);
     this.splats.update(dt);
+    this.stains.update(dt);
     this.dmgNums.update(dt);
   }
 
@@ -457,28 +521,47 @@ export class VFX {
     }
     this.dust.spawn(x, y, z, 0, 0.4, 0, 0.4, 0.16, 0xd8d0c0, -0.2, 2);
   }
-  // chip a piece off whatever got hit (throttled by caller)
-  chip(x, y, z, debris) {
+  // chip material off a struck toy — the toy-blood spatter. `dir` is the strike
+  // angle (attacker→target), so the pieces spray the way the blow was thrown and
+  // a faint scuff is left where it landed. `hard` (siege) sheds more and marks bigger.
+  chip(x, y, z, debris, dir = null, hard = false) {
     const shapes = (debris && debris.shapes) || ['cube'];
     const colors = (debris && debris.colors) || [0xc9a86a];
-    this.pieces.spawn(pick(shapes), x, y, z, pick(colors), { speed: 1.4, life: 0.9, scale: 0.7 });
+    const n = hard ? 4 : 2;
+    for (let i = 0; i < n; i++) {
+      this.pieces.spawn(pick(shapes), x, y, z, pick(colors),
+        { speed: hard ? 2.4 : 1.7, life: rand(0.7, 1.1), scale: 0.7, dir, spread: 0.7, up: 0.8 });
+    }
+    // fluff toys shed a wisp of stuffing on every solid hit
+    if (debris && debris.fluff) this.puff(x, y, z, pick(colors), hard ? 4 : 2, 0.25);
+    // a small material scuff on the ground beneath the hit
+    this.stains.stain(x, z, pick(colors), hard ? 0.5 : 0.32, hard ? 0.42 : 0.3);
   }
 
-  // unit death: material-true toy pieces, no blood in the toybox
-  death(x, z, debris) {
+  // unit death: material-true toy pieces, no blood in the toybox. `dir` (the
+  // killing blow's angle) fans the burst that way, and a trail of settled pieces
+  // is left along it — the room's record of which way the toy went down.
+  death(x, z, debris, dir = null) {
     const shapes = (debris && debris.shapes) || ['cube'];
     const colors = (debris && debris.colors) || [0xcfc8e8];
     const count = (debris && debris.count) || 7;
     for (let i = 0; i < count; i++) {
-      this.pieces.spawn(pick(shapes), x, 0.3, z, pick(colors), { speed: 1.9, life: rand(1.2, 2.0) });
+      this.pieces.spawn(pick(shapes), x, 0.3, z, pick(colors),
+        { speed: 2.2, life: rand(1.2, 2.0), dir, spread: dir === null ? Math.PI : 1.1 });
     }
     if (debris && debris.fluff) {
       this.puff(x, 0.3, z, 0xf4eef8, 12, 0.5); // pillows burst into fluff
     } else {
       this.puff(x, 0.25, z, 0xcfc8e8, 4);
     }
-    // a couple of pieces stay behind — the battlefield remembers
-    for (let i = 0; i < 2; i++) this.litter.drop(pick(shapes), x, z, pick(colors));
+    // a broad material stain where the toy fell — the toy-safe "pool"
+    this.stains.stain(x, z, pick(colors), rand(0.7, 0.95), 0.5);
+    // pieces settle behind the death point, forming a trail in the knock direction
+    for (let i = 0; i < 3; i++) {
+      if (dir === null) { this.litter.drop(pick(shapes), x, z, pick(colors)); continue; }
+      const d = rand(0.2, 1.1);
+      this.litter.drop(pick(shapes), x + Math.sin(dir) * d, z + Math.cos(dir) * d, pick(colors));
+    }
     // little pop ring
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
