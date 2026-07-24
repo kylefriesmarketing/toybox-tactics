@@ -504,6 +504,17 @@ function attachHandWeapon(model, def, owner) {
   bone.add(w);
 }
 
+// A melee strike as one clean beat, given swing progress f (0→1). Returns a
+// forward-offset multiplier: a short wind-up back (negative), a sharp thrust
+// toward the target (peaks near the impact frame), then an ease back to rest.
+// Replaces the old sin-wobble lunge that jittered several times per swing.
+function meleeLungeZ(f) {
+  if (f < 0.28) return -0.45 * (f / 0.28);            // anticipation: pull back
+  if (f < 0.46) return -0.45 + ((f - 0.28) / 0.18) * 1.45; // thrust: -0.45 → +1.0
+  const g = (f - 0.46) / 0.54;                         // recovery: ease-out to 0
+  return (1 - g * g) * 1.0;
+}
+
 function makeModelView(entry, def, owner) {
   const group = new THREE.Group();
   const model = entry.rigless ? entry.proto.clone(true) : cloneSkinned(entry.proto);
@@ -549,7 +560,7 @@ function makeModelView(entry, def, owner) {
     let moving = false, t = 0, deathT = -1;
     view.setMoving = (v) => { moving = v; };
     view.startAttack = (swingDur) => {
-      view._lunge = swingDur;
+      view._lunge = swingDur; view._lungeDur = swingDur;
       return swingDur * def.impact;
     };
     view.startDeath = () => {
@@ -620,7 +631,8 @@ function makeModelView(entry, def, owner) {
       }
       if (view._lunge !== undefined) {
         view._lunge -= dt;
-        model.position.z = (view._lunge > 0) ? Math.sin(view._lunge * 10) * 0.12 : 0;
+        const f = 1 - Math.max(0, view._lunge) / view._lungeDur;
+        model.position.z = (view._lunge > 0) ? meleeLungeZ(f) * 0.2 : 0;
         if (view._lunge <= 0) delete view._lunge;
       }
     };
@@ -657,6 +669,9 @@ function makeModelView(entry, def, owner) {
   };
   view.startAttack = (swingDur) => {
     if (view._dead) return swingDur * def.impact;
+    // a subtle body thrust on top of the clip — melee toys only (archers hold
+    // position). The attack clip carries the arm; this adds the step-into-it weight.
+    if (!def.projectile) { view._lunge = swingDur; view._lungeDur = swingDur; }
     const a = actions.attack;
     if (!a) return swingDur * def.impact;
     const clipDur = a.getClip().duration;
@@ -706,6 +721,14 @@ function makeModelView(entry, def, owner) {
     if (cape) {
       capeT += dt;
       cape.rotation.x = 0.3 + Math.sin(capeT * 3) * 0.08 + (moving ? 0.35 : 0);
+    }
+    // body thrust rides on top of the clip (mixer already ran this frame). The
+    // attack clips animate bones, not the root, so model.position.z is ours.
+    if (!view._dead && view._lunge !== undefined) {
+      view._lunge -= dt;
+      const f = 1 - Math.max(0, view._lunge) / view._lungeDur;
+      model.position.z = view._lunge > 0 ? meleeLungeZ(f) * 0.11 : 0;
+      if (view._lunge <= 0) delete view._lunge;
     }
     if (view._dead) {
       deathT += dt;
@@ -1078,6 +1101,9 @@ function makeProcView(def, owner, kind) {
       } else if (parts.tube) {
         // bazooka kick: sharp recoil, slow re-shoulder
         parts.tube.position.z = -0.05 + (f < 0.3 ? (f / 0.3) * 0.12 : (1 - f) / 0.7 * 0.12);
+      } else if (!def.projectile) {
+        // plain melee toy with no special limb: lunge the whole body at the foe
+        rig.position.z = meleeLungeZ(f) * 0.2;
       }
       if (swingT >= swingDur) { swingT = -1; if (parts.armPivot) parts.armPivot.rotation.x = -0.5; rig.position.z = 0; }
     }
@@ -1100,7 +1126,7 @@ function makeBoxView(def, owner) {
   view.setSpeedRatio = (r) => { view._ratio = r; };
   let moving = false, t = 0, deathT = -1;
   view.setMoving = (v) => { moving = v; };
-  view.startAttack = (swingDur) => { view._lunge = swingDur; return swingDur * def.impact; };
+  view.startAttack = (swingDur) => { view._lunge = swingDur; view._lungeDur = swingDur; return swingDur * def.impact; };
   view.startDeath = () => {
     view._dead = true;
     body.material = body.material.clone();
@@ -1119,7 +1145,8 @@ function makeBoxView(def, owner) {
     body.position.y = h / 2 + (moving ? Math.abs(Math.sin(t * 10)) * 0.06 : 0);
     if (view._lunge !== undefined) {
       view._lunge -= dt;
-      body.position.z = view._lunge > 0 ? Math.sin(view._lunge * 12) * 0.1 : 0;
+      const f = 1 - Math.max(0, view._lunge) / view._lungeDur;
+      body.position.z = view._lunge > 0 ? meleeLungeZ(f) * 0.18 : 0;
       if (view._lunge <= 0) delete view._lunge;
     }
   };
