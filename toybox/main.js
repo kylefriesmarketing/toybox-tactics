@@ -78,8 +78,10 @@ scene.add(lampProp.group);
 
 // RTS camera rig with smoothing
 const camera = new THREE.PerspectiveCamera(46, innerWidth / innerHeight, 0.5, 500);
-const cam = { x: 0, z: 0, dist: 24, tx: 0, tz: 0, tdist: 24, shake: 0 };
+const cam = { x: 0, z: 0, dist: 24, tx: 0, tz: 0, tdist: 24, shake: 0, punch: 0 };
 const shakeCam = (amt) => { cam.shake = Math.min(0.9, cam.shake + amt); };
+// a brief zoom-IN kick that eases back out — the weight behind a decisive blow
+const punchCam = (amt) => { cam.punch = Math.min(0.16, cam.punch + amt); };
 const fogBase = { near: 60, far: 140 };
 function clampCam() {
   cam.tdist = Math.max(4, Math.min(84, cam.tdist)); // cap so the camera stays inside the room walls
@@ -100,14 +102,17 @@ function applyCamera(dt = 1) {
   cam.x += (cam.tx - cam.x) * k;
   cam.z += (cam.tz - cam.z) * k;
   cam.dist += (cam.tdist - cam.dist) * k;
+  // zoom-punch: pull in briefly on a decisive beat, then ease back out
+  if (cam.punch) { cam.punch *= Math.max(0, 1 - dt * 4.5); if (cam.punch < 0.002) cam.punch = 0; }
+  const dist = cam.dist * (1 - cam.punch);
   // cinematic tilt: low over-the-shoulder angle up close, top-down when high
-  const t = Math.min(1, Math.max(0, (cam.dist - 4) / 26));
+  const t = Math.min(1, Math.max(0, (dist - 4) / 26));
   const hf = 0.52 + (0.92 - 0.52) * t;
   const zf = 0.88 + (0.62 - 0.88) * t;
   const sh = cam.shake;
   const jx = sh ? (Math.random() - 0.5) * sh * 2.4 : 0;
   const jz = sh ? (Math.random() - 0.5) * sh * 2.4 : 0;
-  camera.position.set(cam.x + jx, cam.dist * hf, cam.z + cam.dist * zf + jz);
+  camera.position.set(cam.x + jx, dist * hf, cam.z + dist * zf + jz);
   camera.lookAt(cam.x + jx * 0.4, 0, cam.z + jz * 0.4);
   if (sh) { cam.shake *= Math.max(0, 1 - dt * 7); if (cam.shake < 0.01) cam.shake = 0; }
   // fog backs off as the camera rises so the battlefield stays clear, but not so
@@ -2098,6 +2103,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
     shake: (amt) => shakeCam(amt),
     dialogue: (speaker, text) => showDialogue(speaker, text),
     focus: (x, z) => cameraMoment(x, z),
+    cinematic: (kind, x, z) => cinematic(kind, x, z),
   }, {
     fx: vfx, sfx, difficulty, map, playerDefs, tutorial,
     gameMode: ebc ? ebc.gameMode : mpOpts ? mpOpts.gameMode : (resume ? resume.opts.gameMode : (rep ? rep.gameMode : chosenMode)),
@@ -2775,6 +2781,44 @@ function updateCamMoment(dt) {
     camMoment = null;
   }
   clampCam();
+}
+
+// ---------------- cinematic beats (view-only spectacle) -------------------
+// The room's biggest moments get a colour flash + a ground shockwave + a camera
+// kick — a titan unboxed, a titan felled, a wonder risen, a King's fall, an age
+// turning. Never touches the sim (fired from a cb the headless soak doesn't set).
+let fxBarsTimer = null;
+function cinematicBars(ms = 2600) {
+  const bars = $('fx-bars'); if (!bars) return;
+  bars.classList.add('show');
+  clearTimeout(fxBarsTimer);
+  fxBarsTimer = setTimeout(() => bars.classList.remove('show'), ms);
+}
+function screenFlash(color = '#ffffff', peak = 0.5, dur = 0.55) {
+  const el = $('fx-flash'); if (!el) return;
+  el.style.background = color;
+  el.style.setProperty('--fx-peak', peak);
+  el.style.setProperty('--fx-dur', dur + 's');
+  el.classList.remove('go'); void el.offsetWidth; // restart the keyframes
+  el.classList.add('go');
+}
+const CINE = {
+  mega:     { flash: '#ffe6a0', peak: 0.34, dur: 0.7, shake: 0.26, punch: 0.08, wave: 7, waveCol: 0xffe6a0, pillar: true,  bars: false },
+  megadown: { flash: '#fff2d0', peak: 0.45, dur: 0.5, shake: 0.5,  punch: 0.12, wave: 9, waveCol: 0xffc46a, pillar: false, bars: false },
+  wonder:   { flash: '#ffe08a', peak: 0.5,  dur: 0.9, shake: 0.2,  punch: 0.06, wave: 8, waveCol: 0xffe08a, pillar: true,  bars: true  },
+  kingfall: { flash: '#ff5a4d', peak: 0.42, dur: 0.6, shake: 0.45, punch: 0.11, wave: 6, waveCol: 0xff5a4d, pillar: false, bars: true  },
+  ageup:    { flash: '#fff6e0', peak: 0.2,  dur: 0.8, shake: 0.05, punch: 0,    wave: 0, waveCol: 0,        pillar: false, bars: false },
+};
+function cinematic(kind, x = 0, z = 0) {
+  const c = CINE[kind]; if (!c) return;
+  screenFlash(c.flash, c.peak, c.dur);
+  if (c.shake) shakeCam(c.shake);
+  if (c.punch) punchCam(c.punch);
+  if (vfx) {
+    if (c.wave) vfx.shockwave(x, z, c.wave, c.waveCol, 0.7);
+    if (c.pillar) vfx.pillar(x, z, c.waveCol || 0xffe6a0, 6);
+  }
+  if (c.bars) cinematicBars();
 }
 
 // ---------------- weather & wind (visual only — the sim never feels the rain) ----

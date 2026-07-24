@@ -290,6 +290,49 @@ class LitterPool {
   }
 }
 
+// expanding ground shockwave rings — the cinematic thump under a big impact
+// (mega spawn/death, wonder complete, a fort coming down). Flat rings that grow
+// outward and fade in under a second. Pooled; near-free when idle.
+class ShockwavePool {
+  constructor(scene, cap = 10) {
+    this.items = [];
+    for (let i = 0; i < cap; i++) {
+      const mesh = new THREE.Mesh(
+        new THREE.RingGeometry(0.62, 1, 40),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })
+      );
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.y = 0.05;
+      mesh.renderOrder = 500;
+      mesh.visible = false;
+      scene.add(mesh);
+      this.items.push({ mesh, t: 0, dur: 1, maxR: 1 });
+    }
+    this.next = 0;
+  }
+  ring(x, z, maxR = 6, color = 0xffffff, dur = 0.6) {
+    const it = this.items[this.next];
+    this.next = (this.next + 1) % this.items.length;
+    it.mesh.visible = true;
+    it.mesh.position.set(x, 0.05, z);
+    it.mesh.material.color.setHex(color);
+    it.t = it.dur = dur; it.maxR = maxR;
+  }
+  update(dt) {
+    for (const it of this.items) {
+      if (!it.mesh.visible) continue;
+      it.t -= dt;
+      if (it.t <= 0) { it.mesh.visible = false; continue; }
+      const f = 1 - it.t / it.dur;               // 0→1 over the life
+      const r = 0.4 + f * it.maxR;               // grow outward
+      it.mesh.scale.set(r, r, r);
+      it.mesh.material.opacity = 0.7 * (1 - f) * (1 - f); // fade as it grows
+    }
+  }
+}
+
+// a brief vertical shaft of light — a wonder rising, a titan unboxing. A stack
+// of additive point-sparks climbing from the ground, tapering as it goes up.
 // flat fading decals (catapult sticker splats, scorch rings)
 class SplatPool {
   constructor(scene, cap = 14) {
@@ -450,6 +493,7 @@ export class VFX {
     this.litter = new LitterPool(scene, 96);
     this.splats = new SplatPool(scene, 14);
     this.stains = new StainPool(scene, 48);
+    this.shocks = new ShockwavePool(scene, 10);
     this.dmgNums = new DamageNumberPool(scene, 30);
     this.moteT = 0;
   }
@@ -460,7 +504,28 @@ export class VFX {
     this.litter.update(dt);
     this.splats.update(dt);
     this.stains.update(dt);
+    this.shocks.update(dt);
     this.dmgNums.update(dt);
+  }
+
+  // one expanding ground ring — the thump under a cinematic beat
+  shockwave(x, z, maxR = 6, color = 0xffffff, dur = 0.6) {
+    this.shocks.ring(x, z, maxR, color, dur);
+  }
+
+  // a rising shaft of light: a wonder ascending, a titan being unboxed. Sparks
+  // climb from the ground and taper, with a bright base flare and a ground ring.
+  pillar(x, z, color = 0xffe6a0, height = 6) {
+    for (let i = 0; i < 46; i++) {
+      const f = i / 46;
+      const r = (1 - f) * 0.5 + 0.06;          // taper as it climbs
+      const a = Math.random() * Math.PI * 2;
+      this.sparks.spawn(x + Math.cos(a) * r, 0.1 + f * height, z + Math.sin(a) * r,
+        Math.cos(a) * 0.2, 1.4 + Math.random() * 1.6, Math.sin(a) * 0.2,
+        rand(0.6, 1.1), rand(0.1, 0.2), color, -0.6, 0.6);
+    }
+    this.sparks.spawn(x, 0.3, z, 0, 0, 0, 0.22, 1.4, 0xffffff, 0, 0); // base flare
+    this.shockwave(x, z, 5, color, 0.7);
   }
 
   // floating combat number off a struck toy (color hints the attack type)
@@ -586,6 +651,7 @@ export class VFX {
     }
     this.puff(x, 0.4, z, 0xb8b0a0, 14, size * 0.35);
     this.hit(x, 0.5, z, 0xffc46a, 12);
+    this.shockwave(x, z, 2 + size * 1.8, 0xffc46a, 0.55); // the ground thump of a fort coming down
     // ruins linger where the building stood
     for (let i = 0; i < Math.min(6, 2 + size); i++) {
       this.litter.drop(pick(shapes), x + rand(-size / 3, size / 3), z + rand(-size / 3, size / 3), pick(colors));

@@ -874,6 +874,17 @@
   .ic-layer.on { opacity: 1; }
   .ic-layer.kb { animation: icKenBurns 9s ease-out both; }
   @keyframes icKenBurns { from { transform: scale(1.03); } to { transform: scale(1.15) translateY(-1.8%); } }
+  /* ---- cinematic beats (mega, wonder, King's fall, age-up) ---- */
+  #fx-flash { position: absolute; inset: 0; z-index: 55; pointer-events: none;
+    opacity: 0; background: #fff; mix-blend-mode: screen; }
+  #fx-flash.go { animation: fxFlash var(--fx-dur, .55s) ease-out; }
+  @keyframes fxFlash { 0% { opacity: 0; } 12% { opacity: var(--fx-peak, .55); } 100% { opacity: 0; } }
+  #fx-bars { position: absolute; inset: 0; z-index: 54; pointer-events: none; }
+  #fx-bars .fx-bar { position: absolute; left: 0; right: 0; height: 11%;
+    background: #05070c; transform: scaleY(0); transition: transform .5s cubic-bezier(.2,.8,.2,1); }
+  #fx-bars .fx-bar.top { top: 0; transform-origin: top; }
+  #fx-bars .fx-bar.bot { bottom: 0; transform-origin: bottom; }
+  #fx-bars.show .fx-bar { transform: scaleY(1); }
   #ic-vignette { position: absolute; inset: 0; pointer-events: none;
     background: radial-gradient(125% 92% at 50% 40%, transparent 42%, #000000cc 100%),
       linear-gradient(to bottom, #000000b0 0%, transparent 20% 60%, #000 100%); }
@@ -992,6 +1003,9 @@
   </div>
 
   <div id="alerts"></div>
+  <!-- cinematic layer: a colour flash + slide-in letterbox bars for big beats -->
+  <div id="fx-flash"></div>
+  <div id="fx-bars"><div class="fx-bar top"></div><div class="fx-bar bot"></div></div>
   <div id="empire"></div>
   <div id="bookend"></div>
   <div id="shelf">

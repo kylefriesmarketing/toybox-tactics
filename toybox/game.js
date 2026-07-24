@@ -1691,7 +1691,11 @@ export class Game {
     if (fromBuilding) {
       p.stats.trained++;
       if (def.naval) p.stats.shipsBuilt++;
-      if (def.tags && def.tags.includes('mega')) { p.stats.megaBuilt++; this.narrate('mega'); }
+      if (def.tags && def.tags.includes('mega')) {
+        p.stats.megaBuilt++; this.narrate('mega');
+        if (this.cb.cinematic && (owner === this.myId || !this.fog || this.fog.state(x, z) === 2))
+          this.cb.cinematic('mega', x, z); // a titan is unboxed
+      }
       if (def.naval && def.aggro > 0) this.narrate('firstfleet');
       this.fx && this.fx.spawnPop(x, z, def.color);
       if (owner === this.myId) this.sfx && this.sfx.play('train', 300);
@@ -2790,6 +2794,10 @@ export class Game {
           ? '👑 Your King has fallen! Your toybox is defeated.'
           : (this.teamOf(e.owner) === this.myTeam ? '👑 An allied King has fallen!' : `👑 ${TEAM_NAMES[1]}'s King is down!`),
           'attack', { x: e.x, z: e.z });
+        this.cb.cinematic && this.cb.cinematic('kingfall', e.x, e.z); // the crown falls
+      } else if (e.def.tags && e.def.tags.includes('mega')
+          && this.cb.cinematic && (!this.fog || this.fog.state(e.x, e.z) === 2)) {
+        this.cb.cinematic('megadown', e.x, e.z); // a titan is felled
       }
       e.order = null; e.oq.length = 0; e.swing = null;
       e.removeT = e.view.startDeath();
@@ -4476,7 +4484,10 @@ export class Game {
         ? 'Your team\'s Imagination Wonder stands! Defend it to win.'
         : `${TEAM_NAMES[1]} built an Imagination Wonder — destroy it before the countdown ends!`,
         'age', ping);
-      if (ping) this.fx && this.fx.confetti(wonder.x, wonder.z);
+      if (ping) {
+        this.fx && this.fx.confetti(wonder.x, wonder.z);
+        this.cb.cinematic && this.cb.cinematic('wonder', wonder.x, wonder.z); // a wonder rises
+      }
       this.speakAI('wonder', wonder.owner);
     }
     this.wonderState.t -= dt;
@@ -4719,6 +4730,7 @@ export class Game {
             this.alert(`The ${AGES[p.age - 1]} has arrived!`, 'age');
             this.sfx && this.sfx.setAge(p.age);
             this.sfx && this.sfx.play('age');
+            this.cb.cinematic && this.cb.cinematic('ageup'); // the room turns a page
           } else if (p.team === this.myTeam) {
             this.alert(`Your ally reached the ${AGES[p.age - 1]}!`, 'info');
           } else {
