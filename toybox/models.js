@@ -283,6 +283,62 @@ function normalizeToHeight(scene, targetHeight) {
   return wrap;
 }
 
+// ---------------- moulded base-disc removal ----------------
+// The knights GLBs were baked standing on toy display discs. Real toys have
+// them; toys that have COME TO LIFE should not — the disc reads as feet welded
+// to a stand (Kyle's call). The disc is baked into the one merged mesh, so we
+// cut it out: drop every triangle whose three corners all sit inside the
+// bottom slab of the model, then let normalizeToHeight re-ground the feet.
+// Cut heights were measured per model from vertex-density profiles (the disc
+// shows as a full-width band at the very bottom; feet are narrow columns above
+// it). Fractions are of total geometry height above bbox.min.y.
+// ⚠️ dragon has NO disc (it flies; its bottom band is tail/claw geometry) —
+// deliberately absent from this table. Verify visually before ever adding it.
+const BASE_DISC_CUT = {
+  knight: 0.032, crossbow: 0.062, charger: 0.036, paladin: 0.046,
+  // the plains bakes: the brave stood on a clear plate (bottom face at 0, top
+  // face at 0.04 full-width, legs at 24% width above), the worker on a low oval
+  brave: 0.055, 'worker-plains': 0.048,
+};
+function pruneBaseDisc(scene, frac) {
+  scene.traverse((n) => {
+    if (!n.isMesh || !n.geometry || n.geometry.attributes.position.count < 1000) return;
+    const geo = n.geometry;
+    geo.computeBoundingBox();
+    const bb = geo.boundingBox;
+    const cutY = bb.min.y + (bb.max.y - bb.min.y) * frac;
+    const pos = geo.attributes.position;
+    const idx = geo.index;
+    const below = (vi) => pos.getY(vi) < cutY;
+    if (idx) {
+      const keep = [];
+      for (let t = 0; t < idx.count; t += 3) {
+        const a = idx.getX(t), b = idx.getX(t + 1), c = idx.getX(t + 2);
+        if (below(a) && below(b) && below(c)) continue; // disc slab triangle
+        keep.push(a, b, c);
+      }
+      geo.setIndex(keep);
+    } else {
+      // non-indexed: rebuild every attribute skipping slab triangles
+      const attrs = Object.entries(geo.attributes);
+      const keepIdx = [];
+      for (let t = 0; t < pos.count; t += 3) {
+        if (below(t) && below(t + 1) && below(t + 2)) continue;
+        keepIdx.push(t, t + 1, t + 2);
+      }
+      for (const [name, attr] of attrs) {
+        const out = new Float32Array(keepIdx.length * attr.itemSize);
+        keepIdx.forEach((vi, k) => {
+          for (let c = 0; c < attr.itemSize; c++) out[k * attr.itemSize + c] = attr.array[vi * attr.itemSize + c];
+        });
+        geo.setAttribute(name, new THREE.BufferAttribute(out, attr.itemSize));
+      }
+    }
+    geo.computeBoundingBox();
+    geo.computeBoundingSphere();
+  });
+}
+
 export async function loadUnitModels(onProgress) {
   const loader = makeGLTFLoader();
   const registry = {};
@@ -299,6 +355,8 @@ export async function loadUnitModels(onProgress) {
         try {
           const gltf = await loader.loadAsync(`${man.dir}/${man.model}`);
           prepareScene(gltf.scene);
+          // knights et al: cut the moulded display disc out from under the toy
+          if (BASE_DISC_CUT[key]) pruneBaseDisc(gltf.scene, BASE_DISC_CUT[key]);
           registry[key] = {
             proto: normalizeToHeight(gltf.scene, man.targetHeight),
             clips: {}, rigless: true, height: man.targetHeight,
@@ -1385,6 +1443,40 @@ function factionHouse(faction, add, box, cyl, teamCol, rng) {
     add(new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), toyMat(teamCol)), 0.4, 1.85, 0);
     return;
   }
+  if (faction === 'wranglers') {
+    // notched-log cabin: stacked round logs with overhang corners, green slat roof
+    for (let row = 0; row < 4; row++) {
+      const y = 0.12 + row * 0.22;
+      add(cyl(0.11, 1.7, 0xb8834a, 10), 0, y, row % 2 ? 0.5 : -0.5).rotation.z = Math.PI / 2;
+      add(cyl(0.11, 1.7, 0xa8763f, 10), 0, y, row % 2 ? -0.5 : 0.5).rotation.z = Math.PI / 2;
+      const side = add(cyl(0.11, 1.24, 0xb08046, 10), row % 2 ? 0.62 : -0.62, y, 0);
+      side.rotation.x = Math.PI / 2;
+      const side2 = add(cyl(0.11, 1.24, 0xaa7a42, 10), row % 2 ? -0.62 : 0.62, y, 0);
+      side2.rotation.x = Math.PI / 2;
+    }
+    for (let i = 0; i < 4; i++) add(box(1.5 - i * 0.34, 0.07, 0.5, i % 2 ? 0x5a8f4c : 0x74c476), 0, 1.02 + i * 0.09, 0.24 - i * 0.12);
+    add(box(0.34, 0.5, 0.04, 0x6a4a2c), 0, 0.3, 0.63);                        // door
+    add(box(0.28, 0.55, 0.28, 0x9a9fa8), 0.5, 1.15, -0.3);                    // stone chimney
+    add(box(0.36, 0.2, 0.03, teamCol), -0.55, 1.35, 0).castShadow = false;    // brand flag
+    return;
+  }
+  if (faction === 'plains') {
+    // painted teepee: canvas cone, crossed lodge poles out the smoke hole, door flap
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.95, 1.55, 10), toyMat(0xe8d8b0, 0.9));
+    add(cone, 0, 0.77, 0);
+    for (let i = 0; i < 5; i++) {                                             // lodge poles
+      const a = (i / 5) * Math.PI * 2 + 0.3;
+      const pole = add(cyl(0.03, 0.7, 0x8a6a42, 6), Math.cos(a) * 0.16, 1.7, Math.sin(a) * 0.16);
+      pole.rotation.z = Math.cos(a) * 0.35; pole.rotation.x = -Math.sin(a) * 0.35;
+    }
+    const band = new THREE.Mesh(new THREE.ConeGeometry(0.75, 0.26, 10, 1, true), toyMat(0xc0492b, 0.85));
+    add(band, 0, 0.95, 0);                                                    // painted band
+    const sun = new THREE.Mesh(new THREE.CircleGeometry(0.15, 10), toyMat(0xf0c23a, 0.8));
+    sun.position.set(0, 0.62, 0.82); sun.rotation.x = -0.35; add(sun, 0, 0.62, 0.82);
+    add(box(0.3, 0.42, 0.03, 0x8a5a34), 0, 0.28, 0.88).rotation.x = -0.35;    // door flap
+    add(box(0.32, 0.18, 0.03, teamCol), 0.42, 1.5, 0).castShadow = false;     // camp pennant
+    return;
+  }
   // classic (default): canvas pyramid tent + sandbag row + team pennant
   const tent = new THREE.Mesh(new THREE.ConeGeometry(1.15, 1.25, 4), toyMat(0x8a935a));
   tent.rotation.y = Math.PI / 4; add(tent, 0, 0.62, 0);
@@ -1438,6 +1530,32 @@ function factionWall(faction, add, box, cyl, teamCol, rng, up, age) {
     }
     const topK = 0.15 + layers * 0.29;
     for (const mx of [-0.36, 0, 0.36]) add(box(0.18, 0.2, 0.36, stones[0]), mx, topK, 0); // merlons
+    return;
+  }
+  if (faction === 'wranglers') {
+    // split-rail ranch fence: two X-crossed posts with stacked rails between
+    const wood = up ? [0xc99a5a, 0xb8834a] : [0xb8834a, 0xa8763f];
+    for (const px of [-0.45, 0.45]) {
+      add(cyl(0.05, 0.62, wood[1], 8), px, 0.3, 0.1).rotation.z = 0.5;
+      add(cyl(0.05, 0.62, wood[1], 8), px, 0.3, -0.1).rotation.z = -0.5;
+    }
+    for (let r = 0; r < layers; r++) {
+      const rail = add(cyl(0.055, 1.3, wood[r % 2], 8), 0, 0.2 + r * 0.2, 0);
+      rail.rotation.z = Math.PI / 2; rail.rotation.y = (rng() - 0.5) * 0.05;
+    }
+    return;
+  }
+  if (faction === 'plains') {
+    // camp palisade: leaning painted poles lashed with a red band, feathers on top
+    const cols = up ? [0xd8c8a0, 0xc8b890] : [0xc8b088, 0xb8a078];
+    const n = 4 + Math.min(2, age);
+    for (let i = 0; i < n; i++) {
+      const px = -0.5 + i * (1.0 / (n - 1));
+      const pole = add(cyl(0.055, 0.55 + layers * 0.14, cols[i % 2], 7), px, (0.55 + layers * 0.14) / 2, 0);
+      pole.rotation.z = (rng() - 0.5) * 0.1;
+    }
+    add(box(1.15, 0.08, 0.14, 0xc0492b), 0, 0.34, 0);          // lashed red band
+    add(box(0.05, 0.16, 0.02, 0xf0ead8), -0.5, 0.62 + layers * 0.14, 0).castShadow = false; // feather
     return;
   }
   // bricks (default): staggered studded toy bricks with a team cap
@@ -1778,6 +1896,39 @@ function buildingGeometry(key, def, owner, rng, up = false, age = 1, faction = n
     const flagK = add(box(0.5, 0.3, 0.04, teamCol), 0.28, 2.55, 0.3);
     add(cyl(0.04, 1.1, 0xddd6c0, 6), 0, 2.15, 0.3);
     flagK.castShadow = false;
+  } else if (key === 'logfort') {
+    // notched-log fort: four log walls with overhang corners, corner tower, gate
+    for (let row = 0; row < 5; row++) {
+      const y = 0.14 + row * 0.24;
+      add(cyl(0.12, 2.5, row % 2 ? 0xb8834a : 0xa8763f, 10), 0, y, 1.05).rotation.z = Math.PI / 2;
+      add(cyl(0.12, 2.5, row % 2 ? 0xa8763f : 0xb8834a, 10), 0, y, -1.05).rotation.z = Math.PI / 2;
+      const l = add(cyl(0.12, 2.34, 0xb08046, 10), -1.13, y, 0); l.rotation.x = Math.PI / 2;
+      const r = add(cyl(0.12, 2.34, 0xaa7a42, 10), 1.13, y, 0); r.rotation.x = Math.PI / 2;
+    }
+    for (let row = 0; row < 4; row++) add(cyl(0.1, 0.9, 0x9a6f3c, 8), 0.75, 1.35 + row * 0.2, -0.75).rotation.z = Math.PI / 2; // tower logs
+    for (let i = 0; i < 3; i++) add(box(1.0 - i * 0.3, 0.06, 0.9, i % 2 ? 0x5a8f4c : 0x74c476), 0.75, 2.14 + i * 0.08, -0.75); // green slat cap
+    add(box(0.6, 0.7, 0.06, 0x8a5f34), 0, 0.35, 1.08);                        // gate
+    const flagW = add(box(0.42, 0.24, 0.04, teamCol), 0.95, 2.75, -0.75);
+    add(cyl(0.03, 0.9, 0xddd6c0, 6), 0.75, 2.5, -0.75);
+    flagW.castShadow = false;
+  } else if (key === 'bigteepee') {
+    // great teepee: tall painted cone, pole crown, sun + band, drum by the door
+    const coneT = new THREE.Mesh(new THREE.ConeGeometry(1.35, 2.3, 12), toyMat(0xe8d8b0, 0.9));
+    add(coneT, 0, 1.15, 0);
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2;
+      const pole = add(cyl(0.04, 1.0, 0x8a6a42, 6), Math.cos(a) * 0.22, 2.5, Math.sin(a) * 0.22);
+      pole.rotation.z = Math.cos(a) * 0.35; pole.rotation.x = -Math.sin(a) * 0.35;
+    }
+    const bandT = new THREE.Mesh(new THREE.ConeGeometry(1.08, 0.34, 12, 1, true), toyMat(0xc0492b, 0.85));
+    add(bandT, 0, 1.35, 0);
+    const sunT = new THREE.Mesh(new THREE.CircleGeometry(0.24, 12), toyMat(0xf0c23a, 0.8));
+    sunT.rotation.x = -0.4; add(sunT, 0, 0.95, 1.12);
+    add(box(0.42, 0.6, 0.04, 0x8a5a34), 0, 0.4, 1.28).rotation.x = -0.4;      // door flap
+    add(cyl(0.22, 0.2, 0xb85c38, 10), 0.95, 0.1, 0.85);                       // camp drum
+    const flagP = add(box(0.4, 0.22, 0.04, teamCol), 0.2, 2.95, 0);
+    add(cyl(0.03, 0.8, 0xddd6c0, 6), 0, 2.75, 0);
+    flagP.castShadow = false;
   }
   return g;
 }

@@ -331,4 +331,37 @@ export const BARKS = {
     move: ['Coming about!', 'Making way — mind the soap.'],
     atk: ['Broadside! Every last cannon!', 'Strike the colours or strike the water!'],
   },
+
+  // ---- The Wranglers ----
+  'worker@wranglers': {
+    sel: ['Ranch hand, reporting.', 'Fences don\'t mend themselves.', 'Yes\'m, Marshal.'],
+    move: ['Moseying. Quickly.', 'Dust if you must.'],
+    atk: ['This hammer\'s seen worse.', 'You\'re spookin\' the herd!'],
+  },
+  gunslinger: {
+    sel: ['Quickest tin in the west.', 'Star\'s painted on. Aim ain\'t.', 'Say when.'],
+    move: ['Boots movin\'.', 'Cover me, cactus.'],
+    atk: ['Draw!', 'High noon. Local time: bedtime.'],
+  },
+  rider: {
+    sel: ['Saddled and certain.', 'One piece, me and the horse.', 'Rope\'s warm.'],
+    move: ['Hyah! Across the rug!', 'Ride for the brand.'],
+    atk: ['Rope \'em and drop \'em!', 'YEEHAW is a battle cry, actually.'],
+  },
+  // ---- The Painted Plains ----
+  'worker@plains': {
+    sel: ['The camp provides.', 'Basket\'s ready.', 'Softly now.'],
+    move: ['Light steps, long trail.', 'The grass remembers.'],
+    atk: ['Even gatherers have hands.', 'You woke the whole camp.'],
+  },
+  brave: {
+    sel: ['Paint\'s fresh. Fear\'s gone.', 'Shield up, chin up.', 'For the camp.'],
+    move: ['Like wind through the rug.', 'Swift and silent.'],
+    atk: ['The drums say NOW!', 'Feel the thunder, little toy!'],
+  },
+  bowhunter: {
+    sel: ['Eyes like the lamp-moon.', 'String\'s taut. So am I.', 'I see everything.'],
+    move: ['Reading the ground.', 'Downwind. Always downwind.'],
+    atk: ['One arrow, one answer.', 'The sky is mine tonight.'],
+  },
 };

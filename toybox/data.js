@@ -242,6 +242,48 @@ export const UNITS = {
     debris: { shapes: ['limb', 'stick'], colors: [0x3a5a8a, 0xd9a441], count: 8 },
     desc: 'Kingdom unique: knight and horse molded as one, lance first. Runs down archers like a closing storybook.',
   },
+  gunslinger: {
+    name: 'Gunslinger', tags: ['infantry', 'ranged'], age: 2, proc: 'grenadier', faction: 'wranglers',
+    cost: { snacks: 45, buttons: 45 }, trainTime: 12,
+    hp: 50, atk: 6, atkType: 'pierce', interval: 1.15, range: 4.2,
+    bonus: { infantry: 2 },
+    armor: { melee: 0, pierce: 0 }, speed: 1.5, vision: 7, aggro: 6,
+    impact: 0.5, color: 0x8a4a2f,
+    projectile: { speed: 20, arc: false, color: 0xffe08a, size: 0.06, trail: 0xaa8855 },
+    debris: { shapes: ['limb', 'stick'], colors: [0x4a6a9a, 0x8a5a3a], count: 6 },
+    desc: 'Wrangler unique: tin star, quick hands. Fires faster than any toy on the mat — draw first, apologise never.',
+  },
+  rider: {
+    name: 'Lasso Rider', tags: ['raider', 'heavy'], age: 2, proc: 'raider', faction: 'wranglers',
+    cost: { snacks: 70, blocks: 30 }, trainTime: 15,
+    hp: 85, atk: 8, atkType: 'melee', interval: 1.3, range: 0.9,
+    bonus: { ranged: 5, worker: 3 },
+    armor: { melee: 1, pierce: 1 }, speed: 3.1, vision: 7, aggro: 6,
+    impact: 0.5, color: 0x7a4a2a,
+    debris: { shapes: ['limb', 'stick'], colors: [0x7a4a2a, 0x4a6a9a], count: 8 },
+    desc: 'Wrangler unique: cowboy and horse poured as one piece. The fastest hooves in the room, and the rope never misses.',
+  },
+  brave: {
+    name: 'Painted Brave', tags: ['infantry', 'heavy'], age: 2, proc: 'lancer', faction: 'plains',
+    cost: { snacks: 55, blocks: 25 }, trainTime: 12,
+    hp: 70, atk: 8, atkType: 'melee', interval: 1.1, range: 0.85,
+    bonus: { ranged: 3, siege: 4 },
+    armor: { melee: 1, pierce: 0 }, speed: 1.7, vision: 6, aggro: 6,
+    impact: 0.5, color: 0x9a5a30,
+    debris: { shapes: ['limb', 'stick'], colors: [0x9a5a30, 0x3aa6a0], count: 6 },
+    desc: 'Plains unique: war paint and a hide shield. Strikes twice while heavier toys are still winding up.',
+  },
+  bowhunter: {
+    name: 'Bow Hunter', tags: ['infantry', 'ranged'], age: 2, proc: 'grenadier', faction: 'plains',
+    cost: { snacks: 45, buttons: 40 }, trainTime: 13,
+    hp: 50, atk: 7, atkType: 'pierce', interval: 1.5, range: 5.2,
+    bonus: { heavy: 2 },
+    armor: { melee: 0, pierce: 0 }, speed: 1.5, vision: 8, aggro: 7,
+    impact: 0.55, color: 0xa06a38,
+    projectile: { speed: 13, arc: true, color: 0xd8b060, size: 0.07 },
+    debris: { shapes: ['limb', 'stick'], colors: [0xa06a38, 0x3aa6a0], count: 6 },
+    desc: 'Plains unique: the longest bow on the floor and eyes that miss nothing. Sees further than any walking toy.',
+  },
   paladin: {
     name: 'Golden Paladin', tags: ['infantry', 'heavy'], age: 3, proc: 'golem', faction: 'knights',
     cost: { snacks: 130, marbles: 80 }, trainTime: 26,
@@ -549,6 +591,12 @@ export const MODEL_MANIFEST = {
   dragon:    { dir: 'assets/units/dragon',    model: 'model.glb', targetHeight: 1.05 },
   wargalley: { dir: 'assets/units/wargalley', model: 'model.glb', targetHeight: 0.6 },
   'worker-bots':    { dir: 'assets/units/worker-bots',    model: 'model.glb', targetHeight: 0.52 },
+  'worker-wranglers': { dir: 'assets/units/worker-wranglers', model: 'model.glb', targetHeight: 0.52 },
+  'worker-plains':    { dir: 'assets/units/worker-plains',    model: 'model.glb', targetHeight: 0.52 },
+  gunslinger: { dir: 'assets/units/gunslinger', model: 'model.glb', targetHeight: 0.52 },
+  rider:      { dir: 'assets/units/rider',      model: 'model.glb', targetHeight: 0.62 },
+  brave:      { dir: 'assets/units/brave',      model: 'model.glb', targetHeight: 0.52 },
+  bowhunter:  { dir: 'assets/units/bowhunter',  model: 'model.glb', targetHeight: 0.52 },
   scout:   { dir: 'assets/units/scout',   clips: ['idle', 'walk', 'attack', 'death'], targetHeight: 0.5 },
   soldier: { dir: 'assets/units/soldier', clips: ['idle', 'walk', 'attack', 'death'], targetHeight: 0.5 },
   // spear: the auto-rigged clips contorted the mesh (leg-over-head on move+attack);
@@ -685,6 +733,20 @@ export const BUILDINGS = {
     trains: ['knight', 'crossbow', 'charger', 'dragon'], techs: ['chivalry'],
     debris: { shapes: ['cube', 'stick'], colors: [0x8a8f98, 0xc03028] },
     desc: 'Kingdom unique: a stone spire with a nest on top and one warm red egg. Knights muster below; something above keeps them brave.',
+  },
+  logfort: {
+    name: 'Log Fort', tags: ['building'], size: 3, hp: 600, cost: { blocks: 140, snacks: 40 }, buildTime: 20,
+    armor: { melee: 2, pierce: 5 }, vision: 4, age: 2, height: 1.1, faction: 'wranglers',
+    trains: ['gunslinger', 'rider'], techs: ['roundup'],
+    debris: { shapes: ['peg', 'stick'], colors: [0xb8834a, 0x74c476] },
+    desc: 'Wrangler unique: notched logs stacked the way the box lid shows, with a lookout tower and a gate that swings. Home on the range, assembled.',
+  },
+  bigteepee: {
+    name: 'Great Teepee', tags: ['building'], size: 3, hp: 550, cost: { blocks: 120, snacks: 60 }, buildTime: 18,
+    armor: { melee: 1, pierce: 4 }, vision: 5, age: 2, height: 1.4, faction: 'plains',
+    trains: ['brave', 'bowhunter'], techs: ['windrunner'],
+    debris: { shapes: ['peg', 'stick'], colors: [0xe8d8b0, 0xc0492b] },
+    desc: 'Plains unique: painted hide over lodge poles, sun and buffalo on the canvas. The whole camp gathers here when the drums start.',
   },
   wall: {
     name: 'Block Wall', tags: ['building', 'wall'], size: 1, hp: 250, cost: { blocks: 5 }, buildTime: 4,
@@ -1098,6 +1160,8 @@ export const TECHS = {
   grouphug:   { name: 'Group Hug',        age: 3, faction: 'plush',   cost: { snacks: 220, buttons: 150 }, time: 40, desc: 'Plushies squeeze tighter: Medics heal 60% more and every toy +10% HP.' },
   nitro:      { name: 'Nitro Injection',  age: 3, faction: 'racers',  cost: { snacks: 170, buttons: 180 }, time: 38, desc: 'Redline everything: wheeled toys +20% speed and +2 attack.' },
   chivalry:   { name: 'Chivalry',         age: 3, faction: 'knights', cost: { snacks: 220, blocks: 180 }, time: 40, desc: 'The vows are renewed: all military +2 melee attack, and armored boots march 8% faster.' },
+  roundup:    { name: 'The Round-Up',     age: 3, faction: 'wranglers', cost: { snacks: 200, blocks: 160 }, time: 40, desc: 'Every rope and rifle answers the whistle: all military +1 attack, and boots march 8% faster.' },
+  windrunner: { name: 'Wind Runners',     age: 3, faction: 'plains', cost: { snacks: 200, blocks: 160 }, time: 40, desc: 'The whole camp learns to move like weather: all military +1 attack and +10% speed.' },
   overclock:  { name: 'Overclock',        age: 3, faction: 'bots',    cost: { buttons: 200, marbles: 120 }, time: 40, desc: 'Redline the servos: every toy attacks 12% faster AND +1 ranged attack.' },
 };
 
@@ -2141,6 +2205,24 @@ export const FACTIONS = {
       bio: 'The factory line stopped halfway down his left side, so one half of him is silver and crimson and the other is bare grey promise. He treats every toy the way the Kid treated him: as finished enough to matter. His castle has never fallen; his paint job, never completed. He is at peace with exactly one of those.',
     },
   },
+  wranglers: {
+    label: 'The Wranglers', icon: '🤠',
+    desc: 'Rope, ranch and reflex. Workers gather 4% faster — but notched-log buildings are 8% lighter.',
+    mods: { gather: 1.04, buildingHp: 0.92 },
+    commander: {
+      name: 'Marshal Tess', title: 'The Quick Draw', portrait: 'assets/ui/cmdr-wranglers.jpg',
+      bio: 'Her tin star came painted on, and she has spent every night since earning it anyway. Ropes stampedes, rights tipped-over toys, and has never once drawn second. Runs the ranch on two rules: nobody gets left under the couch, and nobody touches the herd.',
+    },
+  },
+  plains: {
+    label: 'The Painted Plains', icon: '🪶',
+    desc: 'Swift and sure on open ground. All toys walk 5% faster — but hide-and-pole buildings are 10% lighter.',
+    mods: { speedInfantry: 1.05, buildingHp: 0.9 },
+    commander: {
+      name: 'Chief Swift River', title: 'The Wind-Reader', portrait: 'assets/ui/cmdr-plains.jpg',
+      bio: 'Oldest paint in the toy box, and the steadiest hand. He reads the room the way his people read weather — which lamp will click off first, which floorboard tells on you, where the cat is sleeping. Fights only when the camp is threatened, and has never lost a toy he promised to bring home.',
+    },
+  },
 };
 
 // ---------------- game-over epilogues ----------------
@@ -2200,6 +2282,22 @@ export const EPILOGUES = {
       + 'them again, bare grey side catching the moonlight. Rise, Commander. Castles '
       + 'are rebuilt by the sworn.',
   },
+  wranglers: {
+    win: 'The herd is counted, the fences stand, and the rival brand is packed away in its box. '
+      + 'Marshal Tess coils her rope, tips her hat to no one in particular, and lets the '
+      + 'campfire burn one notch lower. "Told you," she says to the dark. "Nobody touches the herd."',
+    lose: 'The fences came down and the herd scattered to every corner of the room — but a '
+      + 'wrangler\'s whole job is the round-up. Tess is already whistling them back in, one by '
+      + 'one, brushing dust off each little head. "We\'ll build the fence taller," she says. "Tomorrow."',
+  },
+  plains: {
+    win: 'The drums slow to a heartbeat and the camp settles under the lamp-moon. Chief Swift '
+      + 'River walks the circle once, touching each teepee pole, counting each small painted head. '
+      + 'The plains are quiet. The herd of the room grazes free. It is enough, and he says so.',
+    lose: 'The poles are gathered, the hides are folded, and the camp moves — the way it has '
+      + 'always moved, whole and together, nothing left behind. Swift River takes the long way so '
+      + 'the little ones can watch the night-lights. A camp is not a place, he reminds them. It is us.',
+  },
 };
 
 // ---------------- AI table-talk (all UI-only, never touches the sim) ----------------
@@ -2213,6 +2311,8 @@ export const TAUNTS = {
     racers: 'Engines at the start line. The Racers are not planning an economy — they are planning your fences, at ninety miles an hour.',
     bots: 'The Tin Bots cancelled their own parade. Keys wound, columns formed — the first march is aimed straight at your Toy Chest.',
     knights: 'Sir Hector has skipped the siege manual entirely. Lances are couched and the drawbridge is already down — the charge left at dawn.',
+    wranglers: 'Marshal Tess is not waiting for high noon. The riders left at lights-out, ropes spinning — your fences are about to learn some manners.',
+    plains: 'The drums started the moment the lamp clicked off. The Painted Plains are already moving — swift, silent, and straight at your camp.',
   },
   balanced: {
     classic: 'Greenboots plays it by the field manual: scout, build, strike. Leave one door open and he will find it.',
@@ -2221,6 +2321,8 @@ export const TAUNTS = {
     racers: 'The Racers idle their engines and watch the pit board. The moment you look tired, Commander, the flag drops.',
     bots: 'The Tin Bots compute the odds, then compute them again. When the arithmetic favors them, they will arrive precisely on time.',
     knights: 'The Kingdom fights the old way: scout the field, honor the parley, then break your gate politely but completely.',
+    wranglers: 'The Wranglers are branding, fencing and drilling in equal measure. Tess runs a tidy ranch — and tidy ranches raise fast posses.',
+    plains: 'Swift River builds nothing he cannot carry and wastes nothing he takes. The camp grows quietly. Quiet camps are the ones to watch.',
   },
   boomer: {
     classic: 'Greenboots is digging in — trenches, rations, reinforcements. He means to out-supply you, not out-swing you.',
@@ -2229,6 +2331,8 @@ export const TAUNTS = {
     racers: 'The Racers are tuning, not racing — bigger engines, fatter tires. Catch them in the garage, or race whatever rolls out.',
     bots: 'The Tin Bots are building a factory that builds factories. Interrupt the assembly line, Commander, or be assembled into their plans.',
     knights: 'Sir Hector is quarrying. Wall upon wall, tower upon tower — and somewhere behind the battlements, an egg is getting warm.',
+    wranglers: 'Tess is fattening the herd before she picks the fight — every pen full, every rope oiled. When that ranch finally rides, it rides deep.',
+    plains: 'The Plains are letting the land do the work — hunters everywhere, stores filling, patience like winter. When the war cry comes, it will be late and loud.',
   },
 };
 
@@ -2241,6 +2345,8 @@ export const AI_LINES = {
     racers: 'Engines scream across the mat — a Racer raid is inbound. Get the workers off the road!',
     bots: 'Tick-tick-tick — a raiding column has left the enemy line, marching straight for your gatherers.',
     knights: 'Hoofbeats on the playmat — the Kingdom has sent chargers for your workers. Sound the bell!',
+    wranglers: 'Hoofbeats and rope-whistle — Wrangler riders are cutting toward your workers. Circle up!',
+    plains: 'Soft moccasins on the mat — Plains hunters are slipping toward your gatherers. Eyes open, Commander.',
   },
   ageup: {
     classic: 'Bugles from the rival camp — Greenboots just found a bigger boot to drop.',
@@ -2249,6 +2355,8 @@ export const AI_LINES = {
     racers: 'New engines on the wind — the Racers just rolled something faster out of the garage.',
     bots: 'A chorus of fresh keys winding — the Tin Bots have upgraded the assembly line.',
     knights: 'Trumpets over the battlements — Sir Hector has declared a new age of the Kingdom.',
+    wranglers: 'A new brand glows in the rival camp — Tess just promoted the whole ranch.',
+    plains: 'New paint on the lodge poles — Swift River\'s camp has grown older and wiser tonight.',
   },
   wonder: {
     classic: 'Greenboots is building his legend, Commander — tear it down before it earns a statue.',
@@ -2257,6 +2365,8 @@ export const AI_LINES = {
     racers: 'The Racers are raising a trophy for a race you have not lost yet. Object, loudly.',
     bots: 'The Tin Bots are assembling something beautiful and terrible. The countdown is not a metaphor.',
     knights: 'The Kingdom is raising a cathedral of blocks and banners. Kneel, or knock it down — those are the options.',
+    wranglers: 'Tess is building something taller than any windmill — a Wonder rises over the ranch!',
+    plains: 'The Plains raise a great painted lodge to the lamp-moon — a Wonder stands on the grass!',
   },
   king: {
     classic: 'They\'ve found your King! Greenboots plays for keeps — get him behind walls!',
@@ -2265,6 +2375,8 @@ export const AI_LINES = {
     racers: 'Racers on your King! They will circle him like a finish line — move him NOW!',
     bots: 'Enemy columns converging on your King. The arithmetic of regicide has begun — break their line!',
     knights: 'The Kingdom rides for your King — they know exactly what a crown is worth. Shields around him, NOW!',
+    wranglers: 'Tess spun her rope once and pointed — the Wranglers ride for your King!',
+    plains: 'The drums have changed rhythm — the Painted Plains are hunting your King!',
   },
 };
 

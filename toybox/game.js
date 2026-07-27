@@ -1812,6 +1812,8 @@ export class Game {
       case 'nitro': m.speedWheels *= 1.2; m.atkVehicle += 2; break;
       case 'overclock': m.atkSpeed *= 0.88; m.atkPierce += 1; break;
       case 'chivalry': m.atkMelee += 2; m.speedInfantry *= 1.08; break;
+      case 'roundup': m.atkMelee += 1; m.atkPierce += 1; m.speedInfantry *= 1.08; break;
+      case 'windrunner': m.atkMelee += 1; m.atkPierce += 1; m.speedInfantry *= 1.1; break;
       case 'interlock':
         m.buildingHp *= 1.3; // future builds
         for (const e of this.entities) {
@@ -4038,7 +4040,7 @@ export class Game {
             // civ signature techs first — the loop below only researches the one
             // this AI's own faction building offers, so listing all is safe, and
             // fronting them makes each AI civ actually express its identity
-            'liveammo', 'interlock', 'grouphug', 'nitro', 'overclock', 'chivalry',
+            'liveammo', 'interlock', 'grouphug', 'nitro', 'overclock', 'chivalry', 'roundup', 'windrunner',
             // core army line upgrades: steel (Age 2) then champion (Age 3)
             'steel_soldier', 'steel_archer', 'steel_spear',
             'elite_soldier', 'elite_archer', 'elite_spear',
