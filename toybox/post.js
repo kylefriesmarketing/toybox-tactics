@@ -80,6 +80,8 @@ const COMPOSITE_FRAG = `
   uniform float vignette;
   uniform float saturation;
   uniform float aspect;
+  uniform vec3 tint;        // per-map colour identity (multiply, 1,1,1 = neutral)
+  uniform float lift;       // tiny exposure trim per map
   varying vec2 vUv;
 
   void main() {
@@ -97,6 +99,10 @@ const COMPOSITE_FRAG = `
     // storybook grade: a touch more colour, nothing clever
     float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
     c = mix(vec3(l), c, saturation);
+
+    // per-map identity: every room gets its own light. Applied BEFORE the tone
+    // map so it behaves like a lamp colour rather than a filter slapped on top.
+    c *= tint * lift;
 
     // vignette (aspect-corrected so it stays circular, not squashed)
     vec2 q = (vUv - 0.5) * vec2(aspect, 1.0);
@@ -129,6 +135,26 @@ export const POST_PRESET = {
   vignette: 0.26,
   saturation: 1.10,
   blurRadius: 1.7,  // texel steps for the defocus blur
+};
+
+// Per-map colour identity. Every map already has its own ground art and props,
+// but from RTS height they all read as "green and tan" — these give each room
+// its own light so you know where you are at a glance. Kept SUBTLE on purpose
+// (a few percent): this is a lamp changing, not a photo filter. `lift` trims
+// exposure so darker rooms don't just get muddier.
+export const MAP_GRADES = {
+  playmat:    { tint: [1.00, 1.00, 1.00], lift: 1.00 }, // the neutral flagship
+  canyon:     { tint: [0.99, 0.99, 1.04], lift: 0.98 }, // pillow shade, slightly cool
+  sandbox:    { tint: [1.07, 1.01, 0.90], lift: 1.03 }, // sun-warmed sand
+  garden:     { tint: [0.97, 1.05, 0.95], lift: 1.01 }, // green and growing
+  oldoak:     { tint: [1.08, 0.99, 0.88], lift: 0.99 }, // amber dusk under the tree
+  playground: { tint: [1.02, 1.02, 0.98], lift: 1.04 }, // bright open daylight
+  kitchen:    { tint: [1.06, 1.01, 0.92], lift: 1.02 }, // tungsten over the counter
+  livingroom: { tint: [1.07, 1.00, 0.93], lift: 1.00 }, // cosy lamp and tree lights
+  bookshelf:  { tint: [1.05, 1.01, 0.94], lift: 1.00 }, // warm paper and varnish
+  underbed:   { tint: [0.92, 0.95, 1.10], lift: 0.94 }, // cold, blue, further from the lamp
+  attic:      { tint: [1.06, 1.00, 0.90], lift: 0.96 }, // dust and old sepia light
+  bathtub:    { tint: [0.94, 1.02, 1.07], lift: 1.02 }, // porcelain and cool water
 };
 
 export class Post {
@@ -172,6 +198,8 @@ export class Post {
       vignette: { value: this.p.vignette },
       saturation: { value: this.p.saturation },
       aspect: { value: 1 },
+      tint: { value: new THREE.Vector3(1, 1, 1) },
+      lift: { value: 1 },
     }, true); // ← tone mapping + sRGB happen here
 
     this.quad = new THREE.Mesh(geo, this.brightMat);
@@ -181,6 +209,13 @@ export class Post {
 
     this.targets = null;
     this.setSize();
+  }
+
+  // give the room its own light (call once per match, from startGame)
+  setMapGrade(mapKey) {
+    const gr = MAP_GRADES[mapKey] || MAP_GRADES.playmat;
+    this.compMat.uniforms.tint.value.set(gr.tint[0], gr.tint[1], gr.tint[2]);
+    this.compMat.uniforms.lift.value = gr.lift;
   }
 
   makeRT(w, h, samples = 0) {

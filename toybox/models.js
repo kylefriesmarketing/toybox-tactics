@@ -1231,6 +1231,19 @@ export function createUnitView(registry, key, def, owner, faction = null) {
     view = makeBoxView(def, owner);
   }
   addCommonRings(view, def, owner, def.tags.includes('siege') ? 0.42 : 0.32);
+  // ---- silhouette by role ----
+  // At RTS zoom you read an army by OUTLINE, not detail, and right now a titan
+  // stands about as tall as a scout. Nudge the heavies up and the scouts down a
+  // touch so a glance tells you what you're looking at. Applied to view.model
+  // (not the group) because the hit-flinch owns group.scale — and because
+  // applyUnitTier captures model.scale as its _baseScale, so a later veteran
+  // promotion multiplies on top of this instead of erasing it.
+  const tags = def.tags || [];
+  const vs = tags.includes('mega') ? 1.16
+    : tags.includes('siege') ? 1.07
+      : def.aggro === 0 ? 0.95        // workers read smaller than fighters
+        : 1;
+  if (vs !== 1 && view.model) view.model.scale.multiplyScalar(vs);
   return view;
 }
 

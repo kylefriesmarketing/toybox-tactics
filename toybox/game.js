@@ -2690,6 +2690,10 @@ export class Game {
     target.view.markDamaged();
     target.view.hpBar.set(target.hp / target.maxHp);
     target.hitT = 0.14; // struck toys flinch (applied in the view frame)
+    // ...and recoil AWAY from the blow. Deterministic (both derived from
+    // positions, so every client agrees), but read only by the render path.
+    target.hitDir = Math.atan2(target.x - attacker.x, target.z - attacker.z);
+    target.hitKick = spec.atkType === 'siege' ? 0.16 : spec.projectile ? 0.06 : 0.10;
     const seen = !this.fog || this.fog.state(target.x, target.z) === 2;
     if (this.fx && seen) {
       const c = spec.atkType === 'siege' ? 0xff8f5a : spec.atkType === 'pierce' ? 0xffd166 : 0xfff0c8;
@@ -3499,6 +3503,11 @@ export class Game {
       u.hitT -= dt;
       const k = Math.sin(Math.max(0, 1 - u.hitT / 0.14) * Math.PI); // 0→1→0
       u.view.group.scale.set(1 + k * 0.16, 1 - k * 0.12, 1 + k * 0.16);
+      // shove the model away from the strike so a hit LANDS instead of just
+      // squashing in place — snaps out, eases back, purely visual
+      const kick = k * (u.hitKick || 0.1);
+      u.view.group.position.x += Math.sin(u.hitDir || 0) * kick;
+      u.view.group.position.z += Math.cos(u.hitDir || 0) * kick;
     } else if (u.view.group.scale.x !== 1) {
       u.view.group.scale.set(1, 1, 1);
     }

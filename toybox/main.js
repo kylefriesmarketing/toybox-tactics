@@ -2151,6 +2151,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   }
   game.zeroEra = zeroEra; // the Chronicle checks this for 'The Page Under the Pages'
   game.setup();
+  post.setMapGrade(map); // every room gets its own light
   setupWeather(); // wind, seeds, rain, fireflies — whatever this map's sky does
   setupTracks(); // footprints, trampled paths, and the scars of razed forts
   setupNight();  // the night deepens as the match grows old
