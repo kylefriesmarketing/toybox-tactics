@@ -48,6 +48,16 @@ scene.add(lamp);
 const moon = new THREE.DirectionalLight(0x7fa0ff, 0.35);
 moon.position.set(35, 25, 30);
 scene.add(moon);
+// rim light: a dim cool light from behind-camera-left that catches the top edge
+// of every toy. Toys are small and the ground is bright, so without it their
+// silhouettes dissolve into the mat at normal RTS zoom — this re-separates them
+// without flattening the lamp's warm key. No shadows (pure separation).
+// ⚠️ keep this LOW (0.22). A third directional light acts as broad fill: at 0.5
+// it flattened the whole board — the grass went pale and the chest's cast shadow
+// nearly vanished (caught in a capture). It should catch toy edges, not relight.
+const rim = new THREE.DirectionalLight(0xbfd8ff, 0.22);
+rim.position.set(18, 16, -34);
+scene.add(rim);
 const lampProp = createLamp(N);
 scene.add(lampProp.group);
 

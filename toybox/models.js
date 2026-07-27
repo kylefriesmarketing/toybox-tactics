@@ -449,7 +449,55 @@ function setOpacity(root, o) {
 // Both expose: group, setMoving, startAttack->impactDelay, startDeath->duration,
 // setSelected, update(dt), hpBar.
 
+// ---------------- contact shadows ----------------
+// Real shadow-mapping is on, but the lamp's shadow camera spans ~96 world units
+// across 2048px — about 21px per unit — so a toy soldier's footprint is a few
+// texels and the depth bias swallows it entirely. Verified in a capture: the
+// Toy Chest cast a shadow, the army men cast NOTHING and read as floating.
+// Rather than retune the shadow map (which risks acne everywhere), every toy
+// gets a soft ambient-occlusion disc pinned under it. It grounds the figure no
+// matter where the light is, which is also what stylised toy renders actually do.
+// One shared texture for the whole game; the mesh is a single extra draw.
+let _contactTex = null;
+function contactShadowTexture() {
+  if (_contactTex) return _contactTex;
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(32, 32, 1, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(0,0,0,0.62)');    // dense right under the toy
+  grad.addColorStop(0.45, 'rgba(0,0,0,0.30)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');       // and gone by the rim
+  g.fillStyle = grad; g.beginPath(); g.arc(32, 32, 32, 0, 7); g.fill();
+  _contactTex = new THREE.CanvasTexture(c);
+  return _contactTex;
+}
+export function makeContactShadow(radius, strength = 1) {
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1),
+    new THREE.MeshBasicMaterial({
+      // the map is BLACK with an alpha falloff, so material.color multiplies to
+      // black no matter what — tinting it does nothing. Drive it with opacity.
+      map: contactShadowTexture(), transparent: true, opacity: 0.62 * strength,
+      depthWrite: false, depthTest: true,
+      // ⚠️ THIS is what makes it show up. Nudging the disc up in world space
+      // does NOT work reliably: the mat sits at a height that varies with
+      // terrain, so a fixed y (0.014, 0.019 — both tried and captured) lands
+      // under the ground and the disc silently depth-fails. polygonOffset
+      // biases it toward the camera in depth space only, the standard decal
+      // fix, so it hugs whatever surface is actually beneath it.
+      polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6,
+    })
+  );
+  m.rotation.x = -Math.PI / 2;
+  m.position.y = 0.02;
+  m.renderOrder = 300;
+  m.scale.setScalar(radius);
+  return m;
+}
+
 function addCommonRings(view, def, owner, radius) {
+  // the grounding disc goes on first so the rings paint over it
+  view.group.add(makeContactShadow(radius * 2.5));
   const team = flatRing(radius * 0.8, radius, TEAM_COLORS[owner], 0.85);
   const sel = flatRing(radius * 1.15, radius * 1.35, 0xffffff, 0.95);
   sel.visible = false;
@@ -661,6 +709,17 @@ function makeModelView(entry, def, owner) {
   play('idle', 0);
   if (def.handWeapon) attachHandWeapon(model, def, owner);
 
+  // ---- animation variety ----
+  // Ten soldiers sharing one clip march in perfect lockstep, which reads as a
+  // row of clones rather than a squad. Give each toy its own start phase and a
+  // few percent of tempo drift so a column looks like individuals. View-only
+  // (Math.random is fine here; the sim never sees a mixer).
+  const gaitBias = 0.94 + Math.random() * 0.12;
+  for (const a of Object.values(actions)) {
+    const clip = a.getClip();
+    if (clip && clip.duration) a.time = Math.random() * clip.duration;
+  }
+
   let moving = false, deathT = -1, deathClipDur = 0;
   view.setMoving = (v) => {
     if (view._dead || v === moving) return;
@@ -714,7 +773,7 @@ function makeModelView(entry, def, owner) {
   view.update = (dt) => {
     // walk cycle speed follows the unit's actual velocity â€” no more ice skating
     if (moving && current === actions.walk && !view._dead) {
-      actions.walk.timeScale = 0.55 + 0.65 * view._ratio;
+      actions.walk.timeScale = (0.55 + 0.65 * view._ratio) * gaitBias;
     }
     mixer.update(dt);
     const cape = group.userData.cape;
@@ -1947,6 +2006,10 @@ export function createBuildingView(key, def, owner, rngSeed = 1, up = false, age
   const hpBar = makeHealthBar(Math.min(1.6, s * 0.5));
   hpBar.sprite.position.y = def.height + 0.4;
   group.add(hpBar.sprite);
+
+  // buildings DO cast a real shadow (they're big enough to survive the shadow
+  // map), but a soft disc under the footprint still seats them on the floor
+  group.add(makeContactShadow(s * 1.35, 0.8));
 
   const sel = flatRing(s * 0.62, s * 0.68, 0xffffff, 0.9);
   sel.visible = false;
