@@ -16,6 +16,7 @@ import { VFX } from './vfx.js';
 import { SFX } from './sfx.js';
 import { Net, TICK, INPUT_DELAY } from './net.js';
 import { Empire, setEmpireHooks, openEmpire, empireBattleContext, empireShouldAutoOpen, empireTest, empireNetTest } from './empire.js';
+import { Post } from './post.js';
 
 const N = MAP_N;
 const $ = (id) => document.getElementById(id);
@@ -78,6 +79,12 @@ scene.add(lampProp.group);
 
 // RTS camera rig with smoothing
 const camera = new THREE.PerspectiveCamera(46, innerWidth / innerHeight, 0.5, 500);
+
+// the miniature-photography pass (tilt-shift + bloom + vignette). Every frame
+// goes through renderFrame() so the effect can be toggled in one place; with it
+// off this is byte-for-byte the old renderer.render call.
+const post = new Post(renderer, scene, camera);
+function renderFrame() { post.render(); }
 const cam = { x: 0, z: 0, dist: 24, tx: 0, tz: 0, tdist: 24, shake: 0, punch: 0 };
 const shakeCam = (amt) => { cam.shake = Math.min(0.9, cam.shake + amt); };
 // a brief zoom-IN kick that eases back out — the weight behind a decisive blow
@@ -129,6 +136,7 @@ function fitViewport() {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
+  post.setSize();
 }
 addEventListener('resize', fitViewport);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) fitViewport(); });
@@ -357,7 +365,7 @@ $('tt-close').addEventListener('click', () => toggleTechTree(false));
 
 // ---------------- settings (persisted) ----------------
 const settings = Object.assign(
-  { vol: 50, music: true, sfx: true, edge: true, colorblind: false, textsize: 100 },
+  { vol: 50, music: true, sfx: true, edge: true, colorblind: false, textsize: 100, post: true },
   JSON.parse(localStorage.getItem('tt-settings') || '{}')
 );
 function saveSettings() { localStorage.setItem('tt-settings', JSON.stringify(settings)); }
@@ -372,6 +380,10 @@ function applySettings() {
   setTog('gm-sfx', settings.sfx);
   setTog('gm-edge', settings.edge);
   setTog('gm-cb', settings.colorblind);
+  // the miniature look needs WebGL2 (MSAA render targets); if it isn't there the
+  // toggle reports Off and stays put rather than pretending
+  post.enabled = settings.post && post.available;
+  setTog('gm-post', post.enabled);
   // text scaling: zoom the self-contained text panels (see the CSS note)
   document.documentElement.style.setProperty('--ui-text', settings.textsize / 100);
   const ts = $('gm-textsize'); if (ts) ts.value = settings.textsize;
@@ -404,6 +416,10 @@ $('gm-vol').addEventListener('input', (e) => {
 $('gm-music').addEventListener('click', () => { settings.music = !settings.music; sfx.setMusicEnabled(settings.music); applySettings(); saveSettings(); });
 $('gm-sfx').addEventListener('click', () => { settings.sfx = !settings.sfx; sfx.setSfxEnabled(settings.sfx); applySettings(); saveSettings(); });
 $('gm-edge').addEventListener('click', () => { settings.edge = !settings.edge; applySettings(); saveSettings(); });
+$('gm-post').addEventListener('click', () => {
+  settings.post = !settings.post; applySettings(); saveSettings();
+  if (settings.post && !post.available) ui && ui.alert && ui.alert('The miniature look needs WebGL2, which this browser did not offer.', 'warn', null, 4);
+});
 $('gm-cb').addEventListener('click', () => {
   settings.colorblind = !settings.colorblind; applySettings(); saveSettings();
   // materials bake their colour when the scene is built, so a live match keeps
@@ -1699,7 +1715,7 @@ function mpPlayerName() {
 }
 window.__ttShot = (w = 960) => {
   // render fresh (no preserveDrawingBuffer), then downscale for transport
-  renderer.render(scene, camera);
+  renderFrame();
   const src = renderer.domElement;
   const c = document.createElement('canvas');
   const h = Math.round(w * src.height / Math.max(1, src.width));
@@ -1844,6 +1860,10 @@ window.__ttNetTest = (opts = {}) => {
   return { humans: nH, ai: nA, ticks: stepped, err, inSync: hashes.every((h) => h === hashes[0]), hashes: hashes.slice(0, 4) };
 };
 window.__ttGL = () => ({ renderer, scene, camera }); // perf probes
+// the miniature-look pass: __ttPost().p holds the live art-direction knobs, so
+// the tilt-shift band / bloom / grade can be tuned without a reload
+window.__ttPost = () => post;
+window.__ttRender = () => renderFrame();
 window.__ttAmbient = () => ambient; // ambience debug handle
 window.__ttSfx = () => sfx; // audio debug handle (ambKind checks)
 window.__ttWeather = () => weather; // weather/flyover debug handle
@@ -3746,7 +3766,7 @@ function updateAmbient(dt) {
 
 function loop() {
   requestAnimationFrame(loop);
-  if (!game) { renderer.render(scene, camera); return; }
+  if (!game) { renderFrame(); return; }
   const dt = Math.min(0.05, clock.getDelta());
 
   updateCamMoment(dt); // scripted camera peeks (any manual input cancels)
@@ -3797,7 +3817,7 @@ function loop() {
     lampProp.light.intensity = 220 * flick;
     lampProp.bulb.material.emissiveIntensity = 2.2 * flick;
   }
-  renderer.render(scene, camera);
+  renderFrame();
 }
 requestAnimationFrame(loop);
 
@@ -3829,7 +3849,7 @@ setInterval(() => {
     updateObjectives(elapsed);
     updateCamMoment(elapsed);
     applyCamera(elapsed);
-    renderer.render(scene, camera);
+    renderFrame();
   } catch (err) {
     console.error('[toybox] hidden tick error', err);
   }
