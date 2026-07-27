@@ -4629,13 +4629,18 @@ export class Game {
   narrate(key) {
     const flag = '_told_' + key;
     // second night (NG+): the narrator retells the beat from memory
-    const line = (this.ngPlus && NARRATOR_NG[key]) || NARRATOR[key];
+    const ngLine = this.ngPlus ? NARRATOR_NG[key] : null;
+    const line = ngLine || NARRATOR[key];
     if (this[flag] || !line) return;
     this[flag] = true;
     this.alert(line, 'story', null, 6);
     // the storyteller reads the beat aloud (respects the SFX mute; UI-only).
     // Only the recorded beats have a file — the rest are read on the page.
-    if (this.sfx && !this.sfx.muted && NARRATOR_VO.has(key)) {
+    // ⚠️ the recordings are of the FIRST-night lines. When a second-night
+    // variant is showing, its .wav doesn't exist, and playing the first-night
+    // one would narrate a different sentence than the one on screen — so that
+    // beat stays text-only until NARRATOR_NG is recorded too.
+    if (this.sfx && !this.sfx.muted && !ngLine && NARRATOR_VO.has(key)) {
       try {
         const vo = new Audio('assets/audio/vo/' + key + '.wav');
         vo.volume = Math.min(1, (this.sfx.volume || 0.5) * 1.4);

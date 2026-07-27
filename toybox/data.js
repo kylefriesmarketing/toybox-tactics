@@ -2312,12 +2312,17 @@ export const NARRATOR_NG = {
   wallbreach: 'The wall came down in the middle again. It had been pretending, again, and the room had let it, again.',
 };
 
-// Which beats have a recorded reading. VO is billed per SECOND, so most beats
-// ship as text only — gating here keeps narrate() from chasing a 404 every time
-// an unvoiced beat fires (the `foothold` beat had been doing exactly that).
+// Which beats have a recorded reading. The gate keeps narrate() from chasing a
+// 404 when a beat has no .wav — add a key here only once its file exists.
+// 2026-07-27: the whole first-night narration was re-recorded in ONE voice
+// (Alistair) so the storyteller is consistent, and every beat is now voiced.
+// ⚠️ NARRATOR_NG (second-night) lines are still unrecorded — narrate() falls
+// back to this same set for them, so an NG beat plays the first-night audio
+// under second-night text. Record those before adding NG keys anywhere.
 export const NARRATOR_VO = new Set([
   'firstblood', 'age2', 'age3', 'mega', 'clock10',
   'comeback', 'boom', 'firstfleet', 'armylost', 'wonderrace',
+  'foothold', 'tribewon', 'tribelost', 'strayhome', 'catswat', 'wallbreach',
 ]);
 
 // ---------------- opening cutscene ----------------
