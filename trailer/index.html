@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Age of Toys — Gameplay Trailer</title>
+<meta property="og:title" content="Age of Toys — The War After Bedtime">
+<meta property="og:description" content="47 seconds of real gameplay from the storybook RTS. Every night, the toys of one small room remember that they are an army.">
+<meta property="og:image" content="https://kylefriesmarketing.github.io/toybox-tactics/trailer/title-card.jpg">
+<meta property="og:type" content="video.other">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #14102a; color: #f2e8d0; min-height: 100vh;
+    font-family: Georgia, 'Times New Roman', serif;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 28px 14px 60px;
+  }
+  h1 { font-size: clamp(26px, 5vw, 44px); letter-spacing: 2px; color: #e8ca77;
+       text-shadow: 0 0 30px #e8ca7744; margin-bottom: 4px; text-align: center; }
+  .sub { color: #b8a8d8; font-style: italic; margin-bottom: 24px; text-align: center; }
+  #stage {
+    position: relative; width: min(960px, 96vw); aspect-ratio: 16/9;
+    border-radius: 10px; overflow: hidden; background: #000;
+    box-shadow: 0 12px 60px #000000aa, 0 0 0 6px #3a2c18, 0 0 0 8px #6a5230;
+  }
+  #cv, #poster, #endcard { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #cv { image-rendering: auto; }
+  #poster, #endcard { object-fit: cover; }
+  #endcard { display: none; }
+  #shade { position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px;
+    background: linear-gradient(#00000022, #00000066); cursor: pointer; }
+  #play {
+    width: 92px; height: 92px; border-radius: 50%; border: 3px solid #f2e8d0;
+    background: #c0392bdd; color: #fff; font-size: 40px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; padding-left: 8px;
+    transition: transform .15s; font-family: inherit;
+  }
+  #shade:hover #play { transform: scale(1.08); }
+  #hint { color: #f2e8d0; text-shadow: 0 1px 6px #000; font-size: 15px; }
+  #bar { position: absolute; left: 0; bottom: 0; height: 5px; width: 0%;
+    background: #e8ca77; transition: width .2s linear; }
+  .row { display: flex; gap: 14px; margin-top: 26px; flex-wrap: wrap; justify-content: center; }
+  .btn {
+    display: inline-block; padding: 13px 26px; border-radius: 10px;
+    font-size: 17px; text-decoration: none; font-family: inherit;
+    border: 2px solid #6a5230; color: #f2e8d0; background: #241c3e;
+  }
+  .btn.primary { background: #c0392b; border-color: #e8ca77; color: #fff; font-weight: bold; }
+  .btn:hover { filter: brightness(1.15); }
+  .fine { margin-top: 30px; color: #8a7ab0; font-size: 13px; text-align: center; max-width: 640px; line-height: 1.6; }
+  .fine a { color: #b8a8d8; }
+</style>
+</head>
+<body>
+  <h1>AGE OF TOYS</h1>
+  <div class="sub">The war after bedtime — 47 seconds of real gameplay</div>
+
+  <div id="stage">
+    <canvas id="cv" width="640" height="360"></canvas>
+    <img id="poster" src="title-card.jpg" alt="Age of Toys">
+    <img id="endcard" src="end-card.jpg" alt="">
+    <div id="shade"><button id="play">▶</button><div id="hint">winding up…</div></div>
+    <div id="bar"></div>
+  </div>
+
+  <div class="row">
+    <a class="btn primary" href="https://kylefriesmarketing.github.io/toybox-tactics/">▶ Play Age of Toys — free in your browser</a>
+    <a class="btn" href="https://github.com/kylefriesmarketing/toybox-tactics/releases/tag/trailer-v1">Download the trailer</a>
+  </div>
+
+  <div class="fine">
+    Every frame is captured from the live game — nothing staged, nothing generated.
+    Narrated by the game's own storyteller. Eight toy factions, 28 campaign missions,
+    online multiplayer for four friends, and one very opinionated house cat.
+  </div>
+
+<script>
+(async function () {
+  const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  const poster = document.getElementById('poster'), endcard = document.getElementById('endcard');
+  const shade = document.getElementById('shade'), hint = document.getElementById('hint'), bar = document.getElementById('bar');
+
+  const idx = await fetch('index.json').then(r => r.json());
+  const shards = new Array(idx.shards.length).fill(null);
+  const bitmaps = new Map();               // decoded-frame cache (small LRU)
+
+  // stream shards in order; playback can begin once shard0 is here
+  const loadShard = (s) => shards[s] || (shards[s] = fetch(idx.shards[s].file)
+    .then(r => r.arrayBuffer()));
+  const shardOf = (f) => Math.floor(f / idx.shards[0].frames);
+  const audioBufP = fetch('audio.wav').then(r => r.arrayBuffer());
+  loadShard(0).then(() => { hint.textContent = 'watch the trailer'; });
+  for (let s = 1; s < idx.shards.length; s++) setTimeout(() => loadShard(s), s * 900);
+
+  async function frameBitmap(f) {
+    if (bitmaps.has(f)) return bitmaps.get(f);
+    const s = shardOf(f);
+    const buf = await loadShard(s);
+    const local = f - s * idx.shards[0].frames;
+    const [off, len] = idx.shards[s].offsets[local];
+    const bmp = await createImageBitmap(new Blob([new Uint8Array(buf, off, len)], { type: 'image/jpeg' }));
+    bitmaps.set(f, bmp);
+    if (bitmaps.size > 40) { const k = bitmaps.keys().next().value; bitmaps.get(k).close(); bitmaps.delete(k); }
+    return bmp;
+  }
+
+  // WebAudio is the clock: no media-element autoplay quirks, sample-accurate,
+  // and ended-detection comes free from the source node
+  let ac = null, decoded = null, playing = false, drawn = -1, t0 = 0;
+  async function ensureAudio() {
+    if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+    if (ac.state === 'suspended') await ac.resume();
+    if (!decoded) decoded = await ac.decodeAudioData((await audioBufP).slice(0));
+  }
+
+  async function tick() {
+    if (!playing) return;
+    const f = Math.min(idx.count - 1, Math.floor((ac.currentTime - t0) * idx.fps));
+    if (f !== drawn) {
+      drawn = f;
+      try { ctx.drawImage(await frameBitmap(f), 0, 0, cv.width, cv.height); } catch (e) { /* shard still loading */ }
+      bar.style.width = (100 * f / idx.count) + '%';
+      frameBitmap(Math.min(idx.count - 1, f + 3)).catch(() => {}); // decode-ahead
+    }
+    requestAnimationFrame(tick);
+  }
+
+  shade.addEventListener('click', async () => {
+    hint.textContent = 'winding up…';
+    await Promise.all([loadShard(0), ensureAudio()]);
+    poster.style.display = 'none'; endcard.style.display = 'none';
+    shade.style.display = 'none';
+    const src = ac.createBufferSource();
+    src.buffer = decoded;
+    src.connect(ac.destination);
+    src.onended = () => {
+      playing = false;
+      endcard.style.display = 'block';
+      hint.textContent = 'watch again';
+      shade.style.display = 'flex';
+      bar.style.width = '100%';
+    };
+    drawn = -1; playing = true;
+    t0 = ac.currentTime;
+    src.start();
+    tick();
+  });
+})();
+</script>
+</body>
+</html>
