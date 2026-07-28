@@ -4717,6 +4717,57 @@ export function createRallyFlag() {
 }
 
 // right-click destination marker
+// ---------------- ammunition ----------------
+// Every shot in the game used to be the same glowing sphere — an arrow, a
+// bullet and a catapult stone were visually identical. Real ammo reads at a
+// glance and tells you what is being thrown at you, so each kind gets a shape
+// built along +Z (the toybox's forward axis); the sim orients it down the
+// flight path each frame. Group so the additive glow can ride along.
+export function makeProjectileMesh(kind, color, size, glowColor) {
+  const g = new THREE.Group();
+  const flat = (c) => new THREE.MeshBasicMaterial({ color: c });
+  const s = size || 0.09;
+  if (kind === 'arrow') {
+    // shaft + steel head + two fletches — reads as an arrow even at RTS zoom
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(s * 0.22, s * 0.22, s * 7, 5), flat(0x9a7a4a));
+    shaft.rotation.x = Math.PI / 2; g.add(shaft);
+    const head = new THREE.Mesh(new THREE.ConeGeometry(s * 0.5, s * 1.6, 6), flat(0xc8ccd6));
+    head.rotation.x = Math.PI / 2; head.position.z = s * 4.2; g.add(head);
+    for (const r of [0, Math.PI / 2]) {
+      const fl = new THREE.Mesh(new THREE.BoxGeometry(s * 1.5, s * 0.08, s * 1.2), flat(color));
+      fl.position.z = -s * 2.9; fl.rotation.z = r; g.add(fl);
+    }
+  } else if (kind === 'bolt') {
+    // crossbow bolt: shorter, thicker, brutal
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(s * 0.3, s * 0.3, s * 4.5, 5), flat(0x6a5a3a));
+    shaft.rotation.x = Math.PI / 2; g.add(shaft);
+    const head = new THREE.Mesh(new THREE.ConeGeometry(s * 0.62, s * 1.4, 6), flat(0xb8bec8));
+    head.rotation.x = Math.PI / 2; head.position.z = s * 2.9; g.add(head);
+  } else if (kind === 'bullet') {
+    // tracer round: a stretched capsule so speed reads as a streak
+    const b = new THREE.Mesh(new THREE.CapsuleGeometry(s * 0.55, s * 2.2, 3, 6), flat(color));
+    b.rotation.x = Math.PI / 2; g.add(b);
+  } else if (kind === 'stone') {
+    // siege shot: a chunky irregular rock that tumbles
+    const r = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 0), flat(color));
+    r.scale.set(1, 0.86, 1.12); g.add(r);
+  } else if (kind === 'band') {
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(s * 1.8, s * 0.34, s * 0.55), flat(color)));
+  } else {
+    g.add(new THREE.Mesh(new THREE.SphereGeometry(s, 8, 6), flat(color)));
+  }
+  // additive halo (kept spherical — it is a glow, not a shape)
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(s * 2.2, 8, 6),
+    new THREE.MeshBasicMaterial({
+      color: glowColor || color, transparent: true, opacity: 0.4,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    })
+  );
+  g.add(glow);
+  return g;
+}
+
 export function createMoveMarker() {
   const m = flatRing(0.25, 0.34, 0x66ff88, 0.9);
   m.visible = false;

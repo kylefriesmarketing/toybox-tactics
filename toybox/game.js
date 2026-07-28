@@ -17,6 +17,7 @@ import {
   makeRankBadge, createCritterView, createMilkSpill, createKingCrown, createThroneView,
   createWaterSurface, createWaterDecor, applyUnitTier, shadeGroundByHeight,
   createLostToyView, createCampView, createCatView, createDogView, createRoombaView,
+  makeProjectileMesh,
 } from './models.js';
 
 const N = MAP_N;
@@ -2851,27 +2852,21 @@ export class Game {
 
   spawnProjectile(attacker, target, spec) {
     const p = spec.projectile;
-    let mesh;
-    if (p.band) {
-      mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(0.16, 0.03, 0.05),
-        new THREE.MeshBasicMaterial({ color: p.color })
-      );
-    } else {
-      mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(p.size || 0.09, 8, 6),
-        new THREE.MeshBasicMaterial({ color: p.color })
-      );
-    }
+    // pick the ammo's shape from what the weapon actually is. An explicit
+    // `shape` on the def always wins; otherwise infer: splash = a lobbed rock,
+    // an arcing pierce shot = an arrow, a flat pierce shot = a bolt, and
+    // anything else is a tracer round.
+    // splash + a flat path is a ROCKET (streaks nose-first); splash + an arc is
+    // a lobbed rock (tumbles). Getting that backwards made the bazooka fire
+    // boulders, which is funny but wrong.
+    const kind = p.shape || (p.band ? 'band'
+      : p.splash ? (p.arc ? 'stone' : 'bullet')
+        : spec.atkType === 'pierce' ? (p.arc ? 'arrow' : 'bolt')
+          : p.arc ? 'stone' : 'bullet');
+    const mesh = makeProjectileMesh(kind, p.color, p.size || 0.09, p.trail);
     const y0 = (attacker.kind === 'building' ? attacker.def.height * 0.8 : 0.45)
       + this.heightAtWorld(attacker.x, attacker.z);
     mesh.position.set(attacker.x, y0, attacker.z);
-    // additive glow halo so shots read as bright tracers streaking across the mat
-    const glow = new THREE.Mesh(
-      new THREE.SphereGeometry((p.size || 0.09) * 2.2, 8, 6),
-      new THREE.MeshBasicMaterial({ color: p.trail || p.color, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false })
-    );
-    mesh.add(glow);
     this.scene.add(mesh);
     const ang = Math.atan2(target.x - attacker.x, target.z - attacker.z);
     if (this.fx && this.fog.state(attacker.x, attacker.z) === 2) {
@@ -2886,6 +2881,8 @@ export class Game {
       t: 0, dur: Math.max(0.12, d / p.speed),
       arc: p.arc ? Math.min(1.6, d * 0.18) : 0,
       spin: !!p.spin, trail: p.trail || null,
+      // shafted ammo tracks its flight path; rocks and blobs do not
+      oriented: kind === 'arrow' || kind === 'bolt' || kind === 'bullet' || kind === 'band',
     });
   }
 
@@ -2903,7 +2900,20 @@ export class Game {
         pr.from.y + (pr.toY - pr.from.y) * f + pr.arc * 4 * f * (1 - f),
         pr.from.z + (pr.to.z - pr.from.z) * f
       );
-      if (pr.spin) pr.mesh.rotation.x += dt * 9;
+      // point the ammo down its own flight path. Shafts are built along +Z, so
+      // yaw from the ground vector and pitch from the analytic slope of the arc
+      // (d/df of the height term) — an arrow noses over as it falls, which is
+      // most of what sells a volley. Tumbling rocks skip this and just spin.
+      if (pr.spin) {
+        pr.mesh.rotation.x += dt * 9;
+        pr.mesh.rotation.z += dt * 5;
+      } else if (pr.oriented) {
+        const dx = pr.to.x - pr.from.x, dz = pr.to.z - pr.from.z;
+        const horiz = Math.hypot(dx, dz) || 1e-6;
+        const dy = (pr.toY - pr.from.y) + pr.arc * 4 * (1 - 2 * f);
+        pr.mesh.rotation.set(0, Math.atan2(dx, dz), 0);
+        pr.mesh.rotateX(Math.atan2(dy, horiz));
+      }
       if (pr.trail && this.fx) { // every frame → a continuous streak
         this.fx.trail(pr.mesh.position.x, pr.mesh.position.y, pr.mesh.position.z, pr.trail);
       }
