@@ -44,6 +44,8 @@ export const LORE = {
     rider: 'Cowboy and horse, poured as one piece — the Wranglers\' answer to the Kingdom\'s charger, except the rope arrives before the horse does. The lasso has never technically missed; the Rider defines "technically" generously.',
     brave: 'The Painted Brave carries a shield of painted hide and a club of honest wood, and moves like the drum is inside his chest. The paint is not decoration. It is the camp\'s whole story, worn where enemies can read it.',
     bowhunter: 'The Bow Hunter sees farther than any walking toy in the room and has never once bragged about it, which unsettles the other tribes more than the arrows. The quiver holds twelve. Nobody has ever counted past four in a fight.',
+    ironhorse: 'The Iron Horse was wound up once, years ago, and never quite ran down. The Wranglers do not steer it so much as agree with it. It has never seen a rail in its life and has concluded, reasonably, that the whole floor is track.',
+    thunderhoof: 'Thunderhoof is older than the teepees and bigger than the reasons for fighting. The Plains do not command him — they ask, once, politely, and then get out of the way. The room has two kinds of walls: the ones he has met, and the ones still standing.',
     tank: 'The General\'s Tank is Classic doctrine made metal: arrive slowly, argue conclusively. Its turret has one setting and its treads have flattened every rumor of retreat.',
     colossus: 'The Brick Colossus is the Snap-Bricks\' cathedral that walks. Whole houses of bricks volunteered for the build, and you can still hear them click with pride when it swings.',
     mamabear: 'Mama Bear is what the Horde keeps behind glass marked BREAK IN CASE OF BULLIES. The hug is no longer educational. The hug is final.',

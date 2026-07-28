@@ -364,4 +364,14 @@ export const BARKS = {
     move: ['Reading the ground.', 'Downwind. Always downwind.'],
     atk: ['One arrow, one answer.', 'The sky is mine tonight.'],
   },
+  ironhorse: {
+    sel: ['CHUGGA. CHUGGA.', 'Boiler\'s hot. Schedule\'s tight.', 'All aboard. Or else.'],
+    move: ['WOO-WOOOO!', 'Next stop: through there.'],
+    atk: ['No brakes on the brand train!', 'Your wall is now a tunnel.'],
+  },
+  thunderhoof: {
+    sel: ['...', 'The ground answers when he breathes.', 'The herd walks with him.'],
+    move: ['Hooves like drums.', 'The plains are moving.'],
+    atk: ['THUNDER COMES.', 'Stampede of one.'],
+  },
 };
