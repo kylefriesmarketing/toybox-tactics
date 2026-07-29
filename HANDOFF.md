@@ -1,0 +1,1536 @@
+# AGE OF TOYS — MASTER HANDOFF
+### Everything needed to pick this project up cold, by a new session, a different AI, or Kyle alone.
+
+> Generated 2026-07-29. Two documents in one: **Part A** is the cold-start
+> orientation (paths, accounts, tools, current state). **Part B** is the
+> Keeper's Bible — the accumulated architecture and hard-won traps, which is
+> also checked into the repo as `CLAUDE.md`. If those two ever disagree,
+> **the repo's CLAUDE.md is newer** — it gets updated every session.
+
+---
+
+# PART A — COLD START
+
+## 1. What this is
+
+**Age of Toys** — a storybook real-time-strategy game about the toys of one
+child's bedroom going to war after lights-out. Age-of-Empires structure
+(gather → build → age up → army → win) wrapped in a bedtime story, narrated by
+a storyteller, played on playmats, bookshelves, sandboxes and bathtubs.
+
+- **Play it:** https://kylefriesmarketing.github.io/toybox-tactics/
+- **Trailer:** https://kylefriesmarketing.github.io/toybox-tactics/trailer/
+- **Engine:** Three.js r160, vanilla JS ES modules, no build step, no framework.
+- **Scale:** ~21k lines across `toybox/*.js`. 8 factions, 28 campaign missions,
+  12 maps, 5 game modes, 4-player online lockstep MP, and a full meta-campaign
+  ("Empire Mode") layered on top.
+
+## 2. Where everything lives
+
+| Thing | Path |
+|---|---|
+| **Source repo (working)** | `C:\Users\kylef\Downloads\New folder\` |
+| Game entry point | `toybox-tactics.html` (all CSS + overlay DOM in one file) |
+| Game code | `toybox/*.js` |
+| Art/audio | `assets/` |
+| Godot port (Steam path) | `age-of-toys-godot/` — read its own `README.md` + `PORT_BIBLE.md` |
+| **Deploy repo (what's live)** | `C:\Users\kylef\Downloads\toybox-deploy\` |
+| Deploy script | `push-web.ps1 "commit message"` |
+| Local dev server | `serve.ps1 -Port 8324` |
+
+⚠️ **The working folder has an EMPTY `.git`** — the harness reports "git repo:
+true" but there is no history and no undo. **The deploy repo is the only
+recovery point.** If a file is corrupted, restore it with:
+`cp ../toybox-deploy/toybox/<file>.js toybox/<file>.js`
+(This genuinely saved `lore.js` on 2026-07-27.)
+
+⚠️ **Parallel Claude sessions write to this same folder.** Never `git add -A`
+blindly; another session may have work in progress.
+
+## 3. Accounts and services
+
+| Service | Detail |
+|---|---|
+| GitHub | `kylefriesmarketing`, authed via `~/tools/gh/bin/gh.exe` |
+| Live host | GitHub Pages from the `toybox-tactics` repo, `main` branch root |
+| Higgsfield (art/3D/voice) | MCP connector. Plus plan. ⚠️ a parallel session spends from the same pool — always re-check `balance` before a batch |
+| Narrator voice | seed_audio preset **Alistair** `d9d5c263-f84e-4752-97b5-3750fcc6fd2f` — record this for every future VO line so the storyteller never splits in two |
+
+## 4. Local tooling (rebuild this if the machine is lost)
+
+| Tool | Location | Notes |
+|---|---|---|
+| Node (portable) | `C:\Users\kylef\tools\node\node.exe` | NOT on PATH — always prefix the full path |
+| GitHub CLI | `C:\Users\kylef\tools\gh\bin\gh.exe` | |
+| **ffmpeg + ffprobe** | `C:\Users\kylef\tools\ffmpeg\` | gyan.dev 8.1.2, installed 2026-07-28. Required for any video work |
+| GLB toolkit | `C:\Users\kylef\tools\gltf-kit\` | `npm i @gltf-transform/core @gltf-transform/extensions @gltf-transform/functions draco3dgltf sharp`. ⚠️ npm blocks sharp's install script: `npm approve-scripts sharp` then `npm rebuild sharp`. Even then sharp's native binary may fail on node 24 — the diet script degrades to draco-only |
+| Godot | `C:\Users\kylef\tools\godot\` | for the port |
+
+### Repo-root helper scripts (all written for this project)
+| Script | Purpose |
+|---|---|
+| `tools-shot-receiver.mjs` | **The single most useful tool.** Receives screenshots from the running game so you can SEE it. See §6 |
+| `tools-glb-diet.mjs` | Strip normal maps + draco-compress an AI-baked GLB |
+| `tools-frames-to-avi.mjs` | Hand-rolled MJPEG/AVI muxer (legacy — ffmpeg supersedes it) |
+| `tools-avi-extract.mjs` | Demux that AVI back to frames + WAV |
+| `tools-pack-shards.mjs` | Frames → binary shards (legacy web player — **dead, don't rebuild**) |
+
+## 5. The five-minute orientation for a new session
+
+1. Read **Part B** below (or the repo's `CLAUDE.md`) — especially "The iron
+   invariants" and every ⚠️ block. They encode bugs that already cost hours.
+2. Start the server: `serve.ps1 -Port 8324`, open
+   `http://localhost:8324/toybox-tactics.html`.
+3. Verify you can still run the test harnesses (§7). If `__ttSoak` works,
+   everything else follows.
+4. **Standing directive from Kyle: after any change, verify, then push live
+   with `push-web.ps1`.** He wants finished, deployed results — not check-ins
+   on reversible work.
+
+## 6. ⭐ HOW TO SEE THE GAME (this unlocks all visual work)
+
+The Browser pane cannot composite this WebGL page, so ordinary screenshot tools
+time out and the canvas reports 0×0. **But the page can photograph itself**: a
+WebGL drawing buffer is only cleared on *composite*, so `render()` followed by
+`toDataURL()` **in the same synchronous task** returns real pixels.
+
+```bash
+# 1. start the receiver (writes PNGs to %TEMP%\toybox-shots, prints the path)
+C:\Users\kylef\tools\node\node.exe tools-shot-receiver.mjs
+```
+```js
+// 2. in the page console
+const {renderer, camera} = __ttGL();
+renderer.setSize(1600, 900, false);                  // pane never sized it
+camera.aspect = 1600/900; camera.updateProjectionMatrix();
+__ttPost().setSize();                                // keep post targets in step
+game.fog.plane.visible = false;                      // see the whole board
+__ttRender();                                        // same task as…
+const url = renderer.domElement.toDataURL('image/png');   // …this
+fetch('http://localhost:8399/shot?name=x', {method:'POST', body:url});
+```
+Then just `Read` the PNG. **Never pipe base64 through a tool result** — it will
+blow out the context window.
+
+**Take MATCHED PAIRS.** Change exactly one thing between two shots. Comparing
+against a differently-seeded game is not evidence. This discipline caught a
+bloom white-out, an invisible contact shadow, and a washed-out rim light that
+all looked fine in theory.
+
+## 7. Verification harnesses (the reason this codebase is safe to change)
+
+Run these after **any** sim-touching change. All are `window.*` globals in the
+running page.
+
+| Harness | What it proves |
+|---|---|
+| `__ttSoak(opts, ticks)` | Headless full match. Returns `{winnerTeam, ticks, armies, ages, res, err, fp, kinds, stats}`. `err` must be null; `fp` is the determinism fingerprint |
+| `__ttNetTest({humans, ai, seed, ticks})` | Wires N real Net instances in-memory over N headless games and asserts every client stayed byte-identical. **Assert `inSync === true`, not `!== false`** — undefined reads as truthy |
+| `__ttEmpire(seed, turns, script)` | Headless Empire meta-campaign, `persist:false` so it never touches the real save |
+| `__ttEmpireNet(seed, turns, scripts)` | Two Empire instances in lockstep |
+| `snapshot()` / `restore()` | Save round-trip; re-snapshot and compare JSON for byte-identity |
+
+**The standard gate before any deploy:**
+```js
+const a = __ttSoak({factions:['x','y'], map:'playmat', seed:11, difficulty:'hard'}, 2500);
+const b = __ttSoak({factions:['x','y'], map:'playmat', seed:11, difficulty:'hard'}, 2500);
+a.fp === b.fp                                    // determinism
+__ttNetTest({humans:2, ai:2, seed:777, ticks:900}).inSync === true   // MP lockstep
+```
+
+⚠️ `g.setup()` sits OUTSIDE `__ttSoak`'s try block, so a throw there escapes an
+async battery as an unhandled rejection and the loop dies silently (looks like
+"stuck at 7/12"). **Wrap every battery job in its own try/catch.**
+
+⚠️ Live tabs throttle brutally (0.1 sim-min per 100s, rAF never fires, timers
+drop to ~1/sec). Prove behaviour **headlessly**, not by watching.
+
+## 8. Current state (2026-07-29)
+
+**Shipped and live.** Eight factions, 28 campaign missions, all art complete
+(every mission has a briefing plate; every ground style has art), whole narrator
+re-recorded in one voice, accessibility options, the miniature-look post pass,
+cinematic beats, and a real MP4 trailer page.
+
+**Balance battery: DONE (2026-07-29, 104 games).** Both new factions are healthy — plains dead centre, wranglers slightly low but inside the existing spread. NO TUNE APPLIED. The "wranglers field zero army" pathology is NOT real (0 occurrences in 104 games). ⚠️ It also found the seat-0 advantage is ~77%, not the ~59% previously documented — systemic across maps and seeds. See the battery section in Part B.
+(Wranglers, Painted Plains) — 26 ordered pairs × 4 maps × 3 seeds, hard AI.
+If it did not finish, just re-run it; the launcher is in the session log below.
+Its purpose is to answer two questions:
+1. Are the new factions balanced against the six established ones?
+2. Is the "Wranglers sometimes field zero army and lose in 5 minutes"
+   collapse a real pathology or one unlucky seed?
+
+**The tuning rule (from three prior batteries): only tune when BOTH map pools
+agree, and never off a single seed.** A single-seed reading once showed plush at
+60% and triggered a near-miss tune; three fresh seeds put it at 57% and the map
+split *inverted*. That was noise. The 40–60% band is unremarkable.
+
+## 9. What I would do next
+
+1. **Finish/act on the balance battery.** Free, and it is the only open
+   question about the newest content.
+2. **Determinism fuzzing harness** — thousands of randomized command scripts
+   across seat mixes hunting a fingerprint divergence. The riskiest system in
+   the game is lockstep MP; this is cheap to find now and brutal after launch.
+3. **Empire save-format audit** — the meta-campaign is at save v10 with nine
+   stacked migrations. Classic place for silent data loss.
+4. **Godot port M18+** — `age-of-toys-godot/PORT_BIBLE.md` is the delta spec.
+   That is the Steam path.
+5. Art backlog is **empty**. Do not invent work there — see the ⚠️ about
+   auditing ground art by `MAPS[k].ground || k`, not by map key.
+
+## 10. Working style Kyle has asked for
+
+- Push ahead to a finished, **verified, deployed** result. Don't stop to ask
+  about reversible work.
+- Confirm before irreversible or outward-facing actions, and before any
+  Higgsfield spend over ~25 credits.
+- **Never read GLB/mp3/mp4 binaries** — use metadata, `gltf-transform inspect`,
+  or targeted scripts. He watches token spend.
+- Prefer DOM/state checks over screenshots for logic; use the capture trick
+  (§6) for anything visual.
+- Report honestly: if a battery died, say so; if something is unverified, say
+  which part.
+
+---
+---
+
+# PART B — THE KEEPER'S BIBLE
+
+*(This is `CLAUDE.md` from the repo, verbatim. It is the accumulated
+architecture, content systems, and every trap discovered the hard way. The ⚠️
+blocks are the expensive ones — each represents a bug that already cost real
+time.)*
+
+---
+
+# The Keeper's Bible — Kyle's Workspace & Age of Toys
+
+Written by Claude Fable 5 at the end of its run (2026-07-11), so no future session
+re-derives what was learned the hard way. Trust this file; verify only when the
+code visibly disagrees.
+
+## Workspace map (this folder holds MULTIPLE projects)
+
+| Project | Where | Notes |
+|---|---|---|
+| **Age of Toys** (flagship RTS) | repo root: `toybox-tactics.html` + `toybox/` + `assets/` | This file's main subject. Deploys via `push-web.ps1` → `../toybox-deploy` → GitHub Pages |
+| **Age of Toys — Godot port** (Steam path) | `age-of-toys-godot/` | Godot 4.7 faithful port, **M1–M21 done (2026-07-26)** — sim, 6 factions, 11 maps, 4 modes, 23-mission campaign, survival, save/replays, **lockstep MP over real ENet**, naval, terrain, HUD parity, meta screens, art pass, options/pause/export presets, UI parity, pets, real elevation, corner spawns, battle scars/night/living bases, and the spectacle layer (cinematic beats, THE KID, seasons, toy-blood). ⚠️ this row said "M1–M3" until 2026-07-20 and "M1–M17" until 2026-07-26 — TRUST THE PORT'S OWN `README.md`, it is the milestone authority. **`PORT_BIBLE.md`** (written 2026-07-20) = the DELTA spec: what the web gained after M17 (Empire Mode entirely, the cat/dog/Roomba, THE KID, battle scars, deepening night, positional audio, seasons, corner spawns, survival card) + all invariants/traps/voice. Hand both docs to a port session. data exported from data.js → `data/game_data.json` (never hand-edit); GLBs are DECOMPRESSED copies (no Draco). Headless tests in `tests/` |
+| Chameleon (hide & seek) | `chameleon*.html` + `assets/audio/` root files | Its audio lives in `assets/audio/` root — do NOT deploy those with Age of Toys |
+| Choose Wisely / Nine Circles / Still Breathing / SOUTH | own subfolders, own git repos | Branching storybook games; THE SHELF hub at `games-hub/` links the four |
+| Grocery Price Scout | `grocery-price-scout*` | Has its own CLAUDE.md |
+
+Global rules: portable Node at `C:\Users\kylef\tools\node` (not on PATH — prefix it);
+gh CLI at `~/tools/gh/bin/gh.exe` authed as kylefriesmarketing; NEVER read GLB/mp3/mp4
+binaries (Kyle watches token spend — use metadata, `gltf-transform inspect`, or targeted
+scripts); Kyle prefers DOM checks over screenshots.
+
+---
+
+# AGE OF TOYS — the deep dive
+
+A storybook AoE-style RTS. Live: https://kylefriesmarketing.github.io/toybox-tactics/
+(repo `kylefriesmarketing/toybox-tactics`, fed from `../toybox-deploy` by `push-web.ps1`).
+**Standing directive: after any change, verify, then push live via `push-web.ps1`.**
+
+## Architecture (one page)
+
+- `toybox-tactics.html` — ALL CSS in one `<style>` block, all overlay DOM. Theme via
+  `:root` vars ("Bedtime Amber"). Wood frame = border-image `assets/ui/panel-frame.png` slice 130.
+- `toybox/main.js` — boot (asset loading + lore cards), menu/lobby/campaign/codex/intro-cutscene/
+  watch-mode UI logic, `startGame()`, input, camera (`cam`, `clampCam()`), the render loop
+  (sub-stepped setInterval keeps sim alive in hidden tabs — this is why headless testing works).
+- `toybox/game.js` — the ENTIRE deterministic sim: `Game` class, pathfinding, combat, economy,
+  AI (`aiUpdate`, 1s ticks), narrator, mission events, snapshot/restore, `matchStory()`.
+- `toybox/data.js` — ALL tuning/content: UNITS, BUILDINGS, TECHS, FACTIONS (+commanders),
+  MAPS, CAMPAIGN (16 missions), MISSION_EVENTS, EPILOGUES, TAUNTS, AI_LINES, NARRATOR, INTRO,
+  MODEL_MANIFEST. Balance changes go HERE and only here.
+- `toybox/models.js` — GLB loading (`makeGLTFLoader()` = shared DRACOLoader), registries
+  (unit/building/map/furniture), procedural fallbacks, `createGround` + per-theme surrounds,
+  `PORTRAITS` (runtime icon renders), `applyUnitTier` (whole-body recast).
+- `toybox/ui.js` — HUD, command card (stable DOM — NEVER rebuild buttons on the ticker or
+  clicks get eaten), alerts, barks, game-over card.
+- `toybox/lore.js` (codex text, lazy-loaded), `toybox/chronicle.js` (achievements + lifetime
+  stats), `toybox/barks.js` (unit voice lines), `vfx.js`, `sfx.js`, `net.js` (PeerJS lockstep,
+  STAR topology — up to 4 humans; see the Multiplayer section).
+
+## The iron invariants
+
+1. **Determinism**: everything inside `Game` uses `this.rng` (seeded LCG) — NEVER `Math.random`
+   in sim code. UI-only features (alerts, barks, matchStory, camera) may use `Math.random`.
+   MP is lockstep command-passing: both clients simulate; only inputs travel. Any sim change
+   must be identical given the same seed + commands.
+2. **`startGame` has `if (game) return`** — there are NO same-page restarts. "Play Again" and
+   campaign flow do `location.reload()`. Consequence for testing: `window.__ttStart(diff,map)`
+   works ONCE per page load; later calls silently no-op and you'll read the stale `window.game`.
+   `window.__ttSoak(opts, maxTicks)` is ALWAYS safe (creates an independent headless Game,
+   returns `{winnerTeam, ticks, ages, armies, res, err}`) — use it for batteries and soaks.
+3. **Sim vs view**: unit gait/animation, fog draping, VFX are view-only and never run headless.
+   `def.pop` is cosmetic (spawnUnit does popUsed++ regardless).
+4. **Save format** (`snapshot()`/`restore()`, v2): opts/time/rng-state/grids/players/entities
+   (orders encoded by id) + `told` (narrator one-shots) + `evDone` (mission-event flags).
+   On campaign resume, set `g.missionEvents` BEFORE `restore()` or event states are lost.
+   New persistent state you add MUST round-trip: write a save→JSON→restore→compare test.
+5. **Elimination rule**: a player survives with a production building OR (worker + any building).
+   Objectives say "raze every building" on purpose; a `foothold` narrator beat fires when a
+   rival has buildings but no production.
+
+## Content systems (how to extend)
+
+- **New unit**: def in UNITS (copy a similar one; `naval`, `gait`, `faction`, `gatherNaval`
+  are the special flags) + MODEL_MANIFEST entry + GLB at `assets/units/<key>/model.glb`
+  (procedural `proc:` fallback otherwise) + add to a building's `trains`. Age-gating and
+  faction-filtering in the UI are automatic. Barks: add `<key>` (or `<key>@<faction>`) to barks.js.
+- **New faction** (knights, 2026-07-12, is the worked example — SIX factions now): FACTIONS
+  entry (label/icon/desc/mods/commander) auto-populates civ pickers, codex, crest
+  (`assets/ui/crest-<f>.png`, onerror-hidden) AND auto-loads `house-<f>.glb`/`chest-<f>.glb`
+  from assets/buildings (main.js derives the list from FACTIONS keys). Then: unique units
+  (faction: flag), unique building (trains + its civ tech; tech needs a `case` in game.js
+  applyTech AND a spot in the AI research list ~line 3244), `worker-<f>` MODEL_MANIFEST entry,
+  factionHouse/factionWall procedural branches in models.js, EPILOGUES/TAUNTS(×3 personas)/
+  AI_LINES(×4 events)/barks/lore entries, portrait `assets/ui/cmdr-<f>.jpg` 440×440.
+  Knights roster: knight/crossbow/charger(age2 @roost), paladin(fort)/trebuchet(workshop)/
+  dragon(mega @roost)/wargalley(dock); roost + tower-knights GLBs are REAL now (baked on the
+  07-12 top-up). Knights walls = stone blocks + merlons (factionWall branch, rises per age);
+  knights gate = a real lifting PORTCULLIS (buildingGeometry gate branch — the grille Group IS
+  userData.gateBar, same 0.45→1.5 lerp contract; the only faction-unique gate in the game).
+- **New mission**: append to CAMPAIGN (id/map/faction/enemy/gameMode/difficulty/startRes/
+  brief/objective/victory/defeat, optional `bonus`, `enemyBoost`, `endingArt`, `secret`);
+  plate = `assets/campaign/<id>.jpg` (auto-hidden if missing); moments in MISSION_EVENTS
+  (`at` sim-seconds; types: bare text, `spawn`, `boost`). The secret `midnight` mission is
+  hidden until all 15 non-secret missions are done.
+- **Codex**: lore.js entries keyed by unit/building/map/faction key; missing keys degrade to desc.
+- **Achievements**: add to ACHIEVEMENTS in chronicle.js — `check(ctx)` gets
+  `{g, win, me, chron, earnedCount}`; new sim stats belong in the players' `stats` object
+  (init at Game constructor) and increment at the event site.
+
+## The asset pipeline that works (Higgsfield MCP)
+
+⚠️ BILLING DRIFT (2026-07-12): `image_to_3d` now bills a FLAT 30cr per model (the ~5-7cr
+   seen on 07-11 was the anomaly), while `nano_banana` images currently bill 0cr. Check
+   `transactions` after the first job of a batch — prices move between sessions. A "full
+   faction" is ~10-12 bakes = 300-360cr, not 140.
+
+1. `generate_image` model `nano_banana_pro`, plain-white-bg "molded plastic toy, 3/4 view,
+   product render for 3D scanning" prompt (~2cr). NEVER ask for transparency (you get painted
+   checkerboard); use `remove_background` for real alpha.
+2. Vet via the `_min.webp` thumbnail (one Read), or montage several with System.Drawing.
+3. `generate_3d` model `image_to_3d`, `should_texture:true`, medias `[{value:<image job_id>,
+   role:'image'}]`. Preflight said 30cr but Ultra billed ~5-7cr — preflights are unreliable;
+   **audio (`seed_audio`) bills by DURATION. ⚠️ the rate MOVED: the 07-11 note said ~1cr/s
+   (~150cr for 14 lines); **measured 2026-07-27 it is ~0.08cr/s** — an 8.9s narrator line
+   billed 0.7cr, so all 16 narrator beats ≈ 10cr, not 135. A whole VO pass is now pocket
+   change. The lesson isn't the number, it's that the number MOVES ~10x between sessions:
+   generate ONE item, read `transactions`, then size the batch.
+   Hard-confirm any spend estimated over ~25cr.**
+4. `job_display(id)` → `results.rawUrl` GLB. Download, then run
+   `scratchpad gltf-tools/fix-all.mjs`-style processing: **strip normalTexture** (AI normal
+   maps render as dents on flat plastic), keep 2048 color (webp q92) for flat-colored models,
+   then draco. Codec package is `draco3dgltf`, NOT `draco3d`. AI meshes only simplify ~17%
+   (disconnected shells) — don't chase decimation.
+5. If image_to_3d returns `nsfw` twice on a toy, the image reads as a "person" — reprompt as
+   a device/contraption, don't retry.
+
+## Testing & verification recipes
+
+- Soak: `await window.__ttSoak({factions:['a','b'],diff:'hard',map,seed}, ticks)` — err must
+  be null. Battery = loop soaks in-page storing to a window var, poll with short evals
+  (yield 40ms between games so polls land). Soak also takes `playerDefs` (any seat mix),
+  `script: [{t, pid, c}]` (commands executed at tick t via `g.execCommand` — exactly what
+  net.js does, so this IS the co-op/MP determinism harness; human seats stay human) and
+  returns `fp` (end-state entity sum + rng cursor: same seed+script ⇒ byte-identical fp).
+  Trick: `c.ids` can be a blind 1..90 range — execCommand owner-filters, so it deterministically
+  hits only pid's units.
+- Live checks: one map per page reload (see invariant 2). `window.game`, `window.__ui`,
+  `window.__ttGL()` (renderer/scene/camera), `window.__ttSfx()` (ambKind checks) are the handles.
+  ⚠️ Calling `__ttStart` mid-boot removes #menu before boot's tail touches it — boot line ~216
+  is null-guarded for this; keep it that way.
+- Screenshots: `preview_screenshot` TIMES OUT on this WebGL page. Instead render offscreen:
+  `new THREE.WebGLRenderer({preserveDrawingBuffer:true})` → render `game.scene` with your own
+  camera → `toDataURL` → POST to a local HttpListener (scratchpad `shot-receiver3.ps1`, port
+  8399) — CDP downloads are silently blocked; don't pipe base64 through tool results.
+  Hide fog first: `game.fog.plane.visible = false` (restore after).
+- PowerShell traps: `Out-File -Encoding utf8` writes a BOM (strip before JSON.parse in node);
+  Remove-Item is sandbox-blocked on some paths (use Move-Item); no `&&` in PS 5.1.
+
+## Ammunition that looks like ammunition (2026-07-28, free — view-only)
+
+Every shot in the game used to be the SAME glowing sphere — arrows, bullets and
+catapult stones were visually identical. `makeProjectileMesh(kind,color,size,glow)`
+in models.js now builds real ammo along **+Z** (the toybox forward axis): `arrow`
+(shaft + steel head + 2 fletches), `bolt` (short/thick), `bullet` (stretched
+tracer capsule), `stone` (irregular tumbling icosahedron), `band`, sphere fallback.
+- Kind is inferred in `spawnProjectile` unless a def sets `projectile.shape`:
+  band → band; **splash + arc → stone (lobbed), splash + FLAT → bullet (rocket)**
+  — getting that pair backwards made the bazooka fire boulders; pierce + arc →
+  arrow, pierce + flat → bolt; else bullet.
+- `pr.oriented` (arrow/bolt/bullet/band) makes `updateProjectiles` point the mesh
+  down its own flight path: yaw from the ground vector, pitch from the **analytic
+  slope** of the arc term (`dy = (toY-fromY) + arc*4*(1-2f)`), so an arrow noses
+  over as it falls. Spinning rocks skip this and tumble on two axes instead.
+- All view-only (mesh + rotation); positions were already sim-side. Determinism
+  and MP re-verified.
+
+## 🎬 THE TRAILER (2026-07-28) — shareable page + the no-ffmpeg video pipeline
+
+**Share link: https://kylefriesmarketing.github.io/toybox-tactics/trailer/** — a
+storybook page with the 47s gameplay trailer embedded (canvas player, Alistair
+narration, end-card CTA into the game). Lives at `../toybox-deploy/trailer/`
+(~40MB: 6 shard .bins + audio.wav + cards). ⚠️ NOT in push-web's robocopy list —
+edit it in the deploy repo directly, like README.md. The 157MB master AVI is a
+GitHub Release (`trailer-v1`) — for Steam/YouTube, run it through any editor for
+a full-720p MP4.
+
+⚠️⚠️ **"THE TRAILER IS BLURRY" — it is the TILT-SHIFT, not the encode.** Kyle
+reported blur twice; the first fix (re-encode 640×360 → native 960×540) barely
+helped because the real cause was baked into the frames: the capture ran through
+the miniature-look post pass, whose defocus blurs everything outside a narrow
+band. Stunning in play, reads as out-of-focus VIDEO. **Before any capture meant
+for video, flatten the pass**: `post.p.blurMax = 0.16; bandHalf = 0.34;
+bandSoft = 0.5; vignette = 0.20` (keep bloom + grade). Capture at 1280×720 and
+downsample to 960×540 — supersampling beats encoding at target size. Diagnose by
+READING a master frame, not by re-encoding on a hunch.
+
+⚠️⚠️ **"CLUNKY / NOT CRYSTAL CLEAR" — the flipbook player was the problem, and
+`ffmpeg IS INSTALLED NOW` at `C:\Users\kylef\tools\ffmpeg\ffmpeg.exe` (+ffprobe,
+gyan.dev 8.1.2, downloaded 2026-07-28 with Kyle's OK).** The old page decoded a
+JPEG **per frame in JS** — software video decode, hence the jank — and per-frame
+JPEG has NO interframe compression, hence 71MB for a soft 960×540. One ffmpeg
+call gives **1280×720 H.264 in 33MB**: double the resolution at half the size,
+hardware-decoded by a plain `<video>` tag. **Always prefer a real MP4.** The
+canvas/shard player is dead — do not rebuild it.
+```
+ffmpeg -framerate 30 -c:v mjpeg -i "frames/f%05d.png" -i narration.wav \
+  -c:v libx264 -preset slow -crf 20 -pix_fmt yuv420p -movflags +faststart \
+  -c:a aac -b:a 128k -ac 2 -shortest out.mp4
+```
+⚠️ `-c:v mjpeg` BEFORE `-i` is mandatory: the shot receiver names files `.png`
+but writes whatever bytes it was POSTed, so ffmpeg's PNG parser chokes
+("Invalid PNG signature 0xFFD8…" = it's actually a JPEG). `+faststart` puts the
+moov atom first so the video streams instead of waiting for a full download.
+
+**The legacy pipeline (kept for reference — superseded by ffmpeg above)**: capture = drive the sim manually + render →
+toDataURL per frame → POST to the shot receiver; mux = `tools-frames-to-avi.mjs`
+(hand-built MJPEG/PCM AVI, optional interleaved WAV); demux BACK =
+`tools-avi-extract.mjs` (00dc chunks are whole JPEGs, 01wb chunks are PCM —
+⚠️ read the auds strf for the REAL format: the mixed track is 24kHz STEREO, a
+mono assumption makes a half-speed WAV); web player = `tools-pack-shards.mjs`
+(frames → 6 binary shards + offsets JSON) + a canvas player clocked by
+**WebAudio** (`ac.currentTime`, not an <audio> element — media elements report
+NaN duration in the hidden pane and have autoplay quirks; decodeAudioData is the
+decisive wav validity test). All three tools at repo root. Trailer wavs + cards
+in `~/Downloads/age-of-toys-trailer-audio/` + the AVI beside them.
+
+## Deploy
+
+`push-web.ps1 "message"` — copies `toybox-tactics.html`→`index.html`, robocopies a HARDCODED
+folder list (toybox/, assets/{lib,ui,map,buildings,furniture,campaign,intro}, units minus
+_legacy, audio/vo ONLY), commits + pushes `../toybox-deploy`. **A new asset folder ships only
+if you add a robocopy line.** `.nojekyll` in the deploy repo is critical. README.md and media/
+in toybox-deploy are committed by `git add -A` but never robocopied — edit them there directly.
+
+## Balance state (battery-derived; latest 2026-07-12 six-faction matrix)
+
+Tournament method: `__ttSoak` matrix, ordered faction pairs × maps × seeds, hard AI, 9000
+ticks, always mirror seat order (seat-0 advantage ≈59%).
+
+**2026-07-12 TWO-POOL matrix, all 30 six-faction pairs × 2 maps each (120 games, 0 errs):**
+| faction | open (playmat+kitchen) | terraced (bookshelf+canyon) | overall |
+|---|---|---|---|
+| knights | 47 | 65 | 56 |
+| racers | 69 | 50 | 59 |
+| plush | 53 | 53 | 53 |
+| bricks | 50 | 53 | 52 |
+| bots | 41 | 38 | 40 |
+| classic | 41 | 38 | 39 |
+
+Draws: 15% open / 22% terraced (terrain-driven). Readings: knights = the chokepoint faction
+by design (their walls/armor own terraces; honest 47 in the open) — no tune. Racers swing
+hardest by map; fine overall — no tune. **Classic + bots are the soft pair (~39-40 overall,
+consistent across three batteries)** — next session's candidates for a GENTLE buff (classic
+has no mods at all; consider a small one, e.g. +5% infantry HP or cheaper Tent). Tune from
+BOTH pools or don't tune.
+
+**2026-07-20 POST-TERRAIN battery (30 ordered pairs × playmat/sandbox, seed 47, 60 games,
+0 errs, 1 draw):** plush 60 (70 open!), bricks 55, classic 50, bots 45, racers 45,
+knights 40 (30 open / 50 terraced — the designed chokepoint shape finally shows in data).
+**The old classic+bots soft-pair flag is RESOLVED by the map overhaul** (classic 39→50);
+plush is the new top at +10 but single-seed — NO tune applied; re-check plush with a
+second seed before touching anything.
+**2026-07-20 PLUSH CONFIRMATION (3 fresh seeds 101/202/303, plush-vs-field, 2 seat orders,
+playmat+sandbox, 37 games sampled — tab-throttling killed the full 60):** plush 57% overall
+(21/37), and the map split FLIPPED vs the single-seed run — 37% open playmat (was 70), 78%
+terraced sandbox (was 50). Two seed-sets disagreeing that hard = NOISE; 57% is unremarkable
+in the 40-60 spread. **VERDICT: the single-seed plush=60 was noise, NO plush tune. ✅** One
+real signal survived: plush is genuinely strong on heavily-terraced sandbox (78%) — worth a
+watch if sandbox ever feels plush-dominated, but one map ≠ a faction problem. ⚠️ soaks are
+MUCH slower now (cat/dog/roomba/critters live every tick); a backgrounded tab throttles them
+to a crawl — keep the tab foregrounded or expect ~40min for 60 full-length games. ⚠️ AMBIENCE HUM FIX same day: the R6 room-tone
+`hum()` was a raw endless sawtooth (AWFUL drone — Kyle report); now breathing triangle
+at ~1/3 energy, the 52Hz underbed sub-drone is DELETED, tv/bees trimmed, and ALL
+continuous beds are tracked in `sfx.ambNodes` + stopped on every startAmbience switch
+(they used to leak/stack forever).
+
+**History:** 07-11 pre-tuning: classic 48, plush 45, racers 39, bots 36, bricks 31 →
+tuned (bricks speedInf .97 + bHP 1.25; bots speedInf .95; racers gather .97) →
+bricks 46, bots 50, plush 48, classic 40, racers 38. The late-game stalemate ramp
+(wave threshold shrinks 25%/min after minute 12) shipped but did NOT move the draw rate
+in its validation (13/60 vs 12/60 baseline) — the 15% above may reflect map pool as much
+as the ramp. Don't re-tune the ramp without a controlled A/B.
+
+## BALANCE BATTERY: the two new factions (2026-07-29, 104 games, free)
+
+**Method**: 26 ordered pairs (wranglers + plains, each vs all 6 field factions
+and each other, in BOTH seat orders) × 2 maps (playmat = open, bookshelf =
+terraced) × 2 seeds (11/47), hard AI, 9000 ticks. 0 errors, 14 draws (13.5%,
+in line with history). New factions get n=56 each — the best-sampled rows in
+the table; the field factions are n=16 and their numbers are NOISE, so do not
+read them as a general rating (they only played the two new factions).
+
+**Raw win rate (both seat orders merged, so positional bias cancels):**
+| faction | overall | open | terraced |
+|---|---|---|---|
+| plains | **51%** | 54 | 48 |
+| wranglers | **46%** | 50 | 41 |
+
+**⚠️⚠️ THE BIG FINDING — SEAT-0 ADVANTAGE IS ~77%, NOT THE ~59% THIS FILE USED
+TO CLAIM.** Measured across 90 decided games: seat0 avg 77% / seat1 avg 25%.
+It reproduces on BOTH maps (playmat 78%, bookshelf 82%) and BOTH seeds (76%,
+84%) — **systemic, not a map quirk**. Consequences:
+1. **Any battery that does not mirror seat order produces garbage.** This is
+   now non-negotiable, not a nicety.
+2. A raw win rate near 50% means "exactly average" only because the mirror
+   cancels the bias — the seat effect SWAMPS faction skill, so a 104-game
+   battery has low power. To see faction skill, split by seat and compare each
+   faction to the positional floor (below).
+3. It may be a real first-player-advantage issue in the GAME (it would matter
+   in MP). Not investigated — **worth its own session**. Suspect spawn/resource
+   asymmetry at seat 0, or turn order in some per-tick loop.
+
+**Skill above the positional floor** (seat0 avg 77% / seat1 avg 25%; edge = how
+far above/below a faction performs, 0 = exactly average):
+| faction | edge | as seat0 | as seat1 |
+|---|---|---|---|
+| classic | +12 | 88% | 38% |
+| bricks | +8 | 81% | 38% |
+| plush | +5 | 94% | 19% |
+| knights | +5 | 69% | 44% |
+| **plains** | **0** | 75% (n=28) | 27% (n=28) |
+| **wranglers** | **−6** | 73% (n=28) | 18% (n=28) |
+| bots | −7 | 75% | 13% |
+| racers | −17 | 63% | 6% |
+
+**VERDICT: NO TUNE.** Plains is dead centre (edge 0). Wranglers is −6, inside
+the existing spread (+12 … −17) and comparable to bots (−7). Neither new
+faction is an outlier. Wranglers' terraced 41% vs open 50% DISAGREE across
+pools, and the standing rule is tune from BOTH pools or not at all.
+
+**⚠️ The "Wranglers field zero army and lose in 5 minutes" pathology is NOT
+REAL.** Checked every game for a side ending with 0 army, ≤2 trained, and a
+loss: **0 occurrences in 104 games.** The one collapse seen while hunting a
+trailer matchup was a single unlucky seed. Do not "fix" it.
+
+⚠️ HARNESS NOTE: a hidden Browser pane throttles BOTH timers (setTimeout drops
+to ~1/min after a few minutes) and compute. Two async battery loops stalled
+dead this way. **Drive batches synchronously from the agent side instead**
+(`window.__RUN(n)` pattern) — and note that a 30s eval timeout does NOT kill
+the page's JS, so the work continues; just poll `__BR.length` afterwards.
+
+## The AI (2026-07-22) — read the ⚠️ before "fixing" stalemates
+
+⚠️ **THE STALE-DATA TRAP.** The 07-12 matrix line "Draws: 15% open / 22% terraced" is
+**historical** — it predates the map/terrain overhaul. A session read it as current,
+concluded "games don't conclude, it's the biggest quality problem in the game," and
+nearly spent itself re-tuning the late-game stalemate ramp. **A fresh 12-game diagnostic
+(6 maps × 2 seeds, classic mirrors, hard, 9000 ticks) concluded 12/12 at 7-15 sim-min,
+most decisively (loser at 0 army).** The 07-20 battery agrees (1 draw in 60). The
+chokepoint/ridge work fixed stalling. Measure before you tune; the draw numbers in the
+balance section are dated snapshots, not a live readout.
+
+⚠️ Corollary: **don't compare sim-minutes across two different batteries** unless both
+computed the field the same way — an apparent "control map got faster" was purely a
+measurement artifact between two harnesses. Compare fingerprints, or nothing.
+
+**Tribe contest manager** (`aiUpdate`, just before the defense/attack managers): the AI
+now seeks Wild Toy camps. Mirrors the sticker manager's shape — `ai.tribeT` (18s first,
+20s after), only when `!ai.attacking && military.length >= 4`, picks the nearest unclaimed
+camp with a −60 score bonus for one a RIVAL is mid-hold on (arriving at all resets their
+progress, so denial is worth the walk), and sends ≤3 **ground** military (`!m.def.naval` —
+the camp scan at `updateCamp` ignores workers and boats, so naval would march and never
+count). Measured: **tribes claimed went 1/16 → 14/16** across the same 8 map/seed pairs,
+0 errs, and 4 of 8 games split 1/1 between the two AIs — a real contest, not a sweep.
+Before this the camps were decoration in AI games and a free gift to any human.
+- Determinism, MP lockstep (2h+2ai and 3h+1ai, `inSync === true`), and save round-trip
+  all re-verified — pets and AI both consume rng, so any AI change is MP/replay-affecting.
+- `ai.tribeT` is deliberately NOT snapshotted, consistent with `stickerT`/`raidT`.
+- **Lost Toys are still AI-blind ON PURPOSE** (0/16 seats ever carried one home). That's
+  the documented human edge — the SP fantasy, like Empire cards. Don't "fix" it.
+- QA hook: `__ttSoak` now returns `stats` (per-player stat blocks) alongside `kinds`, so a
+  test can assert a seat ENGAGED with a system rather than merely coexisting with it.
+
+⚠️ Harness gotcha found the hard way: `g.setup()` sits OUTSIDE `__ttSoak`'s try block, so a
+throw there escapes an async battery loop as an unhandled rejection and the battery dies
+silently mid-run (looks like "stuck at 7/12"). Wrap each job in its own try/catch. Also:
+polling a battery with heavy evals can itself kill the chain — launch, then wait, don't poke.
+Live tabs throttle hard (0.1 sim-min in 100s), so prove AI behavior headlessly, not live.
+`THREE` is module-scoped — you cannot `new Game(...)` from the console; use `__ttSoak` or
+`window.game`, and note AI state is `g.aiState[pid]`, NOT `p.ai`.
+
+## Toy-blood: hit/death debris & stains (2026-07-24, free — vfx.js is view-only)
+
+The toybox has no blood, so struck toys shed their OWN material. All in `vfx.js`,
+all view-only (Math.random, never `this.rng`) — determinism/MP re-verified.
+- **Directional spatter**: `PiecePool.spawn` now takes `{dir, spread, up}`. When
+  `dir` is given (the strike angle `atan2(tx-ax, tz-az)`, the game's (sinθ,cosθ)
+  convention) pieces spray in a cone THAT way instead of a symmetric puff. The
+  `dir===null` path is byte-unchanged. ⚠️ the radial scatter uses (cosθ,sinθ) for
+  (x,z) but the game's world-direction convention is (sinθ,cosθ) — the directional
+  branch uses the latter or the spray flies perpendicular to the blow (caught in review).
+- **`chip(x,y,z,debris,dir,hard)`**: sheds 2 pieces (4 for siege) along `dir`, a
+  fluff wisp for `debris.fluff` toys, and a small ground scuff. Fires on 55% of
+  normal hits / 100% of siege (was 30/85 and non-directional).
+- **`death(x,z,debris,dir)`**: `dir` = killing blow angle (from `killer` in `kill()`,
+  null-safe for the cat/roomba/null-killer path). Burst fans away from the killer,
+  a broad material stain marks where it fell, and 3 settled litter pieces trail in
+  the knock direction — the room's record of which way it went down.
+- **`StainPool`** (new, cap 48): soft radial-gradient decals tinted per-hit by the
+  toy's debris colour (dulled −0.14 L), renderOrder 350 (under sticker splats 400),
+  fade over 24–34s. The toy-safe "pool of blood". `stains.stain(x,z,color,radius,peak)`.
+Verified: soak determinism identical, MP 2h+2ai inSync, directional velocity bias
+(meanVz 2.78 along dir=0 vs 1.5 lateral), stains light, death trail drops, knights+
+plush fluff path clean, 0 console errors. Screenshots still time out (WebGL page) —
+proved via pool census + velocity sampling, not pixels.
+
+## EIGHT FACTIONS: Wranglers + Painted Plains (2026-07-27, ~310cr) + NO-DISC RULE
+
+Two factions in one pass — the classic toy-set pairing, both written as heroes:
+- **wranglers** 🤠 "The Wranglers" (Marshal Tess, The Quick Draw): mods {gather 1.04,
+  buildingHp .92}; uniques gunslinger (fast-fire pierce) + rider (3.1 speed lasso
+  cavalry); Log Fort (trains both, tech `roundup`: +1 atk, +8% infantry speed);
+  house-wranglers.glb log cabin + procedural notched-log factionHouse + split-rail
+  factionWall.
+- **plains** 🪶 "The Painted Plains" (Chief Swift River, The Wind-Reader): mods
+  {speedInfantry 1.05, buildingHp .9}; uniques brave (1.1s-interval melee + shield)
+  + bowhunter (range 5.2, vision 8, arcing arrows); Great Teepee (tech `windrunner`:
+  +1 atk, +10% speed); procedural teepee factionHouse + painted-pole factionWall.
+- 9 bakes (~30-35cr each, prices DRIFTED UP mid-day): 6 units incl. both faction
+  workers, logfort/bigteepee/house-wranglers GLBs. All installed draco-only ~3.2MB —
+  ⚠️ sharp's native binary fails under node 24 (ERR_DLOPEN_FAILED), so webp texture
+  compression is SKIPPED for now; `tools-glb-diet.mjs` degrades gracefully. A future
+  session with a working sharp can re-diet these to ~700KB each.
+- **Permanent GLB kit at `C:\Users\kylef\tools\gltf-kit\`** (npm: @gltf-transform/*,
+  draco3dgltf, sharp) — the old scratchpad node_modules was gutted. `tools-glb-diet.mjs`
+  at repo root points there. ⚠️ npm blocks sharp's install script — `npm approve-scripts
+  sharp` then `npm rebuild sharp`.
+- ⚠️ PATCHING LESSON (cost 3 rounds): appending to a data.js sub-block with a regex like
+  `king: \{[\s\S]*?knights: [^\n]*\n` matches the FIRST `king:`/`wonder:` in the FILE —
+  the King UNIT and Wonder BUILDING, not AI_LINES — and the stray lines land inside
+  FACTIONS.knights where they PARSE FINE and hide. Verify by importing the module and
+  checking the actual object shape, never by "patch script said ok". Also: bash heredocs
+  eat `\\'` escapes — write patch scripts with the Write tool, not `cat <<EOF`.
+- ⚠️ lore.js was corrupted by that heredoc mangling and this workspace has NO git —
+  restored from `../toybox-deploy/toybox/lore.js` (the deploy repo is the only undo).
+
+**MEGAS (2026-07-28, ~74cr): every faction has its titan now.** ironhorse 🚂 (Wranglers,
+'The Iron Horse': rolling siege mega at the logfort — 560hp, siege 22, trample 12, speed
+2.2, wind-up locomotive, gait roll) + thunderhoof 🦬 (Plains, 'Thunderhoof': charge mega
+at the bigteepee — 640hp, melee 20, trample 10, bonus ranged 8, speed 1.9 = fastest
+WALKING mega, gait stomp). Megas need NO special-case code: cinematic beats, narrate,
+megaBuilt stat, 1.16 silhouette and trample all key off tags/def fields. Disc-profiled
+both: locomotive widens upward from wheels (clean), buffalo bottom band = hoof-spread
+(91,58 — a disc reads full-width BOTH axes). Neither cut.
+
+**THE NO-DISC RULE (Kyle, 2026-07-27): no character model stands on a moulded base
+disc — ever.** Toys that have come to life need free legs. `BASE_DISC_CUT` in models.js
+prunes baked-in discs at load: knight .032, crossbow .062, charger .036, paladin .046,
+brave .055, worker-plains .048. `pruneBaseDisc` drops triangles whose 3 verts all sit
+under cutY (fraction of geometry height above bbox.min.y), then normalizeToHeight
+re-grounds the feet. Diagnose new bakes with a y-slice vertex-density profile: a disc =
+full-width band at the very bottom + extent collapse above (brave: plate faces at 0 and
+.04-.05 full-width, legs 24%). ⚠️ dragon has NO disc (tail/claws at bottom) — don't cut
+it. ⚠️ brave's first cut at .045 left the plate's TOP face (band spans to .05) — the
+disc survived visually; cut ABOVE the whole band, then capture to confirm. Bake prompts
+now say "standing directly on the ground, no base, no stand" but the baker sometimes
+adds one anyway — ALWAYS profile + capture new figure bakes.
+
+## Grounding & separation (2026-07-27, free — all view-only)
+
+**Contact shadows.** A capture showed the truth: the Toy Chest cast a shadow and
+the army men cast **nothing** — they floated on the mat with only a team ring.
+Real shadow-mapping IS on and units DO set castShadow, but the lamp's shadow
+camera spans ~96 world units across 2048px (~21px/unit), so a toy's footprint is
+a few texels and the depth bias eats it. Retuning the shadow map risks acne
+everywhere, so every toy + building now gets a soft AO disc (`makeContactShadow`
+in models.js, one shared 64px canvas texture, added in `addCommonRings` and in
+`createBuildingView`).
+- ⚠️⚠️ **It MUST use `polygonOffset`, not a raised y.** The mat's surface height
+  varies, so a fixed world y silently lands *under* the ground and the disc
+  depth-fails — it renders NOTHING and looks like the feature never shipped.
+  Both 0.014 and 0.019 were tried and captured as invisible. `polygonOffset:
+  true, factor/units -6` biases depth only, so the disc hugs whatever surface is
+  actually below it. This cost an hour; don't "simplify" it back to a y offset.
+- ⚠️ the disc's texture is **black with an alpha falloff**, so `material.color`
+  multiplies to black no matter what — tinting it does nothing, drive `opacity`.
+  (A red-tint debug test rendered black discs and briefly looked like a bug.)
+- ⚠️ debugging trap that cost two rounds: a probe that *replaced* the material to
+  test something then left the map-less material behind, so the next test was
+  measuring the probe, not the code. Reload between destructive probes.
+
+**Rim light.** A third dim directional (`rim`, 0xbfd8ff) from behind-camera-left
+catches toy top-edges so silhouettes don't dissolve into a bright mat.
+⚠️ keep it **0.22** — at 0.5 it acted as broad fill, the grass went pale and the
+chest's cast shadow nearly vanished (captured, then dialled back).
+
+**Impact.** `applyDamage` now also writes `hitDir` (angle away from the attacker)
+and `hitKick` (siege .16 / melee .10 / ranged .06); the view frame offsets the
+group along it during the existing `hitT` window, so a struck toy is SHOVED off
+the blow instead of only squashing in place. Both fields derive from positions,
+so every client computes the same thing — deterministic, but read only by the
+renderer, and transient like `hitT` (deliberately not snapshotted).
+
+**Per-map colour identity.** `MAP_GRADES` in post.js gives each of the 12 maps a
+tint + exposure `lift`, applied in the composite BEFORE the tone map so it acts
+like the room's lamp rather than a filter. Wired via `post.setMapGrade(map)` in
+startGame. Underbed is cold blue at 0.94 lift, sandbox sun-warmed at 1.03 —
+captured side by side, the rooms finally read as different places. Kept to a few
+percent on purpose; this is identity, not an Instagram filter.
+
+**Silhouette by role.** `createUnitView` scales `view.model` (NOT group.scale —
+the hit-flinch owns that) by tag: mega 1.16, siege 1.07, workers 0.95. Safe with
+veteran promotions because `applyUnitTier` captures `model.scale` as its
+`_baseScale` and multiplies on top. Verified worker .95 / soldier 1 / catapult 1.07.
+
+**Animation variety.** Skinned units get a random start phase across every clip
+plus a per-unit `gaitBias` (0.94–1.06) on walk timeScale, so a squad reads as
+individuals instead of clones marching in lockstep. View-only (Math.random).
+
+## 🎞️ THE MINIATURE LOOK — post-processing (2026-07-26, free) + HOW TO SEE THE GAME
+
+### ⚠️⚠️ SCREENSHOTS ACTUALLY WORK NOW — the old "they time out" note is SOLVED
+The Browser pane can't composite this WebGL page, so `computer{screenshot}` and
+`preview_screenshot` still fail ("not compositing frames"). **But the page can
+photograph itself.** The trick is that a WebGL drawing buffer is only cleared on
+COMPOSITE, so `render()` → `toDataURL()` **in the same synchronous task** returns
+real pixels — no `preserveDrawingBuffer`, no second renderer needed:
+```js
+renderer.setSize(1600, 900, false);              // pane never composited → canvas is 0×0
+camera.aspect = 1600/900; camera.updateProjectionMatrix(); __ttPost().setSize();
+game.fog.plane.visible = false;                  // see the whole board
+__ttRender();                                    // same task…
+const url = renderer.domElement.toDataURL('image/png');   // …as this
+fetch('http://localhost:8399/shot?name=x', {method:'POST', body:url});
+```
+Receiver: **`tools-shot-receiver.mjs` at the repo root** (kept there on purpose —
+a scratchpad copy would die with its session). Run it with the portable node,
+port 8399, CORS on; it writes `%TEMP%\toybox-shots\<name>.png` (or pass an out
+dir as argv[2]) and prints the path — then just `Read` the PNG. Its header block
+carries the full console snippet. **Never pipe base64 through a tool result**
+(context blowout). Take matched pairs by toggling ONE thing between two shots —
+comparing against a differently-seeded game is not evidence. This unlocks real
+visual work; use it.
+
+### The pass itself (`toybox/post.js`, ~230 lines, pure view)
+Real toys get photographed with a macro lens, so only a shallow band is sharp —
+that tilt-shift falloff is the strongest cue that a scene is SMALL, which is the
+whole fantasy. Chain: scene → HDR MSAA target → (bright-pass ¼ → 2× blur = bloom)
++ (copy ½ → blur = defocus) → composite(sharp, defocused, bloom) → canvas.
+- ⚠️ **Colour correctness hinges on one three.js fact**: `WebGLPrograms` only
+  applies toneMapping when `currentRenderTarget === null`. So the scene lands in
+  the RT as LINEAR HDR and the composite shader — which does draw to the canvas —
+  applies the same ACES + sRGB via `#include <tonemapping_fragment>` /
+  `<colorspace_fragment>` (needs `material.toneMapped = true`). That is why the
+  base look is unchanged rather than double-graded. The intermediate materials
+  set `toneMapped = false`.
+- ⚠️ **`sceneRT.samples = 4`** or post silently costs you the canvas's MSAA and
+  everything gets jaggy — a regression that's easy to ship blind.
+- ⚠️ **bloomThreshold is LINEAR and this is a BRIGHT world.** The playmat road
+  sits just under 1.0, so a low threshold makes the FLOOR glow — 0.18 was a
+  total white-out (captured, then fixed). **Threshold 1.0 uses the HDR headroom
+  as the gate**: only emissive/additive things (lamps, sparks, the cinematic
+  pillar) exceed it. Don't "fix" weak bloom by lowering it; brighten the source.
+- `blurMax` is 0.9 and `bandHalf` 0.18 ON PURPOSE — this is an RTS, not a photo;
+  units at the screen edge must stay readable. Resist making it prettier.
+- **Cost: 0.284 ms GPU at 1920×1080 (1.7% of a 60 fps budget)**, measured with
+  `EXT_disjoint_timer_query_webgl2`. ⚠️ `gl.finish()` + wall-clock does NOT work
+  in Chrome (it reported post as *faster* than off — a physically impossible
+  result that means the probe is invalid, not that the code is fast). Use the
+  timer query.
+- Toggle: 🎞️ Miniature look in the pause menu (`settings.post`, persisted);
+  falls back to a plain render when `!post.available` (needs WebGL2).
+- Live tuning without a reload: `__ttPost().p` holds every knob; `__ttRender()`
+  draws one frame. Tune → shoot → look → repeat.
+
+## Cinematic moments (2026-07-24, free — all view-only)
+
+A presentation layer for the room's biggest beats: a colour **screen flash**
+(`#fx-flash` DOM overlay, `mix-blend:screen`, CSS keyframes restarted via
+`void offsetWidth`), **letterbox bars** (`#fx-bars`, slide in ~2.6s), a camera
+**zoom-punch** (`cam.punch` → `applyCamera` uses `dist = cam.dist*(1-punch)`,
+eases back), plus VFX **shockwave rings** (`ShockwavePool`, expanding ground
+rings) and a **light `pillar`** (climbing tapered sparks + base flare + ring).
+- Orchestrated by `cinematic(kind, x, z)` in main.js (beat table `CINE`), wired
+  through a new `cb.cinematic`. Beats: `mega` (titan unboxed — flash+pillar+wave+
+  punch), `megadown` (titan felled — big flash+shake+wave), `wonder` (a Wonder
+  rises — flash+pillar+bars), `kingfall` (crown falls — red flash+shake+bars),
+  `ageup` (gentle white pulse, no wave/pillar).
+- Fired from game.js at: mega unit spawn (`spawnUnit`, gated `owner===myId ||
+  visible`), mega/King death (`kill`), wonder standing (`updateWonder`, gated on
+  the `ping` visibility), local age-up. **`buildingDeath` also emits a shockwave
+  scaled by size** (every fort razing thumps now, no game.js change).
+- ⚠️ determinism: `cb.cinematic` is UNDEFINED in `__ttSoak`'s stub cb, so every
+  call site is `this.cb.cinematic && ...` — the sim never calls it headless, and
+  the VFX it drives are Math.random (view-only). Re-verified: soak fp identical,
+  MP 2h+2ai inSync, all 5 beats fire (flash armed + colour, pillar 47 sparks,
+  bars shown, ageup adds 0 rings), 0 console errors. Screenshots time out (WebGL)
+  — proved via DOM/overlay state + pool census, not pixels.
+
+## Punchier melee swings (2026-07-24, free — models.js is view-only)
+
+`meleeLungeZ(f)` (module-level in models.js) turns a swing into ONE clean beat:
+anticipation pull-back (−0.45 to f=0.28) → sharp thrust (peaks +1.0 by f=0.46,
+near the impact frame) → ease-out to rest. Replaces the old `Math.sin(_lunge*10)`
+WOBBLE that jittered several times per swing. Applied to `model.position.z` (local
++z = toward the foe; the toybox convention where ram-forward is +z, bazooka-recoil −z):
+- **rigless** vehicles & **box** fallback: amplitude 0.2, was the sin-wobble.
+- **proc** default melee (no catapult-arm/ram/band/tube part): amplitude 0.2 — these
+  units used to animate NOTHING on attack; now they lunge.
+- **skinned** GLTF melee: amplitude 0.11, applied AFTER `mixer.update(dt)` so it rides
+  on top of the attack clip (clips animate bones, not the root — model.position.z is ours).
+- ⚠️ **ranged toys never lunge** — gated on `!def.projectile` in every path, so archers
+  hold position and fire. Verified: archer lungeSet=false.
+- ⚠️ the box/rigless paths only stored `_lunge`; the curve needs the DURATION too, so
+  `startAttack` now also stores `_lungeDur` (f = 1 − _lunge/_lungeDur).
+Verified by sampling position.z across a swing: soldier/scout (skinned) −0.035→+0.109→0,
+spear/worker (rigless) −0.064→+0.199→0, archer flat 0, all return to rest, determinism
+identical, 0 errors. (Screenshots time out on WebGL — proved via the position curve.)
+
+## Voice, readability & accessibility (2026-07-22, free)
+
+**⚠️ THE NARRATOR IS NOW ONE VOICE (2026-07-27, ~12cr).** The account switch lost the
+old VO's voice (no voice_id was ever recorded, and all Higgsfield voices are presets), so
+matching it was impossible — instead ALL 16 first-night beats were re-recorded in a single
+preset, **Alistair `d9d5c263-f84e-4752-97b5-3750fcc6fd2f`** (seed_audio). Record that id
+here for any future line so the storyteller never splits in two again. Old wavs kept at
+`_vo-backup-oldvoice/` (repo root, outside the robocopy tree). NARRATOR_VO now lists all 16.
+- ⚠️ **BUG FIXED in the same pass**: the recordings are of the FIRST-night lines, but on
+  NG+ `narrate()` shows the NARRATOR_NG text while still playing the first-night .wav —
+  you'd hear a different sentence than the one on screen. `narrate()` now suppresses VO
+  whenever an NG variant is showing (`!ngLine &&`), so second-night beats are text-only
+  until NARRATOR_NG is recorded. Pre-existing for the original 10; voicing all 16 made it
+  far likelier to hit. **Recording NARRATOR_NG (~12cr) would close it properly.**
+- ⚠️ the dev `serve.ps1` answers **HEAD with 500**, so an asset-existence probe must use
+  GET — a HEAD sweep reports every file missing and looks like a catastrophe.
+
+**Narrator.** Five new beats for moments that used to pass silently — `tribewon`,
+`tribelost`, `strayhome`, `catswat`, `wallbreach` (all with NARRATOR_NG second-night
+variants), wired at their event sites in game.js. ⚠️ `narrate()` was fetching
+`assets/audio/vo/<key>.wav` for EVERY beat, so the unvoiced `foothold` had been 404ing
+in production. New `NARRATOR_VO` Set in data.js lists the 10 beats that actually have a
+recording and gates the fetch — verified both directions (voiced beat → 200, unvoiced →
+no request at all). **Add a beat's key to NARRATOR_VO only when its .wav exists.**
+VO is billed per SECOND, so new beats ship text-only by default.
+Barks: `galleon` filled the last real gap (`forgotten`/`forgottenking` are AI-only
+survival enemies — never selectable, so barks there would be dead content).
+
+**"Why did I lose?"** `endGame(winnerTeam, reason)` now carries the rule that fired
+(`elimination`/`throne`/`wonder`/`relics`/`overrun`/`dawn`) through `cb.gameOver` to a
+new `#go-cause` line under the epilogue. The old defeat text hardcoded "your buildings
+have fallen", which was simply WRONG in regicide/koth/wonder/relics. The elimination
+copy branches on `gameMode` so Sudden Death and Regicide read correctly. An untagged
+end hides the line rather than printing a stale one.
+
+**Accessibility** (pause menu, persisted in `tt-settings`):
+- 👁️ **Colourblind flags** — `TEAM_PALETTES` in main.js swaps TEAM_COLORS to Okabe-Ito
+  (`0x0072b2/0xd55e00/0xf0e442/0xcc79a7`); the default green+vermillion pair collapses
+  under deuteranopia/protanopia. Mutated IN PLACE because every module holds the same
+  array reference and materials bake colour at build time — so it applies from the NEXT
+  battle, and the toggle says so instead of looking broken.
+  ⚠️ Four objective markers (tribe camp flag ×2, sticker holder, KotH throne) had the
+  team colours HARDCODED in game.js and were missed by the palette — exactly the markers
+  you read at a glance. All four now read TEAM_COLORS. The throne's lighter `0x4d9bff`
+  became TEAM_COLORS[0], a small deliberate shade change in default mode too.
+- 🔠 **Text size** 100–150% — `--ui-text` drives `zoom` on self-contained text panels
+  (`#alerts,#dlg-bar,#objectives,#gameover,#tutorial,#gm-card`). **`#hud` is deliberately
+  excluded** — it is anchored/absolutely positioned and zooming it breaks the layout.
+Verified: determinism, MP lockstep 2h+2ai & 3h+1ai, all 7 cause strings per mode,
+palette reaching a real capture via `updateCamp`, console clean.
+
+## The six features above are BUILT (2026-07-12) — how they actually work
+
+1. **NG+ ("The Second Night")**: `ngActive` in main.js (localStorage `tt-ng-active`), progress
+   in `tt-campaign-ng`; toggle button renders in `#cm-progress` once `baseCampaignAllDone()`
+   (which EXCLUDES `needsAllStories` missions). NG = startRes tier-down map (marathon→high→
+   standard→lean; `lean` is a real START_RES tier now, mult 0.5), enemyBoost +0.3 stacked in
+   applyMissionMods (boosts by TEAM, not id — allies stay honest), `g.ngPlus` drives
+   NARRATOR_NG variant lines in game.js narrate().
+2. **Replays ("The Bottled Story")**: SP now runs the SAME fixed 20Hz TICK accumulator as MP
+   (`spAccum` in main.js loop + hidden-tab path) — **variable-dt SP is GONE**; this is what
+   makes SP deterministic. Game tracks `this.frame` (completed updates); `issue()` records
+   `{k: frame, c: cmd}` into `g.cmdLog` (fresh SP only; null on restore/MP/replay). Auto-saved
+   at gameOver to `tt-replay-last` with dataHash (djb2 of data.js text), seed (`g.seedUsed`),
+   resolved factions + pinned playerDefs. `#replay-btn` on the menu → `startReplay()` →
+   `replayLaunch` plumbed through startGame → Game opts.replayLog → feed executes commands
+   by frame at update() top; issue() is inert during playback (user can still select/camera).
+   Verified byte-identical: fingerprint at frame 4600 matched exactly. Version mismatch = polite refusal.
+3. **Touch controls**: pointerType-gated in main.js (no media query): tap select, quick-swipe
+   pan, hold-150ms-then-drag = box select, long-press 500ms = contextual command (shared
+   `contextualAt()` with the contextmenu handler), two-finger pinch = `cam.tdist`, edge-scroll
+   off for touch (`lastPtrType`).
+4. **2v2 campaign**: mission `allies:[{faction}]` / `foes:[{faction}]` → startGame builds the
+   4-seat playerDefs (team 0 = you + allies). Mission 17 `alliance` (secret, after midnight):
+   you+knights vs bots+bricks on livingroom. Campaign list + briefing render multi-crest sides.
+5. **Fog integrity**: `g.seenByMyTeam(x, z)` (sim-side vision scan) gates the wonder alert
+   pings — message always fires, map ping only with honest vision.
+6. **Toy Box Zero**: mission 18 `zero` (secret + `needsAllStories` — the ORIGINAL 21 stories;
+   achievements marked `beyond: true` don't count toward the gate). `zeroEra` flag →
+   `setProceduralEra(true)` in models.js (units + buildings render procedural) + 'sepia'
+   lighting preset in applyMapLighting. Sudden Death, lean, Greenboots-vs-Snug prequel prose.
+   No briefing plate yet (credits ran out — `assets/campaign/zero.jpg` auto-hides; generate one
+   when topped up, sepia prompt in session notes).
+
+Chronicle has 25 stories now (21 core + 4 `beyond`: secondnight/together/pagezero/act4).
+**Campaign is 28 missions (2026-07-20): 25 open (Acts I-V, five each) + midnight + alliance
++ zero.** ⚠️ **ACT V — THE KINGDOM ARRIVES** (indices 20-24, all `beyondTrilogy: true`):
+unboxing(bookshelf/knights-v-classic/standard) → portcullis(canyon/v-bots) →
+carpetkings(livingroom/v-plush/koth) → oldguard(sandbox/v-classic+plush foes/sudden) →
+hearth(garden/knights+classic ALLIED v racers+bots/koth). The knights' chapter: they are a
+NEW TOY (a boxed castle), the theme is the fear of being replaced, and it resolves into
+family — mission 4 fights the old guard, mission 5 fights BESIDE them. Every map is
+terraced/chokepointed because the 07-20 battery proved that's the knights' real identity.
+Inserting at 20 SHIFTED the secrets to 25/26/27 — `ACT_HEADERS` updated (20 = Act V,
+25 = After the Trilogy) and `ACT_CLOSERS` gained `hearth: 5` + a bookend page 5. NG+ gate
+is untouched (beyondTrilogy is excluded — verified 16 gating missions, none from Act V).
+**Plates DONE (2026-07-27, 10cr)** — unboxing/portcullis/carpetkings/oldguard/hearth all
+generated + installed at 900×600 JPG q86. **Every mission in the campaign now has a plate.**
+
+## THE GREAT OUTDOORS (2026-07-12, Kyle's B+C pick — A built as the dependency)
+
+- **Irregular map shapes**: `MAPS.<k>.mask` = {type:'ellipse'|'kidney', rx, rz, bx?, bz?, br?} —
+  pure `maskAt(mask,i,j,N)` in data.js shared by game.js (marks outside tiles `blocked` FIRST
+  in setup) and models.js createGround (paints outside as deck/wild-lawn + rim stroke; the
+  mat canvas mask painting must never be replaced by generated ground art — loader is skipped
+  when mask present). Masks are sized to always contain the start ring (R=N/2-8 since
+  2026-07-18 (second push the same day; was -10, before that -15), diagonal seats at ±19.8
+  tiles → 1v1 seats (16,56)/(56,16) flush against the [11,56] clamp, chests +2;
+  was N/2-15/±14.85 — Kyle wanted corner bases so maps feel bigger; masks were GROWN the same
+  day for the same reason: sandbox kidney rx35 rz33 bite br10/bz-30 (was 33/27/12/-26, ~47%
+  open → 58%), oldoak ellipse rx35 rz34 (was 34/29) — Kyle's rule: every map uses the full
+  mat unless off-limits ground is thematic; rims stay as thin borders. ~8 tiles of diagonal
+  start margin remain). addResourceNode already rejects blocked; the obstacle loops got a
+  `rectClear` blocked-guard (no-op on classic maps).
+- **Rolling terrain**: `dunes:{count,rMin,rMax}` = wobbly mounds wearing 3-band collars
+  (E → 2E/3 → E/3, every step ≤ CLIMB 0.3 — walkable from ANY direction, no ramps needed);
+  `centerHill:{r}` = deterministic 2-level hill at map center (same collar math);
+  `roots: true` + centerHill places the 4×4 'oak' obstacle at the summit + radial root walls.
+- **Ridge walls / chokepoints (2026-07-18)**: `ridges:[{i1,j1,i2,j2,w,gaps:[{t,w}]}]` in tile
+  coords — AUTHORED (no rng) steep crests: core = E*2.2 + blocked (a natural wall — steps >
+  CLIMB), skirt+gap tiles = E/3 walkable. In-code guards skip already-blocked tiles and
+  clearHomes(14), so bad authoring can't wall a doorstep. **Ridges lay down FIRST** in the
+  terrain section (before plateaus/dunes/hills, which all skip blocked tiles now — plateau
+  center pick + fill/ramp/crown loops got blocked-guards). `snapToLand` also escapes BLOCKED
+  tiles (not just water), so KotH thrones/stickers slide off crests to the nearest free tile.
+  models.js `paintRidges` + `RIDGE_LOOKS` palettes paint each map's walls in its own material
+  from the SAME mapCfg.ridges (3-layer shadow/body/crest ellipses, gaps unpainted; livingroom
+  adds threaded baubles) — paint and walls always agree. Ground-PNG maps (underbed) composite
+  the art INTO the canvas then repaint ridges on top (loader no longer swaps the map when
+  ridges exist). **Themed layouts (5 maps)**: sandbox = 3 sand walls (central main-diagonal +
+  wing walls; seats sit on the ANTI-diagonal (18,54)/(54,18) — get this right or the wall is
+  parallel to the seat axis and useless); underbed = 2 staggered lost-laundry rows (S-bend);
+  playground = 2 clipping windrows + open central boulevard; kitchen = 1 gentle spilled-flour
+  line, single wide central pass (kitchen stays the open-pool map); livingroom = 1 fallen
+  garland across the tree skirt, 3 sagging gaps. All point-symmetric for fairness. NOT ridged
+  on purpose: playmat (the pure-open flagship), canyon/bookshelf/garden/oldoak (already
+  terraced), attic (war table), bathtub (naval). Verified: paths thread gap centers, koth on
+  wall-center maps clean, same-seed fp identical, 0 errs. ⚠️ Sandbox+underbed+livingroom
+  likely play "terraced" now — re-pool before the next balance battery.
+- **Ground depth (2026-07-18)**: every mat + floor MeshStandardMaterial gets a bumpMap
+  derived from its own canvas/PNG (grayscale+contrast copy, `bumpFromCanvas` in createGround;
+  bumpScale 0.4 mat / 0.35 floor) — plank grain, grass blades, carpet pile catch light as
+  relief. Painters upgraded: playground grass = layered leaning blade strokes + clover;
+  livingroom carpet = diagonal vacuum nap bands + directional pile + worn path; kitchen wood
+  = wavering two-tone grain streaks + ringed knots.
+- **Ground ART + hillshade (2026-07-18, 12cr)**: 9 of 11 map grounds now have nano art
+  (added ground-{sandbox,bookshelf,playground,kitchen,livingroom,oldoak}.png at 1k, 2cr each;
+  garden + bathtub still canvas — garden's a candidate when topped up). Kyle's call:
+  **masked/ridge COMPOSITE mode >> pure replacement** — the loader draws art as base coat,
+  then paintMaskBorder() + paintRidges() + hillshade repaint on top (only bookshelf + the
+  legacy 3 art maps are pure swaps). `shadeGroundByHeight` (models.js, called in game.js
+  setup after applyTerrainToGround): bakes NW-light hillshade from the REAL height grid
+  into the ground texture (offscreen tile-shade layer, blur(6px), then over the map; art
+  textures get baked to canvas first). View-only, no rng — determinism re-verified. The
+  loader's `groundMat.userData.reshade` re-applies shade after async art composite. Art
+  prompts must describe the map's painted gameplay markings (track/placemats/tree skirt)
+  so the art keeps the map's identity; vet via montage before adopting.
+- **MAP LIFE Tier 1 (2026-07-18, free — Kyle's AoE-alive pick)**: (1) **Cloud shadows** —
+  setupWeather adds 4 drifting soft-blob shadow planes (y≈0.07, depthWrite off) on outdoor
+  maps + playground; drift in updateWeather (runs in BOTH loops already). (2) **Critter
+  menagerie** — CRITTER_TYPES in data.js (mouse/crab/snail/candy/ant = capturable;
+  bunny = flee, uncatchable; moth = orbit, flies over cliffs; duck = water, befriend from
+  dry land, waddles home once captured); MAPS.<k>.critters = [{type,count},...] per-map
+  casts (garden has TWO types); createCritterView(type) procedural variants; snapshot
+  carries type+hx/hz now (restore used to hardcode 'mouse' — fixed). (3) **Lost Toys** —
+  LOST_TOYS in data.js: 5 neutral strays/match (jack/domino/marble/bottlecap/crayon,
+  createLostToyView), placed wide + clear of doorsteps; a WORKER (⚠️ identified by
+  def.gatherRate NOT def.gather — that bug ate the first test) within 1.4 tiles auto-carries
+  (rides along, no order hijack, u.carryLost), bounty +80 buttons pays when the worker next
+  passes its OWN chest; carrier death drops the toy in place; stats.strays; full snapshot
+  round-trip incl. carrier relink (byte-identical verified). Verified: 8-map soak battery
+  0 errs, determinism 4 maps post-fix, pickup→carry→payoff numeric, bunny fled 3.3 tiles,
+  save round-trip. AI doesn't SEEK strays (workers stumble on them; human edge — like
+  Empire cards, the SP fantasy).
+- **MAP LIFE Tier 2 (2026-07-18, free)**: (1) **Indoor weather** — new setupWeather kinds:
+  'motes' (playmat/canyon/underbed/attic/bookshelf — hovering twinkle dust), 'steam'
+  (kitchen — rising fading curls), 'bubbles' (bathtub — wobbling up), 'glitter'
+  (livingroom — slow gold/silver flecks); keys in MAPS.<k>.weather. (2) **Room-tone
+  ambience** — startAmbience kinds 'room'/'study' (hush+clock tickTock+creak), 'kitchen'
+  (fridge hum+drip), 'tv' (bandpassed murmur w/ speech-swell LFO), 'tub' (echo drips),
+  'attic' (rain-on-roof highpass+gust LFO+creaks), 'dark' (deep hush+52Hz house hum);
+  breeze base is now OUTDOOR-ONLY; wiring in startGame via AMB_BY_GROUND (playground →
+  'day' birdsong; zeroEra stays silent). (3) **Flyovers** — weather.flyKind: 'planes'
+  (sandbox/playground/playmat/attic — 3-dart paper squadron, y≈7.5, 16s crossing, every
+  45-105s) / 'butterflies' (garden — 2-3 flappers, low+wandering, 34s); forced-spawn via
+  `window.__ttWeather()` debug handle (set flyT=0.1). All view-only Math.random; verified
+  per-kind live (ambKind + particle counts + flight motion), soak determinism unaffected.
+- **MAP LIFE Tier 3 (2026-07-18, +32cr)**: (1) **Sand trails** — setupTracks/updateTracks in
+  main.js (both loops): 512px overlay plane y=0.045 on sandbox only; 8Hz stamp of moving
+  units (critters smaller) + destination-out fade (~30s). View-only. (2) **Hero landmark
+  system** — MAPS.<k>.landmark {kind,i,j,size} → addObstacle placed BEFORE random obstacles;
+  sandbox sandcastle 3×3 at (33,18) (⚠️ first authoring at (33,15) was INSIDE the bite circle
+  — check bite distance, not just the ellipse). 'sandcastle' in MAP_MODEL_KEYS → GLB at
+  assets/map/sandcastle.glb auto-swaps over the procedural three-tower fallback (both built).
+  GLB via nano (2cr) → image_to_3d (30cr) → fix-all.mjs diet 8.3MB→683KB (the gltf-tools live
+  in the ca792b27 SCRATCHPAD — still on disk, manifest format: [{src,dst,webp}]).
+  (3) **Balance re-pool battery (60 games, knights-vs-field, seed 31)**: sandbox knights 7/10
+  = TERRACED now (move it in the pools); kitchen 2/10 (stays open); underbed/livingroom/
+  playground/playmat 3-4/10 = gentle, keep pools. 0 errs. Single-seed = directional only.
+- **MAP LIFE Round 4 (2026-07-18, free — "more life still")**: (1) **WILD TOY TRIBES** —
+  WILD_TRIBES in data.js; MAPS.<k>.tribes = 2 on playmat/sandbox/garden/oldoak/playground/
+  underbed/attic (NOT bathtub/survival); neutral campfire camps (createCampView: tent/fire/
+  3 wild toys/grey pennant, setOwner tints the flag) placed as POINT-MIRRORED pairs at the
+  midfield ring (fairness); kind 'camp' entity, sticker-pattern hold scan: MILITARY ground
+  toys (no workers/naval) uncontested for 8s → tribe joins the LOWEST pid present (progPid —
+  snapshotted, or a save at prog 7.9 pays the wrong player): spawns comp ['scout','soldier',
+  'soldier'] + 60 buttons + stats.tribes. Snapshot k:'w' round-trips (verified byte-identical
+  incl. captured flag tint on restore). Lore hook: doorstep brief's "teach them the flags".
+  (2) **5 new critters**: ladybug (capturable 40), goldfish (water 70), spider (flee 2.0),
+  bee (orbit), beetle (capturable 60); most maps have 2-3 species now (garden has 3).
+  (3) **Attic ridge**: toppled-atlas wall (26,26)-(46,46) gaps t.3/.7 w6 + attic RIDGE_LOOKS
+  (aged paper/leather) — the war table has ONE gentle spine now. Verified: 8-map soaks 0 errs,
+  det ×3, live capture (1 soldier held → 3 units joined +60), mirrored placement, console clean.
+- **MAP LIFE Round 5 "reactive" (2026-07-18, free)**: (1) **THE HOUSE CAT** — HOUSE_CAT in
+  data.js; one per land map (bathtub `cat: false`), kind 'cat' entity: walk/nap state
+  machine (naps ANYWHERE incl. chokepoints, view.setNap curls her), SWATS lone toys
+  (swatRadius 2.1, 9 dmg + 1.8 knockback, 6s cd — "lone" = no same-team toy within 4;
+  kill(e, null) is null-killer-safe), untargetable owner -1. ALL critters scatter within
+  3.5 (scatter check runs before flee/capture branches in updateCritter). Snapshot k:'ct'
+  {state,stateT,swatT,facing} round-trips + restore re-curls nappers. (2) **Battle scars**
+  — setupTracks now runs on EVERY map: sandbox keeps fading footprints; other rooms
+  accumulate permanent WEAR (per-ground WEAR_COLORS, low-alpha trample builds visible
+  paths over minutes; the cat leaves the biggest prints) + razed buildings paint a
+  radial-gradient SCORCH + flung debris (deadSeen set, never fades). (3) **Deepening
+  night** — setupNight snapshots all lights' base intensity/color/position; updateNight
+  (both loops) lerps by game.time toward NIGHT_TINT 0x6a7ab8, −30% intensity, moon-arc
+  rotation of directionals; full depth ~20 sim-min; zeroEra exempt. Verified: 6-map
+  soaks 0 errs, det ×2, swat exactly 9 dmg + knock on a LONE toy only, critter scatter,
+  nap transition, save round-trip byte-identical w/ cat, scorch pixels painted on kill,
+  light dimmed 1.6→1.36 at t=1200. ⚠️ the cat is a SIM ACTOR — she consumes rng every
+  update; any cat change is an MP/replay-affecting change.
+- **MAP LIFE Round 6 "living world" (2026-07-18, free)**: (1) **Positional audio** —
+  sfx.setListener(camX, camZ) fed from both loops; playAt(name, x, z) pans (±0.8 by dx/24)
+  + attenuates (1/(1+d/18), silent >55) via a StereoPannerNode threaded through tone()'s
+  _spat state; combat call sites converted (attack impact at target, death squeak/material
+  at the fallen toy, building crash, splash thud). (2) **Living bases** — setupBaseLife/
+  updateBaseLife in main.js (both loops, 1Hz scan): production buildings with a live queue
+  puff recycled chimney smoke; house-type buildings get an additive window-glow sprite
+  whose opacity = nightF (updateNight now writes module-level nightF) — verified glow 0.25
+  at deep night + smoke on busy chest. (3) **Smarter fauna** — ants (uncaptured) patrol a
+  real trail home↔spill (hx*0.35 toward center, c.trailFlip toggles, serialized as `tf`
+  in the critter snapshot for restore fidelity); orbiters (moth/bee) take rng feeding
+  pauses; fireflies spawn clustered (span*0.45) near the oak. ⚠️ TEST GOTCHA that burned
+  this session twice: NEVER push a def-less fake entity into game.entities — every sim
+  system reads e.def and the whole tick loop dies; clone a real def. And remember the
+  console buffer RETAINS errors across navigations — verify with a live console.error
+  hook, not the buffer.
+- **MAP LIFE Round 7 "showstoppers" (2026-07-18, free — the alive-maps roadmap is DONE)**:
+  (1) **THE KID** — pure view spectacle (sim never knows; headless soaks never see it):
+  every ~7-12 min (then ~9-16), footsteps (sfx.footsteps) → colossal soft shadow sweeps in
+  → a giant procedural hand (palm + 4 fingers + thumb, skin 0xe8b48c) descends from y44 →
+  GRABS a decor item (game.js tags decor `userData.decor`; the mesh just goes invisible)
+  → lifts away; alerts bookend it; shakeCam beats; zeroEra exempt. Debug: `__ttKid()`
+  (set .t=0.1 to summon; phases foot→shadow→descend→grab→lift verified + decor 13→12).
+  (2) **The room remembers** — setupTracks ghosts last session's wear in at 35% alpha
+  (localStorage `tt-wear-<ground>`, saved at gameOver as a 256px dataURL, non-fading maps
+  only) so it decays naturally over a few nights instead of blackening; verified full
+  round-trip across reload (882 ghost px at a known mark). ⚠️ verification gotcha: sample
+  the canvas where you PAINTED (a wrong-region read produced a false negative first).
+- **MAP LIFE Round 8 "the whole menagerie" (2026-07-20, free)**: (1) **THE YARD DOG**
+  (YARD_DOG in data.js) — outdoor predator on playground/garden/oldoak/sandbox (those maps
+  now `cat: false, dog: true` — dog & cat never share a lawn). kind 'dog': trot→chase→rest
+  state machine; spots the nearest MOVING unit/critter within chaseRadius 15, GALLOPS
+  (runSpeed 2.0) at it, pounces (6 dmg + 2.8 knock) then flops to rest; barks (playAt);
+  view.setGait(run) swaps trot↔bound. Critters scatter wider from a dog (4.5) than a cat
+  (updateCritter scatter now picks cat||dog + per-beast radius). (2) **THE ROOMBA** (ROOMBA
+  in data.js) — dumb indoor hazard on playmat/livingroom/kitchen (alongside the cat). kind
+  'roomba': straight-line trundle, reflects heading + rng scatter on hitting blocked/water/
+  edge, SHOVES any bumped unit 1.7 along its heading (no damage), whirs (playAt). (3)
+  **Seasonal skins** (main.js, view-only) — season from `new Date().getMonth()`: winter
+  snow / spring petals / autumn leaves drift on outdoor maps + a fog color-grade per season;
+  `__ttSeason(key)` forces one (today=summer has no drift). ⚠️ pets are SIM ACTORS (consume
+  rng — MP/replay-affecting). Spawn scan is ring-first then a deterministic full-board
+  fallback (oldoak's hill/roots starved the 40-try ring — a pet that never spawns is a bug).
+  `__ttKid`/`__ttSeason` debug handles. Verified: 8-map soaks 0 errs, det ×3, dog pounce
+  6dmg+knock+rest, roomba shove 1.7 + stays in-bounds, both save-round-trip, 34 snow
+  particles forced, console clean.
+- **SURVIVAL game-over card + achievements (2026-07-20, free)**: `survivalGameOver(win)` in
+  main.js (branch in the gameOver cb when `game.gameMode==='survival'`) replaces the rival-
+  column card with a Long-Night card: ☀️ DAWN / 🌑 OVERRUN title, a wave-progress bar (held/
+  dawnWave), a rival-free tally (waves held, furthest wave, Forgotten unmade, toys lost,
+  resources, time), and a themed retelling. 3 new beyond achievements in chronicle.js:
+  firstlight (bestWave≥6), seenthedawn (survivalWon), longestnight (bestWave≥3 & 0 losses).
+  ⚠️ LIVE survival test path: navigate `?mode=survival&start=hard&map=playmat` (the URL
+  AUTOSTART block at ~line 249 is the ONLY place a `mode` param sets chosenMode — a bare
+  `__ttStart` ignores it). Soak needs explicit `playerDefs:[{team:0,isAI:true,faction},
+  {team:1,isAI:false,den:true}]` + gameMode:'survival' + survivalDawn (bare gameMode alone
+  leaves g.survival null — the den seat is what triggers setupSurvival). Verified: win+defeat
+  cards render, all 3 achievements fire on the right predicates, survival sim deterministic,
+  console clean. (Stock AI defender is still weak — the CARD is the fix; real wave tuning
+  wants a human playtest, as the SURVIVAL block notes.)
+- **HARDENING SWEEP (2026-07-20, free)** — deliberate cross-system bug hunt after the big
+  map-life/Empire day. **Found + fixed one real bug:** `zeroEra` was never referenced in
+  game.js, so **Toy Box Zero spawned a house cat, a ROBOT VACUUM and 2 wild tribes** into
+  the sepia prequel — directly contradicting its own briefing ("no tribes, no names for what
+  they were feeling yet"). Pets + tribes are now `!this.zeroEra`-guarded (critters + lost
+  toys deliberately KEPT — organic/timeless, not contradicted). ⚠️ `game.zeroEra` is set at
+  main.js:2075, exactly ONE line before `game.setup()` — that ordering is load-bearing.
+  New QA hooks: `__ttSoak` accepts `zeroEra:true` (mirrors the survivalDawn hook) and now
+  returns `kinds` (live entity census by kind) so tests can assert what populates a room.
+  **Everything else passed:** byte-identical save with cat+roomba+2 camps+5 strays (one
+  MID-CARRY)+critters coexisting; MP lockstep `inSync === true` w/ clients agreeing on every
+  pet map incl. a mid-match guest drop (pets consume rng — this was the critical invariant);
+  survival×pets; dog-chases-CRITTER (pounce is `prey.kind === 'unit'`-guarded, no undefined-hp
+  math); pets stay on legal tiles on masked maps; 11/11 maps soak clean; zeroEra deterministic;
+  10s live all-systems run w/ a console.error hook = 0 errors. ⚠️ verification lesson: `r.inSync
+  !== false` reads TRUE when the field is undefined — assert `=== true` on harness returns.
+- **Art backlog CLOSED (2026-07-18, +14cr, total 26cr today)**: Act IV briefing plates ×5
+  (doorstep/dunes/gardenwar/washout/oakcrown) + the sepia zero.jpg + ground-garden.png ALL
+  generated + installed — every campaign mission has a plate now, all 11 map grounds have
+  art. Plate recipe: read one existing plate for style ("soft gouache storybook"), 3:2,
+  prompt from the mission brief's actual imagery, convert PNG→JPG q86 via System.Drawing.
+  Balance after: ~229cr (was 254.9 at session start; nano = 2cr/image steady all day).
+- **Nature library** (createObstacleMesh kinds): tree/oak/rock/sunflower/roots/bucket/shovel;
+  (createDecorMesh kinds): grass/mushroom/daisy/pebble/seashell. Flora carries
+  `userData.sway` (amp) — the weather system animates rotation.z around the base.
+- **Outdoor maps**: sandbox (kidney + dunes + 'day' sky), garden (terraces + sunflower
+  `groves:{kind,count}` + 'gold' sky), oldoak (oval + centerHill + roots + 'dusk' sky).
+  Outdoor styles skip the room walls entirely (OUTDOOR flag in createGround) and have their
+  own surrounds (watering can/glove/house-wall; fence/pots/gnome/trellis; distant-house/
+  porch-light/hedge/wheelbarrow). Lighting presets 'day'/'gold'/'dusk' in applyMapLighting.
+- **Weather (view-only)**: `MAPS.<k>.weather` = 'rain'|'seeds'|'fireflies' → setupWeather()
+  after game.setup() in startGame; updateWeather(dt) in BOTH loops. Wind sway collects all
+  userData.sway nodes. The sim NEVER reads weather.
+- **Act IV "The Great Outdoors"** (missions 16-20, ids doorstep/dunes/gardenwar/washout/
+  oakcrown): the Bun-Bun rescue. gardenwar = knights' first campaign outing (koth);
+  washout = 2v2 alliance sudden-death. All Act IV + alliance + zero carry
+  `beyondTrilogy: true` — **NG+ and the "book done" checks exclude beyondTrilogy pages**
+  (the original 16 gate NG+; new content never re-locks it). `missionUnlocked`: a DONE page
+  never re-locks. ACT_HEADERS keyed by index: 0/5/10/15/20. NO plates yet for Act IV
+  (auto-hidden; generate 5 when credits allow).
+- The `map-row` and `fac-row` in the HTML are now GENERATED from MAPS/FACTIONS — never
+  hardcode those lists again (the knights-invisible bug).
+- Replay stamp now hashes data.js + game.js together.
+
+## Campaign immersion suite (2026-07-12, Kyle's A+B+C+D pick)
+
+- **Dialogue**: MISSION_EVENTS beats carry `speaker` (faction key → commander portrait+name,
+  or 'narrator' → 📖 The Storyteller) — game.js routes them to `cb.dialogue` instead of
+  alert; `#dlg-bar` (main.js showDialogue, queued, auto-timed by length). Every beat in all
+  23 missions is voiced; banter added (Hector/Greenboots washout+alliance, Nitro/Hector
+  gardenwar). `focus: true` on a SPAWN beat = camera moment.
+- **Camera moments**: cb.focus → cameraMoment(x,z): 0.6s glide, 1.3s linger, 0.6s home;
+  any pointerdown/WASD cancels. ⚠️ Lives in BOTH loops — the Browser pane runs pages with
+  `document.hidden = true`, so anything only in the rAF loop is INVISIBLE to verification
+  (and to hidden tabs). Put per-frame view systems in the hidden setInterval path too.
+- **Objectives chip**: `#objectives` (main.js updateObjectives, 0.5s cadence, read-only):
+  mission objective or mode label + live state (rival buildings left / throne countdown vs
+  KOTH_HOLD 120 via holdTeam / kings / chests).
+- **Living briefings**: showBriefing stages — Ken Burns drift on the plate (#bf-art-frame
+  wrapper), typewriter brief (click anywhere completes), `CMDR_LINES[missionId]` war-table
+  quote (data.js, all 23), objective stamp + sfx.
+- **Act bookends**: ACT_CLOSERS {finale/shelfking/wayhome/oakcrown} → showBookend once per
+  act (localStorage tt-bookend-N), parchment page-turn overlay with stats-derived recap.
+- **Expedition Journal**: every campaign game-over appends to tt-journal (auto-composed
+  diary from time/kills/losses); read via 📖 Journal button on the campaign screen
+  (showingJournal state swaps cm-list).
+- **Veterans**: campaign WIN stores up to 3 surviving military types → tt-vets; the NEXT
+  campaign mission spawns them at home with kills=3 + rank badge (applyMissionMods,
+  deterministic-safe like mission.bonus), then the record is spent.
+
+## Pathfinding (2026-07-12 fix — read before touching PathFinder)
+
+`PathFinder.find()` is a **multi-goal A***: when the destination tile is blocked (resource
+piles, building footprints, walls — they all mark `blocked`), the goal set is EVERY free
+tile of the nearest free ring around the target (radius up to 10), and the heuristic is
+octile-to-center relaxed by `ringR * 1.414` (stays admissible for every ring tile → the
+search picks the side that is genuinely closest BY PATH). The pre-fix code pre-picked ONE
+ring tile via `nearestFree` scan order (top-left bias), which sent workers around piles —
+and around entire wall lines — to an arbitrary far-side tile. Ground-truth tests that must
+keep passing: wall-detour path ends adjacent to the pile; knocking a hole in the wall
+shortens the path AND the path threads the hole; a worker south of a pile paths 1 step to
+the south face. Same-seed soak determinism verified after the change (heap ties are
+deterministic; goals Set is only membership-tested).
+
+## EMPIRE MODE (2026-07-14, from Kyle's 53-page Design Bible PDF): Phase 1 slice SHIPPED
+
+Kyle supplied `Toy_Box_RTS_Empire_Mode_Design_Bible.pdf` (53 pages; text extraction lives in
+the session scratchpad; §23 is a master build prompt). Docs at repo root:
+`EMPIRE_MODE_ARCHITECTURE.md` (integration note + BattleContext/BattleResult contracts) and
+`EMPIRE_MODE_CHECKLIST.md` (every task mapped to a bible section — READ IT before Phase 2).
+- **Files**: `toybox/empire-data.js` (ALL content: 12-node Appendix-A board, routes, garrison
+  templates, upgrades, economy constants) + `toybox/empire.js` (`Empire` = pure deterministic
+  campaign sim, `EmpireUI` = SVG board screen; deliberately separable). Menu: `#home-empire`
+  → `openEmpire()`; overlay `#empire` in the HTML.
+- **The loop**: node-graph armies (MP 3, road 1/rough 2), Parts economy, unit-card rosters
+  (strength% + vet pips; casualties persist), neutral garrisons by node type, encounter →
+  preview band (Overwhelming…Desperate) → Play / Simulate / Withdraw, capture loot, three
+  upgrades, Dominion victory (7/12 + a fort) / capital loss / turn-24 sunrise. AI seat plays
+  the same rules (recover→recruit→defend→expand, attacks only when Favored).
+- **RTS bridge**: `empireBattleContext()` consulted in startGame (map=node biome, mode/startRes
+  from template, seed pinned per-encounter); rosters spawn tagged `u.empireCardId` at each
+  chest (strength → hp%); at gameOver main.js harvests tagged survivors →
+  `Empire.applyPlayedResult(win, survivors)` → "Return to the Empire" button; boot auto-opens
+  the map when `tt-empire.returnToMap` (same reload pattern as campaign — invariant 2).
+  Simulated battles use a seeded formula on the SAME UNITS stats (±8% bounded, seed locked at
+  encounter creation, never rerolled). Both paths share `applyBattleResult` (idempotent by encId).
+- **Save**: `tt-empire`, written at every phase boundary; reload mid-battle-window resumes the
+  encounter modal; an abandoned played battle voids `pendingPlay` (encounter re-offered).
+- **Testing**: `window.__ttEmpire(seed, turns, script)` — headless, `persist=false` (NEVER
+  touches the real save). Verified: same seed+script ⇒ identical stateHash; AI won a full
+  campaign in 10 turns; full UI loop + played-battle round trip (77%-strength cards arrived
+  at exactly 77% hp; survivors returned healed +6 by the next upkeep — that's the design).
+- **Round 2 (same day) SHIPPED**: painted board art (`assets/ui/empire-board.jpg`, Higgsfield
+  2cr), Power (⚡ cap 8) + Force March, binary supply (BFS to capital; half yield + no heal
+  when cut; vacuum blocks supply too), second armies via Muster (tombstone-unique ids B0/B0_2 —
+  a duplicate-id bug the determinism battery caught), The Vacuum house event (telegraphed →
+  blocks a route 2 turns, seeded), node intel cards w/ adjacency scouting fog, roster-chip
+  battle previews, WAAPI march animations, stats + victory screen, save v1→v2 migration in
+  `Empire.load`. Save version bumped to v2.
+- **Round 3 (same day) SHIPPED**: Imagination (💡) currency + the **Empire Tree** (4 branches ×
+  2 tiers, prereqs, Parts+Imagination, `#e-tree` modal; effects relay/repairs/salvage/workshop/
+  reserves/combined/kites/masterplan — Combined Arms applies to played battles too via
+  BattleContext attMul/defMul). Second win route **Crown Victory** (hold ARCHIVE crownNeed=4
+  turns; tracked in aftermath via tickCrown, recapture resets) + rival victory telegraphs
+  (`turnsToWin`, `warned` one-shots, `winHow` on the victory screen). Master Plan reveals
+  `s.aiIntent`; Scouting Kites = 2-route fog. Empire **audio** via `setEmpireHooks({sfx})` +
+  `esfx()`. AI climbs the tree + contests the crown. Save bumped v2→v3 (migration in `load`).
+- **Round 4 (same day) SHIPPED — Card Collection** (`toybox/empire-cards.js`): 16 unique named
+  troop cards × 4 rarities (commons → legendary megas: tank/dragon/colossus/mamabear). Each
+  card fields a REAL unit; mods are hp+vet, flowing into BOTH sim (`cardsPower` reads c.hp) and
+  played battles (BattleContext attSpawns/defSpawns carry key+hp; main.js `dropRoster` applies
+  hp mult). **Meta collection** persists across campaigns (`tt-empire-cards`; `emp.coll` — a
+  throwaway when `persist===false` so tests never touch storage). Win a human battle → seeded
+  `rollLoot(rng, quality)` grants a card (+scraps; discovery nodes = treasure chests); dupes
+  melt to scraps; craft missing cards from scraps. UI: recruit **picker** (`showRecruit`, gated
+  to owned cards), collection modal (`showCollection`, craft), `flashLoot` reveal, rarity-
+  coloured army cards. AI recruits commons only (player's legendaries = the SP power fantasy).
+  Save bumped v3→v4 (`load` gives old plain cards a fallback key). `__ttEmpire` return gained
+  `cardsWon`/`lastLoot`; determinism re-verified incl. loot draws.
+- **Round 5 (same day) SHIPPED**: the painted board art (`assets/ui/empire-board.jpg`, shipped
+  round 2) is finally WIRED as an SVG `<image>` backdrop (0.62 opacity + 0.28 dark rect).
+  **Stronghold/capital modules** (`E_MODULES`/`E_MODULE_SLOTS` in empire-data): Block Walls
+  (+30% hold defence via `wallMul` in preview), Workshop (+8 Parts/turn in income + rest-heal),
+  Watchtower (2-route scout in the node card), Barracks (`canRecruitAt` → recruit off-capital).
+  `buildModule` + node-card build UI + board `e-modmark`; AI fortifies its forts. AI recruits
+  scale by turn (`aiRecruitKey`). Save v4→v5 (nodes gain `modules:[]`). ⚠️ vs a passive test
+  opponent the AI wins before it develops forts, so headless rarely shows AI modules — human
+  build path is fully verified; determinism holds (modules in stateHash).
+- **Round 6 (same day) SHIPPED — onboarding & accessibility (§18, code-only)**: first-run
+  How-to-Play guide (`showGuide`; `tt-empire-seen`; reopen via ❔ button or `?`), keyboard
+  (`handleKey` attached on show: Space/Enter=End Turn, Esc=close→deselect→leave, C=collection,
+  T=tree; battle-decision modal `#e-sim` guarded from Esc/Space skip), `prefers-reduced-motion`
+  (skips token FLIP + loot pop), SVG node `<title>` tooltips.
+- **Round 7 (same day) SHIPPED — Doctrines (§10, code-only)**: `E_DOCTRINES` (6 swappable
+  strategic identities: scavenger/fortified/lightning/warrior/spymaster/dreamer), each a focused
+  passive threaded into its system (ownerPowerMul, upkeep MP/imag, preview wallMul, capture,
+  awardLoot, buyUpgrade, scouting, masterplan reveal). Slot 1 from start + slot 2 at turn 8;
+  swap a committed slot for 2 Power (`setDoctrine`). 🎗️ modal + top-bar chip + `D` key; AI
+  picks warrior→fortified. Save v5→v6; doctrines in stateHash; `__ttEmpire` gained
+  doctrine/module script actions + `parts` in the return.
+- **Round 8 (same day) SHIPPED — House events catalog (§5, code-only)**: the lone Vacuum grew
+  into `E_EVENTS` (4 in empire-data.js): 🌪️ Vacuum (closes a road), 🐱 Cat on Patrol (closes a
+  road + swats −20 strength, floor 10, off any army on either endpoint), 🔋 Low Battery Night
+  (dims ALL Power income to 0 room-wide, no route), 🥤 Spilled Drink (closes a road + floods one
+  endpoint node to half yield). One at a time; telegraphs a full turn (⚠️ + per-kind `warn` copy),
+  active for `vacuum.duration`(2). `tickEvent` picks a seeded kind at turn≥`vacuum.earliest`,
+  route only for `closesRoute` kinds; `blockedRoute()`/`floodedNode()` gate `openRoutesOf`+income,
+  `upkeep` zeroes Power when `dimsPower`, swat/flood applied once at warn→active. Per-kind route
+  icon + generalized banner + 🥤 flood marker (reused `.e-event`/`.e-ev-ic`/`.e-modmark`, NO new
+  CSS, NO save-version bump — event state is transient, already folded into stateHash). Verified:
+  0 errs / 1080 headless runs, all 4 telegraph, determinism holds, effects numerically checked
+  (route-block, swat −20/floor 10, power 0 vs +1, CENTER flooded to half), live UI renders each.
+- **Round 9 (same day) SHIPPED — Aftermath Spoils (§17, code-only)**: storming a capital/
+  stronghold/crown (the `lootQuality===2` tier) as the human sets `s.pendingSpoils {node,armyId}`
+  in applyBattleResult → a non-dismissable `showSpoils` modal offers ONE reward: 🔩 Salvage
+  (+`E_RULES.spoils.parts` 45 Parts), ❤️ Regroup (heal the winning army to 100%), ⚡ Momentum
+  (+2 Power, capped). `resolveSpoils(choice)` is a deterministic player choice (no RNG), idempotent.
+  HUMAN-only (AI keeps its own economy — the SP power fantasy, like collected cards). Hooked after
+  the last encounter (sim path) + in `show()` (resumes an unclaimed pick after a played-battle
+  reload); `flashLoot` yields to it; guarded in handleKey (Esc/Space can't skip). `pendingSpoils`
+  in stateHash (`sp:`) + save **v6→v7** migration (default null). `__ttEmpire` gained a `spoils`
+  script action + `pendingSpoils` in the return. Verified: baseline unaffected, trigger fires,
+  all 3 effects numeric, determinism holds (choice changes the hash), modal/keyboard-guard/save-
+  round-trip/migration all live-checked, console clean. Reuses `.e-enc` CSS — no new styles.
+- **Round 10 (same day) SHIPPED — Readiness meter (§11, code-only)**: per-army `readiness` 0–100
+  (starts/musters at 100) — a UNIVERSAL tempo layer (both sides). Fighting a battle costs 34, a
+  Force March 12; resting on a supplied friendly node recovers 26/turn (with healing). Effect:
+  `readyMul = floor(0.72) + 0.28·(readiness/100)` — a spent army hits up to −28%. Threaded into
+  `preview` (attacker→`attMul`, defender-army→`defMul`; garrisons full) and `simulate` reuses
+  `p.attMul`; AI's `aiPickTarget` factors its own readiness so it won't throw a tired stack at a
+  defended node. `tire()`/`readyMul()` helpers, `readiness` in stateHash + save **v7→v8** migration.
+  UI: cyan readiness bar under each army token's strength bar + 💤 badge/tooltip when < 55, plus a
+  "worn out" note on the encounter card. Constants in `E_RULES.readiness`. Verified: readyMul curve
+  exact, preview softer when tired, tire/regen numeric, save round-trips, **40/40 deterministic /
+  0 errors / all games conclude / AI still wins**, live UI present, console clean.
+- **Round 11 (same day) SHIPPED — Mission-template variants (§7, code-only)**: `E_TEMPLATE_VARIANTS`
+  gives each base template (field/siege/clash/station) 2–3 thematic variants (Dawn Raid/Supply Run,
+  Midnight Assault/The Long Siege, Center Stage/Scramble, Power Struggle…). `createEncounter` picks
+  one deterministically from a SALTED seed (`nodeId+armyId+'var'`, pure hash — no RNG advance),
+  stored as `enc.variant`; `resolveTemplate(enc)` merges base⊕variant. **defBoost stays on the base**
+  so preview/simulate odds + headless determinism are UNCHANGED — only the Played RTS match varies
+  (gameMode/startRes/label/note). `preview`+`buildBattleContext`+encounter card use resolveTemplate
+  (card shows bold label + italic note). No save bump (`enc.variant||0`). Verified: 30/30 seeds
+  deterministic + 0 errs, siege variants keep 1.35 defBoost, pick stable + spreads, ctx reflects
+  the variant, live card + console clean.
+- **Round 12 (same day) SHIPPED — More modules + Citadel (§8, code-only)**: two new build-socket
+  modules — 🔌 **Power Cell** (`power_yield` +2 Power/turn while supplied, the first module source of
+  Power) and 📚 **Dream Library** (`imag_yield` +3 Imagination/turn, first module source of Imag) —
+  threaded into `powerIncome`/`imagIncome`. The capital is now a **3-socket Citadel**
+  (`E_MODULE_SLOTS.capital` 2→3); strongholds stay 2. AI fortify list → `walls→workshop→generator`
+  (uses the 3rd slot). Node-card build buttons are generated from `E_MODULES` so both appear
+  automatically; no save bump (`st.modules` already round-trips). Verified: 30/30 deterministic /
+  0 errs, capital=3/stronghold=2, +2 power & +3 imag income, 4th socket rejected, AI builds the
+  Power Cell, live card shows all six buttons + a click builds one, console clean.
+- **Round 13 (same day) SHIPPED — Empire difficulty levels (§13, code-only)**: `E_DIFFICULTY` three
+  tiers chosen at the start of a war — 🌛 Cozy Night (AI income ×0.75, timid band 1.70, easy battles),
+  🌙 Lights-Out (×1.0, 1.35, normal), 🌑 Sleep Tight (×1.30, bold 1.12, hard). `diff()` accessor.
+  `upkeep` scales the RIVAL's Parts income; `aiPickTarget` uses `diff().aiBand` (was hardcoded 1.35);
+  `buildBattleContext` passes `diff().rts`. `setDifficulty` guarded to a fresh war (turn 1, unchosen);
+  `s.difficulty`+`s.difficultyChosen` in stateHash (`df`) + save **v8→v9** (in-progress wars keep
+  Normal, skip the picker; also fixed the stale fresh `v:6`→`v:9`). UI: `showDifficulty` picker (3
+  cards, guarded) on a fresh war + New War, top-bar tier chip. `__ttEmpire` gained a 4th `difficulty`
+  param. Verified: per-tier determinism + tiers diverge, income scales 19/26/34, rts easy/normal/hard,
+  guard + save + migration, live picker/chip, console clean.
+- **Round 14 (2026-07-18, THIS session) SHIPPED — The Third Flag (§15)**: 13th node
+  **CAP_C 'Windowsill Keep'** (south, routes to CACHE/POWER/WORK_1) seats a THIRD faction
+  (default war: bricks/classic/bots; E_FACTIONS gained colors for all 6). Seat count comes
+  from `factions.length` — 2-seat saves stay 2-seat (v9→v10 migration adds relations/grudges/
+  eliminated + a neutral CAP_C). `capOf(p)`, seats()/aliveSeats(); endTurn runs every AI seat
+  (IGO-UGO); `autoResolveAiBattles` already handled AI-vs-AI. **Capital falls now ELIMINATE
+  rivals** (armies boxed, war continues; human capital still ends it; last-alive wins).
+  **Diplomacy**: Non-Aggression Pacts (E_RULES.pact: 4 turns, no passage — `reachable()`
+  filters partner territory+armies), offer accepted unless you LEAD by 2+ (⚠️ the "desperate
+  rival accepts anyway" clause shielded winners — caught by test, removed), break = −3⚡ −6💡
+  + 6-turn grudge (aiPickTarget band −0.16 vs the betrayer), pacts/grudges tick in upkeep,
+  `aiDiplomacy()`: rivals PACT WITH EACH OTHER when the human leads by 2+ (the gang-up).
+  **Smarter rivals**: aiRecruitKey(p) climbs to rare/LEGENDARY cards at turn 16+; midgame
+  doctrine SWAP (losing→fortified, winning→warrior, pays doctrineSwapCost). UI: 🕊️ pacts
+  chip (P key) → diplomacy modal (offer/break per rival + rival-rival status), tri-count
+  territory chip, army dx [-30,30,0], crown chip names the faction. `__ttEmpire` gained
+  pact/breakpact script actions; relations/grudges/eliminated in stateHash. Verified:
+  determinism, seeds diverge, pact-changes-hash, 3 campaigns conclude (seat 2 won one),
+  6 mechanism unit-tests, migration, live 3-seat board + modal, console clean.
+- **Round 15 (2026-07-18, THIS session) SHIPPED — Fight, Don't Sim (+2cr board art)**:
+  (1) **New board painting** (nano 16:9 → assets/ui/empire-board.jpg 145KB): night bedroom
+  war-map whose regions MATCH the node layout (blocks left, army camp right, windowsill
+  robots bottom = CAP_C, book tower top = ARCHIVE, ruler bridge + bookends midfield); node
+  halos r38, 🎲 rogue markers. (2) **Drill Yard** (`E_RULES.drill`, template 'drill'
+  sudden/lean): army at YOUR capital → 🎯 button → pick a card (−15🔩) → a real encounter
+  vs 2 sparring dummies queues into the battle window. Strength always restores to 100;
+  **+1 vet ONLY on a PLAYED win** (sim earns no pips — the yard rewards showing up);
+  `applyDrillResult` bypasses capture/tire/stats. (3) **Rogue Toys** (`E_RULES.rogue`,
+  every 5 turns from t4, stays 4): seeded squat on a neutral non-capital node, tiered cards
+  (raider/grenadier → +knight → +TANK at t16); `garrisonFor`-equivalent via encCards rogue
+  branch; `lootQuality` returns 2 at the rogue node (premium card) + 20 scraps on a human
+  win; AI reads rogue strength in aiPickTarget. (4) **Battle-hardened**: ANY regular played
+  win → highest-strength surviving card +1 vet (cap 3). `__ttEmpire` gained {type:'drill'};
+  rogue in stateHash; save v10 unchanged (rogue transient default). Verified: determinism
+  w/ drill in script, drill sim vs played numerics (0 vet vs +1), rogue spawn/clear/bounty
+  (+20 scraps + card), hardened +1 on played win, campaigns conclude, live UI (board art,
+  drill modal 3 options, halos ×3), console clean.
+- **Round 16 (2026-07-18, THIS session) SHIPPED — The Toy Kingdoms (+0cr)**: (1) **Every
+  province upgradeable** — E_MODULE_SLOTS now ≥1 for ALL types (capital 3 / stronghold 2 /
+  everything else 1) + ⚙️ **Scrap Mill** module (+5🔩/turn, 40 parts) so small holdings earn
+  their keep; node-card build UI was already generated from E_MODULES so it appeared free.
+  (2) **Fantasy-atlas board** — E_REGIONS: four named realms (Brick Marches W / Green
+  Dominion E / Windowsill Reach S / Old Heartlands N), serif-italic realm labels tinted by
+  MAJORITY holder ("— held by X —", regionOwner needs a true majority), parchment cartouche
+  ("THE BEDROOM FLOOR — a night war of the toy kingdoms"), compass rose; node cards say
+  "a province of <realm>". CSS in toybox-tactics.html (.e-region*/.e-cartouche/.e-compass).
+  (3) ⚠️ **LATENT BUG FIXED**: buildModule + setDoctrine had `phase !== 'plan'` guards, but
+  aiPlan runs during 'resolve' — so the AI had NEVER built a module (since R5) nor set a
+  doctrine slot-2/swap (since R14) in real flow. Guards are now human-only (`p === 0 &&`).
+  With the fix + a smaller mill buffer, real campaigns show rivals fully kitting citadels
+  (walls+workshop+generator), milling 4 provinces, and running BOTH doctrine slots. muster/
+  recruit never had guards (that's why those worked). Verified: real-flow AI builds, both
+  rivals' doctrine pairs, determinism, campaigns conclude, live UI (4 realm labels, cartouche,
+  compass, province line, 1-socket node card), console clean.
+- **Round 17 (2026-07-18, THIS session) SHIPPED — The Full Political Toolkit (§15, free)**:
+  E_RULES.diplomacy: **Trade Deals** (20🔩/turn ⇄ 2⚡ or 4💡/turn, 3 turns, collapses the turn
+  either side can't pay, refused under a grudge), **Open Passage** (15🔩 to a PACT partner,
+  3 turns — march their provinces, never their capital; transit stands without battle or
+  capture via resolveMove early-return), **Bounty** (25🔩 → the OTHER rival hunts your target:
+  +6 node score & band −0.2 vs target for 4 turns — proxy war), **Ceasefire** (10💡, always
+  accepted, 2-turn pact entry). s.trades/passages/bounty in state+hash (no save bump,
+  defaults). **AI fields YOUR collection** from turn 14 (rare+ owned keys replace its pool —
+  SP flavor; empty coll in headless tests keeps determinism). Diplomacy modal grew all verbs
+  (data-tradep/tradei/passage/cease/bounty). `__ttEmpire` gained trade/passage/bounty/
+  ceasefire actions. +3 Chronicle achievements (beyond): flagteacher (2 tribes), shepherd
+  (3 strays), floorfriend (5 critters). Verified: determinism w/ full verb script, trade
+  numerics, passage gates + transit, bounty hunter, ceasefire, AI-fields-your-cards, live
+  modal (all 5 verb button sets), console clean. **Phase 2 of the Empire bible is COMPLETE.**
+- **Phase 3 Push A (2026-07-18, THIS session) SHIPPED — MP campaign foundation**: every
+  political verb is seat-generalized (`me = 0` default keeps SP call sites untouched;
+  trades now payer-keyed `${me}>${other}` w/ load migration of old flat keys), `s.humans`
+  array in state+hash (constructor default [0]), endTurn resolves seats IGO-UGO (humans
+  march queued orders, AI seats plan), aftermath: ANY human capital fall ends the war
+  (deterministic — no myId in sim), gang-up/aiDiplomacy/postBounty read s.humans (bounty
+  hunter must be an AI seat). **MP battles auto-simulate** (`mpDrain` when humans>1:
+  finishEncounter(simulate) all + spoils auto-'parts' — played battles stay SP-only in v1;
+  the endTurn tail guards double-aftermath via phase check). `empireNetTest(seed, turns,
+  scripts)` = `window.__ttEmpireNet`: two full Empire instances, host-canonical command
+  order, lockstep endTurn — verified identical hashes both clients, repeatable, script-
+  sensitive, SP regression-free. **Push B remaining**: EmpireNet PeerJS relay (net.js
+  patterns: room code, hello/seat, host-stamped cmd echo, ready-gated advance, hash
+  desync check), seat-aware UI refactor (topbar/sidePanel/board `[0]`→`[mySeat]`), MP
+  lobby (🌐), human↔human pact offers need an accept/decline UI (v1 harness auto-accepts
+  by the AI rule).
+- **⚠️ HARDENING "rogues defended by coincidence" (2026-07-20)**: Rogue Toys were only
+  ever fought because EVERY current node type happens to carry an `E_GARRISONS` template
+  — neither `resolveMove`'s fight-or-capture gate nor `createEncounter`'s defender
+  resolution knew rogues existed. Add one template-less node type later and an army
+  strolls past a squatting gang and takes the node free. Fixed in BOTH layers:
+  `resolveMove` gains an explicit `rogueHolds` term, and `createEncounter` resolves
+  `this.s.rogue.cards` BEFORE `garrisonFor()`. ⚠️ the two-layer nature is the lesson —
+  fixing only the gate still capture-walked, because createEncounter independently
+  re-resolves defenders and captures when it finds none. Verified: template-less rogue
+  node now forces a real fight w/ the rogue cards, normal hunt + 20-scrap bounty intact,
+  ordinary undefended neutrals still capture freely, determinism/campaigns/MP green.
+- **⚠️ BUGFIX "a pact with a corpse" (2026-07-20)**: an eliminated seat KEEPS its provinces
+  (by design — you still have to take them) but its treaties were surviving it too. A live
+  pact with a dead seat made `reachable()` refuse to enter that territory, locking the land
+  away from EVERY player until the pact happened to expire (≤4 turns). AI was blocked too
+  (aiPickTarget also skips atPeace nodes). Fix: `purgeDiplomacy(p)` called from the
+  elimination branch in `aftermath()` — wipes relations/grudges/trades/passages and any
+  bounty naming the fallen seat (hunter OR target). Verified: territory marchable again,
+  determinism + campaigns + MP lockstep all still green, true 2-seat v9 legacy save still
+  migrates. Trades/passages already self-cleaned via their isAlive checks; only the pact
+  relation leaked.
+- **Phase 3 Push B (2026-07-18, THIS session) SHIPPED — THE MP CAMPAIGN IS LIVE**:
+  `toybox/empire-net.js` = EmpireNet (PeerJS, peer id 'toybox-emp-'+code, host-stamped cmd
+  echo, guests apply ONLY echoes, ready-gated advance, hash reports) + `applyEmpireCmd`
+  (the ONE wire→verb translation, validates army ownership per seat). UI: `get ME()` +
+  57 seat-0 spots threaded to this.ME (⚠️ the patcher leaked `this.ME` into empireTest —
+  reverted; and `owner !== 0` (2 spots incl. the ARMY CLICK GUARD) is a different pattern
+  than `owner === 0` — the guest couldn't select armies until fixed), `issue(cmd)` routes
+  every mutating click (SP direct / MP relay), End Turn → net.ready() when MP, 🌐 lobby
+  (host code / join), beginMp (fresh Empire seed-dealt, humans [0,1], persist=false,
+  difficulty pinned), leaveMp restores the SP save. **Verified LIVE 2-tab PeerJS**: host
+  QEJG, guest joined, guest's move echoed through the relay, both End Turn → BOTH boards
+  Turn 2 with byte-identical logs, consoles clean; SP + harness regression green.
+  v2 ideas: played RTS battles via room-handoff, human↔human pact consent UI, 3-human FFA.
+- ⚠️ 2026-07-14 billing: nano_banana back to 2cr/image; a PARALLEL session was spending on
+  "3D Rigging" (-8cr) the same hour — check `transactions` before batches, as ever.
+
+## Multiplayer — up to 4 HUMANS, star topology (2026-07-14 rewrite): SHIPPED
+
+`net.js` is now a **star**: every guest connects to the host, the host merges all
+players' commands per tick and rebroadcasts the combined set. Only human command
+streams travel; AI seats run locally on every client (deterministic, no traffic).
+- **Why star**: guests only ever wait on the host's merged `cmds` broadcast, never on
+  each other. So a dropped guest can't stall anyone but the host, and the host just
+  stops requiring that seat (`this.left`) — graceful mid-game drops, no host migration.
+- **API**: `host(config, onEvent)` opens a room and resolves with `{code}`; `onEvent`
+  fires 'code'/'join'/'leave'/'roster' as friends arrive. Host calls `startMatch()` to
+  lock the roster and deal the seed (unfilled Human seats quietly become AI). Guest
+  `join(code, {name,faction}, onEvent)` gets 'seat'/'roster' while waiting, resolves on
+  'start'. The lockstep loop contract (`flush`/`canStep`/`execTick`) is UNCHANGED, so
+  main.js `stepMP` didn't move. `INPUT_DELAY` is 6 now (extra hop through the relay).
+- **Lobby** (main.js `mpLobby`/`renderMpLobby`, 3 phases setup/hosting/joining): a
+  dynamic seat list you edit — add/remove seats (2–4), per-seat Human/AI dropdown,
+  per-seat Team dropdown (free-form A–D, no presets), civ+difficulty pickers on AI
+  seats. Host opens a room → friends fill open Human seats → host presses ▶ Start.
+  `mpConfig()` builds the net config; `mpReset()` tears down on Back/Leave. `chosenMode`
+  === survival is coerced to standard for MP (survival is SP-only).
+- **⚠️ Testing MP**: `window.__ttNetTest({humans,ai,seed,ticks,script,dropAt})` wires N
+  REAL Net instances in-memory (fake synchronous conns) driving N headless Games — it
+  exercises the actual aggregate/finalize/broadcast/execTick paths and asserts every
+  client's `stateHash()` stayed identical. This is the authoritative determinism test
+  (2/3/4 humans + a mid-match drop all verified in-sync). Live 2-tab PeerJS ALSO works
+  (signaling reachable in the sandbox) but the BACKGROUNDED tab's WebRTC throttles, so a
+  guest can drop in the gap while you front the host to press Start — do the join→Start
+  switch FAST, or just trust `__ttNetTest`. When it holds, real 2-peer hashes match at
+  every checkpoint tick (verified: host≡guest at ticks 400/500/600/700).
+
+## Survival — "The Long Night" (2026-07-14, Kyle's "new gameplay system" pick): SHIPPED
+
+A wave-defense mode. The 5th `GAME_MODES` entry (`survival`, 🌙); all tuning lives in the
+`SURVIVAL` block in data.js (dawnWave 12, firstWaveAt 42, gap/hardGap pacing, countBase/
+countPerWave size, tiered roster, `boss.every` 4, bounty, opening cushion). How it works:
+- **The den seat**: playerDefs gets a `{team:1, isAI:false, den:true}` seat. `p.den` skips its
+  base in setup (no chest/workers) — it only leaks waves. `setupSurvival(starts)` stores the
+  den's corner as the spawn anchor + gives team-0 the opening resource cushion.
+- **Wave scheduler** (`updateSurvival`/`spawnSurvivalWave`, called from update() after
+  updateKoth): a wave launches at the hardGap deadline OR once the field is clear past the
+  gap breather. Composition = deterministic rng draws from the tier whose `from` ≤ wave, size
+  grows with the wave, a boss (`forgottenking`) every 4th. Fresh units get `amove` at the
+  nearest defender building; a 2.5s re-command keeps the swarm from idling. Clearing a wave
+  pays a bounty; clearing `dawnWave` calls `endGame(0)` (victory, `survivalWon`); a full
+  team-0 wipe calls `endGame(-1)` (defeat, via the survival branch of `checkWin`).
+- **⚠️ Disabled the OTHER win conditions in survival**: `updateWonder`/`updateRelics` early-
+  return and setup skips stickers — otherwise uncontested defenders win by relic/sticker hold
+  (this bit: a stacked-defender soak "won" at wave 6 with survivalWon=false until fixed).
+- **Launch**: SP-only. startGame computes `resolvedMode` and, when survival + not MP/resume/
+  replay, overrides playerDefs with [defender(chosenFaction), den]. The 🌙 mode button + the
+  objectives-chip survival branch (main.js) + `SURVIVAL` import round it out.
+- **Testing**: `__ttSoak` now takes `survivalDawn:N` (temporarily lowers dawnWave so the
+  victory branch is reachable headlessly, then restores the shared config) and returns `surv`
+  {wave,bestWave,active,won}. Verified: waves escalate, defeat + dawn-victory both fire,
+  same-seed fp identical, snapshot round-trips, live game clean. NOTE the stock attack-AI is a
+  poor survival defender (falls wave ~8-10 even 4-stacked) — real tuning wants a human playtest;
+  all knobs are in the SURVIVAL block. MP-survival + a survival-specific game-over card are TODO.
+
+## The five-option arc (2026-07-13/14, Kyle approved all of A-E): SHIPPED
+
+- **A Smart workers**: audit found 4 of 5 eco rules already existed (flee+resume, depletion
+  retarget, rally auto-gather, builder-resume) — only IDLE HANDS was missing: a worker with
+  no order for 5s (`u.idleT`, reset in setOrder) self-assigns to the nearest gather source
+  within 34 tiles, preferring its carryType. Sim-side, deterministic.
+- **B Replay Shelf + share codes**: `tt-replay-shelf` (10 bottles, auto-saved at gameOver);
+  menu `#replay-btn` → `openShelf()` (#shelf overlay): ▶ Watch / 📋 Code per row + paste-code
+  Uncork. Codes = `'TT1.' + btoa(unescape(encodeURIComponent(JSON.stringify(rec))))`
+  (~500 chars/bottle). Version stamp (data.js+game.js djb2) still gates playback.
+- **C Outdoor ambience** (sfx.js `startAmbience(kind)`, wired in startGame from
+  `mapCfg.outdoor && !zeroEra ? mapCfg.light : null`): 'day' = breeze + falling birdsong
+  whistles; 'gold' = breeze + wobbling bee drone (continuous nodes, no timers); 'dusk' =
+  breeze + cricket trains + owl hoots. `ambTimers` cleared + `ambKind` guard on re-call;
+  indoor maps pass null. All WebAudio-synth, no files. Verified via `__ttSfx().ambKind`.
+- **D Co-op MP**: already existed (MP lobby '🤝 Co-op vs AI' presets, 3p [0,0,1] / 4p
+  [0,0,1,1]; buildMpDefs seats 0/1 human + 2/3 AI with civ/diff pickers; game.js runs AI for
+  isAI seats in MP). RE-VERIFIED post-20Hz/pathfinding/knights: two scripted co-op soaks,
+  same seed ⇒ identical fp `297901|254|1067172418`, different seed diverges, 0 errs.
+- **E Campaign QA sweep**: all 23 missions headless (missionEvents time-compressed), all
+  beats fired, zero errors.
+
+## Next-feature ideas (nothing owed)
+
+- ⚠️ **ART BACKLOG IS EMPTY (2026-07-27).** Every campaign mission has a plate and every
+  ground STYLE has art. ⚠️ audit ground art by `MAPS[k].ground || k` (the loader reads
+  `assets/map/ground-<style>.png`), NOT by map key — canyon reuses `playmat`'s ground and
+  bathtub uses `floor-bathtub.png`, so a naive per-map audit invents two phantom gaps and
+  any file you generate for them is never loaded.
+- Balance battery for the 20Hz SP switch (soaks already ran fixed-step, so old data stands;
+  a fresh 60-gamer would confirm).
+- VO for NARRATOR_NG lines (⚠️ seed_audio bills per SECOND — budget ~10cr/line).
+- Name-your-bottle UI on the Replay Shelf (records already round-trip; it's pure UI).
+- Act IV briefing plates ×5 + zero.jpg sepia plate (auto-hidden until generated).
+
+— Fable. The room is tidy, the book is longer, and the light is still on.
