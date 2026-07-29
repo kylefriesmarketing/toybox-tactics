@@ -1534,3 +1534,56 @@ countPerWave size, tiered roster, `boss.every` 4, bounty, opening cushion). How 
 - Act IV briefing plates ×5 + zero.jpg sepia plate (auto-hidden until generated).
 
 — Fable. The room is tidy, the book is longer, and the light is still on.
+
+---
+
+# ADDENDUM — 2026-07-29 (Opus 5)
+
+Two things happened after the doc above was written. Both are recorded in full in
+`CLAUDE.md`; this is the short version so a cold start does not repeat either.
+
+## 1. The trailer stutter was the CAMERA, not the video
+
+Kyle: *"the gameplay trailer feels cut up almost like it's a video that's poorly
+loading and skipping."* Three of the five shots aimed at `busiest()` — a **raw
+centroid of all combat units, recomputed every frame**. One toy dying yanks that
+mean: **measured 2.98 tiles of camera movement between two adjacent frames**, fed
+straight into `cam.position`. That is a hard cut in the middle of a shot.
+
+Fixed by low-pass filtering the focus (`foc.x += (b.x - foc.x) * 0.015`), capturing
+through a new `window.__ttStep(dt, fx, fz)` (one frame exactly as `loop()` draws
+it — the old capture called `g.update()` directly and froze vfx/markers/UI), and
+freezing the hidden-tab loop with `window.__ttCapMode(true)` so it can't advance
+the sim between batches. Recaptured at 60fps, 1 tick/frame = a smooth 3x.
+
+**Objective result** (per-frame luma delta via ffmpeg `tblend=difference` +
+`signalstats` — measure this, you cannot watch video):
+
+| | old | new |
+|---|---|---|
+| delta spikes >3σ | 21 | 4 |
+| at intended shot cuts | 4 | 4 |
+| **unintended mid-shot jumps** | **17** | **0** |
+
+Live: https://kylefriesmarketing.github.io/toybox-tactics/trailer/ (40.8MB, 60fps).
+⚠️ `trailer/` is NOT in push-web's robocopy list — edit it in the deploy repo.
+⚠️ `CLAUDE.md` is tracked in the deploy repo but ALSO not robocopied; copy it by
+hand after editing, because the working folder's `.git` is empty and that repo is
+the only undo.
+
+## 2. AI rigging was tested (32cr) and REJECTED — do not redo it
+
+`3d_rigging` on one unit produced a clean 24-bone rig that loads fine, but the
+clips carry **baked root motion** (Hips translate ~47 units mid-swing), so the toy
+walks off its own sim-authoritative tile every attack. Plus 32.5MB per unit (10x
+the static mesh, each clip re-ships the mesh) and the base disc returns because
+`pruneBaseDisc` only runs on the rigless branch. Reverted; the 224cr scale-up was
+not spent. **The code animation already in the game is better value.**
+
+## Still open (unchanged from above, plus)
+
+- The **~77% seat-0 advantage** measured in the 2026-07-29 balance battery is
+  systemic across maps and seeds and still uninvestigated. It would matter in MP.
+- Trailer framing: the wide shots show the most game, but the toys read small.
+  Tighter framing was tried and is WORSE (the army spreads, so the centroid lands
+  on empty mat). A real fix means authored shots that follow specific units.

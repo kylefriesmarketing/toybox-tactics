@@ -203,6 +203,47 @@ but writes whatever bytes it was POSTed, so ffmpeg's PNG parser chokes
 ("Invalid PNG signature 0xFFD8…" = it's actually a JPEG). `+faststart` puts the
 moov atom first so the video streams instead of waiting for a full download.
 
+⚠️⚠️ **"CUT UP / SKIPPING LIKE IT'S BADLY LOADING" (2026-07-29) — it was the
+CAMERA, not the encode, not the frame rate, and not a time-lapse.** Three of the
+five shots aimed at `busiest()`, a **raw centroid of all aggro units, recomputed
+every frame**. One toy dying yanks that mean instantly: measured **2.98 tiles of
+camera movement between two adjacent frames**. Fed straight to `cam.position`,
+that is a hard cut in the middle of a shot — ~17 of them across 47s.
+- **Never point a camera at a raw centroid.** Low-pass it:
+  `foc.x += (b.x - foc.x) * 0.015` per frame (≈1.1s time constant at 60fps).
+  Same measurement after: worst frame 0.068 tiles — **44x smaller**.
+- The old capture also called `g.update()` **directly, bypassing `tick()`**, so
+  `vfx`/`marker`/`ui` never advanced — debris hung in the air and nothing settled.
+  Use **`window.__ttStep(dt, fx, fz)`** (main.js): one frame exactly as `loop()`
+  draws it, minus input and the player camera. Anything view-side that belongs in
+  a captured frame belongs in that function.
+- ⚠️ The hidden-tab `setInterval` **advances the sim between your capture
+  batches** — a 51.4 delta spike at the batch seam, as jarring as a real cut.
+  Call **`window.__ttCapMode(true)`** first; it makes that interval return early.
+  Confirm it worked by checking `g.time` advanced by exactly `frames × 0.05`.
+- Capture at **60fps, one 0.05 tick per frame = a smooth 3x speed-up.** 2820
+  frames ≈ 70s of wall time at ~25ms/frame; +18% file size over 30fps (34.6 → 40.8MB).
+  Fire `__TRRUN()` un-awaited and poll a counter — the 30s eval timeout does not
+  kill page JS, and a single uninterrupted run has no batch seams at all.
+- ⚠️ The match can **END mid-capture** (`g.over`) and freeze the board. 2820
+  frames eats 141 sim-seconds; hard/playmat concludes at ~7 sim-min. Start the
+  window around 2.5–3 min and assert `over === false` at the end.
+- The autostart human seat is IDLE, so there is only ever ONE army. For capture
+  only: `g.players[0].isAI = true; g.aiState[0] = JSON.parse(JSON.stringify(g.aiState[1]))`
+  → a real two-sided battle.
+- **MEASURE smoothness, don't eyeball it** (you cannot watch video anyway):
+  ```
+  ffmpeg -c:v mjpeg -i "f%05d.png" -vf "scale=320:180,tblend=all_mode=difference,\
+    signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-" -f null -
+  ```
+  Per-frame mean luma delta. Spikes >3σ = visible jumps. Legit shot cuts spike
+  too, so classify by frame index. Old: 21 spikes, 17 of them mid-shot artifacts.
+  New: **4 spikes, all 4 at the intended cuts, 0 mid-shot.** That is the pass bar.
+- ⚠️ Tighter framing was TRIED and is worse: the army spreads out, so the centroid
+  lands on empty mat and a close camera just fills frame with a bean-bag. The wide
+  shots show the most game. Real improvement needs authored shots that follow
+  specific units, not a tighter radius.
+
 **The legacy pipeline (kept for reference — superseded by ffmpeg above)**: capture = drive the sim manually + render →
 toDataURL per frame → POST to the shot receiver; mux = `tools-frames-to-avi.mjs`
 (hand-built MJPEG/PCM AVI, optional interleaved WAV); demux BACK =
@@ -446,6 +487,34 @@ it. ⚠️ brave's first cut at .045 left the plate's TOP face (band spans to .0
 disc survived visually; cut ABOVE the whole band, then capture to confirm. Bake prompts
 now say "standing directly on the ground, no base, no stand" but the baker sometimes
 adds one anyway — ALWAYS profile + capture new figure bakes.
+
+## ❌ AI RIGGING (`3d_rigging`) — TESTED 2026-07-29, 32cr, REJECTED. Don't redo it.
+
+Kyle asked whether Higgsfield credits could buy better character animation. One
+unit (the Painted Brave) was rigged as a controlled test — 4 clips picked from the
+678-clip library (Idle 0 / Casual_Walk 30 / Attack 4 / Shot_and_Fall_Backward 183),
+~8cr each. All four jobs succeeded and the rig itself is clean (24 bones, 1
+skinned mesh, loads through the existing `clips:` manifest path with 0 errors).
+**It still fails, for three independent reasons:**
+1. **⚠️ BAKED ROOT MOTION — the disqualifier.** The clips translate the `Hips`
+   bone: measured (0.86, 84.0, −10.1) → (−22.1, 49.8, +37.7) across one attack.
+   The toy physically walks off its own tile every time it swings, while the sim
+   still believes it is standing still. This game's positions are sim-authoritative
+   and MP-lockstep, so a view that wanders off-position is not acceptable.
+   Strippable (drop the root position tracks) but that is a real pipeline to build.
+2. **10x asset size**: 8.1MB per clip × 4 = **32.5MB for ONE unit** vs 3.3MB
+   static, because each clip GLB ships its own full copy of the textured mesh.
+   Eight units would be ~256MB. Would need a mesh-merge-into-one-GLB step.
+3. **The base disc comes back** — `pruneBaseDisc` is only called in the rigless
+   `man.model` branch of `loadUnitModels`, never the skinned `clips` branch, so a
+   rigged bake violates the NO-DISC RULE on arrival.
+**Verdict: reverted** (manifest back to `assets/units/brave/model.glb`, the
+original static GLB was never touched; the 32.5MB `brave-rig/` folder deleted).
+Scaling to the other seven units would have been ~224cr on top of three unbuilt
+pipeline steps. **The code animation we already have is better value**: `meleeLungeZ`
+swings, per-unit `gaitBias`, randomised clip phase, and hit-kick all ship today and
+cost nothing. Revisit only if someone first builds root-motion stripping + mesh
+sharing — and re-read this entry before spending.
 
 ## Grounding & separation (2026-07-27, free — all view-only)
 
