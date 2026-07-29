@@ -1874,6 +1874,29 @@ window.__ttGL = () => ({ renderer, scene, camera }); // perf probes
 // the tilt-shift band / bloom / grade can be tuned without a reload
 window.__ttPost = () => post;
 window.__ttRender = () => renderFrame();
+// One frame of the game EXACTLY as loop() draws it, minus input and the player
+// camera — for offline capture (trailers). The old trailer called game.update()
+// directly and so froze vfx/markers/UI: debris hung in the air and nothing
+// settled. Anything view-side that belongs in a captured frame belongs here.
+// fx/fz = the world point the shot is looking at, so motes and audio spawn
+// around the SHOT rather than around the stale player camera.
+let captureMode = false;
+// While capturing, the hidden-tab setInterval below must NOT advance the sim:
+// its ticks land between the frames we render, so the board jumps at every
+// batch boundary (measured: a 51.4 delta spike, as jarring as a hard cut).
+window.__ttCapMode = (on) => { captureMode = !!on; return captureMode; };
+window.__ttStep = (dt, fx, fz) => {
+  tick(dt);
+  if (fx !== undefined) { cam.x = fx; cam.z = fz; }
+  vfx.ambient(cam.x, cam.z, dt);
+  updateAmbient(dt);
+  updateWeather(dt);
+  updateTracks(dt);
+  updateNight();
+  updateSeason(dt);
+  updateBaseLife(dt);
+  updateObjectives(dt);
+};
 window.__ttAmbient = () => ambient; // ambience debug handle
 window.__ttSfx = () => sfx; // audio debug handle (ambKind checks)
 window.__ttWeather = () => weather; // weather/flyover debug handle
@@ -3835,7 +3858,7 @@ requestAnimationFrame(loop);
 // keep simulating while the tab is hidden — rAF stops firing there, and the
 // browser throttles timers, so consume real elapsed time in small sub-steps
 setInterval(() => {
-  if (!document.hidden || !game) return;
+  if (!document.hidden || !game || captureMode) return;
   try {
     const elapsed = Math.min(2, clock.getDelta());
     if (net) {
