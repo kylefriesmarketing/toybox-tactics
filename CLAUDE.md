@@ -371,6 +371,38 @@ dead this way. **Drive batches synchronously from the agent side instead**
 (`window.__RUN(n)` pattern) — and note that a 30s eval timeout does NOT kill
 the page's JS, so the work continues; just poll `__BR.length` afterwards.
 
+## WOODLINE-MAP BATTERY (2026-08-04, 280 games, free): NO TUNE, stands acquitted
+
+**Method**: all 28 faction pairs × BOTH seat orders (mirroring is non-negotiable
+— seat-0 measured 67% here, 77% on 07-29) × the 4 stand maps, one seed per map
+(oldoak 11 / playground 47 / attic 31 / garden 101). 224 games + a 56-game
+control, **0 errors**, 9.5 + 2.5 min. ⚠️ Battery infra: the async pump yields
+via **MessageChannel, never setTimeout** — hidden-tab intensive throttling
+clamps chained timers to 1/min and would have stretched 224 yields into hours;
+macrotask-via-postMessage is unthrottled and lets CDP polls land between games.
+
+**Overall (mirrored, n=56/faction):** plush 54, wranglers 50, classic/bots/
+plains 46, bricks 41, racers 34, knights 32. Spread is within the historical
+band (knights have ranged 40→56→40 across batteries; racers were already the
+−17 floor). Per-map cells are n=14 single-seed = directional only. **NO TUNE**
+— the standing rule requires both pools, and nothing here is outside variance.
+
+**The oldoak draw scare + the CONTROL that acquitted the stands**: oldoak drew
+17/56 (30%) vs playground 3 / attic 1 / garden 7. Before touching the stands,
+the same 56 games were rerun with `MAPS.oldoak.stands = null` mutated live
+in-page (the survivalDawn trick — data.js exports are live objects):
+**13/56 draws (23%) WITHOUT stands.** Oldoak at seed 11 was already draw-heavy
+(mask + centerHill + roots); the woodlines add ~7pp. Faction numbers replicate
+across both runs (bricks 14% both times, knights 29 both) — stable map+seed
+properties, not stand noise. Stands kept as-shipped. Watch item: if oldoak
+feels stall-y in play, the pre-existing density is the suspect, not the trees.
+
+**Seat-0 again**: 67% overall (79/83/75 on three maps) — third battery
+confirming the systemic first-seat advantage. ⚠️ GARDEN INVERTED: seat-0 won
+only 31% at seed 101. Single seed = curiosity, but file it with the seat-0
+investigation: garden's groves (count 5, odd, unmirrored) are the only
+asymmetric terrain in the game.
+
 ## The AI (2026-07-22) — read the ⚠️ before "fixing" stalemates
 
 ⚠️ **THE STALE-DATA TRAP.** The 07-12 matrix line "Draws: 15% open / 22% terraced" is
