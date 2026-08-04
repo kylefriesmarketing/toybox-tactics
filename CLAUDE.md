@@ -675,12 +675,14 @@ matching it was impossible — instead ALL 16 first-night beats were re-recorded
 preset, **Alistair `d9d5c263-f84e-4752-97b5-3750fcc6fd2f`** (seed_audio). Record that id
 here for any future line so the storyteller never splits in two again. Old wavs kept at
 `_vo-backup-oldvoice/` (repo root, outside the robocopy tree). NARRATOR_VO now lists all 16.
-- ⚠️ **BUG FIXED in the same pass**: the recordings are of the FIRST-night lines, but on
-  NG+ `narrate()` shows the NARRATOR_NG text while still playing the first-night .wav —
-  you'd hear a different sentence than the one on screen. `narrate()` now suppresses VO
-  whenever an NG variant is showing (`!ngLine &&`), so second-night beats are text-only
-  until NARRATOR_NG is recorded. Pre-existing for the original 10; voicing all 16 made it
-  far likelier to hit. **Recording NARRATOR_NG (~12cr) would close it properly.**
+- ✅ **NARRATOR_NG RECORDED (2026-08-04, ~24cr)**: all 16 second-night lines in the same
+  Alistair preset, installed as `assets/audio/vo/<key>-ng.wav`; `NARRATOR_NG_VO` Set in
+  data.js gates them and `narrate()` routes ngLine → `<key>-ng.wav`, first night →
+  `<key>.wav`, so the voice always reads the sentence on screen. The old "NG beats are
+  text-only" suppression is gone. Verified live: mega→mega.wav, ng mega→mega-ng.wav,
+  muted→no request, all 16 files GET 200. ⚠️ seed_audio rate MOVED again: measured
+  **~0.15cr/s** (1.5cr for a 9.8s line) — double the 07-27 rate. Also ⚠️ Seed Audio hit
+  429 rate-limits when two sessions generate at once — pace batches ~12s apart.
 - ⚠️ the dev `serve.ps1` answers **HEAD with 500**, so an asset-existence probe must use
   GET — a HEAD sweep reports every file missing and looks like a catastrophe.
 
@@ -1392,7 +1394,6 @@ countPerWave size, tiered roster, `boss.every` 4, bounty, opening cushion). How 
   any file you generate for them is never loaded.
 - Balance battery for the 20Hz SP switch (soaks already ran fixed-step, so old data stands;
   a fresh 60-gamer would confirm).
-- VO for NARRATOR_NG lines (⚠️ seed_audio bills per SECOND — budget ~10cr/line).
 - Name-your-bottle UI on the Replay Shelf (records already round-trip; it's pure UI).
 - Act IV briefing plates ×5 + zero.jpg sepia plate (auto-hidden until generated).
 
