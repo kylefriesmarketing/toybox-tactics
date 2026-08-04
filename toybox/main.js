@@ -8,6 +8,7 @@ import {
   loadUnitModels, loadBuildingModels, loadMapModels, loadFurnitureModels, setBuildingFootprints,
   createGhostMesh, createMoveMarker, createLamp, renderPortraits, applyUnitTier, refreshFactionBuildingIcons,
   PORTRAITS, setProceduralEra, makeRankBadge,
+  createGroundCover, applyBuildingAge, buildStockpile,
 } from './models.js';
 import { Game } from './game.js';
 import { UI } from './ui.js';
@@ -2179,6 +2180,7 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
   setupTracks(); // footprints, trampled paths, and the scars of razed forts
   setupNight();  // the night deepens as the match grows old
   setupBaseLife(); // settlements act like settlements
+  setupGroundCover(map); // no bare mat: instanced tufts, crumbs and scraps
   setupSeason(); // the room knows what time of year it is
   setupKidEvent(); // and somewhere beyond the rim, THE KID is awake
   // the bedside lamp stays indoors — outdoor maps get sun, dusk, and porch light
@@ -2972,13 +2974,26 @@ function updateTracks(dt) {
   tracks.tex.needsUpdate = true;
 }
 
+// ---------------- ground cover (view-only, static) --------------------------
+// AoE maps read "full" because almost no region is bare. Hundreds of instanced
+// tufts/crumbs/scraps per map, clustered organically, seeded from the ground
+// STYLE (never the game rng — the sim rng stream stays byte-identical).
+let groundCover = null;
+function setupGroundCover(mapKey) {
+  groundCover = null;
+  if (!game) return;
+  const style = (MAPS[mapKey] && MAPS[mapKey].ground) || mapKey;
+  groundCover = createGroundCover(game, style);
+  scene.add(groundCover);
+}
+
 // ---------------- living bases (view-only) ----------------------------------
 // Settlements act like settlements: production buildings puff chimney smoke
 // while their queue works, and house windows glow warmer as the night deepens.
 let baseLife = null;
 let nightF = 0; // current depth-of-night factor (written by updateNight)
 function setupBaseLife() {
-  baseLife = { smokes: new Map(), glows: new Map(), scanT: 0 };
+  baseLife = { smokes: new Map(), glows: new Map(), stock: new Map(), scanT: 0 };
 }
 function updateBaseLife(dt) {
   if (!baseLife || !game) return;
@@ -3014,6 +3029,32 @@ function updateBaseLife(dt) {
         scene.add(spr);
         baseLife.glows.set(e.id, { spr, e });
       }
+      // age dressing: the settlement flies banners as its owner grows up.
+      // Walls/gates excluded — bunting on 40 wall segments is noise.
+      const own = game.players[e.owner];
+      if (own && e.view && e.type !== 'wall' && e.type !== 'gate'
+          && e.view._dressAge !== own.age) {
+        const tc = TEAM_COLORS[game.teamOf ? game.teamOf(e.owner) : 0] || TEAM_COLORS[0];
+        applyBuildingAge(e.view, own.age, tc, e.def.size || 2);
+      }
+      // the visible stockpile: banked resources pile up beside the chest
+      if (e.type === 'chest' && own) {
+        const levels = ['snacks', 'blocks', 'buttons', 'marbles']
+          .map((r) => Math.min(4, Math.floor((own.res[r] || 0) / 130)));
+        const sig = levels.join();
+        const st = baseLife.stock.get(e.id);
+        if (!st || st.sig !== sig) {
+          if (st) scene.remove(st.group);
+          const group = buildStockpile(levels);
+          group.position.set(e.x, game.heightAtWorld(e.x, e.z + 2.9), e.z + 2.9);
+          scene.add(group);
+          baseLife.stock.set(e.id, { group, sig, e });
+        }
+      }
+    }
+    // sweep stockpiles whose chests died
+    for (const [id, st] of baseLife.stock) {
+      if (st.e.dead) { scene.remove(st.group); baseLife.stock.delete(id); }
     }
     // sweep glows/smokes whose buildings died
     for (const [id, g2] of baseLife.glows) {
@@ -3321,10 +3362,70 @@ function setupWeather() {
     kind, group, parts, sway, clouds, t: Math.random() * 100,
     flyKind, flyT: flyKind ? 20 + Math.random() * 40 : 0, flight: null,
   };
+  // boat wakes: a fading canvas overlay above the water (same mapping as the
+  // sand-trail canvas). Only built where there IS water — costs nothing on land.
+  if (game.waterSurface) {
+    const wc = document.createElement('canvas');
+    wc.width = wc.height = 512;
+    const wtex = new THREE.CanvasTexture(wc);
+    const wplane = new THREE.Mesh(new THREE.PlaneGeometry(N, N),
+      new THREE.MeshBasicMaterial({ map: wtex, transparent: true, depthWrite: false }));
+    wplane.rotation.x = -Math.PI / 2;
+    wplane.position.y = 0.185; // over the foam lace
+    wplane.renderOrder = 6;
+    scene.add(wplane);
+    weather.wakes = { ctx: wc.getContext('2d'), tex: wtex, t: 0, last: new Map() };
+  }
   if (kind === 'rain') { try { sfx.startRain(); } catch (e) { /* muted */ } }
+}
+function updateWakes(dt) {
+  const w = weather && weather.wakes;
+  if (!w || !game) return;
+  w.t += dt;
+  if (w.t < 0.14) return; // ~7Hz — sparser stamps read as foam, not a contrail
+  const step = w.t; w.t = 0;
+  const x2 = w.ctx;
+  // the water erases what the hulls wrote
+  x2.globalCompositeOperation = 'destination-out';
+  x2.fillStyle = 'rgba(0,0,0,' + Math.min(0.4, step * 1.6).toFixed(3) + ')';
+  x2.fillRect(0, 0, 512, 512);
+  x2.globalCompositeOperation = 'source-over';
+  const px = 512 / N;
+  for (const e of game.entities) {
+    if (e.kind !== 'unit' || e.dead || !e.def.naval) continue;
+    const prev = w.last.get(e.id);
+    w.last.set(e.id, { x: e.x, z: e.z });
+    if (!prev) continue;
+    const dx = e.x - prev.x, dz = e.z - prev.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 0.01) continue; // moored boats sit still
+    // two foam blobs at the stern quarters, spreading behind the hull
+    const hx = dx / d, hz = dz / d;
+    const sx = e.x - hx * 0.55, sz = e.z - hz * 0.55;
+    for (const side of [-1, 1]) {
+      const ox = -hz * side * (0.2 + Math.random() * 0.18), oz = hx * side * (0.2 + Math.random() * 0.18);
+      x2.fillStyle = 'rgba(235,246,252,0.34)';
+      x2.beginPath();
+      x2.arc((sx + ox + N / 2) * px, (sz + oz + N / 2) * px, 0.9 + Math.random() * 0.8, 0, Math.PI * 2);
+      x2.fill();
+    }
+    // and a faint bow crest
+    x2.fillStyle = 'rgba(240,250,255,0.25)';
+    x2.beginPath();
+    x2.arc((e.x + hx * 0.6 + N / 2) * px, (e.z + hz * 0.6 + N / 2) * px, 0.8, 0, Math.PI * 2);
+    x2.fill();
+  }
+  // sweep ids of sunken boats so the map never grows unbounded
+  if (w.last.size > 200) {
+    for (const id of w.last.keys()) {
+      if (!game.entities.some((e) => e.id === id && !e.dead)) w.last.delete(id);
+    }
+  }
+  w.tex.needsUpdate = true;
 }
 function updateWeather(dt) {
   if (!weather) return;
+  updateWakes(dt); // piggybacks weather so it runs in BOTH loops + __ttStep
   weather.t += dt;
   const t = weather.t;
   for (const s of weather.sway) s.o.rotation.z = s.base + Math.sin(t * 1.2 + s.ph) * s.amp;

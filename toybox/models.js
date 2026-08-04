@@ -3616,8 +3616,69 @@ export function createWaterSurface(N, water) {
   plane.renderOrder = 3;
   const group = new THREE.Group();
   group.add(plane);
+  // ripple detail: two counter-scrolling copies of a soft ring texture. The
+  // motion is what sells "water" — the flat blue alone reads as painted glass.
+  const rcv = document.createElement('canvas');
+  rcv.width = rcv.height = 128;
+  const rctx = rcv.getContext('2d');
+  for (let k = 0; k < 26; k++) {
+    const x = Math.random() * 128, y = Math.random() * 128, r = 4 + Math.random() * 10;
+    rctx.strokeStyle = 'rgba(255,255,255,' + (0.05 + Math.random() * 0.07).toFixed(3) + ')';
+    rctx.lineWidth = 1 + Math.random();
+    rctx.beginPath(); rctx.arc(x, y, r, Math.random() * 3, Math.random() * 3 + 2.2); rctx.stroke();
+  }
+  const ripples = [];
+  for (let k = 0; k < 2; k++) {
+    const tex = new THREE.CanvasTexture(rcv);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(9, 9); // small glints, not crop circles
+    const rp = new THREE.Mesh(new THREE.PlaneGeometry(N, N, 1, 1), new THREE.MeshBasicMaterial({
+      map: tex, transparent: true, opacity: 0.32, alphaMap: mask,
+      depthWrite: false, blending: THREE.AdditiveBlending,
+    }));
+    rp.rotation.x = -Math.PI / 2;
+    rp.position.y = 0.16 + k * 0.005;
+    rp.renderOrder = 4;
+    group.add(rp);
+    ripples.push(tex);
+  }
+  // shore foam: a static lace of pale dots along every water/land edge —
+  // the bath now has a coastline instead of a painted border
+  const fcv = document.createElement('canvas');
+  fcv.width = fcv.height = N * 4;
+  const fctx = fcv.getContext('2d');
+  for (let j = 0; j < N; j++) {
+    for (let i = 0; i < N; i++) {
+      if (!water[j * N + i]) continue;
+      const land = (i > 0 && !water[j * N + i - 1]) || (i < N - 1 && !water[j * N + i + 1])
+        || (j > 0 && !water[(j - 1) * N + i]) || (j < N - 1 && !water[(j + 1) * N + i]);
+      if (!land) continue;
+      for (let k = 0; k < 5; k++) {
+        fctx.fillStyle = 'rgba(240,248,252,' + (0.25 + Math.random() * 0.3).toFixed(2) + ')';
+        fctx.beginPath();
+        fctx.arc(i * 4 + Math.random() * 4, j * 4 + Math.random() * 4, 0.6 + Math.random() * 1.1, 0, Math.PI * 2);
+        fctx.fill();
+      }
+    }
+  }
+  const foamTex = new THREE.CanvasTexture(fcv);
+  const foam = new THREE.Mesh(new THREE.PlaneGeometry(N, N, 1, 1), new THREE.MeshBasicMaterial({
+    map: foamTex, transparent: true, opacity: 0.65, depthWrite: false,
+  }));
+  foam.rotation.x = -Math.PI / 2;
+  foam.position.y = 0.175;
+  foam.renderOrder = 5;
+  group.add(foam);
   let t = 0;
-  return { group, update(dt) { t += dt; plane.position.y = 0.15 + Math.sin(t * 1.6) * 0.02; } };
+  return {
+    group,
+    update(dt) {
+      t += dt;
+      plane.position.y = 0.15 + Math.sin(t * 1.6) * 0.02;
+      ripples[0].offset.set(t * 0.014, t * 0.009);
+      ripples[1].offset.set(-t * 0.011, t * -0.016);
+    },
+  };
 }
 
 export function createDecorMesh(kind, rngSeed = 1) {
@@ -4789,4 +4850,290 @@ export function createMoveMarker() {
       if (t <= 0) m.visible = false;
     },
   };
+}
+
+// ============================================================
+// THE OOMPH PASS (2026-08-04) — pure-view map density & settlement life.
+// None of this touches the sim: ground cover uses its own PRNG (never the
+// game rng), and the dressing/stockpile builders are driven by main.js's
+// 1Hz baseLife scan reading state the sim already computed.
+// ============================================================
+
+// Per-ground-style ground cover recipes: [kind, count, palette].
+// AoE maps read "full" because almost no region is bare — this is our version.
+const COVER_RECIPES = {
+  playmat: [
+    ['tuft', 360, [0x4a8a3a, 0x5a9a44, 0x69a84e]],
+    ['flower', 60, [0xffffff, 0xffd9e8, 0xfff2a8]],
+    ['crumb', 80, [0xb08a5a, 0x9a7a4a]],
+  ],
+  underbed: [
+    ['dust', 170, [0x8a8290, 0x9a92a0, 0x7a7488]],
+    ['crumb', 60, [0x6a5a4a, 0x7a6a55]],
+    ['scrap', 60, [0xd8d0c0, 0xc8c0b0]],
+  ],
+  attic: [
+    ['scrap', 190, [0xd8ccb0, 0xc8bca0, 0xe0d6c0]],
+    ['crumb', 70, [0x8a7a5f, 0x9a8a6a]],
+    ['pebble', 50, [0x9a8f80, 0x8a7f70]],
+  ],
+  playground: [
+    ['tuft', 400, [0x4a8a3a, 0x5a9a44, 0x69a84e]],
+    ['clover', 110, [0x3f7a34, 0x4a8a3c]],
+    ['pebble', 60, [0x9a948a, 0xa8a298]],
+  ],
+  kitchen: [
+    ['sprinkle', 150, [0xf94144, 0xf9c74f, 0x90be6d, 0x9b5de5, 0xf3722c]],
+    ['crumb', 130, [0xb08a5a, 0xc09a64, 0x9a7a4a]],
+    ['pebble', 40, [0xd8d4cc, 0xc8c4bc]],
+  ],
+  livingroom: [
+    ['tinsel', 140, [0xd8b060, 0xc0c8d8, 0xb8985a]],
+    ['scrap', 70, [0xc03a3a, 0x3a7a4a, 0xd8b060]],
+    ['crumb', 70, [0xb08a5a, 0x9a7a4a]],
+  ],
+  bookshelf: [
+    ['scrap', 170, [0xe8dcc4, 0xd8ccb0, 0xf0e6d0]],
+    ['pebble', 50, [0x8a8278, 0x9a9288]],
+    ['crumb', 60, [0x9a8a6a, 0x8a7a5f]],
+  ],
+  bathtub: [
+    ['pebble', 90, [0xd8e4ec, 0xc0d4e0, 0xe8f0f4]],
+    ['scrap', 40, [0xf0f4f8, 0xe0e8f0]],
+  ],
+  sandbox: [
+    ['pebble', 150, [0xd8b88a, 0xc8a878, 0xe0c092]],
+    ['shellet', 70, [0xf0e0d0, 0xe8d0b8]],
+    ['tuft', 40, [0x8a9a4a, 0x9aa858]],
+  ],
+  garden: [
+    ['tuft', 420, [0x4a8a3a, 0x5a9a44, 0x3f7a34]],
+    ['clover', 130, [0x3f7a34, 0x35682c]],
+    ['flower', 80, [0xffffff, 0xf0c0d8, 0xffe08a]],
+  ],
+  oldoak: [
+    ['tuft', 380, [0x3f7a34, 0x4a8a3a, 0x35682c]],
+    ['scrap', 130, [0xb0763a, 0x9a6a34, 0xc08a48]],
+    ['pebble', 60, [0x8a8278, 0x7a7268]],
+  ],
+};
+
+// small instanced geometries, laid flat / grounded where needed
+function coverGeometry(kind) {
+  let g;
+  if (kind === 'tuft') { g = new THREE.ConeGeometry(0.05, 0.5, 4); g.translate(0, 0.25, 0); }
+  else if (kind === 'clover') { g = new THREE.CircleGeometry(0.15, 6); g.rotateX(-Math.PI / 2); g.translate(0, 0.02, 0); }
+  else if (kind === 'flower') { g = new THREE.CircleGeometry(0.1, 7); g.rotateX(-Math.PI / 2); g.translate(0, 0.03, 0); }
+  else if (kind === 'crumb') { g = new THREE.IcosahedronGeometry(0.08, 0); g.scale(1, 0.6, 1); g.translate(0, 0.05, 0); }
+  else if (kind === 'pebble') { g = new THREE.IcosahedronGeometry(0.11, 0); g.scale(1, 0.55, 1); g.translate(0, 0.06, 0); }
+  else if (kind === 'scrap') { g = new THREE.PlaneGeometry(0.26, 0.18); g.rotateX(-Math.PI / 2); g.translate(0, 0.02, 0); }
+  else if (kind === 'sprinkle') { g = new THREE.CylinderGeometry(0.03, 0.03, 0.2, 5); g.rotateZ(Math.PI / 2); g.translate(0, 0.03, 0); }
+  else if (kind === 'dust') { g = new THREE.SphereGeometry(0.13, 5, 4); g.scale(1, 0.5, 1); g.translate(0, 0.06, 0); }
+  else if (kind === 'tinsel') { g = new THREE.PlaneGeometry(0.2, 0.07); g.rotateX(-Math.PI / 2); g.translate(0, 0.02, 0); }
+  else if (kind === 'shellet') { g = new THREE.ConeGeometry(0.09, 0.1, 5); g.scale(1, 0.6, 1); g.translate(0, 0.03, 0); }
+  else { g = new THREE.IcosahedronGeometry(0.08, 0); g.translate(0, 0.05, 0); }
+  return g;
+}
+
+// Scatter instanced ground cover over every free tile region of the map.
+// game supplies blocked/water/height/starts; style picks the recipe; the PRNG
+// is local and seeded from the style so each room always dresses the same way.
+export function createGroundCover(game, style) {
+  const recipe = COVER_RECIPES[style] || COVER_RECIPES.playmat;
+  const group = new THREE.Group();
+  const N2 = Math.round(Math.sqrt(game.blocked.length));
+  const worldOf = (i) => i - N2 / 2 + 0.5;
+  let seed = 1;
+  for (let i = 0; i < style.length; i++) seed = (seed * 31 + style.charCodeAt(i)) >>> 0;
+  const rng = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const okTile = (i, j) => {
+    if (i < 3 || j < 3 || i >= N2 - 3 || j >= N2 - 3) return false;
+    const k = j * N2 + i;
+    if (game.blocked[k] || (game.water && game.water[k])) return false;
+    // keep the doorstep readable — the stockpile lives there now
+    if (game.startTiles && game.startTiles.some(([si, sj]) =>
+      i > si - 5 && i < si + 7 && j > sj - 5 && j < sj + 7)) return false;
+    return true;
+  };
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
+  const pos = new THREE.Vector3(), scl = new THREE.Vector3();
+  const col = new THREE.Color();
+  // Grass belongs on the GREEN parts of the art — not on painted roads or the
+  // pond. Sample the ground canvas and require green-dominant pixels for the
+  // organic kinds (grassy styles only; sandbox's dry tufts live on sand).
+  let sampler = null;
+  if (['playmat', 'playground', 'garden', 'oldoak'].includes(style) && game.scene && game.scene.traverse) {
+    game.scene.traverse((o) => {
+      if (sampler || !o.userData || !o.userData.groundCanvas) return;
+      const c = o.userData.groundCanvas, S = c.width;
+      try {
+        const data = c.getContext('2d').getImageData(0, 0, S, S).data;
+        sampler = (x, z) => {
+          const u = Math.max(0, Math.min(S - 1, Math.round((x + N2 / 2) / N2 * S)));
+          const v = Math.max(0, Math.min(S - 1, Math.round((z + N2 / 2) / N2 * S)));
+          const k = (v * S + u) * 4;
+          return data[k + 1] > data[k] * 1.02 && data[k + 1] > data[k + 2] * 1.02; // green wins
+        };
+      } catch { /* tainted canvas — place freely */ }
+    });
+  }
+  for (const [kind, count, palette] of recipe) {
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xffffff, roughness: 0.92, metalness: kind === 'tinsel' ? 0.55 : 0,
+      side: kind === 'scrap' || kind === 'tinsel' || kind === 'clover' || kind === 'flower' ? THREE.DoubleSide : THREE.FrontSide,
+    });
+    const mesh = new THREE.InstancedMesh(coverGeometry(kind), mat, count);
+    mesh.castShadow = false;
+    mesh.receiveShadow = true;
+    let placed = 0;
+    // ~70% in organic clusters, the rest lone scatter — empty runs read as paths
+    const nClusters = Math.max(4, Math.round(count / 16));
+    const centers = [];
+    for (let c = 0; c < nClusters; c++) {
+      for (let t = 0; t < 40; t++) {
+        const ci = 3 + (rng() * (N2 - 6)) | 0, cj = 3 + (rng() * (N2 - 6)) | 0;
+        if (okTile(ci, cj)) { centers.push([ci, cj]); break; }
+      }
+    }
+    for (let n = 0; n < count * 3 && placed < count; n++) {
+      let i, j;
+      if (centers.length && rng() < 0.7) {
+        const [ci, cj] = centers[(rng() * centers.length) | 0];
+        const a = rng() * Math.PI * 2, r = (rng() + rng()) * 1.6; // triangular falloff
+        i = Math.round(ci + Math.cos(a) * r); j = Math.round(cj + Math.sin(a) * r);
+      } else {
+        i = 3 + (rng() * (N2 - 6)) | 0; j = 3 + (rng() * (N2 - 6)) | 0;
+      }
+      if (!okTile(i, j)) continue;
+      const x = worldOf(i) + (rng() - 0.5) * 0.9, z = worldOf(j) + (rng() - 0.5) * 0.9;
+      const organic = kind === 'tuft' || kind === 'clover' || kind === 'flower';
+      if (organic && sampler && !sampler(x, z)) continue;
+      // a lone cone reads as a pin — tufts land as a leaning TRIPLE, one clump
+      const perDrop = kind === 'tuft' ? Math.min(3, count - placed) : 1;
+      for (let b = 0; b < perDrop; b++) {
+        const bx = x + (b ? (rng() - 0.5) * 0.34 : 0), bz = z + (b ? (rng() - 0.5) * 0.34 : 0);
+        pos.set(bx, game.heightAtWorld(bx, bz) + 0.005, bz);
+        q.setFromAxisAngle(up, rng() * Math.PI * 2);
+        if (kind === 'tuft') {
+          const lean = new THREE.Quaternion().setFromAxisAngle(
+            new THREE.Vector3(Math.cos(rng() * Math.PI * 2), 0, Math.sin(rng() * Math.PI * 2)), rng() * 0.35);
+          q.multiply(lean);
+        }
+        const s = 0.65 + rng() * 0.75;
+        scl.set(s, s * (0.75 + rng() * 0.5), s);
+        m4.compose(pos, q, scl);
+        mesh.setMatrixAt(placed, m4);
+        col.setHex(palette[(rng() * palette.length) | 0]);
+        col.offsetHSL(0, 0, (rng() - 0.5) * 0.06);
+        mesh.setColorAt(placed, col);
+        placed++;
+      }
+    }
+    mesh.count = placed;
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    group.add(mesh);
+  }
+  return group;
+}
+
+// ---- buildings dress up with their age (banners, bunting, finial) ----------
+// Called by main.js's 1Hz baseLife scan whenever a building's owner ages up.
+// Walls and gates are excluded at the call site — bunting on 40 wall segments
+// would be noise, not festivity.
+export function applyBuildingAge(view, age, teamColor, size) {
+  if (view._ageDress) { view.group.remove(view._ageDress); view._ageDress = null; }
+  view._dressAge = age;
+  if (age < 2) return;
+  const d = new THREE.Group();
+  const half = Math.max(0.8, (size || 2) * 0.42);
+  const poleMat = toyMat(0x8a6a44, 0.7);
+  const flagMat = new THREE.MeshStandardMaterial({ color: teamColor, roughness: 0.8, side: THREE.DoubleSide });
+  const mkPole = (px, pz, h) => {
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, h, 6), poleMat);
+    p.position.set(px, h / 2, pz);
+    d.add(p);
+    return p;
+  };
+  // Age II: a corner banner — the settlement starts flying its colours
+  const h1 = 1.5 + (size || 2) * 0.14;
+  mkPole(half, half, h1);
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.34), flagMat);
+  flag.position.set(half + 0.28, h1 - 0.22, half);
+  d.add(flag);
+  if (age >= 3) {
+    // Age III: bunting sags between two short poles along the front edge
+    mkPole(-half, half, 0.9);
+    mkPole(half * 0.1, half, 0.9);
+    for (let k = 0; k < 3; k++) {
+      const t = (k + 1) / 4;
+      const bx = -half + t * (half * 1.1);
+      const sag = Math.sin(t * Math.PI) * 0.22;
+      const tri = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.22, 3),
+        new THREE.MeshStandardMaterial({ color: PASTELS[k % PASTELS.length], roughness: 0.8, side: THREE.DoubleSide }));
+      tri.rotation.z = Math.PI; // hang point-down
+      tri.position.set(bx, 0.86 - sag, half + 0.02);
+      d.add(tri);
+    }
+  }
+  if (age >= 4) {
+    // Age IV: a golden finial — this house has seen the whole war
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6),
+      new THREE.MeshStandardMaterial({ color: 0xd8b060, roughness: 0.35, metalness: 0.6, emissive: 0x4a2a10, emissiveIntensity: 0.3 }));
+    ball.position.set(half, h1 + 0.08, half);
+    d.add(ball);
+  }
+  view._ageDress = d;
+  view.group.add(d);
+}
+
+// ---- the visible stockpile: banked resources pile up beside the chest ------
+// levels = [snacksL, blocksL, buttonsL, marblesL], each 0..4. Rebuilt by the
+// 1Hz scan only when a level actually changes.
+export function buildStockpile(levels) {
+  const g = new THREE.Group();
+  const lanes = [-1.65, -0.55, 0.55, 1.65];
+  // snacks: a crumb mound that grows
+  if (levels[0] > 0) {
+    const mound = new THREE.Mesh(new THREE.ConeGeometry(0.26 + levels[0] * 0.09, 0.2 + levels[0] * 0.12, 7),
+      toyMat(0xa8763e, 0.95));
+    mound.position.set(lanes[0], (0.2 + levels[0] * 0.12) / 2, 0);
+    g.add(mound);
+    for (let k = 0; k < levels[0] + 1; k++) {
+      const fleck = new THREE.Mesh(new THREE.IcosahedronGeometry(0.06, 0), toyMat(0xc89a5a, 0.9));
+      const a = k * 2.3, r = 0.3 + (k % 2) * 0.14;
+      fleck.position.set(lanes[0] + Math.cos(a) * r, 0.05, Math.sin(a) * r);
+      g.add(fleck);
+    }
+  }
+  // blocks: an alternating stack of bright bricks
+  for (let k = 0; k < levels[1]; k++) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.26, 0.3), toyMat(PASTELS[k % PASTELS.length], 0.5));
+    b.position.set(lanes[1] + (k % 2 ? 0.06 : -0.06), 0.13 + k * 0.26, (k % 2 ? -0.04 : 0.04));
+    b.rotation.y = (k % 2 ? 0.3 : -0.2);
+    g.add(b);
+  }
+  // buttons: a leaning tower of fat discs
+  for (let k = 0; k < levels[2]; k++) {
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.08, 12),
+      toyMat([0xd8b060, 0x577590, 0x9b5de5, 0xf3722c][k % 4], 0.55));
+    disc.position.set(lanes[2] + k * 0.05, 0.04 + k * 0.085, k * 0.03);
+    g.add(disc);
+  }
+  // marbles: a glassy little pyramid
+  if (levels[3] > 0) {
+    const glass = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.15, metalness: 0.1 });
+    const cols = [0x66c0e8, 0xe86a8a, 0x8ae09a, 0xf0d060];
+    let mi = 0;
+    for (let layer = 0; layer < Math.min(2, levels[3]); layer++) {
+      const nRow = levels[3] - layer;
+      for (let k = 0; k < nRow && mi < 9; k++, mi++) {
+        const m = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), glass(cols[mi % 4]));
+        m.position.set(lanes[3] + (k - nRow / 2) * 0.24 + layer * 0.12, 0.12 + layer * 0.2, layer * 0.08);
+        g.add(m);
+      }
+    }
+  }
+  g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  return g;
 }

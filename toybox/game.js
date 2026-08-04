@@ -708,6 +708,41 @@ export class Game {
         }
       }
     }
+    // woodlines: dense point-mirrored stands of trees/books/sunflowers — the
+    // AoE treeline. Big enough to shape a fight, each with one open corridor
+    // so it reads as terrain you thread, not a wall you bounce off. Both
+    // mirror twins use the SAME offset list, so the pair is exactly fair.
+    if (this.map.stands) {
+      const S = this.map.stands;
+      for (let p2 = 0; p2 < (S.pairs || 2); p2++) {
+        let ci = 0, cj = 0, ok = false;
+        for (let tries = 0; tries < 30 && !ok; tries++) {
+          const a = rng() * Math.PI * 2, rr = N * (0.16 + rng() * 0.14);
+          ci = Math.round(N / 2 + Math.cos(a) * rr);
+          cj = Math.round(N / 2 + Math.sin(a) * rr);
+          if (ci > 8 && cj > 8 && ci < N - 8 && cj < N - 8
+            && clearHomes(ci, cj, 16) && clearHomes(N - 1 - ci, N - 1 - cj, 16)) ok = true;
+        }
+        if (!ok) continue;
+        const gapA = rng() * Math.PI * 2; // the corridor's direction
+        const offs = [];
+        for (let t = 0; t < 40 && offs.length < (S.n || 10); t++) {
+          const a = rng() * Math.PI * 2, d = rng() * (S.r || 3.4);
+          const rel = Math.atan2(Math.sin(a - gapA), Math.cos(a - gapA));
+          if (Math.abs(rel) < 0.5 && d > 1.2) continue; // keep the corridor open
+          offs.push([Math.round(Math.cos(a) * d), Math.round(Math.sin(a) * d), t]);
+        }
+        for (const [gi, gj, mir] of [[ci, cj, 1], [N - 1 - ci, N - 1 - cj, -1]]) {
+          for (const [di, dj, t] of offs) {
+            const i = gi + di * mir, j = gj + dj * mir;
+            if (i < 4 || j < 4 || i >= N - 4 || j >= N - 4) continue;
+            if (this.flatAt(i, j, 1, 1, 0) && rectClear(i, j, 1, 1)) {
+              this.addObstacle(S.kind || 'tree', i, j, 1, 1, 700 + p2 * 90 + (mir > 0 ? 0 : 45) + t);
+            }
+          }
+        }
+      }
+    }
     // Toy Chest Canyon: a diagonal barricade with three contested gaps
     if (this.map.canyon) {
       const gaps = [N / 2, N / 2 - 17, N / 2 + 17];

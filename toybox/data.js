@@ -897,6 +897,7 @@ export const MAPS = {
     ridges: [
       { i1: 26, j1: 26, i2: 46, j2: 46, w: 1, gaps: [{ t: 0.3, w: 6 }, { t: 0.7, w: 6 }] },
     ],
+    stands: { kind: 'book', pairs: 2, n: 8, r: 3.2 }, // slumped piles of old volumes
     desc: 'Wide open, rich, and quiet as history. Boom, Commander — or be boomed.',
   },
   playground: {
@@ -916,6 +917,7 @@ export const MAPS = {
       { i1: 24, j1: 16, i2: 35, j2: 27, w: 1 },
       { i1: 37, j1: 45, i2: 48, j2: 56, w: 1 },
     ],
+    stands: { kind: 'tree', pairs: 2, n: 10, r: 3.4 }, // hedge thickets, finally real
     desc: 'A sunny backyard: the sandbox in the middle, swings and slides all around it.',
   },
   kitchen: {
@@ -1017,6 +1019,7 @@ export const MAPS = {
     obstacles: 5, canyon: false, resourceMul: 1.3, stickers: 3, plateaus: 4,
     // flower-bed terraces climb in real steps; sunflower groves are the forests
     groves: { kind: 'sunflower', count: 5 },
+    stands: { kind: 'sunflower', pairs: 2, n: 10, r: 3.4 }, // real sunflower FORESTS now
     critters: [{ type: 'snail', count: 4 }, { type: 'bee', count: 3 }, { type: 'ladybug', count: 3 }], // slow money + working bees + good luck
     cat: false, dog: true, // trampling the flowerbeds, joyfully
     tribes: 2,
@@ -1039,6 +1042,7 @@ export const MAPS = {
     cat: false, dog: true, // the old dog knows this tree well
     tribes: 2,
     weather: 'fireflies',
+    stands: { kind: 'tree', pairs: 2, n: 11, r: 3.6 }, // the oak's children ring the lawn
     obstacleKinds: ['rock', 'tree'],
     decor: ['mushroom', 'grass', 'pebble', 'daisy'],
     decorCount: 18,
