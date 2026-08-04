@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import {
   MAP_N, POP_MAX, RES_TYPES, RES_META, UNITS, BUILDINGS, TECHS, MARKET, maskAt,
   AGES, AGE_UPS, PRODUCTION_BUILDINGS, START, AI, DIFFICULTIES, TEAM_NAMES, STICKER, WONDER, PERSONAS, MAPS, FACTIONS,
-  TAUNTS, AI_LINES, NARRATOR, NARRATOR_NG, NARRATOR_VO, TEAM_COLORS,
+  TAUNTS, AI_LINES, NARRATOR, NARRATOR_NG, NARRATOR_VO, NARRATOR_NG_VO, TEAM_COLORS,
   CRITTERS, CRITTER_TYPES, LOST_TOYS, WILD_TRIBES, HOUSE_CAT, YARD_DOG, ROOMBA, GAME_MODES, START_RES, SURVIVAL,
 } from './data.js';
 import {
@@ -4657,13 +4657,15 @@ export class Game {
     this.alert(line, 'story', null, 6);
     // the storyteller reads the beat aloud (respects the SFX mute; UI-only).
     // Only the recorded beats have a file — the rest are read on the page.
-    // ⚠️ the recordings are of the FIRST-night lines. When a second-night
-    // variant is showing, its .wav doesn't exist, and playing the first-night
-    // one would narrate a different sentence than the one on screen — so that
-    // beat stays text-only until NARRATOR_NG is recorded too.
-    if (this.sfx && !this.sfx.muted && !ngLine && NARRATOR_VO.has(key)) {
+    // Second-night variants have their own recordings (<key>-ng.wav) so the
+    // voice always speaks the exact sentence on screen; a beat with an NG line
+    // but no NG recording stays text-only rather than reading the wrong page.
+    const voFile = ngLine
+      ? (NARRATOR_NG_VO.has(key) ? key + '-ng.wav' : null)
+      : (NARRATOR_VO.has(key) ? key + '.wav' : null);
+    if (this.sfx && !this.sfx.muted && voFile) {
       try {
-        const vo = new Audio('assets/audio/vo/' + key + '.wav');
+        const vo = new Audio('assets/audio/vo/' + voFile);
         vo.volume = Math.min(1, (this.sfx.volume || 0.5) * 1.4);
         vo.play().catch(() => {});
       } catch (e) { /* no audio support — the text alert already carries it */ }

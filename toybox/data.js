@@ -2450,10 +2450,17 @@ export const NARRATOR_NG = {
 // 404 when a beat has no .wav — add a key here only once its file exists.
 // 2026-07-27: the whole first-night narration was re-recorded in ONE voice
 // (Alistair) so the storyteller is consistent, and every beat is now voiced.
-// ⚠️ NARRATOR_NG (second-night) lines are still unrecorded — narrate() falls
-// back to this same set for them, so an NG beat plays the first-night audio
-// under second-night text. Record those before adding NG keys anywhere.
 export const NARRATOR_VO = new Set([
+  'firstblood', 'age2', 'age3', 'mega', 'clock10',
+  'comeback', 'boom', 'firstfleet', 'armylost', 'wonderrace',
+  'foothold', 'tribewon', 'tribelost', 'strayhome', 'catswat', 'wallbreach',
+]);
+
+// Second-night readings (same Alistair voice, recorded 2026-08-04), stored as
+// assets/audio/vo/<key>-ng.wav. A key here promises that file exists; narrate()
+// plays it when the NG variant of the line is on screen, so the storyteller
+// never reads a different sentence than the one being shown.
+export const NARRATOR_NG_VO = new Set([
   'firstblood', 'age2', 'age3', 'mega', 'clock10',
   'comeback', 'boom', 'firstfleet', 'armylost', 'wonderrace',
   'foothold', 'tribewon', 'tribelost', 'strayhome', 'catswat', 'wallbreach',
