@@ -516,6 +516,43 @@ swings, per-unit `gaitBias`, randomised clip phase, and hit-kick all ship today 
 cost nothing. Revisit only if someone first builds root-motion stripping + mesh
 sharing — and re-read this entry before spending.
 
+## THE OOMPH PASS (2026-08-04, free) — "maps lack the AoE oomph factor"
+
+Kyle's diagnosis was right and the cause was MEASURABLE: maps ran 12-20 decor
+props + 2-11 obstacles on ~5,000 tiles — beautifully painted, mostly EMPTY.
+Five fixes, four pure-view + one sim:
+1. **Instanced ground cover** (`createGroundCover` models.js, `setupGroundCover`
+   main.js): 300-560 instances/map (tufts/clover/flowers/crumbs/pebbles/scraps/
+   sprinkles/dust/tinsel/shellets) via InstancedMesh — 3-4 draw calls. Per-style
+   recipes in `COVER_RECIPES`. Placement PRNG seeded from the ground STYLE, NOT
+   game rng — the sim stream is untouched. ⚠️ organic kinds (tuft/clover/flower)
+   sample the ground canvas (`userData.groundCanvas`) and require GREEN-dominant
+   pixels on playmat/playground/garden/oldoak — first attempt put grass on the
+   painted roads and IN the pond. ⚠️ a lone small cone reads as a PIN — tufts
+   drop as leaning triples. Sandbox skips the filter (dry tufts on sand are fine).
+2. **Building age-dressing** (`applyBuildingAge` models.js, driven by the 1Hz
+   baseLife scan): age2 = corner banner in team colour, age3 = + bunting line,
+   age4 = + gold finial. Walls/gates excluded on purpose. Views that get rebuilt
+   (tier upgrades) lose `_dressAge` and re-dress within 1s — self-healing.
+3. **Visible stockpile** (`buildStockpile` models.js): crumb mound / brick stack /
+   button tower / marble pyramid grow beside each chest as the player banks
+   (level = res/130, cap 4; rebuilt only when a level CHANGES, swept on death).
+4. **Water juice** (createWaterSurface + `updateWakes` in main.js): 2 counter-
+   scrolling ripple-glint layers (repeat 9, opacity .32 — at repeat 5/op .5 they
+   read as CROP CIRCLES), static shore-foam lace on every water/land edge, and
+   a fading wake canvas behind moving boats (~7Hz stamps; at 11Hz/r1.6 the wake
+   was a solid CONTRAIL — sparser+smaller reads as foam). Wakes piggyback
+   updateWeather so they run in both loops + __ttStep with no new wiring.
+5. **Woodlines** (SIM: `stands:` config in MAPS → game.js setup, placed after
+   groves): point-mirrored dense clusters (8-11 obstacles, r~3.4) with one open
+   corridor each (angular gap in the offset loop). Both mirror twins use the
+   SAME offset list = exactly fair. On oldoak (trees) / playground (trees) /
+   attic (books) / garden (sunflowers). Playmat/kitchen stay open per the
+   standing map-identity rules. Verified: fp determinism ×2 maps, 8/8 soaks
+   0 errs all concluded 3-6 min, MP 2h+2ai inSync === true.
+⚠️ ground cover is live-only (setup in startGame) — headless soaks never see it,
+so per-map verification = boot the map and census InstancedMesh counts.
+
 ## Grounding & separation (2026-07-27, free — all view-only)
 
 **Contact shadows.** A capture showed the truth: the Toy Chest cast a shadow and
