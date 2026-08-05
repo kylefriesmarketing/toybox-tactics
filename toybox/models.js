@@ -507,6 +507,67 @@ function setOpacity(root, o) {
 // Both expose: group, setMoving, startAttack->impactDelay, startDeath->duration,
 // setSelected, update(dt), hpBar.
 
+// ---------------- death by material ----------------
+// Toys shouldn't all die the same way, and we already know what each one is
+// MADE of: the debris profile it drops says so. So the material picks the
+// death, with no new data to author.
+//   fluff    → FLOP    a stuffed toy folds in on itself; it does not topple
+//                      like a plank, it sags and spreads
+//   brick    → SCATTER block-built things come APART rather than fall over
+//   disc/peg → CLATTER wheels and bolts: falls hard, tumbles, bounces once
+//   else     → TOPPLE  the honest stiff-figure faceplant (the original)
+// ⚠️ do NOT key "machine" off a 'disc' in the debris shapes: an army man's
+// debris carries a disc (its base), so that read made workers and soldiers
+// clatter like robots. What it's DRIVEN by is the honest signal.
+export function deathStyleOf(def) {
+  if (!def) return 'topple';
+  const d = def.debris || {};
+  if (d.fluff) return 'flop';
+  if ((d.shapes || []).includes('brick')) return 'scatter';
+  const machine = (def.tags && def.tags.includes('vehicle'))
+    || def.gait === 'roll' || def.spin || def.hover;
+  return machine ? 'clatter' : 'topple';
+}
+// Poses one object for `t` seconds into its death. `base` is the object's scale
+// BEFORE dying — captured at startDeath and multiplied, never overwritten, so
+// this composes with applyUnitTier's veteran recast and the per-role silhouette
+// scaling instead of stomping them.
+function deathPose(style, o, t, base, lean = 1) {
+  if (style === 'flop') {
+    const e = 1 - (1 - Math.min(1, t * 2.6)) ** 2;
+    o.scale.set(base.x * (1 + e * 0.26), base.y * Math.max(0.18, 1 - e * 0.8), base.z * (1 + e * 0.26));
+    o.rotation.z = e * 0.45 * lean;
+    o.position.y = -e * 0.015;
+  } else if (style === 'scatter') {
+    const k = Math.min(1, t * 2.2);
+    const s = Math.max(0.05, 1 - k);
+    o.scale.set(base.x * s, base.y * s, base.z * s);
+    o.rotation.z = k * 0.8 * lean;
+    o.position.y = -k * 0.1;
+  } else if (style === 'clatter') {
+    const k = Math.min(1, t * 3.0);
+    o.rotation.z = k * (Math.PI / 2) * lean;
+    o.rotation.x = Math.sin(k * 5.5) * 0.28 * (1 - k);   // tumbling
+    o.position.y = Math.abs(Math.sin(k * Math.PI * 1.6)) * 0.1 * (1 - k); // one bounce
+  } else {
+    o.rotation.z = Math.min(t * 2.4, Math.PI / 2) * lean;
+    o.position.y = Math.max(0, 0.1 - t * 0.1);
+  }
+}
+
+// Squash/shrink ONLY — safe to layer on top of a baked death clip, because the
+// clip animates bones while this scales the model root. Without it the two most
+// plush units in the game (bear, medic) own real clips and so would never flop.
+function deathSquash(style, o, t, base) {
+  if (style === 'flop') {
+    const e = 1 - (1 - Math.min(1, t * 2.4)) ** 2;
+    o.scale.set(base.x * (1 + e * 0.2), base.y * Math.max(0.32, 1 - e * 0.6), base.z * (1 + e * 0.2));
+  } else if (style === 'scatter') {
+    const s = Math.max(0.12, 1 - Math.min(1, t * 2.0) * 0.85);
+    o.scale.set(base.x * s, base.y * s, base.z * s);
+  }
+}
+
 // ---------------- contact shadows ----------------
 // Real shadow-mapping is on, but the lamp's shadow camera spans ~96 world units
 // across 2048px — about 21px per unit — so a toy soldier's footprint is a few
@@ -676,6 +737,8 @@ function makeModelView(entry, def, owner) {
     group.add(carryMesh);
   };
   const idlePh = Math.random() * 100; // view-only: keeps a squad from fidgeting in unison
+  const dStyle = deathStyleOf(def);   // what this toy is made of decides how it dies
+  const dLean = Math.random() < 0.5 ? 1 : -1; // and which way it goes down
 
   if (entry.rigless) {
     // RC Raider: static vehicle â€” code animation (wheel spin + bounce)
@@ -690,6 +753,7 @@ function makeModelView(entry, def, owner) {
     view.startDeath = () => {
       view._dead = true;
       setInstanceMaterialsForFade(model);
+      view._deathBase = model.scale.clone();
       deathT = 0;
       return 2.0;
     };
@@ -697,8 +761,7 @@ function makeModelView(entry, def, owner) {
       t += dt * view._ratio;
       if (view._dead) {
         deathT += dt;
-        model.rotation.z = Math.min(deathT * 2.4, Math.PI / 2);
-        model.position.y = Math.max(0, 0.1 - deathT * 0.1);
+        deathPose(dStyle, model, deathT, view._deathBase, dLean);
         if (deathT > 1.0) setOpacity(model, Math.max(0, 1 - (deathT - 1.0)));
         return;
       }
@@ -845,6 +908,8 @@ function makeModelView(entry, def, owner) {
     } else {
       deathClipDur = 0.5;
     }
+    view._noDeathClip = !a;            // no baked clip → pose it by material
+    view._deathBase = model.scale.clone();
     setInstanceMaterialsForFade(model);
     deathT = 0;
     return deathClipDur + 1.0;         // clip plays once, then the mesh fades
@@ -871,6 +936,10 @@ function makeModelView(entry, def, owner) {
     }
     if (view._dead) {
       deathT += dt;
+      // a real baked death clip always wins; without one, fall back to the
+      // material pose so rigged toys still die like what they're made of
+      if (view._noDeathClip) deathPose(dStyle, model, deathT, view._deathBase, dLean);
+      else deathSquash(dStyle, model, deathT, view._deathBase); // rides on the clip
       const over = deathT - deathClipDur;
       if (over > 0) setOpacity(model, Math.max(0, 1 - over));
     }
@@ -1199,9 +1268,11 @@ function makeProcView(def, owner, kind) {
   let moving = false, t = Math.random() * 9, deathT = -1, swingT = -1, swingDur = 0;
   view.setMoving = (v) => { moving = v; };
   view.startAttack = (dur) => { swingT = 0; swingDur = dur; return dur * def.impact; };
+  const pStyle = deathStyleOf(def), pLean = Math.random() < 0.5 ? 1 : -1;
   view.startDeath = () => {
     view._dead = true;
     rig.traverse((n) => { if (n.isMesh) { n.material = n.material.clone(); n.material.transparent = true; } });
+    view._deathBase = rig.scale.clone();
     deathT = 0;
     return 1.8;
   };
@@ -1209,7 +1280,7 @@ function makeProcView(def, owner, kind) {
     t += dt;
     if (view._dead) {
       deathT += dt;
-      rig.rotation.z = Math.min(deathT * 2.2, Math.PI / 2.2);
+      deathPose(pStyle, rig, deathT, view._deathBase, pLean);
       if (deathT > 0.8) rig.traverse((n) => { if (n.isMesh) n.material.opacity = Math.max(0, 1 - (deathT - 0.8)); });
       return;
     }
@@ -1266,10 +1337,13 @@ function makeBoxView(def, owner) {
   let moving = false, t = 0, deathT = -1;
   view.setMoving = (v) => { moving = v; };
   view.startAttack = (swingDur) => { view._lunge = swingDur; view._lungeDur = swingDur; return swingDur * def.impact; };
+  const bStyle = deathStyleOf(def), bLean = Math.random() < 0.5 ? 1 : -1;
   view.startDeath = () => {
     view._dead = true;
     body.material = body.material.clone();
     body.material.transparent = true;
+    view._deathBase = body.scale.clone();
+    view._deathY = body.position.y;
     deathT = 0;
     return 1.4;
   };
@@ -1277,7 +1351,8 @@ function makeBoxView(def, owner) {
     t += dt;
     if (view._dead) {
       deathT += dt;
-      body.rotation.x = Math.min(deathT * 3, Math.PI / 2);
+      deathPose(bStyle, body, deathT, view._deathBase, bLean);
+      body.position.y += view._deathY; // this fallback parks the body off the floor
       body.material.opacity = Math.max(0, 1 - deathT * 0.8);
       return;
     }
@@ -2201,6 +2276,33 @@ export function createBuildingView(key, def, owner, rngSeed = 1, up = false, age
   sel.visible = false;
   group.add(sel);
 
+  // ---- construction ----
+  const meshBaseY = meshes.position.y; // the rise is measured from wherever it sits
+  // a little scaffold of poles and planks stands around the site while it goes
+  // up — the clearest possible read that something is UNDER CONSTRUCTION
+  let scaffold = null;
+  if (!def.gate && key !== 'wall') {   // 40 scaffolded wall segments is noise
+    scaffold = new THREE.Group();
+    const poleMat = toyMat(0xc9a86a, 0.85);
+    const half = s * 0.5 + 0.12;
+    const ph = Math.max(0.7, def.height * 0.8);
+    for (const [px, pz] of [[-half, -half], [half, -half], [half, half], [-half, half]]) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, ph, 5), poleMat);
+      pole.position.set(px, ph / 2, pz);
+      scaffold.add(pole);
+    }
+    for (const ry of [ph * 0.42, ph * 0.82]) {           // two plank rings
+      for (const [ax, az, rot] of [[0, -half, 0], [0, half, 0], [-half, 0, Math.PI / 2], [half, 0, Math.PI / 2]]) {
+        const plank = new THREE.Mesh(new THREE.BoxGeometry(half * 2, 0.05, 0.11), poleMat);
+        plank.position.set(ax, ry, az);
+        plank.rotation.y = rot;
+        scaffold.add(plank);
+      }
+    }
+    scaffold.visible = false;
+    group.add(scaffold);
+  }
+
   const gateBar = meshes.userData && meshes.userData.gateBar;
   const view = {
     group, hpBar, _damaged: false, _open: false,
@@ -2208,15 +2310,26 @@ export function createBuildingView(key, def, owner, rngSeed = 1, up = false, age
     markDamaged() { view._damaged = true; hpBar.sprite.visible = true; },
     setOpen(v) { view._open = v; },
     setProgress(f) {
-      // foundation grows out of the floor while workers build it
       f = Math.max(0.02, Math.min(1, f));
-      meshes.scale.y = f;
-      meshes.traverse((n) => {
-        if (n.isMesh && n.material) {
-          n.material.transparent = f < 1;
-          n.material.opacity = f < 1 ? 0.45 + 0.55 * f : 1;
-        }
-      });
+      // The building RISES OUT OF THE FLOOR at full proportions. Scaling Y (the
+      // old way) squashed it into a caricature of itself — a half-built tower
+      // looked like a run-over tower. The mat is opaque and depth-tested, so
+      // the part still underground is simply occluded, for free.
+      // ⚠️ per-PART assembly was tried and dropped: 23 of 24 buildings are
+      // single merged GLB meshes with nothing to stack (measured), so it only
+      // ever worked on the Block House and looked worse there.
+      meshes.scale.y = 1;
+      meshes.position.y = meshBaseY - (1 - f) * (def.height + 0.25);
+      if (view._ghost !== (f < 1)) {
+        view._ghost = f < 1;
+        meshes.traverse((n) => {
+          if (n.isMesh && n.material) {
+            n.material.transparent = f < 1;
+            n.material.opacity = f < 1 ? 0.92 : 1;
+          }
+        });
+      }
+      if (scaffold) scaffold.visible = f < 1;   // struck the moment it's finished
     },
     update(dt) {
       if (gateBar) {
