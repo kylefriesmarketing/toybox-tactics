@@ -2390,6 +2390,10 @@ export class Game {
           amount: se.amount, def: { name: RES_META[se.resType].nodeName },
           view, dead: false,
         };
+        // a save reloads a half-mined pile as half-mined
+        if (view.setAmount && RES_META[se.resType].nodeAmount > 0) {
+          view.setAmount(se.amount / RES_META[se.resType].nodeAmount);
+        }
       } else if (se.k === 'c') {
         const cType = se.type || 'mouse';
         const ct = CRITTER_TYPES[cType] || CRITTER_TYPES.mouse;
@@ -3565,13 +3569,27 @@ export class Game {
     u.view.group.rotation.y += dr * Math.min(1, dt * (u.def.gait === 'roll' ? 6 : 11));
     if (moving !== u.wasMoving) { u.view.setMoving(moving); u.wasMoving = moving; }
     u.view.setSpeedRatio && u.view.setSpeedRatio(speed / REF_SPEED);
-    // fast wheeled toys kick up carpet dust
+    // fast wheeled toys kick up carpet dust; everything else on foot scuffs it.
+    // ⚠️ the interval is FIXED (never rng) — updateUnit is sim code, and the
+    // randomness belongs to vfx. u.dustT is view bookkeeping, not snapshotted,
+    // exactly like the wheel-dust timer it sits beside.
     if (this.fx && speed > 2.1 && u.def.tags.includes('vehicle')) {
       u.dustT = (u.dustT || 0) - dt;
       if (u.dustT <= 0 && this.fog.state(u.x, u.z) === 2) {
         u.dustT = 0.13;
         this.fx.wheelDust(u.x, u.z);
       }
+    } else if (this.fx && this.fx.footDust && moving && speed > 0.6 && !u.def.naval) {
+      u.dustT = (u.dustT || 0) - dt;
+      if (u.dustT <= 0 && this.fog.state(u.x, u.z) === 2) {
+        u.dustT = 0.5;
+        this.fx.footDust(u.x, u.z);
+      }
+    }
+    // and show what a worker is hauling home
+    if (u.view.setCarry) {
+      const ct = u.carry > 0.5 ? u.carryType : null;
+      u.view.setCarry(ct ? RES_META[ct].color : 0, !!ct);
     }
     if (u.isKing && u.kingCrown) u.kingCrown.rotation.y += dt * 1.5;
     u.view.update(dt);
@@ -3636,6 +3654,12 @@ export class Game {
           const take = Math.min(this.gatherRateOf(u, node.resType) * dt, node.amount, cap - u.carry);
           u.carry += take;
           node.amount -= take;
+          // the pile visibly runs down as it's worked (view-only; farms are
+          // buildings and have no setAmount, hence the guard)
+          if (node.view && node.view.setAmount) {
+            const full = (RES_META[node.resType] && RES_META[node.resType].nodeAmount) || 0;
+            if (full > 0) node.view.setAmount(node.amount / full);
+          }
           if (node.amount <= 0) this.kill(node, u);
         }
         u.gfxT -= dt;

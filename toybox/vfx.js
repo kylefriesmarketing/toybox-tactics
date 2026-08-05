@@ -698,6 +698,16 @@ export class VFX {
     }
   }
 
+  // a walking toy scuffs the floor. Far softer than a wheel's rooster-tail —
+  // one small low puff, so a marching column raises a haze without fogging the
+  // board. (All the randomness lives here, in the view; the sim only decides
+  // WHEN to call this, on a fixed interval.)
+  footDust(x, z) {
+    this.dust.spawn(x + rand(-0.12, 0.12), 0.05, z + rand(-0.12, 0.12),
+      rand(-0.12, 0.12), rand(0.16, 0.4), rand(-0.12, 0.12),
+      rand(0.3, 0.5), rand(0.07, 0.13), 0xcfc6b8, -0.15, 2.2);
+  }
+
   smoke(x, y, z) {
     this.dust.spawn(x + rand(-0.2, 0.2), y, z + rand(-0.2, 0.2),
       rand(-0.15, 0.15), rand(0.7, 1.2), rand(-0.15, 0.15),

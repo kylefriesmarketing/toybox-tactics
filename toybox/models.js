@@ -658,6 +658,24 @@ function makeModelView(entry, def, owner) {
 
   const view = { group, model, _damaged: false, _dead: false, _ratio: 1 };
   view.setSpeedRatio = (r) => { view._ratio = r; };
+  // What a worker is CARRYING, made visible. The sim has always tracked
+  // carry/carryType; showing it is AoE's readability trick and a lot of life —
+  // the mat fills with little toys ferrying crumbs and bricks home. Parented to
+  // `group` (not `model`) so a tier recast or hit-flinch can't strand it.
+  let carryMesh = null, carryKey = null;
+  view.setCarry = (color, on) => {
+    const key = on ? color : null;
+    if (key === carryKey) return; // only touches the scene when it changes
+    carryKey = key;
+    if (carryMesh) { group.remove(carryMesh); carryMesh.geometry.dispose(); carryMesh = null; }
+    if (!on) return;
+    carryMesh = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.085, 0.09), toyMat(color, 0.6));
+    carryMesh.castShadow = true;
+    carryMesh.position.set(0, 0.21, 0.14); // tucked at the chest, +z is forward
+    carryMesh.rotation.set(0.25, 0.35, 0.1);
+    group.add(carryMesh);
+  };
+  const idlePh = Math.random() * 100; // view-only: keeps a squad from fidgeting in unison
 
   if (entry.rigless) {
     // RC Raider: static vehicle â€” code animation (wheel spin + bounce)
@@ -717,6 +735,10 @@ function makeModelView(entry, def, owner) {
           model.position.y += (Math.sin(t * 2.2) * 0.01 - model.position.y) * damp;
           model.rotation.z += (Math.sin(t * 1.5) * 0.025 - model.rotation.z) * damp;
           model.rotation.x += (0 - model.rotation.x) * damp;
+          // and every so often it glances around: a standing army of perfectly
+          // still toys reads as dead stock, not as toys waiting for orders
+          const g2 = Math.sin(t * 0.41 + idlePh);
+          model.rotation.y = g2 > 0.88 ? (g2 - 0.88) * 3.2 : 0;
         }
       } else {
         // default idle flavor: drones hover-bob, socks sway constantly
@@ -2227,12 +2249,35 @@ function passiveView(group, radius = 0.6) {
   const ring = flatRing(radius, radius * 1.18, 0xffffff, 0.9);
   ring.visible = false;
   group.add(ring);
+  // the pile itself is everything that existed before the selection ring
+  const pieces = group.children.filter((c) => c !== ring)
+    .map((o) => ({ o, p: o.position.clone(), s: o.scale.clone() }));
+  let level = -1;
   return {
     group,
     setSelected(v) { ring.visible = v; },
     markDamaged() {},
     hpBar: { set() {}, sprite: null },
     update() {},
+    // AoE staple: a pile you are mining visibly runs down, so a picked-over
+    // map READS as picked over. Quantised to 8 steps — the scene is only
+    // touched when a level actually changes, not every frame.
+    // Single-child piles (baked GLBs) just shrink; procedural piles also
+    // lose pieces from the top down. Index 0 always survives, which keeps
+    // the button jar standing while the buttons inside run out.
+    setAmount(f) {
+      const lv = Math.max(0, Math.min(8, Math.round(f * 8)));
+      if (lv === level) return;
+      level = lv;
+      const k = 0.5 + 0.5 * (lv / 8);
+      const keep = Math.max(1, Math.ceil(pieces.length * (0.3 + 0.7 * (lv / 8))));
+      for (let i = 0; i < pieces.length; i++) {
+        const pc = pieces[i];
+        pc.o.visible = pieces.length < 3 || i < keep;
+        pc.o.scale.set(pc.s.x * k, pc.s.y * k, pc.s.z * k);
+        pc.o.position.set(pc.p.x * k, pc.p.y * k, pc.p.z * k);
+      }
+    },
   };
 }
 
