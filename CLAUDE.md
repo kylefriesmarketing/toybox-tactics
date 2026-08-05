@@ -585,6 +585,34 @@ Five fixes, four pure-view + one sim:
 ⚠️ ground cover is live-only (setup in startGame) — headless soaks never see it,
 so per-map verification = boot the map and census InstancedMesh counts.
 
+## THE LIFE PASS (2026-08-05, free) — the board acts like it's inhabited
+
+Follow-up to the oomph pass. Four gaps, all view-only:
+1. **Piles visibly deplete** (`passiveView.setAmount(f)` in models.js, called from
+   `updateGather` after `node.amount -= take`, and from the `k:'r'` restore branch
+   so a save reloads a half-mined pile as half-mined). Quantised to 8 levels — the
+   scene is only touched when a level CHANGES. Captures each piece's BASE
+   transform at construction and multiplies, so it composes with the GLB piles'
+   1.15 base scale. ⚠️ that base scale burned a verification round: raw scales
+   read 1.15x "wrong" until compared against an untouched pile of the same type.
+   Procedural piles (≥3 children) also drop pieces top-down; index 0 always
+   survives, which keeps the button JAR standing while its buttons run out.
+2. **Workers carry what they gathered** (`view.setCarry(color, on)`, set every
+   frame from `u.carry/u.carryType` in updateUnit; early-outs unless it changed).
+   Parented to `group`, NOT `model` — a tier recast or hit-flinch would strand it.
+   ⚠️ first size (0.16 box at y .29/z .21) read as a floating CRATE; 0.1 at
+   y .21/z .14 reads as a held bundle. Captured both to tell.
+3. **Footfall scuffs** — the vehicle wheel-dust block gained an `else if` for
+   everything else on foot (0.5s fixed interval, `fx.footDust`). ⚠️ the interval
+   is FIXED because updateUnit is SIM code; all the randomness lives in vfx.
+4. **Idle glances** — idle toys periodically turn their head/body (per-view
+   `idlePh` random phase so a squad doesn't fidget in unison).
+Verified: fp determinism ×2 map/faction sets, MP 2h+2ai `inSync === true`,
+snapshot round-trip incl. restored depletion state, 8-map soak sweep 0 errs,
+live 0 console errors, carry mesh present on 19/19 haulers, every worked pile's
+scale exactly matching the expected curve. (`muzzle()` flash already existed and
+was already wired at spawnProjectile — checked before rebuilding it.)
+
 ## Grounding & separation (2026-07-27, free — all view-only)
 
 **Contact shadows.** A capture showed the truth: the Toy Chest cast a shadow and
