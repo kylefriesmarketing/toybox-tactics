@@ -652,6 +652,25 @@ every building sinks proportionally and restores to y=0 fully opaque, 0 console
 errors. ⚠️ two assertions were wrong before the code was: the contact-shadow disc
 is legitimately semi-transparent, and GLB piles carry a 1.15 base scale.
 
+## SPEECH BUBBLES (2026-08-05, free — view-only)
+
+Barks were text in the HUD feed, which never told you WHICH toy spoke. Now the
+line also appears in a bubble over the speaker's head.
+- `speechTexture(text)` + `attachSpeech(view, group, y)` in models.js give any
+  view a `say(text)` / `updateBubble(dt)` pair. Called from all THREE view
+  builders (createUnitView, makeProcView, the box fallback) so procedural and
+  fallback toys can speak too.
+- It's a **Sprite parented to the unit's group**, not DOM — so it tracks the toy
+  with no screen projection and no per-frame layout. `depthTest:false` +
+  renderOrder 900 keeps it readable over everything.
+- Canvas is drawn in Georgia to match the storybook UI; wraps to 2 lines max.
+- Wired at the single funnel `ui.maybeBark()` (both selection and order barks
+  route through it), and ticked from `updateUnit` — **including the `u.dead`
+  early-return branch**, or a toy killed mid-sentence freezes its bubble.
+- Lifecycle verified numerically: opacity 0→1, drifts y 0.82→0.92, fades to 0.2,
+  then removes and disposes itself. Determinism/MP unaffected (no rng, no sim
+  state); soak stubs have no view, hence the `if (u.view.updateBubble)` guard.
+
 ## Grounding & separation (2026-07-27, free — all view-only)
 
 **Contact shadows.** A capture showed the truth: the Toy Chest cast a shadow and
