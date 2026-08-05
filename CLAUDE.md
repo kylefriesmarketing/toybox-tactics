@@ -613,6 +613,45 @@ live 0 console errors, carry mesh present on 19/19 haulers, every worked pile's
 scale exactly matching the expected curve. (`muzzle()` flash already existed and
 was already wired at spawnProjectile — checked before rebuilding it.)
 
+## CONSTRUCTION & DEATH BY MATERIAL (2026-08-05, free — all view-only)
+
+**Construction.** Buildings now stand inside a **scaffold** (4 poles + 2 plank
+rings, `createBuildingView`, struck the instant `f>=1`; walls and gates skip it —
+40 scaffolded wall segments is noise) and **RISE OUT OF THE FLOOR** at full
+proportions: `meshes.position.y = meshBaseY - (1-f)*(def.height+0.25)`. The mat
+is opaque and depth-tested, so the buried part is occluded for free.
+- ⚠️ the OLD `meshes.scale.y = f` squashed a half-built tower into a caricature
+  of itself. Don't go back to it — captured side by side.
+- ⚠️ **per-PART assembly was built, measured, and REMOVED**: only **1 of 24**
+  buildings (house) has ≥4 sub-meshes; the other 23 are single merged GLBs with
+  nothing to stack, and on the house it looked worse (a flat glass box) than the
+  rise. Measure `_buildPartCount` before ever trying this again.
+- ⚠️ two dead ends on the way: `box.min.y` groups every piece at the floor (use
+  the CENTROID), and bboxes are garbage until `updateMatrixWorld(true)` because
+  the view isn't in the scene yet.
+
+**Death by material** (`deathStyleOf(def)` + `deathPose()` in models.js, wired
+into all four death paths — rigless, skinned, proc-rig, box):
+`fluff → FLOP` (folds and spreads), `brick in debris → SCATTER` (shrinks away as
+vfx throws the bricks), `vehicle/roll/spin/hover → CLATTER` (falls hard, tumbles,
+one bounce), else `TOPPLE` (the original stiff faceplant). Measured spread:
+topple 30 / clatter 13 / flop 6 / scatter 4.
+- ⚠️ do NOT key "machine" off a `disc` in debris.shapes — an army man's debris
+  carries its base disc, so that read made workers and soldiers clatter like
+  robots. Key off `tags/gait/spin/hover`.
+- A real baked death CLIP always wins (soldier/archer/bear/medic have one). But
+  bear+medic are the two most PLUSH units, so `deathSquash()` layers the
+  scale-only part of flop/scatter ON TOP of the clip — the clip animates bones,
+  this scales the model root, so they compose.
+- ⚠️ `startDeath` captures `_deathBase = scale.clone()` and every pose MULTIPLIES
+  it — never assign absolute scale, or you stomp applyUnitTier's veteran recast
+  and the per-role silhouette scaling.
+Verified: fp determinism, MP 2h+2ai inSync, 6-map soak sweep 0 errs, all four
+styles animate (bear sy 1→0.40 & sx→1.20, golem →0.05, dragster/knight →π/2),
+every building sinks proportionally and restores to y=0 fully opaque, 0 console
+errors. ⚠️ two assertions were wrong before the code was: the contact-shadow disc
+is legitimately semi-transparent, and GLB piles carry a 1.15 base scale.
+
 ## Grounding & separation (2026-07-27, free — all view-only)
 
 **Contact shadows.** A capture showed the truth: the Toy Chest cast a shadow and
