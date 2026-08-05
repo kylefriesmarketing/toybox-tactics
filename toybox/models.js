@@ -507,6 +507,85 @@ function setOpacity(root, o) {
 // Both expose: group, setMoving, startAttack->impactDelay, startDeath->duration,
 // setSelected, update(dt), hpBar.
 
+// ---------------- speech bubbles ----------------
+// Barks have always been text in the HUD, which never told you WHICH toy spoke.
+// A little bubble over the speaker's head ties the voice to the body. It rides
+// the unit's own group, so it needs no screen projection and no DOM — it just
+// moves with the toy for free.
+function speechTexture(text) {
+  const pad = 16, maxW = 232, lineH = 30;
+  const c = document.createElement('canvas');
+  const x = c.getContext('2d');
+  x.font = '600 23px Georgia, serif';
+  // wrap to at most two lines, eliding anything that still won't fit
+  const words = String(text).split(/\s+/);
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    const t = cur ? cur + ' ' + w : w;
+    if (x.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; if (lines.length === 2) break; }
+    else cur = t;
+  }
+  if (lines.length < 2 && cur) lines.push(cur);
+  if (!lines.length) lines.push(String(text).slice(0, 20));
+  const tw = Math.min(maxW, Math.max(...lines.map((l) => x.measureText(l).width)));
+  c.width = Math.ceil(tw + pad * 2);
+  c.height = Math.ceil(lines.length * lineH + pad * 2 + 12); // +12 for the tail
+  const g = c.getContext('2d');
+  g.font = '600 23px Georgia, serif';
+  g.textBaseline = 'middle';
+  const bw = c.width, bh = c.height - 12, r = 13;
+  g.fillStyle = 'rgba(28,22,42,0.86)';
+  g.strokeStyle = 'rgba(240,228,196,0.85)';
+  g.lineWidth = 2.5;
+  g.beginPath();
+  g.moveTo(r, 0);
+  g.arcTo(bw, 0, bw, bh, r); g.arcTo(bw, bh, 0, bh, r);
+  g.arcTo(0, bh, 0, 0, r);   g.arcTo(0, 0, bw, 0, r);
+  g.closePath(); g.fill(); g.stroke();
+  g.beginPath();                       // the little tail
+  g.moveTo(bw / 2 - 9, bh - 1); g.lineTo(bw / 2, bh + 11); g.lineTo(bw / 2 + 9, bh - 1);
+  g.closePath(); g.fill();
+  g.fillStyle = '#f2e8d0';
+  lines.forEach((l, i) => g.fillText(l, pad, pad + lineH * i + lineH / 2 - 2));
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const H = 0.42;                       // world height of the bubble
+  return { tex, w: H * (c.width / c.height), h: H };
+}
+// Give any view a say()/updateBubble() pair. Called from all three view
+// builders so procedural and fallback toys can speak too.
+function attachSpeech(view, group, y) {
+  let spr = null, t = 0;
+  const drop = () => {
+    if (!spr) return;
+    group.remove(spr);
+    if (spr.material.map) spr.material.map.dispose();
+    spr.material.dispose();
+    spr = null;
+  };
+  view.say = (text) => {
+    drop();
+    const { tex, w, h } = speechTexture(text);
+    spr = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex, transparent: true, depthTest: false, depthWrite: false, opacity: 0,
+    }));
+    spr.scale.set(w, h, 1);
+    spr.position.set(0, y, 0);
+    spr.renderOrder = 900;             // over the toys, under nothing that matters
+    group.add(spr);
+    t = 3.4;
+  };
+  view.updateBubble = (dt) => {
+    if (!spr) return;
+    t -= dt;
+    const age = 3.4 - t;
+    spr.position.y = y + Math.min(0.1, age * 0.16);          // drifts up a touch
+    spr.material.opacity = Math.min(1, age / 0.18, Math.max(0, t / 0.5));
+    if (t <= 0) drop();
+  };
+}
+
 // ---------------- death by material ----------------
 // Toys shouldn't all die the same way, and we already know what each one is
 // MADE of: the debris profile it drops says so. So the material picks the
@@ -739,6 +818,7 @@ function makeModelView(entry, def, owner) {
   const idlePh = Math.random() * 100; // view-only: keeps a squad from fidgeting in unison
   const dStyle = deathStyleOf(def);   // what this toy is made of decides how it dies
   const dLean = Math.random() < 0.5 ? 1 : -1; // and which way it goes down
+  attachSpeech(view, group, 0.82);    // and it can talk
 
   if (entry.rigless) {
     // RC Raider: static vehicle â€” code animation (wheel spin + bounce)
@@ -1269,6 +1349,7 @@ function makeProcView(def, owner, kind) {
   view.setMoving = (v) => { moving = v; };
   view.startAttack = (dur) => { swingT = 0; swingDur = dur; return dur * def.impact; };
   const pStyle = deathStyleOf(def), pLean = Math.random() < 0.5 ? 1 : -1;
+  attachSpeech(view, group, 0.92);
   view.startDeath = () => {
     view._dead = true;
     rig.traverse((n) => { if (n.isMesh) { n.material = n.material.clone(); n.material.transparent = true; } });
@@ -1338,6 +1419,7 @@ function makeBoxView(def, owner) {
   view.setMoving = (v) => { moving = v; };
   view.startAttack = (swingDur) => { view._lunge = swingDur; view._lungeDur = swingDur; return swingDur * def.impact; };
   const bStyle = deathStyleOf(def), bLean = Math.random() < 0.5 ? 1 : -1;
+  attachSpeech(view, group, h + 0.5);
   view.startDeath = () => {
     view._dead = true;
     body.material = body.material.clone();

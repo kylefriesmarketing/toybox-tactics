@@ -264,9 +264,15 @@ export class UI {
     const arr = set[kind] || set.sel;
     if (!arr || !arr.length) return;
     this._barkT = now;
+    const line = arr[(Math.random() * arr.length) | 0];
+    // say it over the toy's own head as well as in the feed, so you can see WHO
+    // spoke (dead units and views without a bubble just skip it)
+    if (unit.view && unit.view.say && !unit.dead) {
+      try { unit.view.say(line); } catch (e) { /* bubble is pure flavor */ }
+    }
     const el = $('bark-line');
     if (!el) return;
-    el.textContent = `“${arr[(Math.random() * arr.length) | 0]}”`;
+    el.textContent = `“${line}”`;
     el.classList.add('show');
     clearTimeout(this._barkHide);
     this._barkHide = setTimeout(() => el.classList.remove('show'), 3200);

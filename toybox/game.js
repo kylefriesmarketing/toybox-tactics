@@ -3198,6 +3198,7 @@ export class Game {
   updateUnit(u, dt) {
     if (u.dead) {
       u.view.update(dt);
+      if (u.view.updateBubble) u.view.updateBubble(dt); // keep a last word fading, not frozen
       u.removeT -= dt;
       if (u.removeT <= 0 && !u.removed) { this.scene.remove(u.view.group); u.removed = true; }
       return;
@@ -3593,6 +3594,7 @@ export class Game {
     }
     if (u.isKing && u.kingCrown) u.kingCrown.rotation.y += dt * 1.5;
     u.view.update(dt);
+    if (u.view.updateBubble) u.view.updateBubble(dt); // a spoken bark fading over its head
   }
 
   updateGather(u, o, dt) {
