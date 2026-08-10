@@ -2400,8 +2400,17 @@ export function createBuildingView(key, def, owner, rngSeed = 1, up = false, age
       // ⚠️ per-PART assembly was tried and dropped: 23 of 24 buildings are
       // single merged GLB meshes with nothing to stack (measured), so it only
       // ever worked on the Block House and looked worse there.
-      meshes.scale.y = 1;
-      meshes.position.y = meshBaseY - (1 - f) * (def.height + 0.25);
+      // ⚠️ WALLS AND GATES KEEP THE OLD GROW-IN. They're built in long runs, and
+      // sinking each segment by its own build progress gives the line ragged
+      // BASES at different depths — which reads as a broken, unaligned wall
+      // (playtest report). Growing upward keeps every base on the floor.
+      if (def.wall || def.gate) {
+        meshes.position.y = meshBaseY;
+        meshes.scale.y = f;
+      } else {
+        meshes.scale.y = 1;
+        meshes.position.y = meshBaseY - (1 - f) * (def.height + 0.25);
+      }
       if (view._ghost !== (f < 1)) {
         view._ghost = f < 1;
         meshes.traverse((n) => {
