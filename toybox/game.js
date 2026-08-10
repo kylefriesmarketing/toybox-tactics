@@ -1925,12 +1925,30 @@ export class Game {
     b.view.hpBar.set(b.hp / b.maxHp);
     this.scene.add(b.view.group);
     if (wasSel) b.view.setSelected(true);
-    if (b.type === 'gate') this.orientWalls(b.ti, b.tj, b.def.size);
+    // ⚠️ a wall's run direction lives in view.group.rotation.y, and a rebuild
+    // makes a BRAND-NEW group at rotation 0 — so every rebuilt wall forgets
+    // which way its run points. This used to re-orient gates only, which is why
+    // ageing up spun every north-south wall 90° out of line.
+    if (b.def.wall || b.def.gate) this.orientWalls(b.ti, b.tj, b.def.size);
   }
   // re-dress every one of an owner's buildings to their current age (on age-up)
   reageBuildings(owner) {
+    let walls = false;
     for (const b of this.entities) {
-      if (b.kind === 'building' && b.owner === owner && !b.dead) this.rebuildBuildingView(b);
+      if (b.kind === 'building' && b.owner === owner && !b.dead) {
+        this.rebuildBuildingView(b);
+        if (b.def.wall || b.def.gate) walls = true;
+      }
+    }
+    // and one final pass: a wall re-oriented mid-loop can be flattened again by
+    // a NEIGHBOUR rebuilt after it, so the run is only settled once all the new
+    // views exist
+    if (walls) {
+      for (const b of this.entities) {
+        if (b.kind === 'building' && !b.dead && (b.def.wall || b.def.gate)) {
+          this.orientWalls(b.ti, b.tj, b.def.size);
+        }
+      }
     }
   }
 
