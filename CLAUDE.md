@@ -671,6 +671,22 @@ line also appears in a bubble over the speaker's head.
   then removes and disposes itself. Determinism/MP unaffected (no rng, no sim
   state); soak stubs have no view, hence the `if (u.view.updateBubble)` guard.
 
+## CONQUEST NO LONGER WINNABLE BY STICKERS (2026-08-05, playtest — Kyle)
+
+`standard` is labelled **Conquest**: *"Destroy every enemy base."* But
+`updateRelics` ran in every mode except survival, so holding all Lost Stickers
+for `RELIC_COUNTDOWN` (180s) ended the match — you could win Conquest without
+conquering anything. `updateRelics` now early-returns for `standard` too.
+- Stickers are NOT removed: they still spawn, still get contested, and still pay
+  `STICKER.incomePerSec` in buttons to the holding team. Measured in Conquest
+  with all 3 held for 210 sim-seconds: `relicState` stayed null, `over` stayed
+  false, and the holder still banked **252 buttons**. The guard is mode-scoped —
+  the same board flipped to `regicide` still starts the 180s countdown and still
+  ends the game.
+- ⚠️ the same contradiction technically remains in regicide/koth/sudden (each
+  has its own stated objective, yet a sticker hold can also win). Left as-is on
+  purpose — only Conquest was reported. Ask before broadening.
+
 ## 🐛 WALLS UNALIGNED — **TWO SEPARATE CAUSES** (2026-08-05 playtest) — BOTH FIXED
 
 Kyle reported this TWICE. The second report was not a restatement — there was a
