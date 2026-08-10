@@ -671,21 +671,26 @@ line also appears in a bubble over the speaker's head.
   then removes and disposes itself. Determinism/MP unaffected (no rng, no sim
   state); soak stubs have no view, hence the `if (u.view.updateBubble)` guard.
 
-## CONQUEST NO LONGER WINNABLE BY STICKERS (2026-08-05, playtest — Kyle)
+## STICKERS ARE NO LONGER A WIN CONDITION IN ANY MODE (2026-08-05, Kyle)
 
-`standard` is labelled **Conquest**: *"Destroy every enemy base."* But
-`updateRelics` ran in every mode except survival, so holding all Lost Stickers
-for `RELIC_COUNTDOWN` (180s) ended the match — you could win Conquest without
-conquering anything. `updateRelics` now early-returns for `standard` too.
-- Stickers are NOT removed: they still spawn, still get contested, and still pay
-  `STICKER.incomePerSec` in buttons to the holding team. Measured in Conquest
-  with all 3 held for 210 sim-seconds: `relicState` stayed null, `over` stayed
-  false, and the holder still banked **252 buttons**. The guard is mode-scoped —
-  the same board flipped to `regicide` still starts the 180s countdown and still
-  ends the game.
-- ⚠️ the same contradiction technically remains in regicide/koth/sudden (each
-  has its own stated objective, yet a sticker hold can also win). Left as-is on
-  purpose — only Conquest was reported. Ask before broadening.
+`updateRelics` used to run in every mode but survival, so holding all Lost
+Stickers for `RELIC_COUNTDOWN` (180s) ended the match — you could win Conquest
+without conquering, or Regicide without touching a King. Every mode already
+states its own win condition, so the sticker hold overrode all of them.
+**One flag now gates it: `const RELIC_VICTORY = false;`** at the top of game.js
+(next to RELIC_COUNTDOWN). The whole countdown mechanism is intact behind it, so
+a dedicated "Relic Race" mode can flip it back on without rebuilding anything.
+- Stickers are NOT removed — they still spawn, get contested, and pay
+  `STICKER.incomePerSec` to the holding team. Measured with all 3 held for 210
+  sim-seconds: countdown never started in standard/regicide/koth/sudden, no game
+  ended by relics, and the holder still banked **252 buttons** per mode.
+- All four modes still conclude on their OWN rules (soaked at seed 404: 5713 /
+  5995 / 4855 / 5527 ticks, 0 errs); fp determinism + MP inSync re-verified.
+- ⚠️ TEST TRAP: flipping `g.gameMode` to `regicide` mid-match ends the game
+  instantly — Kings spawn only when a match STARTS in that mode, so its own
+  "no King" rule fires. Not a regression; soak each mode from a fresh start.
+- The `'relics'` cause string in endGame/epilogues is deliberately kept so old
+  replays and saves that ended that way still read correctly.
 
 ## 🐛 WALLS UNALIGNED — **TWO SEPARATE CAUSES** (2026-08-05 playtest) — BOTH FIXED
 
