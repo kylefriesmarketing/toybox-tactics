@@ -2764,6 +2764,95 @@ function nextDialogue() {
 
 // ---------------- live objectives panel (reads the sim, never writes it) ----------------
 let objT = 0;
+// ---------------- tactical tips (UI-only) -----------------------------------
+// The game already HAS stances, formations, patrol, guard and garrison — all
+// wired to real buttons. Nothing ever tells you so, which makes a deep game
+// play like a shallow one. These fire once each, only when the board itself
+// has just demonstrated why the button exists.
+// Pure UI: reads sim state, never writes it, so determinism/MP are untouched.
+const TIPS = [
+  {
+    id: 'hold',
+    text: '🧍 Your shooters are being chased down. Select them and press <b>Hold</b> — they’ll stand and fire instead of walking into the fight.',
+    test: (g, me) => {
+      let chased = 0;
+      for (const u of g.entities) {
+        if (u.kind !== 'unit' || u.dead || u.owner !== me || (u.def.range || 0) < 2) continue;
+        for (const e of g.entities) {
+          if (e.kind !== 'unit' || e.dead || !g.isEnemy(me, e.owner)) continue;
+          if ((e.def.range || 0) >= 2) continue;                      // a melee chaser
+          if ((e.x - u.x) ** 2 + (e.z - u.z) ** 2 < 3 * 3) { chased++; break; }
+        }
+        if (chased >= 2) return true;
+      }
+      return false;
+    },
+  },
+  {
+    id: 'garrison',
+    text: '🏰 Toys inside a tower shoot from it. Select a few and right-click your tower to <b>garrison</b> — an empty tower is just scenery.',
+    test: (g, me) => g.entities.some((b) => b.kind === 'building' && !b.dead && b.owner === me
+      && b.built >= 1 && (b.def.garrison || 0) > 0 && b.type !== 'chest'
+      && (!b.garrisonIds || b.garrisonIds.length === 0)
+      && g.entities.some((e) => e.kind === 'unit' && !e.dead && g.isEnemy(me, e.owner)
+        && (e.x - b.x) ** 2 + (e.z - b.z) ** 2 < 14 * 14)),
+  },
+  {
+    id: 'formation',
+    text: '⬛ Moving a big group? Pick <b>Line</b> or <b>Spread</b> before you march — a blob walks into catapults one clump at a time.',
+    test: (g, me) => g.selected.filter((u) => u.kind === 'unit' && !u.dead
+      && u.owner === me && u.def.aggro > 0).length >= 8,
+  },
+  {
+    id: 'defend',
+    text: '🛡️ Leaving toys on guard? <b>Defend</b> keeps them fighting near their post instead of chasing raiders across the room.',
+    test: (g, me) => {
+      let idle = 0;
+      for (const u of g.entities) {
+        if (u.kind !== 'unit' || u.dead || u.owner !== me || u.def.aggro <= 0) continue;
+        if (!u.order && (u.stance || 'agg') === 'agg') idle++;
+        if (idle >= 5) return true;
+      }
+      return false;
+    },
+  },
+  {
+    id: 'patrol',
+    text: '🔁 <b>Patrol</b> walks a route and engages anything it meets — the cheapest way to watch a flank while you build.',
+    test: (g, me) => (g.players[me] && g.players[me].age >= 2)
+      && g.entities.filter((u) => u.kind === 'unit' && !u.dead && u.owner === me && u.def.aggro > 0).length >= 6,
+  },
+];
+let tipT = 0, tipsSeen = null;
+function loadTipsSeen() {
+  if (tipsSeen) return tipsSeen;
+  try { tipsSeen = new Set(JSON.parse(localStorage.getItem('tt-tips-seen') || '[]')); }
+  catch { tipsSeen = new Set(); }
+  return tipsSeen;
+}
+function updateTips(dt) {
+  if (!game || game.over || watchMode || tutorialActive || !ui) return;
+  if (game.gameMode === 'survival' && game.time < 20) return; // let the first wave land
+  tipT -= dt;
+  if (tipT > 0) return;
+  tipT = 4;                                   // check a few times a minute, no more
+  const seen = loadTipsSeen();
+  if (seen.size >= TIPS.length) return;
+  const me = game.myId;
+  if (!game.players[me] || game.players[me].den) return;
+  for (const t of TIPS) {
+    if (seen.has(t.id)) continue;
+    let hit = false;
+    try { hit = t.test(game, me); } catch (e) { continue; } // a tip must never break a match
+    if (!hit) continue;
+    seen.add(t.id);
+    try { localStorage.setItem('tt-tips-seen', JSON.stringify([...seen])); } catch { /* private mode */ }
+    ui.alert(t.text, 'info', null, 9);
+    tipT = 50;                                // never two tips in a row
+    return;
+  }
+}
+
 function updateObjectives(dt) {
   objT -= dt;
   if (objT > 0) return;
@@ -3946,6 +4035,7 @@ function loop() {
   updateKidEvent(dt);           // footsteps, a shadow, a hand from the sky
   if (sfx.setListener) sfx.setListener(cam.x, cam.z);
   updateObjectives(dt);         // the goal, live, where eyes already are
+  updateTips(dt);               // and teach the buttons the game never mentions
   // the lamp breathes a little, like a real filament (only while it exists)
   if (lampProp.group.visible) {
     const flick = 1 + Math.sin(performance.now() * 0.0021) * 0.03 + Math.sin(performance.now() * 0.013) * 0.02;
@@ -3982,6 +4072,7 @@ setInterval(() => {
     updateKidEvent(elapsed);
     if (sfx.setListener) sfx.setListener(cam.x, cam.z);
     updateObjectives(elapsed);
+    updateTips(elapsed);
     updateCamMoment(elapsed);
     applyCamera(elapsed);
     renderFrame();
