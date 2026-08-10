@@ -671,6 +671,23 @@ line also appears in a bubble over the speaker's head.
   then removes and disposes itself. Determinism/MP unaffected (no rng, no sim
   state); soak stubs have no view, hence the `if (u.view.updateBubble)` guard.
 
+## 🐛 WALLS UNALIGNED ON AGE-UP (2026-08-05, playtest report) — FIXED
+
+Kyle: *"when I aged up the walls stopped aligning."* Real, and **pre-existing**
+(not from the same day's visual passes). A wall's run direction is stored ONLY
+as `view.group.rotation.y` (set by `orientWalls`: π/2 for a north-south run, 0
+for east-west). `rebuildBuildingView` throws the old group away and builds a
+fresh one at rotation 0 — and it re-oriented **gates only**. Age-up calls
+`reageBuildings`, which rebuilds every building, so every north-south wall
+snapped 90° out of line. Measured: 6/6 walls went 1.571 → 0.
+Fix: re-orient on `b.def.wall || b.def.gate` (matching the `addBuilding`
+condition), **plus** a settling pass over all walls after `reageBuildings`
+finishes — a wall re-oriented mid-loop can be flattened again by a neighbour
+rebuilt after it. Verified: both runs hold 1.571/0 across two consecutive
+age-ups, gate seats correctly, fp determinism, MP inSync, canyon soak clean.
+⚠️ **Any new per-building view state that lives on `view.group` (rotation,
+scale, attachments) is destroyed by `rebuildBuildingView` — restore it there.**
+
 ## ⚠️ THE DEPTH AUDIT (2026-08-05) — READ BEFORE PROPOSING "MORE TACTICS"
 
 A session pitched stances, formations and garrison-beyond-the-chest as missing
