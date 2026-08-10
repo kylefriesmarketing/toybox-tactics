@@ -671,7 +671,22 @@ line also appears in a bubble over the speaker's head.
   then removes and disposes itself. Determinism/MP unaffected (no rng, no sim
   state); soak stubs have no view, hence the `if (u.view.updateBubble)` guard.
 
-## 🐛 WALLS UNALIGNED ON AGE-UP (2026-08-05, playtest report) — FIXED
+## 🐛 WALLS UNALIGNED — **TWO SEPARATE CAUSES** (2026-08-05 playtest) — BOTH FIXED
+
+Kyle reported this TWICE. The second report was not a restatement — there was a
+second, unrelated cause, and the first fix was real but incomplete.
+
+**Cause 2 (mine, same day): walls must NOT use the construction "rise".**
+The rise sinks a building by its build progress. Walls are built in long RUNS,
+so each segment sat at a different DEPTH — ragged bases, which reads exactly as
+"the wall doesn't line up" (and you notice it right after ageing up, because
+that's when you extend your walls). Walls/gates now keep the original
+`meshes.scale.y = f` grow-in, so every base stays planted on the floor and only
+the TOPS are ragged. Measured after the fix: bases 0.01/0.01/0/0/0.01 across a
+run at progress [1, .75, .5, .25, 1]; tops 1.41/1.06/0.71/0.35/1.41.
+Towers/forts/houses still rise (−1.59/−1.47/−0.81 at 40%) and all restore to 0.
+
+## 🐛 CAUSE 1: rebuilt walls forget their run direction (pre-existing) — FIXED
 
 Kyle: *"when I aged up the walls stopped aligning."* Real, and **pre-existing**
 (not from the same day's visual passes). A wall's run direction is stored ONLY
