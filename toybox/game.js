@@ -21,7 +21,16 @@ import {
 } from './models.js';
 
 const N = MAP_N;
-const RELIC_COUNTDOWN = 180; // seconds holding all Lost Stickers = win
+const RELIC_COUNTDOWN = 180; // seconds holding all Lost Stickers (see RELIC_VICTORY)
+// ⚠️ The Lost Stickers are a MAP OBJECTIVE, not a victory condition. Every mode
+// already states its own way to win — Conquest "destroy every enemy base",
+// Regicide "unseat their King", KotH "hold the Throne", Sudden Death "one Toy
+// Chest each" — and a sticker hold used to override ALL of them, so you could
+// win Conquest without conquering or Regicide without touching a King.
+// Stickers still spawn, still get contested, and still pay their button trickle
+// to whoever holds them. The countdown machinery is kept intact behind this one
+// flag so a dedicated "Relic Race" mode could switch it back on.
+const RELIC_VICTORY = false;
 const KOTH_HOLD = 120;       // seconds holding the golden Throne = win
 const idx = (i, j) => j * N + i;
 const inMap = (i, j) => i >= 0 && j >= 0 && i < N && j < N;
@@ -4603,11 +4612,8 @@ export class Game {
 
   // relic victory: hold EVERY Lost Sticker at once → a countdown to the win
   updateRelics(dt) {
-    // survival wins only at dawn — and Conquest's whole premise is "destroy
-    // every enemy base", so winning it by sitting on stickers contradicts the
-    // mode's own objective. The stickers stay on the map and keep paying their
-    // button trickle in both modes; they just don't END the game there.
-    if (this.over || this.gameMode === 'survival' || this.gameMode === 'standard') return;
+    // Stickers no longer end a match in ANY mode — see RELIC_VICTORY above.
+    if (!RELIC_VICTORY || this.over || this.gameMode === 'survival') return;
     const stickers = this.entities.filter((e) => e.kind === 'objective' && !e.dead);
     if (stickers.length < 2) return; // need a real set to make it a race
     const holders = new Set(stickers.map((s) => s.holder));
