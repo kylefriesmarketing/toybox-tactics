@@ -671,6 +671,40 @@ line also appears in a bubble over the speaker's head.
   then removes and disposes itself. Determinism/MP unaffected (no rng, no sim
   state); soak stubs have no view, hence the `if (u.view.updateBubble)` guard.
 
+## ⚠️ THE DEPTH AUDIT (2026-08-05) — READ BEFORE PROPOSING "MORE TACTICS"
+
+A session pitched stances, formations and garrison-beyond-the-chest as missing
+depth. **All three were already built and already on the command card:**
+- **Stances** `agg`/`def`/`stand` — `u.stance` (game.js ~1720), `case 'stance'`
+  command, defensive `anchor` leash, stand-ground scan radius, snapshotted, in
+  stateHash. Three buttons with tooltips in ui.js ~457.
+- **Formations** box/line/spread — `g.formation`, threaded through `cmdMove`,
+  buttons in ui.js ~478.
+- **Garrison** — chest 10, **tower 4, fort 8** (data.js), with a `garrison` order.
+**Measure the code before pitching a feature.** The real gaps, verified absent:
+active abilities (no system at all — only passive `slam`), destructible
+obstacles (obstacles are scenery: blocked tiles + a mesh, no entity/hp/save),
+weather affecting the sim (`game.js` reads `weather` ZERO times), pet luring.
+
+**The lesson that mattered more than the audit**: if the game feels shallow
+while *having* these systems, the gap is DISCOVERABILITY, not mechanics.
+
+## TACTICAL TIPS (2026-08-05, free — UI-only)
+
+`TIPS` + `updateTips(dt)` in main.js: five one-time nudges that fire only when
+the board has just demonstrated why a button exists (shooters being chased →
+Hold; empty tower with enemies near → garrison; 8+ selected → formations; 5+
+idle aggressive military → Defend; age 2 with 6+ military → Patrol).
+- Once each, ever (`tt-tips-seen` in localStorage), 50s lockout between tips,
+  4s poll otherwise. Suppressed in tutorial/watch/survival-opening.
+- Every predicate is wrapped in try/catch — a tip must never break a match.
+- ⚠️ wired into `loop()` AND the hidden-tab interval, but deliberately NOT into
+  `__ttStep` (that's the trailer-capture path; tips must not pop into a capture).
+- ⚠️ the first wiring only hit `loop()`, which never runs in a hidden tab, so
+  nothing fired under test. Check all three call sites when adding a ticker.
+Verified: 'defend' and 'hold' each fired on their own trigger and persisted,
+determinism fp identical, MP 2h+2ai inSync, 0 console errors.
+
 ## Grounding & separation (2026-07-27, free — all view-only)
 
 **Contact shadows.** A capture showed the truth: the Toy Chest cast a shadow and
