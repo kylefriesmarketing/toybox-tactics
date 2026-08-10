@@ -4603,7 +4603,11 @@ export class Game {
 
   // relic victory: hold EVERY Lost Sticker at once → a countdown to the win
   updateRelics(dt) {
-    if (this.over || this.gameMode === 'survival') return; // survival wins only at dawn
+    // survival wins only at dawn — and Conquest's whole premise is "destroy
+    // every enemy base", so winning it by sitting on stickers contradicts the
+    // mode's own objective. The stickers stay on the map and keep paying their
+    // button trickle in both modes; they just don't END the game there.
+    if (this.over || this.gameMode === 'survival' || this.gameMode === 'standard') return;
     const stickers = this.entities.filter((e) => e.kind === 'objective' && !e.dead);
     if (stickers.length < 2) return; // need a real set to make it a race
     const holders = new Set(stickers.map((s) => s.holder));
