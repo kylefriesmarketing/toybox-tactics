@@ -1741,3 +1741,38 @@ unintended difficulty). **The real defect found is that `boomer` wins 35%** — 
 AI persona balance problem, not a seat problem.
 ⚠️ Any future battery MUST either pin personas or report them. `__ttSoak` returns
 them now; there is no excuse for repeating this.
+
+### Roadmap Tier 1 — batch 3: MACRO FRICTION (2026-08-20, free, UI-only)
+
+7. **THE PRODUCTION STRIP** — fixes the actual reported bug: `buildCommandsFor`
+   gates every command on `own.length === 1` (ui.js), so **selecting two Toy
+   Chests gave you ZERO train buttons** — the most-cited C&C Generals complaint,
+   present here verbatim. Measured before/after: 2 selected → 0 card buttons;
+   click a chip → 1 selected → **10 card buttons**.
+   `updateProdStrip()` renders one chip per owned `def.trains` building (selected
+   or not) with live queue count, progress bar and an IDLE pulse; clicking a chip
+   selects that ONE building. ⚠️ **The single-building gate is deliberately NOT
+   relaxed** — Demolish/Bell/Age-Up/Market/Tribute would silently act on `own[0]`
+   and the train closures hard-bind `first.id`. The strip removes the need.
+   ⚠️ Obeys the stable-DOM rule: DOM is rebuilt ONLY when the id:queue signature
+   changes; per-tick writes are textContent/style.width/classList on existing
+   nodes. Verified the chip node stayed `===` identical across 40 queue ticks.
+   ⚠️ Absolutely positioned INSIDE `#hud` so it never joins the flex row — and it
+   therefore inherits `#hud`'s deliberate exclusion from the `--ui-text` zoom, so
+   its sizes are fixed px on purpose.
+8. **SELECT-ALL-ARMY on `V`** — every owned unit with `def.aggro > 0`, excluding
+   **workers** (an army order must never yank the economy), the **King** (in
+   Regicide he IS the war) and **garrisoned** toys. Camera deliberately does not
+   move. Verified all three exclusions.
+   ⚠️⚠️ **Do NOT bind `a`/Ctrl+A**: `keys[key] = true` is set BEFORE the keydown
+   handler's `!game` return, and the camera pan reads `keys.a` ignoring
+   modifiers — Ctrl+A leaves the camera drifting until keyup. `v` was proven free
+   in both scopes.
+Verified: **fp byte-identical to the pre-patch baseline** on playmat AND
+bookshelf (19848|204|677559599 / 126013|187|952265336), MP 2h+2ai and 3h+1ai
+inSync, HUD layout intact, 0 console errors.
+⚠️ NOT built this batch, and flagged by the recon as traps: relaxing the
+single-building gate; fan-out "train at all selected"; cancel-from-chip (46px
+target, index-based cancel = destroying real production on a mis-click);
+waypoints for multi-unit selections. Tab subgroup cycling + queued-waypoint
+rendering are designed and anchored in `ROADMAP.md`'s patch plan but unbuilt.
