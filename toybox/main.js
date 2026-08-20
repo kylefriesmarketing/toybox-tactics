@@ -2467,6 +2467,21 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
 
 addEventListener('pointermove', (e) => {
   mouseX = e.clientX; mouseY = e.clientY;
+  // THE SIZE-UP: hovering an enemy with toys selected answers "is this my fight?"
+  // Throttled to ~10Hz; entityAt is fog-gated, so hidden toys can't be sized up.
+  if (game && ui && !placing && e.pointerType !== 'touch') {
+    const now = performance.now();
+    if (now - (window.__suT || 0) > 100) {
+      window.__suT = now;
+      try {
+        const gp = groundPoint(e.clientX, e.clientY);
+        const hit = gp ? game.entityAt(gp.x, gp.z) : null;
+        if (hit && game.isEnemy(game.myId, hit.owner) && game.fog.state(hit.x, hit.z) === 2) {
+          ui.showSizeUp(hit, e.clientX, e.clientY);
+        } else ui.hideSizeUp();
+      } catch (err) { /* readout is pure garnish — never break input */ }
+    }
+  }
   if (e.pointerType === 'touch' && touchPts.has(e.pointerId)) {
     touchPts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pinch && touchPts.size >= 2) {

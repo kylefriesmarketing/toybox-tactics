@@ -2227,10 +2227,18 @@ export class Game {
       if (e.stance === 'def') h = (h + 5) | 0;
       else if (e.stance === 'stand') h = (h + 9) | 0;
       if (e.garrisoned) h = (h + 17) | 0;
+      // ⚠️ these were MISSING, which made __ttNetTest blind to whole classes of
+      // desync: a hauler's load, a half-built wall, a mined-out pile and a
+      // promoted veteran could all differ between clients and still hash equal.
+      if (e.carry) h = (h + (e.carry * 8 | 0) * 37) | 0;
+      if (e.built !== undefined && e.built < 1) h = (h + (e.built * 64 | 0) * 41) | 0;
+      if (e.kind === 'resource') h = (h + (e.amount | 0) * 43) | 0;
+      if (e.kills) h = (h + e.kills * 47) | 0;
       // objectives: who holds them and (throne) for how long drives win state
       if (e.kind === 'objective') h = (h + (e.holder + 2) * 29 + ((e.holdTime || 0) * 8 | 0) * 3) | 0;
     }
     for (const p of this.players) {
+      h = (h + p.age * 53 + p.techs.size * 59) | 0;
       h = (h + ((p.res.snacks | 0) * 3) + ((p.res.blocks | 0) * 5)
         + ((p.res.buttons | 0) * 7) + ((p.res.marbles | 0) * 11) + p.popUsed * 13) | 0;
     }

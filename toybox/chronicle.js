@@ -14,7 +14,7 @@ export function loadChronicle() {
 function blank() {
   return { games: 0, wins: 0, playSec: 0, winsByFaction: {}, gamesByFaction: {},
     kills: 0, lost: 0, razed: 0, gathered: 0, mice: 0, shipsBuilt: 0, bestScore: 0,
-    tribes: 0, strays: 0 };
+    tribes: 0, strays: 0, bestWave: 0, survivalWins: 0 };
 }
 
 export function loadEarned() {
@@ -28,6 +28,7 @@ const ACT1 = ['naptime', 'sandbox', 'bathtub', 'hill', 'finale'];
 const ACT2 = ['crumbs', 'sofa', 'canyonrun', 'nightlight', 'shelfking'];
 const ACT3 = ['tagged', 'boxed', 'bargain', 'stranger', 'wayhome'];
 const ACT4 = ['doorstep', 'dunes', 'gardenwar', 'washout', 'oakcrown'];
+const ACT5 = ['unboxing', 'portcullis', 'carpetkings', 'oldguard', 'hearth'];
 
 // Every Bedtime Story: check(ctx) with ctx = { g, win, me, chron, earnedCount }
 export const ACHIEVEMENTS = [
@@ -110,6 +111,9 @@ export const ACHIEVEMENTS = [
   { id: 'act4', icon: '🌿', name: 'The Book Has a Backyard', beyond: true,
     desc: 'Finish Act IV — The Great Outdoors, and bring Bun-Bun home.',
     check: () => ACT4.every((id) => campaignProgress()[id]) },
+  { id: 'act5', icon: '🏰', name: 'The Kingdom Arrives', beyond: true,
+    desc: 'Finish Act V — and learn what the old guard was always for.',
+    check: () => ACT5.every((id) => campaignProgress()[id]) },
   // 2026-07-18 map-life systems: tribes, lost toys, the menagerie
   { id: 'flagteacher', icon: '🏕️', name: 'Teach Them the Flags', beyond: true,
     desc: 'Win over both wild toy tribes in a single match.',
@@ -149,6 +153,12 @@ export function recordMatch(g, win) {
   chron.shipsBuilt += me.stats.shipsBuilt || 0;
   chron.tribes = (chron.tribes || 0) + (me.stats.tribes || 0);
   chron.strays = (chron.strays || 0) + (me.stats.strays || 0);
+  // the long night's high-water mark used to live ONLY in the live match, so
+  // your furthest wave was forgotten the moment you closed the tab
+  if (g.gameMode === 'survival' && g.survival) {
+    if ((g.survival.bestWave || 0) > (chron.bestWave || 0)) chron.bestWave = g.survival.bestWave;
+    if (g.survivalWon) chron.survivalWins = (chron.survivalWins || 0) + 1;
+  }
   const last = g.timeline[g.timeline.length - 1];
   const score = last && last.p[g.myId] ? last.p[g.myId].score : 0;
   if (score > chron.bestScore) chron.bestScore = score;

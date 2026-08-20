@@ -760,6 +760,21 @@
   .jr-text { color: #d9d0ec; font-size: 12.5px; line-height: 1.5; font-style: italic; }
 
   /* ---------- live objectives chip ---------- */
+  /* THE SIZE-UP — hover readout: is this my fight? */
+  #sizeup { position: fixed; z-index: 60; pointer-events: none; opacity: 0;
+    transition: opacity .12s ease; min-width: 168px; padding: 8px 10px;
+    background: rgba(24,18,40,.93); border: 1px solid #6a5230; border-radius: 7px;
+    font-family: Georgia, 'Times New Roman', serif; color: #f2e8d0; font-size: 13px;
+    box-shadow: 0 6px 22px rgba(0,0,0,.5); }
+  #sizeup.show { opacity: 1; }
+  #sizeup .su-head { font-size: 14px; margin-bottom: 5px; border-bottom: 1px solid #4a3c28; padding-bottom: 4px; }
+  #sizeup .su-head i { color: #b8a8d8; font-size: 12px; }
+  #sizeup .su-good { color: #7fe08a; } #sizeup .su-bad { color: #ff8a8a; } #sizeup .su-even { color: #e8ca77; }
+  #sizeup .su-row { display: flex; justify-content: space-between; gap: 14px; }
+  #sizeup .su-row span { color: #b8a8d8; }
+  #sizeup .su-row b { font-variant-numeric: tabular-nums; }
+  #sizeup .su-bonus { margin-top: 5px; color: #e8ca77; font-size: 12px; }
+  @media (prefers-reduced-motion: reduce) { #sizeup { transition: none; } }
   #objectives { position: fixed; top: 46px; right: 190px; z-index: 40; max-width: 300px;
     padding: 8px 12px; border-radius: 0 0 12px 12px; pointer-events: none;
     background: linear-gradient(180deg, #241a33dd, #191026dd);

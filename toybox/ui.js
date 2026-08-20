@@ -278,6 +278,82 @@ export class UI {
     this._barkHide = setTimeout(() => el.classList.remove('show'), 3200);
   }
 
+
+  // ---------- THE SIZE-UP: make the counter web visible ----------
+  // 38 of 53 units carry a flat bonus-damage table across 9 axes and it was
+  // surfaced NOWHERE. This reads the same numbers applyDamage() uses — atkOf,
+  // the def.bonus tag match, armorOf, the elevation rule — and answers the only
+  // question that matters on hover: is this my fight?
+  // Pure read. No sim state, no rng, no save change.
+  matchup(a, b) {
+    const g = this.game;
+    if (!a || !b || a.dead || b.dead || a.kind !== 'unit') return null;
+    const atkType = a.def.atkType || 'melee';
+    let dmg = g.atkOf(a);
+    let bonusTag = null, bonusAmt = 0;
+    if (a.def.bonus && b.def.tags) {
+      for (const t of b.def.tags) if (a.def.bonus[t]) { bonusAmt += a.def.bonus[t]; bonusTag = bonusTag || t; }
+    }
+    dmg += bonusAmt;
+    const hA = g.heightAtWorld(a.x, a.z), hB = g.heightAtWorld(b.x, b.z);
+    if (hA > hB + 0.4) dmg = Math.round(dmg * 1.25);
+    else if (hA < hB - 0.4) dmg = Math.max(1, Math.round(dmg * 0.75));
+    dmg = Math.max(1, dmg - g.armorOf(b, atkType));
+    const interval = a.def.interval * g.players[a.owner].mods.atkSpeed;
+    return { dmg, bonusTag, bonusAmt, ttk: (b.hp / dmg) * interval };
+  }
+  // seconds-to-kill both ways, for the best attacker in the selection
+  sizeUp(target) {
+    const g = this.game;
+    const mine = g.selected.filter((u) => u.kind === 'unit' && !u.dead
+      && u.owner === g.myId && u.def.aggro > 0 && !u.garrisoned);
+    if (!mine.length || !target || target.dead) return null;
+    if (!g.isEnemy(g.myId, target.owner)) return null;
+    let best = null;
+    for (const u of mine) {                       // the toy that does this job best
+      const m = this.matchup(u, target);
+      if (m && (!best || m.ttk < best.ttk)) best = { ...m, unit: u };
+    }
+    if (!best) return null;
+    const back = target.kind === 'unit' ? this.matchup(target, best.unit) : null;
+    // group time-to-kill: everyone who can actually hurt it, firing together
+    let groupDps = 0;
+    for (const u of mine) {
+      const m = this.matchup(u, target);
+      if (m) groupDps += m.dmg / (u.def.interval * g.players[u.owner].mods.atkSpeed);
+    }
+    const ours = groupDps > 0 ? target.hp / groupDps : Infinity;
+    const theirs = back ? back.ttk : Infinity;
+    let verdict = 'even';
+    if (theirs === Infinity || ours < theirs * 0.6) verdict = 'good';
+    else if (ours > theirs * 1.6) verdict = 'bad';
+    return { ours, theirs, verdict, bonusTag: best.bonusTag, bonusAmt: best.bonusAmt,
+      name: (target.def && target.def.name) || target.type, best: best.unit };
+  }
+  showSizeUp(target, sx, sy) {
+    let el = $('sizeup');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'sizeup';
+      document.body.appendChild(el);
+    }
+    const s = target ? this.sizeUp(target) : null;
+    if (!s) { el.classList.remove('show'); return; }
+    const mark = s.verdict === 'good' ? '▲' : s.verdict === 'bad' ? '▼' : '–';
+    const word = s.verdict === 'good' ? 'favourable' : s.verdict === 'bad' ? 'losing' : 'even';
+    const secs = (v) => (v === Infinity ? '—' : v < 1 ? '<1s' : Math.round(v) + 's');
+    el.innerHTML =
+      '<div class="su-head"><b class="su-' + s.verdict + '">' + mark + '</b> ' + s.name
+      + ' <i>' + word + '</i></div>'
+      + '<div class="su-row"><span>you kill it</span><b>' + secs(s.ours) + '</b></div>'
+      + '<div class="su-row"><span>it kills you</span><b>' + secs(s.theirs) + '</b></div>'
+      + (s.bonusTag ? '<div class="su-bonus">+' + s.bonusAmt + ' vs ' + s.bonusTag + '</div>' : '');
+    el.style.left = Math.min(innerWidth - 190, sx + 18) + 'px';
+    el.style.top = Math.min(innerHeight - 120, sy + 16) + 'px';
+    el.classList.add('show');
+  }
+  hideSizeUp() { const el = $('sizeup'); if (el) el.classList.remove('show'); }
+
   // called from the right-click flow with the command that was issued
   orderBark(result) {
     const kind = result === 'attack' ? 'atk'
