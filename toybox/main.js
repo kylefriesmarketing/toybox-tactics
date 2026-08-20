@@ -1749,19 +1749,24 @@ window.__ttSoak = (opts = {}, maxTicks = 9000) => {
   const g = new Game(s, registryCache, {
     alert() {}, selection() {}, age() {}, gameOver() {},
   }, {
-    fx, sfx: null, difficulty: opts.difficulty || 'normal',
+    fx, sfx: null, difficulty: opts.difficulty || opts.diff || 'normal',
     map: opts.map || 'playmat', playerDefs: defs,
     gameMode: opts.gameMode || 'standard', startRes: opts.startRes || 'standard',
     seed, mp: false, myId: 0,
   });
   // capture the true victor: endGame knows the winning team for every mode,
   // whereas "last team with a building" only holds for standard/sudden.
+  // QA: personas are rolled off the shared rng IN SEAT ORDER, so seat 0 always
+  // draws first. Surfacing them lets a battery test whether the long-standing
+  // 'seat 0 advantage' is really a persona-matchup artifact.
+  const personas = {};
   let winnerTeam = null;
   const _end = g.endGame.bind(g);
   g.endGame = (team) => { winnerTeam = team; _end(team); };
   // page-zero QA: startGame sets this before setup(), so the soak must too —
   // it suppresses household pets and wild tribes in the sepia prequel
   if (opts.zeroEra) g.zeroEra = true;
+  for (const k of Object.keys(g.aiState || {})) personas[k] = { persona: g.aiState[k].persona, diff: g.aiState[k].diff && g.aiState[k].diff.name };
   g.setup();
   // survival QA: shorten the night so the dawn-victory branch is testable headlessly
   const survDawnBak = opts.survivalDawn ? SURVIVAL.dawnWave : null;
@@ -1794,7 +1799,7 @@ window.__ttSoak = (opts = {}, maxTicks = 9000) => {
   // per-player stat blocks — lets a test assert whether a seat ENGAGED with a
   // system (tribes taught, strays carried home) rather than merely coexisting with it
   const stats = g.players.map((p) => ({ ...p.stats }));
-  return { seed, winnerTeam, over: g.over, ticks: t, simSec: Math.round(t * 0.1), err, armies, ages, res, facs, fp, surv, kinds, stats };
+  return { seed, winnerTeam, over: g.over, ticks: t, simSec: Math.round(t * 0.1), err, armies, ages, res, facs, fp, surv, kinds, stats, personas };
 };
 // in-memory lockstep harness: wires N real Net instances in a star (fake conns
 // deliver synchronously) driving N headless Games. Exercises the ACTUAL net.js
