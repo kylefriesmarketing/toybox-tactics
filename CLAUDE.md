@@ -1703,3 +1703,41 @@ had to be restored; the 5-dev-server cap was also full, so this session served o
    no bark. All four now ping (own colour) at both consumers and route through
    `orderBark` (maybeBark falls back to `set.sel`, so it degrades gracefully).
 Verified: fp determinism, MP 2h+2ai inSync, 4-map soak sweep 0 errs, 0 console errors.
+
+## 🔬 THE SEAT-0 INVESTIGATION (2026-08-20) — LARGELY A MEASUREMENT ARTIFACT
+
+The bible called this "the highest-value session in the document" and suspected a
+tick-order defect. **It is not one.** Four controlled experiments:
+
+1. **Combat resolution is FAIR.** Identical 6v6 soldier duels, symmetric spawns,
+   both attack-moving: **seat 0 won 4, seat 1 won 4**. The actual predictor was
+   POSITION (the left-hand army won 6 of 8), not seat id. So `applyDamage`,
+   target acquisition and entity iteration order are not biased.
+   ⚠️ trap: after one duel wipes a side the game sets `over`, and `update()` goes
+   inert — a second duel silently "ties" 6v6. Reset `g.over=false` between reps.
+2. **Start geography is symmetric.** playmat seat 0 vs seat 1: nearest node 6.04
+   vs **5.52**, avg of 4 nearest 6.62 vs **5.98**, nodes within 12: 18 vs 17,
+   mass within 12: 7543 vs 7126. If anything seat 1 starts marginally BETTER.
+   (One real asymmetry: marbles within 14 — 9 vs 2. Worth a look, not a bias.)
+3. **⚠️⚠️ THE HARNESS WAS IGNORING `diff:`.** `__ttSoak` read `opts.difficulty`
+   only, and EVERY battery in this file passes **`diff:`** — so every historical
+   battery labelled "hard AI" actually ran at **normal**. Fixed: the soak now
+   accepts `opts.difficulty || opts.diff`. Verified the two now produce different
+   fingerprints on the same seed. Symmetric across seats, so it doesn't explain
+   the bias — but every documented battery's difficulty label is wrong.
+4. **CONTROLLING FOR AI PERSONA MAKES IT VANISH.** `__ttSoak` now returns
+   `personas` per seat. 60 mirror games (classic v classic, playmat, hard):
+   - overall seat-0 **56%** (n=48 decided) — inside noise of 50% at that n
+   - **both seats on the IDENTICAL persona: 9/18 = exactly 50%**
+   - persona strength is the real effect: **balanced 58%, rusher 56%, boomer 35%**
+   Personas are rolled off the shared rng IN SEAT ORDER, so every battery that
+   didn't control for them was measuring a random persona matchup with a 23-point
+   spread and attributing it to the seat.
+
+**Revised conclusion:** there is no evidence of a structural first-seat advantage
+in combat, spawns or tick order. The historical 77/67/67% readings are best
+explained by uncontrolled persona matchups (plus, for pre-2026-08-20 runs, an
+unintended difficulty). **The real defect found is that `boomer` wins 35%** — an
+AI persona balance problem, not a seat problem.
+⚠️ Any future battery MUST either pin personas or report them. `__ttSoak` returns
+them now; there is no excuse for repeating this.
