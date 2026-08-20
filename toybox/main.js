@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, SURVIVAL, DIFFICULTIES, CAMPAIGN, INTRO, MISSION_EVENTS, CMDR_LINES, TEAM_COLORS, generateRandomMap } from './data.js';
 import {
   loadUnitModels, loadBuildingModels, loadMapModels, loadFurnitureModels, setBuildingFootprints,
-  createGhostMesh, createMoveMarker, createLamp, renderPortraits, applyUnitTier, refreshFactionBuildingIcons,
+  createGhostMesh, createMoveMarker, createOrderPath, createLamp, renderPortraits, applyUnitTier, refreshFactionBuildingIcons,
   PORTRAITS, setProceduralEra, makeRankBadge,
   createGroundCover, applyBuildingAge, buildStockpile,
 } from './models.js';
@@ -173,7 +173,7 @@ function groundPoint(clientX, clientY) {
 }
 
 // ---------------- boot: load models, show menu, start on click ----------------
-let game = null, ui = null, marker = null, vfx = null;
+let game = null, ui = null, marker = null, vfx = null, orderPath = null;
 const sfx = new SFX();
 let registryCache = null, failuresCache = [];
 
@@ -2243,6 +2243,9 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
 
   marker = createMoveMarker();
   scene.add(marker.mesh);
+  orderPath = createOrderPath();
+  scene.add(orderPath.group);
+  orderPath.hide();
   setupAmbient();
 
   cam.tx = cam.x = game.homePos.x;
@@ -2876,6 +2879,75 @@ function loadTipsSeen() {
   catch { tipsSeen = new Set(); }
   return tipsSeen;
 }
+// ---------------- queued waypoints (view-only) ----------------
+// Shift-queued orders were invisible: five clicks, five flashes of the SAME
+// ring in the same spot. This draws the queue the sim already holds — u.order
+// then u.oq — as a draped breadcrumb trail for the one selected toy. It only
+// READS, so determinism, MP lockstep and replays are untouched (and note oq is
+// NOT in stateHash, which is exactly why nothing here may ever mutate it).
+const ORDER_COLORS = {
+  move: 0x66ff88, amove: 0xff8844, aground: 0xff5544, patrol: 0x7fd0ff,
+  attack: 0xff5544, gather: 0xffd166, build: 0xc9a86a, garrison: 0x9ad0e0,
+  guard: 0xb8a8ff, traderoute: 0xffe08a,
+};
+// ⚠️ Nine order shapes carry a position three different ways: literal x/z, a
+// LIVE entity reference (which moves, and can be dead), or — trade routes only
+// — an entity ID. A naive o.x reader makes NaN geometry and silently blanks.
+function orderPoint(o) {
+  if (!o) return null;
+  if (o.type === 'patrol') return { x: o.bx, z: o.bz };
+  const ref = o.target || o.node || o.b;
+  if (ref) return ref.dead ? null : { x: ref.x, z: ref.z };
+  if (o.type === 'traderoute') {
+    const m = game.entities.find((e) => e.id === o.mid && !e.dead);
+    return m ? { x: m.x, z: m.z } : null;
+  }
+  if (typeof o.x === 'number' && typeof o.z === 'number') return { x: o.x, z: o.z };
+  return null;
+}
+let opSig = null, opT = 0;
+function updateOrderPath(dt) {
+  if (!orderPath) return;
+  orderPath.update(dt);
+  opT -= dt;
+  if (opT > 0) return;
+  opT = 0.12;
+  const s = game && game.selected.length === 1 ? game.selected[0] : null;
+  const u = s && s.kind === 'unit' && s.owner === game.myId && !s.dead ? s : null;
+  if (!u || (!u.order && !u.oq.length)) {
+    if (opSig !== null) { opSig = null; orderPath.hide(); }
+    return;
+  }
+  const orders = [u.order, ...u.oq].filter(Boolean);
+  const q = (v) => Math.round(v * 2); // half-tile quantisation: a walking toy
+  const sig = u.id + '|' + q(u.x) + ',' + q(u.z) + '|' + orders.map((o) => {
+    const p = orderPoint(o);
+    return o.type + (p ? `:${q(p.x)},${q(p.z)}` : ':?');
+  }).join(';');                        // rebuilds twice a tile, not every frame
+  if (sig === opSig) return;
+  opSig = sig;
+  const H = (x, z) => game.heightAtWorld(x, z) + 0.05; // drape: the flat move
+  const nodes = [], trail = [];                        // marker sinks into hills
+  let px = u.x, pz = u.z;
+  for (const o of orders) {
+    const p = orderPoint(o);
+    if (!p) continue;
+    const color = ORDER_COLORS[o.type] || 0x66ff88;
+    const d = Math.hypot(p.x - px, p.z - pz);
+    const steps = Math.min(24, Math.floor(d / 1.1));
+    for (let i = 1; i <= steps && trail.length < 120; i++) {
+      const f = i / (steps + 1);
+      const bx = px + (p.x - px) * f, bz = pz + (p.z - pz) * f;
+      trail.push({ x: bx, y: H(bx, bz), z: bz, color });
+    }
+    nodes.push({ x: p.x, y: H(p.x, p.z), z: p.z, color });
+    px = p.x; pz = p.z;
+    if (nodes.length >= 14) break;
+  }
+  if (!nodes.length) { orderPath.hide(); return; }
+  orderPath.show(nodes, trail);
+}
+
 function updateTips(dt) {
   if (!game || game.over || watchMode || tutorialActive || !ui) return;
   if (game.gameMode === 'survival' && game.time < 20) return; // let the first wave land
@@ -4097,6 +4169,7 @@ function loop() {
   if (sfx.setListener) sfx.setListener(cam.x, cam.z);
   updateObjectives(dt);         // the goal, live, where eyes already are
   updateTips(dt);               // and teach the buttons the game never mentions
+  updateOrderPath(dt);          // and show the orders you queued but cannot see
   // the lamp breathes a little, like a real filament (only while it exists)
   if (lampProp.group.visible) {
     const flick = 1 + Math.sin(performance.now() * 0.0021) * 0.03 + Math.sin(performance.now() * 0.013) * 0.02;
@@ -4134,6 +4207,7 @@ setInterval(() => {
     if (sfx.setListener) sfx.setListener(cam.x, cam.z);
     updateObjectives(elapsed);
     updateTips(elapsed);
+    updateOrderPath(elapsed);
     updateCamMoment(elapsed);
     applyCamera(elapsed);
     renderFrame();

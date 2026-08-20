@@ -5131,6 +5131,49 @@ export function createMoveMarker() {
   };
 }
 
+// queued waypoints: the room's memory of what you told a toy to do. Pure view —
+// it reads nothing but the positions the caller hands it and writes nothing
+// back. Meshes are POOLED and only ever repositioned, so a path costs no
+// allocation after the first frame.
+export function createOrderPath(maxPips = 14, maxDots = 120) {
+  const g = new THREE.Group();
+  const pips = [], dots = [];
+  for (let i = 0; i < maxPips; i++) {
+    const m = flatRing(0.17, 0.26, 0x66ff88, 0.85);
+    m.visible = false; g.add(m); pips.push(m);
+  }
+  for (let i = 0; i < maxDots; i++) {
+    const m = flatRing(0, 0.045, 0x66ff88, 0.5);
+    m.visible = false; g.add(m); dots.push(m);
+  }
+  let t = 0, live = 0;
+  return {
+    group: g,
+    // nodes / trail: [{ x, y, z, color }] — already draped by the caller, which
+    // is the only place that knows the terrain (game.heightAtWorld).
+    show(nodes, trail) {
+      for (let i = 0; i < pips.length; i++) {
+        const n = nodes[i];
+        pips[i].visible = !!n;
+        if (n) { pips[i].position.set(n.x, n.y, n.z); pips[i].material.color.setHex(n.color); }
+      }
+      for (let i = 0; i < dots.length; i++) {
+        const d = trail[i];
+        dots[i].visible = !!d;
+        if (d) { dots[i].position.set(d.x, d.y, d.z); dots[i].material.color.setHex(d.color); }
+      }
+      live = Math.min(nodes.length, pips.length);
+      g.visible = true;
+    },
+    hide() { g.visible = false; live = 0; },
+    update(dt) {
+      if (!g.visible) return;
+      t += dt;
+      for (let i = 0; i < live; i++) pips[i].scale.setScalar(1 + Math.sin(t * 3 + i * 0.7) * 0.09);
+    },
+  };
+}
+
 // ============================================================
 // THE OOMPH PASS (2026-08-04) — pure-view map density & settlement life.
 // None of this touches the sim: ground cover uses its own PRNG (never the
