@@ -2368,6 +2368,20 @@ function selectIdle() {
   clampCam();
 }
 // cycle through military toys standing around with no orders
+// V — every fighting toy you own, at once. Deliberate exclusions: WORKERS (an
+// army order must never yank the economy), the KING (in Regicide he IS the war —
+// marching him with the army loses it), and GARRISONED toys (they're inside a
+// building and can't take a field order anyway). The camera deliberately does
+// NOT move: mustering the army shouldn't teleport your view off your base.
+function selectAllArmy() {
+  if (!game) return;
+  const army = game.entities.filter((e) => e.kind === 'unit' && e.owner === game.myId
+    && !e.dead && e.def.aggro > 0 && !e.isKing && !e.garrisoned);
+  if (!army.length) { ui.alert('No fighting toys to muster.', 'info'); return; }
+  game.setSelection(army);
+  sfx.play('select');
+}
+
 function selectIdleMilitary() {
   const idle = game.entities.filter((e) => e.kind === 'unit' && e.owner === game.myId
     && !e.dead && e.def.aggro > 0 && !e.order && !e.oq.length && !e.garrisoned);
@@ -2657,6 +2671,10 @@ addEventListener('keydown', (e) => {
   }
   if (e.key === '.') selectIdle();
   if (e.key === ',') selectIdleMilitary();
+  // ⚠️ V, not A: `keys[key] = true` is set BEFORE this handler's !game return and
+  // the camera pan reads `keys.a` ignoring modifiers — Ctrl+A would leave the
+  // camera drifting left until keyup. v is unbound in both scopes.
+  if (k === 'v' && !e.ctrlKey && !e.altKey) selectAllArmy();
   if (k === 'h') {
     const chest = game.entities.find((x) => x.type === 'chest' && x.owner === game.myId && !x.dead);
     if (chest) {

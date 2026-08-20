@@ -35,6 +35,8 @@ export class UI {
     this.tickT = 0;
     this.miniT = 0;
     this.cardButtons = [];
+    this.stripSig = null;   // production-strip signature (see updateProdStrip)
+    this.stripChips = [];
 
     this.mini.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
@@ -249,6 +251,7 @@ export class UI {
   refreshSelection() {
     this.queueSig = null;
     this.refreshInfo(true);
+    this.updateProdStrip(); // highlight the newly selected building at once
     // a selected toy sometimes has something to say (pure flavor, throttled)
     const own = this.game.selected.filter((e) => !e.dead && e.kind === 'unit' && e.owner === this.game.myId);
     if (own.length) this.maybeBark('sel', own[0]);
@@ -484,6 +487,66 @@ export class UI {
     }
     if (aging && bars[bi]) {
       bars[bi].style.width = `${(1 - p.aging / AGE_UPS[p.age].time) * 100}%`;
+    }
+  }
+
+  // ---------- production overview strip ----------
+  // One chip per building of yours that can train, selected or not — so four
+  // barracks are four chips and an EMPTY one is visibly idle. Clicking a chip
+  // selects that ONE building, which is what makes a two-building selection
+  // harmless: you never have to fight the card's single-building gate to reach
+  // a train button. (Selecting two chests giving you NO train buttons is the
+  // most-cited complaint in C&C Generals, and it was present here verbatim.)
+  // ⚠️ Same anti-click-eating discipline as updateQueueBox: DOM is rebuilt only
+  // when the signature changes; per-tick writes are textContent / style.width /
+  // classList on nodes that already exist.
+  updateProdStrip() {
+    const box = $('prod-strip');
+    if (!box) return;
+    const g = this.game, me = g.myId, p = g.players[me];
+    if (!p) return;
+    const list = g.entities.filter((e) => e.kind === 'building' && e.owner === me
+      && !e.dead && !e.removed && e.built >= 1 && e.def.trains);
+    list.sort((a, b) => a.id - b.id); // stable order — chips must not shuffle
+    const sig = list.map((b) => `${b.id}:${b.queue.length}`).join(',') + (p.aging > 0 ? '|age' : '');
+    if (sig !== this.stripSig) {
+      this.stripSig = sig;
+      box.innerHTML = '';
+      this.stripChips = [];
+      for (const b of list) {
+        const d = document.createElement('div');
+        d.className = 'pchip';
+        const img = PORTRAITS[b.type];
+        d.innerHTML = (img ? `<img src="${img}" alt="">` : `<span>${B_ICONS[b.type] || '🏠'}</span>`)
+          + '<span class="pq"></span><div class="pbar"></div>';
+        d.title = `${b.def.name} — click to select it (its train buttons fill the card)`;
+        const id = b.id;
+        d.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const live = this.game.entities.find((x) => x.id === id && !x.dead);
+          if (!live) return;
+          this.game.setSelection([live]);
+          if (this.game.sfx) this.game.sfx.play('select');
+        });
+        box.appendChild(d);
+        this.stripChips.push({ el: d, id, q: d.querySelector('.pq'), bar: d.querySelector('.pbar') });
+      }
+    }
+    // in-place refresh ONLY below this line (never innerHTML on the ticker)
+    const selId = g.selected.length === 1 ? g.selected[0].id : -1;
+    for (let i = 0; i < this.stripChips.length; i++) {
+      const c = this.stripChips[i], b = list[i];
+      if (!b || b.id !== c.id) continue; // sig disagrees; next tick rebuilds
+      const aging = b.type === 'chest' && p.aging > 0;
+      const n = b.queue.length;
+      const qtxt = n > 1 ? String(n) : '';
+      if (c.q.textContent !== qtxt) c.q.textContent = qtxt;
+      let w = 0;
+      if (n) w = (1 - b.queue[0].t / b.queue[0].total) * 100;
+      else if (aging && AGE_UPS[p.age]) w = (1 - p.aging / AGE_UPS[p.age].time) * 100;
+      c.bar.style.width = `${w}%`;
+      c.el.classList.toggle('idle', n === 0 && !aging);
+      c.el.classList.toggle('sel', b.id === selId);
     }
   }
 
@@ -805,6 +868,7 @@ export class UI {
       // live info/queue refresh WITHOUT rebuilding buttons (buttons must stay
       // stable under the cursor or clicks get eaten)
       this.refreshInfo(false);
+      this.updateProdStrip(); // signature-diffed, same stable-DOM rule
     }
     this.miniT -= dt;
     if (this.miniT <= 0) { this.miniT = 0.25; this.drawMinimap(); }

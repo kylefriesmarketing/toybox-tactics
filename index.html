@@ -211,6 +211,27 @@
   .qitem:hover { border-color: #e5484d; }
   .qbar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--gold-2); }
 
+  /* Production overview: one chip per building of yours that trains, with its
+     live queue and an IDLE flag. Absolutely positioned INSIDE #hud so it never
+     joins the flex row — minimap / sel-panel / card keep their exact layout.
+     ⚠️ #hud is deliberately excluded from the --ui-text zoom (it's anchored), so
+     every size here is fixed px on purpose. */
+  #prod-strip { position: absolute; left: 12px; bottom: 100%; margin-bottom: 6px;
+    display: flex; gap: 6px; flex-wrap: wrap; max-width: min(760px, calc(100vw - 24px)); }
+  #prod-strip:empty { display: none; }
+  .pchip { position: relative; width: 46px; height: 46px; cursor: pointer; overflow: hidden;
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
+    border-radius: 9px; border: 1px solid #6a5230; color: #f2e8d0;
+    background: linear-gradient(180deg, #2a2340, #1d1832);
+    box-shadow: 0 3px 10px #0006, inset 0 1px 0 #ffffff18; }
+  .pchip .pq { position: absolute; top: 1px; right: 3px; font-size: 9.5px; font-weight: 800;
+    color: #ffdf8f; text-shadow: 0 1px 1px #000b; }
+  .pchip .pbar { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: #e8ca77; }
+  .pchip:hover { border-color: #e8ca77; transform: translateY(-2px); }
+  .pchip.sel { border-color: #e8ca77; box-shadow: 0 0 10px #e8ca7755, inset 0 1px 0 #ffffff22; }
+  .pchip.idle { border-color: #7fbf5a; animation: pidle 1.6s ease-in-out infinite; }
+  @keyframes pidle { 0%, 100% { box-shadow: 0 0 0 #7fbf5a00; } 50% { box-shadow: 0 0 10px #7fbf5a88; } }
+  @media (prefers-reduced-motion: reduce) { .pchip.idle { animation: none; } .pchip:hover { transform: none; } }
   /* AoE-style icon command card */
   #card { flex: 1; display: grid; grid-template-columns: repeat(auto-fill, 74px);
     gap: 8px; max-width: 590px; justify-content: start; }
@@ -1060,6 +1081,7 @@
       </div>
     </div>
     <div id="card"></div>
+    <div id="prod-strip"></div>
   </div>
 
   <div id="gameover">
