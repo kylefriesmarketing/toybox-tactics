@@ -1679,3 +1679,27 @@ takes a `Game`; Empire has none, so it needs its own recorder — design first).
 ⚠️ Kyle's `.claude/launch.json` toybox entry was deleted by a parallel session and
 had to be restored; the 5-dev-server cap was also full, so this session served on
 **8326** via serve.ps1 directly.
+
+### Roadmap Tier 1 — batch 2 (2026-08-19, free, all view/UI)
+
+4. **THE STUMBLE** (`attachStumble` models.js, attached in all 3 unit-view
+   builders next to `attachSpeech`): the room shoves toys around — cat swat,
+   dog pounce, Roomba barge — and the toy used to slide to its new tile
+   perfectly upright, which read as teleporting. Now it pitches away from the
+   blow and wobbles back: `f*f*cos((1-f)*13)*lean` over 0.62s. Fired from the
+   three existing knockback sites with the away-angle; ticked beside
+   `updateBubble` (both live AND dead branches). Verified settling trace
+   0.213 → −0.115 → 0.047 → −0.009 → 0. **This is also the cheap test of whether
+   the roadmap's full KNOCKED OVER sim system is worth its price.**
+5. **DAWN LIGHTING** — `updateNight` was monotonic; the toys' whole deadline is
+   morning, so past `DAWN_AT` (1500s) the room now turns and gets LIGHTER,
+   warming toward `DAWN_TINT` by `DAWN_OVER` (2400s). Measured: hemisphere
+   0.6→1.1, key directional 1.4→2.3 — the room lighting nearly doubles.
+   ⚠️ measuring by SUMMING scene light intensity is useless: the bedside lamp is
+   a 220-intensity PointLight driven separately in `loop()` and swamps the sum.
+   Read the individual lights.
+6. **The four silent orders** — `rightClick` returns 7 result strings and both
+   consumers handled 4: **build / trade / garrison / guard** produced no ping and
+   no bark. All four now ping (own colour) at both consumers and route through
+   `orderBark` (maybeBark falls back to `set.sel`, so it degrades gracefully).
+Verified: fp determinism, MP 2h+2ai inSync, 4-map soak sweep 0 errs, 0 console errors.
