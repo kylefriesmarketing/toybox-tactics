@@ -356,8 +356,13 @@ export class UI {
 
   // called from the right-click flow with the command that was issued
   orderBark(result) {
+    // build / trade / garrison / guard used to return silently — four of the
+    // seven order types acknowledged nothing at all. maybeBark falls back to
+    // set.sel for kinds a unit has no lines for, so this degrades gracefully.
     const kind = result === 'attack' ? 'atk'
-      : (result === 'move' || result === 'gather' || result === 'rally') ? 'move' : null;
+      : (result === 'move' || result === 'gather' || result === 'rally'
+        || result === 'build' || result === 'trade'
+        || result === 'garrison' || result === 'guard') ? 'move' : null;
     if (!kind) return;
     const own = this.game.selected.filter((e) => !e.dead && e.kind === 'unit' && e.owner === this.game.myId);
     if (own.length) this.maybeBark(kind, own[0]);

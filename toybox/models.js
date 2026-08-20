@@ -507,6 +507,33 @@ function setOpacity(root, o) {
 // Both expose: group, setMoving, startAttack->impactDelay, startDeath->duration,
 // setSelected, update(dt), hpBar.
 
+
+// ---------------- the stumble (view-only) ----------------
+// The room shoves toys around — the cat swats, the dog pounces, the Roomba
+// barges — and until now the toy slid to its new tile perfectly upright, which
+// read as teleporting. A stumble is the cheapest possible reaction: pitch away
+// from the blow, wobble, and right yourself. It also answers, for free, whether
+// the full knocked-over system in the roadmap is worth its price.
+// dir = the world angle the shove came FROM (the game's (sin,cos) convention).
+function attachStumble(view, target) {
+  let t = 0, dur = 0, dirX = 0, dirZ = 1, lean = 0;
+  view.stumble = (dir, strength = 1) => {
+    dur = 0.62; t = dur;
+    dirX = Math.sin(dir); dirZ = Math.cos(dir);
+    lean = Math.min(0.85, 0.42 * strength);
+  };
+  view.updateStumble = (dt) => {
+    if (t <= 0) return;
+    t -= dt;
+    const f = Math.max(0, t / dur);          // 1 at impact -> 0 recovered
+    // hard pitch on impact, then a damped wobble back to upright
+    const amp = f * f * Math.cos((1 - f) * 13) * lean;
+    target.rotation.x = dirZ * amp;
+    target.rotation.z = -dirX * amp;
+    if (t <= 0) { target.rotation.x = 0; target.rotation.z = 0; }
+  };
+}
+
 // ---------------- speech bubbles ----------------
 // Barks have always been text in the HUD, which never told you WHICH toy spoke.
 // A little bubble over the speaker's head ties the voice to the body. It rides
@@ -819,6 +846,7 @@ function makeModelView(entry, def, owner) {
   const dStyle = deathStyleOf(def);   // what this toy is made of decides how it dies
   const dLean = Math.random() < 0.5 ? 1 : -1; // and which way it goes down
   attachSpeech(view, group, 0.82);    // and it can talk
+  attachStumble(view, model);        // …and it can be knocked off balance
 
   if (entry.rigless) {
     // RC Raider: static vehicle â€” code animation (wheel spin + bounce)
@@ -1350,6 +1378,7 @@ function makeProcView(def, owner, kind) {
   view.startAttack = (dur) => { swingT = 0; swingDur = dur; return dur * def.impact; };
   const pStyle = deathStyleOf(def), pLean = Math.random() < 0.5 ? 1 : -1;
   attachSpeech(view, group, 0.92);
+  attachStumble(view, rig);
   view.startDeath = () => {
     view._dead = true;
     rig.traverse((n) => { if (n.isMesh) { n.material = n.material.clone(); n.material.transparent = true; } });
@@ -1420,6 +1449,7 @@ function makeBoxView(def, owner) {
   view.startAttack = (swingDur) => { view._lunge = swingDur; view._lungeDur = swingDur; return swingDur * def.impact; };
   const bStyle = deathStyleOf(def), bLean = Math.random() < 0.5 ? 1 : -1;
   attachSpeech(view, group, h + 0.5);
+  attachStumble(view, body);
   view.startDeath = () => {
     view._dead = true;
     body.material = body.material.clone();

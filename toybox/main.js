@@ -2226,6 +2226,10 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
       if (result === 'move' || result === 'rally') marker.ping(x, z, 0x66ff88);
       else if (result === 'attack') marker.ping(x, z, 0xff5544);
       else if (result === 'gather') marker.ping(x, z, 0xffd166);
+      else if (result === 'build') marker.ping(x, z, 0xc9a86a);
+      else if (result === 'trade') marker.ping(x, z, 0xffe08a);
+      else if (result === 'garrison') marker.ping(x, z, 0x9ad0e0);
+      else if (result === 'guard') marker.ping(x, z, 0xb8a8ff);
       if (result) ui.orderBark(result);
     },
   });
@@ -2615,6 +2619,10 @@ function contextualAt(cx, cy, shift) {
   if (result === 'move' || result === 'rally') marker.ping(p.x, p.z, result === 'rally' ? 0x66aaff : 0x66ff88);
   else if (result === 'attack') marker.ping(p.x, p.z, 0xff5544);
   else if (result === 'gather') marker.ping(p.x, p.z, 0xffd166);
+  else if (result === 'build') marker.ping(p.x, p.z, 0xc9a86a);
+  else if (result === 'trade') marker.ping(p.x, p.z, 0xffe08a);
+  else if (result === 'garrison') marker.ping(p.x, p.z, 0x9ad0e0);
+  else if (result === 'guard') marker.ping(p.x, p.z, 0xb8a8ff);
 }
 renderer.domElement.addEventListener('contextmenu', (e) => {
   e.preventDefault();
@@ -3338,13 +3346,27 @@ function setupNight() {
     basePos: l.position ? l.position.clone() : null,
   }));
 }
+// The night has always deepened monotonically. But the toys' whole deadline is
+// morning — so past DAWN_AT the room turns and starts getting LIGHTER again,
+// which is the only clock in the genre that needs no explaining. View-only.
+const DAWN_AT = 1500;   // sim-seconds before the sky starts giving way
+const DAWN_OVER = 2400; // …and full morning
+function dawnF() {
+  const t = (game && game.time) || 0;
+  return t <= DAWN_AT ? 0 : Math.min(1, (t - DAWN_AT) / (DAWN_OVER - DAWN_AT));
+}
 function updateNight() {
   if (!nightLights || !game) return;
-  const f = Math.min(1, (game.time || 0) / 1200) * 0.5; // halfway to full depth at 20 min
+  const dawn = dawnF();
+  // depth of night backs off as morning comes on
+  const f = Math.min(1, (game.time || 0) / 1200) * 0.5 * (1 - dawn);
   nightF = f; // the living-bases window glow reads the same clock
   for (const rec of nightLights) {
-    rec.l.intensity = rec.base * (1 - f * 0.3);                     // the room dims…
+    // …and once dawn starts, the lamps are overtaken by the window: brighter,
+    // and warming back past their own base colour toward morning
+    rec.l.intensity = rec.base * (1 - f * 0.3) * (1 + dawn * 0.42);  // the room dims…
     rec.l.color.copy(rec.baseColor).lerp(NIGHT_TINT, f * 0.4);      // …and cools toward moonlight
+    if (dawn > 0) rec.l.color.lerp(DAWN_TINT, dawn * 0.35);
     if (rec.l.isDirectionalLight && rec.basePos) {                  // …as the moon walks its arc
       rec.l.position.set(
         rec.basePos.x * Math.cos(f * 0.5) - rec.basePos.z * Math.sin(f * 0.5),
@@ -3355,6 +3377,7 @@ function updateNight() {
   }
 }
 const NIGHT_TINT = new THREE.Color(0x6a7ab8);
+const DAWN_TINT = new THREE.Color(0xffd9a8); // first warm light through the curtains
 
 function setupWeather() {
   clearWeather();

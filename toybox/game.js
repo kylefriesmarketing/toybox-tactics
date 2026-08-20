@@ -1166,6 +1166,7 @@ export class Game {
         c.swatT = HOUSE_CAT.swatCooldown;
         c.facing = Math.atan2(dx, dz);
         this.fx && this.fx.spawnPop(e.x, e.z, 0xe8a8b8);
+        e.view.stumble && e.view.stumble(Math.atan2(-dx, -dz), 1.15); // reel away from the paw
         if (e.owner === this.myId) {
           this.alert('🐈 The house cat SWATS your lone toy! Keep them together.', 'warn', { x: c.x, z: c.z }, 4);
           this.narrate('catswat');
@@ -1240,6 +1241,7 @@ export class Game {
             const kx = prey.x + (dx / d) * YARD_DOG.pounceKnock, kz = prey.z + (dz / d) * YARD_DOG.pounceKnock;
             if (this.tileOpenFor(kx, kz, prey.owner)) { prey.x = kx; prey.z = kz; }
             this.fx && this.fx.spawnPop(prey.x, prey.z, 0xd8c8a8);
+            prey.view.stumble && prey.view.stumble(Math.atan2(-dx, -dz), 1.35); // bowled over
             if (prey.owner === this.myId) this.alert('🐕 The yard dog POUNCES on your toy! Scatter and regroup.', 'warn', { x: c.x, z: c.z }, 4);
             if (prey.hp <= 0 && !prey.dead) this.kill(prey, null);
           }
@@ -1304,6 +1306,7 @@ export class Game {
         const kx = e.x + Math.sin(c.heading) * ROOMBA.shoveKnock, kz = e.z + Math.cos(c.heading) * ROOMBA.shoveKnock;
         if (this.tileOpenFor(kx, kz, e.owner)) { e.x = kx; e.z = kz; }
         this.fx && this.fx.spawnPop(e.x, e.z, 0x9ad0e0);
+        e.view.stumble && e.view.stumble(c.heading + Math.PI, 0.8); // barged aside
         c.shoveT = ROOMBA.shoveCooldown;
         break;
       }
@@ -3233,7 +3236,8 @@ export class Game {
   updateUnit(u, dt) {
     if (u.dead) {
       u.view.update(dt);
-      if (u.view.updateBubble) u.view.updateBubble(dt); // keep a last word fading, not frozen
+      if (u.view.updateBubble) u.view.updateBubble(dt);
+    if (u.view.updateStumble) u.view.updateStumble(dt); // keep a last word fading, not frozen
       u.removeT -= dt;
       if (u.removeT <= 0 && !u.removed) { this.scene.remove(u.view.group); u.removed = true; }
       return;
@@ -3629,7 +3633,8 @@ export class Game {
     }
     if (u.isKing && u.kingCrown) u.kingCrown.rotation.y += dt * 1.5;
     u.view.update(dt);
-    if (u.view.updateBubble) u.view.updateBubble(dt); // a spoken bark fading over its head
+    if (u.view.updateBubble) u.view.updateBubble(dt);
+    if (u.view.updateStumble) u.view.updateStumble(dt); // a spoken bark fading over its head
   }
 
   updateGather(u, o, dt) {
