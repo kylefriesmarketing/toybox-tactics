@@ -1766,7 +1766,14 @@ window.__ttSoak = (opts = {}, maxTicks = 9000) => {
   // page-zero QA: startGame sets this before setup(), so the soak must too —
   // it suppresses household pets and wild tribes in the sepia prequel
   if (opts.zeroEra) g.zeroEra = true;
-  for (const k of Object.keys(g.aiState || {})) personas[k] = { persona: g.aiState[k].persona, diff: g.aiState[k].diff && g.aiState[k].diff.name };
+  // ⚠️ DIFFICULTIES entries carry `label`, not `name` — reading .name silently
+  // reported undefined. Report the label AND the two numbers a battery actually
+  // needs to prove the difficulty bit, so the column can never lie again.
+  for (const k of Object.keys(g.aiState || {})) {
+    const d = g.aiState[k].diff || {};
+    personas[k] = { persona: g.aiState[k].persona, diff: d.label || null,
+      workerTarget: d.workerTarget, firstWave: d.firstWave };
+  }
   g.setup();
   // survival QA: shorten the night so the dawn-victory branch is testable headlessly
   const survDawnBak = opts.survivalDawn ? SURVIVAL.dawnWave : null;

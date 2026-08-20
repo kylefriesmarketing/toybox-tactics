@@ -341,14 +341,30 @@ export class Game {
     this.personaTaunt = null;
     for (const p of this.players) {
       if (!p.isAI) continue;
-      const personaKey = ['rusher', 'balanced', 'boomer'][(this.rng() * 3) | 0];
+      // the persona roll is consumed for EVERY AI seat even when one is pinned,
+      // exactly like the faction roll above: the rng stream must be identical
+      // whether or not a persona was supplied, or saves/replays/MP diverge.
+      const rolledPersona = ['rusher', 'balanced', 'boomer'][(this.rng() * 3) | 0];
+      // QA/battery pin: a seat may name its persona in playerDefs, mirroring the
+      // per-seat `difficulty` read three lines down. No UI sets it; MP lobbies and
+      // replays leave it undefined, so every client resolves the same key.
+      const pinnedPersona = this.playerDefs[p.id].persona;
+      const personaKey = PERSONAS[pinnedPersona] ? pinnedPersona : rolledPersona;
       const persona = PERSONAS[personaKey];
       // each AI seat may carry its own difficulty (skirmish lobby); else the match default
       const pBase = DIFFICULTIES[this.playerDefs[p.id].difficulty] || base;
+      const wTarget = Math.max(6, pBase.workerTarget + persona.workerTarget);
       const diff = {
         ...pBase,
-        workerTarget: Math.max(6, pBase.workerTarget + persona.workerTarget),
+        workerTarget: wTarget,
         firstWave: Math.max(4, pBase.firstWave + persona.firstWave),
+        // ⚠️ the age-up gate must NEVER be pushed LATER by a persona's economy
+        // plan. `saving` used to read `diff.workerTarget - 3`, so a boomer's "+5
+        // workers" silently also meant "+5 workers before I am allowed to age up":
+        // on Cranky a rusher aged at 10 workers, a balanced at 13 and the BOOMER at
+        // 18 — the economic persona reached the Playmat Age dead last. A persona may
+        // age EARLIER than its difficulty's baseline, never later.
+        ageWorkers: Math.min(wTarget, pBase.workerTarget) - 3,
       };
       this.aiState[p.id] = {
         wave: diff.firstWave, attacking: false, scoutT: 0, t: this.rng() * 0.7,
@@ -2286,7 +2302,12 @@ export class Game {
       opts: {
         seed: this.seedUsed, map: this.mapKey, difficulty: this.diffKey,
         factions: [...this.factionKeys], gameMode: this.gameMode, startRes: this.startResKey,
-        playerDefs: this.playerDefs.map((d, i) => ({ team: d.team, isAI: !!d.isAI, faction: this.factionKeys[i] })),
+        // `persona` rides along so a PINNED battery/debug match resumes with the
+        // same plan: restore() rebuilds `diff` (and therefore `ageWorkers`) from a
+        // fresh persona roll, which would otherwise silently disagree with the
+        // saved `aiState[k].persona`. undefined for every normal match, and
+        // JSON.stringify drops undefined keys — so ordinary saves are unchanged.
+        playerDefs: this.playerDefs.map((d, i) => ({ team: d.team, isAI: !!d.isAI, faction: this.factionKeys[i], persona: d.persona })),
       },
       time: this.time, nextId: this.nextId, rng: this.rng.getState(),
       blocked: Array.from(this.blocked), gateOwner: Array.from(this.gateOwner),
@@ -2565,7 +2586,9 @@ export class Game {
         if (this.aiState[k]) Object.assign(this.aiState[k], st, { diff: this.aiState[k].diff });
       }
     } else if (snap.ai && this.aiState[1]) {
-      Object.assign(this.aiState[1], snap.ai); // v1 saves: single AI
+      // ⚠️ keep the LIVE diff: a v1 blob carries its own, which lacks ageWorkers —
+      // that AI would then never age up for the rest of the match.
+      Object.assign(this.aiState[1], snap.ai, { diff: this.aiState[1].diff }); // v1 saves: single AI
     }
     this.wonderState = snap.wonder ? { ...snap.wonder } : null;
     this.relicState = snap.relic ? { ...snap.relic } : null;
@@ -4194,9 +4217,12 @@ export class Game {
       const prereqOk = p.age === 1
         ? (has('mat', true) && has('house', true))
         : (p.age === 2 && (!diff.usesSiege ? false : true));
+      // how big an army the age-up gate wants. Hoisted into a name because the
+      // boomer's age-1 army cap below MUST NOT sit under it (see the note there).
+      const ageArmy = Math.min(6, ai.wave - 2);
       const saving = !!up && prereqOk && p.aging <= 0
-        && workers.length >= diff.workerTarget - 3
-        && military.length >= Math.min(6, ai.wave - 2);
+        && workers.length >= diff.ageWorkers
+        && military.length >= ageArmy;
       if (saving && this.canAfford(owner, up.cost)) {
         this.startAgeUp(chest);
       }
@@ -4217,8 +4243,16 @@ export class Game {
           if (p.age >= 2 && medics < Math.floor(military.length / 6) && affordAboveReserve(UNITS.medic.cost)) {
             this.trainUnit(b, 'medic');
           } else {
-            // rushers stamp out cheap soldiers; boomers keep powder dry in age 1
-            if (persona === 'boomer' && p.age === 1 && military.length >= 4) continue;
+            // rushers stamp out cheap soldiers; boomers keep powder dry in age 1.
+            // ⚠⚠ NEVER let this cap fall below `ageArmy`. The Training Mat is the
+            // ONLY source of aggro>0 toys in Age 1 (worker/scout/skimmer are aggro 0;
+            // spear, archer and medic are Age 2), so a cap of 4 against an age-up
+            // gate of 6 was a hard DEADLOCK — the boomer could not age up at all.
+            // Measured on bookshelf (no wild camps to bail it out), seed 13, Cranky:
+            // BOTH boomers spent the whole match at Age 1 with 21 workers, ~2,200
+            // blocks banked and 2–5 toys on the floor. Its only accidental escape
+            // was training-queue overshoot once a second mat went up.
+            if (persona === 'boomer' && p.age === 1 && military.length >= Math.max(4, ageArmy)) continue;
             const spearBias = persona === 'rusher' ? 0.15 : 0.3;
             const wantSpear = p.age >= 2 && (enemyRaiders >= 2 ? this.rng() < 0.7 : this.rng() < spearBias);
             const type = wantSpear ? 'spear' : 'soldier';

@@ -2506,6 +2506,11 @@ export const PERSONAS = {
     taunt: 'The rival toys stir in the dark, patient as bedtime, watching for a door left open.',
   },
   boomer: {
+    // ⚠️ firstWave 6 -> 3 was TESTED and REVERTED (2026-08-20): 32 pinned
+    // boomer-vs-balanced games, mirrored seats, 4 maps — 28% -> 31%, inside noise
+    // at n=32, and the age spread was IDENTICAL (7/11/14). This knob is not the
+    // lever. The boomer out-economies and never converts; that needs a
+    // behavioural change (an attack trigger tied to its own bank), not a number.
     workerTarget: 5, firstWave: 6, raidInterval: 150,
     taunt: 'The rival toys are stacking snacks like sandbags — they mean to out-grow you, not out-fight you.',
   },
