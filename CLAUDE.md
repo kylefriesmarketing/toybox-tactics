@@ -12,6 +12,7 @@ code visibly disagrees.
 | **Age of Toys — Godot port** (Steam path) | `age-of-toys-godot/` | Godot 4.7 faithful port, **M1–M21 done (2026-07-26)** — sim, 6 factions, 11 maps, 4 modes, 23-mission campaign, survival, save/replays, **lockstep MP over real ENet**, naval, terrain, HUD parity, meta screens, art pass, options/pause/export presets, UI parity, pets, real elevation, corner spawns, battle scars/night/living bases, and the spectacle layer (cinematic beats, THE KID, seasons, toy-blood). ⚠️ this row said "M1–M3" until 2026-07-20 and "M1–M17" until 2026-07-26 — TRUST THE PORT'S OWN `README.md`, it is the milestone authority. **`PORT_BIBLE.md`** (written 2026-07-20) = the DELTA spec: what the web gained after M17 (Empire Mode entirely, the cat/dog/Roomba, THE KID, battle scars, deepening night, positional audio, seasons, corner spawns, survival card) + all invariants/traps/voice. Hand both docs to a port session. data exported from data.js → `data/game_data.json` (never hand-edit); GLBs are DECOMPRESSED copies (no Draco). Headless tests in `tests/` |
 | Chameleon (hide & seek) | `chameleon*.html` + `assets/audio/` root files | Its audio lives in `assets/audio/` root — do NOT deploy those with Age of Toys |
 | Choose Wisely / Nine Circles / Still Breathing / SOUTH | own subfolders, own git repos | Branching storybook games; THE SHELF hub at `games-hub/` links the four |
+| **QUARRY** (alien hunting sim) | `quarry/` | First-person Predator-flavoured hunting sim, Three.js. **M1 complete + verified 2026-08-11.** `QUARRY_BIBLE.md` is the authority — read its handoff note, §13 (code + the seven view bugs + how to photograph a page the pane can't composite) and §14 (invariants). Strict sim/view split: `sim.js` is deterministic, NO `Math.random`, `node test-sim.mjs` = 70 tests, run after EVERY sim change. Serve with `node serve.mjs 8455`. Next is M2 (the Reckoning); don't add species/worlds first. ⚠️ scoring numbers are SOLVER OUTPUT — edit `tools/solve-scoring.py`, never hand-tune |
 | Grocery Price Scout | `grocery-price-scout*` | Has its own CLAUDE.md |
 
 Global rules: portable Node at `C:\Users\kylef\tools\node` (not on PATH — prefix it);
@@ -1640,3 +1641,41 @@ countPerWave size, tiered roster, `boss.every` 4, bounty, opening cushion). How 
 - Act IV briefing plates ×5 + zero.jpg sepia plate (auto-hidden until generated).
 
 — Fable. The room is tidy, the book is longer, and the light is still on.
+
+## ROADMAP TIER 1 — FIRST BATCH SHIPPED (2026-08-19, free)
+
+Built from `ROADMAP.md` (45-agent research pass; that file is the authority for
+what to build next and, just as importantly, what NOT to rebuild).
+
+1. **THE SIZE-UP** (roadmap's highest-scored item, 78) — hover any visible enemy
+   with toys selected and a panel answers "is this my fight?": ▲/–/▼, seconds for
+   you to kill it, seconds for it to kill you, and the bonus line (`+10 vs raider`).
+   38 of 53 units carry a `def.bonus` counter table that was surfaced NOWHERE.
+   `ui.matchup(a,b)` / `ui.sizeUp(target)` re-read exactly what `applyDamage` uses
+   — `atkOf`, the tag-match bonus, the ±25%/0.4 elevation rule, `armorOf`, and
+   `def.interval × mods.atkSpeed`. **Pure read: no sim state, no rng, no save.**
+   Hover is throttled to 10Hz in main.js's `pointermove`, gated on
+   `fog.state === 2` so hidden toys can't be scouted by mouse, skipped for touch
+   and while placing, and wrapped in try/catch (a readout must never break input).
+   Verified: spear→raider reads good / 4s / 10.2s / +10 vs raider; spear→soldier
+   reads even. ⚠️ do NOT bundle new counter axes or `armor.siege` — those are
+   balance changes wearing a UI feature's coat.
+2. **`stateHash()` HARDENED** — it folded only id/x/z/hp/stance/garrisoned/holder/
+   res/market, so `__ttNetTest` was **blind** to a hauler's load, a half-built
+   wall, a mined-out pile, a promoted veteran and a player's age/techs: those
+   could differ between clients and still hash equal. Now folds `carry`, `built`
+   (<1), resource `amount`, `kills`, and per-player `age`/`techs.size`.
+   Verified each state class flips the hash and restores exactly to baseline.
+   ⚠️ **Any new sim state MUST be added here or the MP harness will lie to you.**
+3. **Retention one-liners** — `chronicle.blank()` gains `bestWave`/`survivalWins`
+   and `recordMatch` records them (your furthest night was previously forgotten
+   the moment the tab closed); `act5` achievement added (Act V shipped 5 missions
+   and no achievement); `LORE.factions.knights` written (it was MISSING, so the
+   tribe that headlines Act V rendered an empty codex block — now 8/8 factions).
+Verified: fp determinism, MP 2h+2ai AND 3h+1ai inSync, save round-trip hash-equal,
+6-map soak sweep 0 errs, 0 console errors.
+⚠️ STILL OPEN from the same batch: the Empire→Chronicle bridge (`recordMatch`
+takes a `Game`; Empire has none, so it needs its own recorder — design first).
+⚠️ Kyle's `.claude/launch.json` toybox entry was deleted by a parallel session and
+had to be restored; the 5-dev-server cap was also full, so this session served on
+**8326** via serve.ps1 directly.
