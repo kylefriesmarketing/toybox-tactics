@@ -1719,12 +1719,23 @@ tick-order defect. **It is not one.** Four controlled experiments:
    vs **5.52**, avg of 4 nearest 6.62 vs **5.98**, nodes within 12: 18 vs 17,
    mass within 12: 7543 vs 7126. If anything seat 1 starts marginally BETTER.
    (One real asymmetry: marbles within 14 — 9 vs 2. Worth a look, not a bias.)
-3. **⚠️⚠️ THE HARNESS WAS IGNORING `diff:`.** `__ttSoak` read `opts.difficulty`
+3. **⚠️⚠️ THE HARNESS WAS IGNORING `diff:` — CHALLENGED AND UPHELD.** `__ttSoak` read `opts.difficulty`
    only, and EVERY battery in this file passes **`diff:`** — so every historical
    battery labelled "hard AI" actually ran at **normal**. Fixed: the soak now
    accepts `opts.difficulty || opts.diff`. Verified the two now produce different
    fingerprints on the same seed. Symmetric across seats, so it doesn't explain
    the bias — but every documented battery's difficulty label is wrong.
+   ⚠️ A later red-team pass (2026-08-20, TWO independent reviewers) claimed this
+   was false and that both keys 'always worked'. **They were wrong, and the
+   mistake is instructive**: they read the CURRENT file, which contains the fix,
+   and never checked history. `git show ff7444a^:toybox/main.js` in the deploy
+   repo shows `difficulty: opts.difficulty || 'normal'` — no `opts.diff`. Two
+   agents sharing a blind spot is not corroboration. **Check git before
+   'correcting' a historical claim about this codebase.**
+   They WERE right about a real bug in the same patch: `personas` reported
+   `diff.name`, but DIFFICULTIES entries carry **`label`** — so the column was
+   always undefined. Now reports label + workerTarget + firstWave (verified
+   Playful/18 vs Cranky/21), so the difficulty bit is provable from the return.
 4. **CONTROLLING FOR AI PERSONA MAKES IT VANISH.** `__ttSoak` now returns
    `personas` per seat. 60 mirror games (classic v classic, playmat, hard):
    - overall seat-0 **56%** (n=48 decided) — inside noise of 50% at that n
@@ -1776,3 +1787,50 @@ single-building gate; fan-out "train at all selected"; cancel-from-chip (46px
 target, index-based cancel = destroying real production on a mis-click);
 waypoints for multi-unit selections. Tab subgroup cycling + queued-waypoint
 rendering are designed and anchored in `ROADMAP.md`'s patch plan but unbuilt.
+
+## 🐛 THE BOOMER WAS DEADLOCKED, NOT WEAK (2026-08-20) — FIXED
+
+The 60-game persona battery said `boomer` wins 35% vs balanced 58%. A design
+agent then found the actual cause, and it is not a tuning problem:
+
+**`aiUpdate` capped a boomer's Age-1 army at 4** (`military.length >= 4` → skip
+the Training Mat) while the age-up gate required `Math.min(6, ai.wave - 2)`,
+which is **always exactly 6** for a boomer (its `firstWave` is base+6 ≥ 12). The
+Training Mat is the ONLY source of `aggro > 0` toys in Age 1 — worker/scout are
+aggro 0, spear/archer/medic are Age 2 — so 4 < 6 made `saving` unsatisfiable and
+`startAgeUp` was **never called**. Measured on bookshelf (no wild camps), seed
+13: BOTH boomers spent the entire match in Age 1 with 21 workers and ~2,200
+blocks banked. Its only escapes were accidental — training-queue overshoot after
+a second Mat, or a Wild Toy camp (+2 soldiers), which only exists on the 7 maps
+with `tribes: 2`. On canyon/kitchen/bookshelf/livingroom/bathtub there was **no
+escape at all**. That is why it won 35% and not 0%.
+
+**Second cause:** the age-up worker gate read `diff.workerTarget - 3`, and
+workerTarget is persona-inflated — so boomer's "+5 workers" also meant "+5
+workers before I may age up" (Cranky: rusher 10, balanced 13, **boomer 18**).
+The economic persona reached Age 2 dead last.
+
+**The fix (both sim, boomer-only in effect):**
+- Age-1 cap bound to the gate: `military.length >= Math.max(4, ageArmy)`, with
+  `ageArmy = Math.min(6, ai.wave - 2)` hoisted so the two can never invert again.
+- `diff.ageWorkers = Math.min(wTarget, pBase.workerTarget) - 3` — a persona may
+  age EARLIER than its difficulty baseline, never later.
+- `playerDefs[i].persona` **pin** for batteries (the rng roll is still consumed
+  for every seat, exactly like the faction roll, so the stream is unchanged).
+- ⚠️ RED-TEAM MANDATORY, and a real trap: the v1-save restore branch now keeps
+  the live diff — `Object.assign(this.aiState[1], snap.ai, { diff: ... })`.
+  Without it a v1 blob carrying its own diff yields `ageWorkers === undefined`,
+  `saving` is permanently false, and THAT AI never ages up. It would have shipped
+  a worse bug than the one being fixed.
+
+**Result, measured (32 pinned boomer-v-balanced games, mirrored seats, 4 maps):**
+the deadlock is GONE — every boomer still at Age 1 finished with **army 0**
+(crushed, not stuck); `deadlockedNotCrushed: 0`. Age spread 7/11/14 across ages.
+⚠️ **But the win rate did NOT reach parity: 28% vs balanced.** Then
+`firstWave 6 → 3` was tested as the documented follow-up lever and **REVERTED**:
+31%, inside noise at n=32, with an identical age spread. **That knob is not the
+lever.** The boomer out-economies and never converts its bank; fixing that needs
+a behavioural change (an attack trigger tied to its own stockpile), not a number.
+⚠️ NOT INERT: ~1/3 of AI seats roll boomer, so fingerprints move for most 2-AI
+matches and old replay bottles of those matches will not reproduce.
+Verified: fp determinism, MP 2h+2ai AND 3h+1ai inSync, 4-map soak sweep 0 errs.
