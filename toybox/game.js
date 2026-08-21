@@ -42,6 +42,42 @@ const PLAY_MARGIN = 3;
 const inPlay = (i, j) => i >= PLAY_MARGIN && j >= PLAY_MARGIN && i < N - PLAY_MARGIN && j < N - PLAY_MARGIN;
 const dist2 = (a, b) => (a.x - b.x) ** 2 + (a.z - b.z) ** 2;
 
+// ---------------- desync-hash helpers (stateHash only) ----------------
+// A stable 32-bit code for any string key — tech ids, mods keys, wish ids, zone
+// kinds, aura kinds. Memoised, so stateHash() pays one Map lookup per entry.
+// Every client derives the same code from the same literal, so no table travels.
+// Forced ODD so a code is never 0 — a zero code would multiply its entry
+// straight out of the hash.
+const HASH_CODES = new Map();
+function keyCode(s) {
+  let c = HASH_CODES.get(s);
+  if (c === undefined) {
+    c = 5381 | 0;
+    for (let i = 0; i < s.length; i++) c = (Math.imul(c, 33) ^ s.charCodeAt(i)) | 0;
+    c |= 1;
+    HASH_CODES.set(s, c);
+  }
+  return c;
+}
+// Order-independent fold of a SET of string keys. Accumulate with `+` ONLY (Set
+// iteration order is identical across clients today but is not guaranteed to
+// survive a restore), and SQUARE each code so the fold is non-linear: with a
+// plain sum, two different subsets of a 31-key tech pool can cancel to the same
+// total, and the entire point of this fix is that they must not.
+function foldKeys(iter) {
+  let h = 0 | 0;
+  for (const s of iter) { const c = keyCode(s); h = (h + Math.imul(c, c)) | 0; }
+  return h;
+}
+// The mods that ADD rather than multiply. ⚠️ `armorOther` was MISSING from the
+// inline whitelist below — it initialises to 0 and `quilting` does
+// `m.armorOther += 1`, so any faction or wish declaring it would have been
+// MULTIPLIED into 0 and silently done nothing. One shared Set so the faction
+// loop and any future grant can never disagree about a key's arithmetic again.
+const ADDITIVE_MODS = new Set(['carry', 'atkMelee', 'atkPierce',
+  'armorInfantry', 'armorOther', 'atkVehicle']);
+
+
 function makeRng(seed) {
   let s = seed % 2147483647; if (s <= 0) s += 2147483646;
   const f = () => (s = (s * 16807) % 2147483647) / 2147483647;
@@ -286,6 +322,8 @@ export class Game {
     this.startResKey = opts.startRes && START_RES[opts.startRes] ? opts.startRes : 'standard';
     const base = DIFFICULTIES[opts.difficulty || 'normal'];
     this.entities = [];
+    // area powers live OUTSIDE entities (see stateHash + updateZones)
+    this.zones = [];
     this.selected = [];
     this.formation = 'box'; // client-local; travels inside move commands
     this.projectiles = [];
@@ -326,7 +364,7 @@ export class Game {
     for (const p of this.players) {
       const f = FACTIONS[this.factionKeys[p.id]] || FACTIONS.classic;
       for (const [k, v] of Object.entries(f.mods)) {
-        if (k === 'carry' || k === 'atkMelee' || k === 'atkPierce' || k === 'armorInfantry' || k === 'atkVehicle') {
+        if (ADDITIVE_MODS.has(k)) {
           p.mods[k] += v;
         } else {
           p.mods[k] *= v;
@@ -2255,11 +2293,48 @@ export class Game {
       if (e.kills) h = (h + e.kills * 47) | 0;
       // objectives: who holds them and (throne) for how long drives win state
       if (e.kind === 'objective') h = (h + (e.holder + 2) * 29 + ((e.holdTime || 0) * 8 | 0) * 3) | 0;
+      // an aura is sim state living ON the unit; a squad buff applied on one
+      // client and not another must show HERE, not 200 ticks later in positions.
+      if (e.aura) h = (h + Math.imul(keyCode(e.aura.k),
+        ((e.aura.t * 8) | 0) + 1 + (e.aura.used ? 4096 : 0))) | 0;
     }
     for (const p of this.players) {
-      h = (h + p.age * 53 + p.techs.size * 59) | 0;
+      h = (h + p.age * 53) | 0;
+      // ⚠️ FIXED: this line read `+ p.techs.size * 59`, which hashed the COUNT,
+      // not the contents. Grant tech A on one client and tech B on the other and
+      // the hash AGREED — __ttNetTest was provably blind to every tech-granting
+      // desync in the game.
+      h = (h + Math.imul(foldKeys(p.techs), 59)) | 0;
+      // ⚠️ FIXED: p.mods was absent ENTIRELY. Faction mods and applyTech both
+      // write here, and none of it was visible to the hash until it eventually
+      // moved a unit. Quantised to 1/4096 and mixed with the KEY, so the fold is
+      // order-independent AND a value landing on the wrong key still shows.
+      let mh = 0 | 0;
+      for (const k in p.mods) mh = (mh + Math.imul(keyCode(k), (p.mods[k] * 4096) | 0)) | 0;
+      h = (h + Math.imul(mh, 61)) | 0;
+      // wish state (inert until the wish engine lands; every read is guarded)
+      if (p.wishes) h = (h + Math.imul(foldKeys(p.wishes), 67)) | 0;
+      if (p.wishCharges) {
+        let ch = 0 | 0;
+        // (v|0)+1 so "spent down to 0" can never hash the same as "never held it"
+        for (const k in p.wishCharges) ch = (ch + Math.imul(keyCode(k), (p.wishCharges[k] | 0) + 1)) | 0;
+        h = (h + Math.imul(ch, 71)) | 0;
+      }
+      h = (h + ((p.wishCd || 0) * 8 | 0) * 73 + ((p.wishT || 0) * 8 | 0) * 79
+             + (p.wishOffered | 0) * 83 + ((p.wreck || 0) | 0) * 89) | 0;
+      if (p.wishHold) h = (h + Math.imul(keyCode(p.wishHold), 97)) | 0;
+      // stats.lost becomes sim-load-bearing once the Bell lands; hash it now.
+      h = (h + (p.stats.lost | 0) * 101) | 0;
       h = (h + ((p.res.snacks | 0) * 3) + ((p.res.blocks | 0) * 5)
         + ((p.res.buttons | 0) * 7) + ((p.res.marbles | 0) * 11) + p.popUsed * 13) | 0;
+    }
+    // ⚠️ zones live OUTSIDE this.entities, so the entity loop never sees them,
+    // and they will multiply speedOf/startSwing. Un-hashed, a zone on one client
+    // and not another is invisible until the speed difference moves a toy.
+    for (const z of this.zones) {
+      h = (h + Math.imul(keyCode(z.kind), z.id) + (z.owner + 2) * 3) | 0;
+      h = (h + ((z.x * 64) | 0) * 7 + ((z.z * 64) | 0) * 13
+             + ((z.r * 16) | 0) * 5 + ((z.t * 8) | 0) * 11) | 0;
     }
     // commodity prices are shared sim state — fold them in
     h = (h + (this.market.snacks * 100 | 0) * 17 + (this.market.blocks * 100 | 0) * 19
