@@ -345,6 +345,22 @@ export async function loadUnitModels(onProgress) {
   const failures = [];
   const jobs = [];
   let done = 0, total = 0;
+  // ⚠️ A GLB that fails to download leaves registry[key] undefined, and the unit
+  // silently falls back to a PLACEHOLDER BOX — reported from a real playtest as
+  // "all our soldiers were just plain blocks". A single dropped request on a
+  // flaky connection does that, with nothing but a console.warn to show for it.
+  // Retry with backoff before giving up: a transient failure is by far the most
+  // likely kind, and simply asking again usually works.
+  const loadRetry = async (url, tries = 3) => {
+    let last;
+    for (let i = 0; i < tries; i++) {
+      try { return await loader.loadAsync(url); } catch (e) {
+        last = e;
+        if (i < tries - 1) await new Promise((r) => setTimeout(r, 220 * (i + 1)));
+      }
+    }
+    throw last;
+  };
 
   const tick = (label) => { done++; onProgress && onProgress(done, total, label); };
 
@@ -353,7 +369,7 @@ export async function loadUnitModels(onProgress) {
       total++;
       jobs.push((async () => {
         try {
-          const gltf = await loader.loadAsync(`${man.dir}/${man.model}`);
+          const gltf = await loadRetry(`${man.dir}/${man.model}`);
           prepareScene(gltf.scene);
           // knights et al: cut the moulded display disc out from under the toy
           if (BASE_DISC_CUT[key]) pruneBaseDisc(gltf.scene, BASE_DISC_CUT[key]);
@@ -362,7 +378,7 @@ export async function loadUnitModels(onProgress) {
             clips: {}, rigless: true, height: man.targetHeight,
           };
         } catch (e) {
-          console.warn(`[models] ${key}/${man.model} failed, using placeholder`, e);
+          console.error(`[models] ${key}/${man.model} FAILED after retries — this unit will render as a plain box`, e);
           failures.push(`${key}/${man.model}`);
         }
         tick(key);
@@ -375,7 +391,7 @@ export async function loadUnitModels(onProgress) {
       let base = null;
       await Promise.all(man.clips.map(async (clipName) => {
         try {
-          const gltf = await loader.loadAsync(`${man.dir}/${clipName}.glb`);
+          const gltf = await loadRetry(`${man.dir}/${clipName}.glb`);
           if (gltf.animations && gltf.animations.length) {
             const c = gltf.animations[0];
             c.name = clipName;

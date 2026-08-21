@@ -348,8 +348,15 @@ export class Game {
       techs: new Set(),
       mods: { carry: 0, gather: 1, gatherSnacks: 1, speedInfantry: 1, speedWheels: 1, speedAll: 1,
               atkMelee: 0, atkPierce: 0, armorInfantry: 0, armorOther: 0, atkSpeed: 1,
+              farmRate: 1, wallHp: 1,
               buildingHp: 1, buildRate: 1, unitHp: 1, healRate: 1, atkVehicle: 0 },
-      stats: { gathered: 0, trained: 0, lost: 0, kills: 0, razed: 0,
+      // wish state.  is an ORDERED array of chosen ids (<=2);
+      // `wishCharges` is {wishId: charges left}; `wishCd` the shared recast
+      // clock; `wishOffered` which bell has rung; `wishT` the answer window;
+      // `wishHold` the one deferred gift; `wreck` blocks refundable.
+      wishes: [], wishCharges: {}, wishCd: 0, wishOffered: 0, wishT: 0,
+      wishHold: null, wreck: 0,
+      stats: { gathered: 0, trained: 0, lost: 0, kills: 0, razed: 0, wishesCast: 0,
         shipsBuilt: 0, shipsLost: 0, wallsBuilt: 0, megaBuilt: 0, mice: 0, strays: 0, tribes: 0 },
     }));
     // factions: humans bring their pick; AIs roll their own. The roll is
@@ -2402,6 +2409,11 @@ export class Game {
       players: this.players.map((p) => ({
         res: { ...p.res }, age: p.age, aging: p.aging, popUsed: p.popUsed, popCap: p.popCap,
         techs: [...p.techs], mods: { ...p.mods }, stats: { ...p.stats }, bell: !!p.bell,
+        // wish state is DATA in both directions: written here, read back verbatim
+        // in restore(), never re-derived by re-running applyWish.
+        wishes: [...p.wishes], wishCharges: { ...p.wishCharges },
+        wishCd: p.wishCd, wishOffered: p.wishOffered, wishT: p.wishT,
+        wishHold: p.wishHold, wreck: p.wreck,
       })),
       entities: this.entities.filter((e) => !e.dead).map((e) => {
         if (e.kind === 'unit') {
@@ -2471,6 +2483,20 @@ export class Game {
       Object.assign(p.mods, sp.mods);
       Object.assign(p.stats, sp.stats);
       p.bell = sp.bell;
+      // ⚠️⚠️ THE RULE THAT PREVENTS MODS DOUBLING:
+      //   RESTORED WISHES ARE DATA. THIS FUNCTION NEVER CALLS applyWish.
+      // p.mods was already rebuilt verbatim by the Object.assign above, so every
+      // stat a wish granted is ALREADY here. Re-applying would run `m.gather *= x`
+      // a second time — permanently, silently, and only on the client that loaded.
+      // ⚠️ do not be reassured by testing a TECH-granting wish: applyTech
+      // early-returns on p.techs.has, so techs are idempotent and hide the bug.
+      p.wishes = sp.wishes ? [...sp.wishes] : [];
+      p.wishCharges = { ...(sp.wishCharges || {}) };
+      p.wishCd = sp.wishCd || 0;
+      p.wishOffered = sp.wishOffered || 0;
+      p.wishT = sp.wishT || 0;
+      p.wishHold = sp.wishHold || null;
+      p.wreck = sp.wreck || 0;
     });
     const byId = new Map();
     for (const se of snap.entities) {
