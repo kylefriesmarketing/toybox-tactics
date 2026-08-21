@@ -1866,3 +1866,40 @@ iteration order is not guaranteed to survive a restore.
 Verified: every blind spot now flips the hash, the hash restores EXACTLY to
 baseline (no false positives), fp determinism, MP 2h+2ai AND 3h+1ai inSync,
 save round-trip hash-equal, 6-map soak sweep 0 errs.
+
+## 🐛 "ALL OUR SOLDIERS WERE JUST PLAIN BLOCKS" (2026-08-20 playtest) — FIXED
+
+Kyle, playing classic vs bots: the basic melee soldier rendered as a plain block.
+**Not reproducible on local or live** — every unit loaded real GLB geometry, 0
+console errors, and the soldier photographs correctly (GLB body + a procedural
+rifle: three TINY boxes, 0.05×0.52 dark barrel, 0.07×0.19 brown stock).
+
+**The cause is the loader's failure path, not the view.** `loadUnitModels` gave a
+GLB exactly ONE attempt; on failure it logged a `console.warn`, left
+`registry[key]` undefined, and every unit of that type silently fell back to a
+placeholder BOX. One dropped request on a flaky connection to GitHub Pages
+produces precisely "all our soldiers are blocks", with nothing user-visible.
+**Fixed**: `loadRetry(url, tries = 3)` with 220/440 ms backoff, wired into BOTH
+unit load sites (the rigless `man.model` path and the skinned `clips` path), and
+a real failure is now `console.error` naming the consequence instead of a warn
+nobody reads.
+⚠️ The same single-attempt pattern exists at the BUILDING and MAP loaders
+(models.js ~2150/2194) — not changed in this pass, but they have the same defect.
+
+## 🔒 WISHES SLICE 0, PART 2: player state + the doubling rule (2026-08-20)
+
+Patch 4 from `WISHES.md`: `p.wishes/wishCharges/wishCd/wishOffered/wishT/
+wishHold/wreck`, `stats.wishesCast`, and two new MULTIPLICATIVE mods keys
+(`farmRate`, `wallHp` — deliberately NOT in `ADDITIVE_MODS`). Snapshot writes
+them; restore reads them back verbatim.
+⚠️⚠️ **THE RULE: restored wishes are DATA. `restore()` NEVER calls `applyWish`.**
+`p.mods` is already rebuilt verbatim by the `Object.assign`, so re-applying would
+run `m.gather *= x` a SECOND time — permanently, silently, and only on the client
+that loaded the save. ⚠️ Do not be reassured by testing a TECH-granting wish:
+`applyTech` early-returns on `p.techs.has`, so techs are idempotent and HIDE the
+bug. Verified with a MODS-granting wish: gather stayed 1.08, not 1.1664.
+Verified: full round-trip of every wish field, hash equal after restore, fp
+determinism, MP 2h+2ai inSync, 0 console errors.
+⚠️ BUILD NOTE: bash heredocs and `node -e` double-quoted strings EAT backticks
+and `${...}` — three comment blocks were mangled that way this session. Use the
+Write tool for any patch text containing template literals or backticks.
