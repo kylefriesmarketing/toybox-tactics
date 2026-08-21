@@ -1834,3 +1834,35 @@ a behavioural change (an attack trigger tied to its own stockpile), not a number
 ⚠️ NOT INERT: ~1/3 of AI seats roll boomer, so fingerprints move for most 2-AI
 matches and old replay bottles of those matches will not reproduce.
 Verified: fp determinism, MP 2h+2ai AND 3h+1ai inSync, 4-map soak sweep 0 errs.
+
+## 🔒 WISHES SLICE 0, PART 1: THE HASH IS NO LONGER BLIND (2026-08-20)
+
+First real code from `WISHES.md`. Two of these are **pre-existing bugs fixed
+today, independent of wishes** — and the first is the worst class of bug this
+project can have, because it made the MP harness lie.
+
+1. **`stateHash` hashed `p.techs.size` — the COUNT, not the contents.** Grant
+   tech A on one client and tech B on the other and the hash **AGREED**.
+   `__ttNetTest` was provably blind to every tech-granting desync in the game.
+   Now folds tech CONTENTS via `foldKeys` (order-independent, and each key code
+   is SQUARED so two different subsets of the 31-tech pool cannot cancel to the
+   same total). Measured: two different single techs now hash −947432736 vs
+   1951254272; pre-patch they were identical.
+2. **`p.mods` was not hashed AT ALL.** Faction mods and `applyTech` both write
+   there and none of it was visible until it eventually moved a unit. Now
+   quantised to 1/4096 and mixed with the KEY, so a value landing on the wrong
+   key also shows (verified: same value on `gather` vs `unitHp` hashes differ).
+3. **`armorOther` was missing from the additive-mods whitelist** (game.js ~329).
+   It initialises to 0 and `quilting` does `+= 1`, so any faction or wish
+   declaring it would have been **multiplied into 0** and silently done nothing.
+   Now one shared `ADDITIVE_MODS` Set so the faction loop and any future grant
+   can never disagree about a key's arithmetic.
+4. Forward-looking, all guarded and inert until the engine lands: `this.zones`
+   (area powers live OUTSIDE `entities`, so the entity loop never sees them),
+   `u.aura`, and the wish fields.
+⚠️ `keyCode` forces codes ODD — a zero code would multiply its entry straight
+out of the hash. Folds accumulate with `+` only, never `*`, because Set
+iteration order is not guaranteed to survive a restore.
+Verified: every blind spot now flips the hash, the hash restores EXACTLY to
+baseline (no false positives), fp determinism, MP 2h+2ai AND 3h+1ai inSync,
+save round-trip hash-equal, 6-map soak sweep 0 errs.
