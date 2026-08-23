@@ -390,7 +390,7 @@ export const UNITS = {
     name: 'Sticker Catapult', tags: ['siege'], age: 3, proc: 'catapult', gait: 'roll',
     cost: { blocks: 120, buttons: 100 }, trainTime: 22,
     hp: 85, atk: 26, atkType: 'siege', interval: 3.6, range: 6.5, minRange: 2,
-    bonus: { building: 14 },
+    bonus: { building: 14, mega: 10 },
     armor: { melee: 0, pierce: 2 }, speed: 0.85, vision: 6, aggro: 6,
     impact: 0.45, color: 0xc9a86a,
     projectile: { speed: 8, arc: true, color: 0xf3722c, size: 0.16, splash: 1.6, spin: true, trail: 0xf3722c },
@@ -2214,6 +2214,7 @@ export const FACTIONS = {
     },
   },
   bots: {
+    wishes: { 1: ["maintenance","stillticking","lighton"], 2: ["junkdrawer","everythingspare","nobodywinds"] },
     label: 'Tin Bots', icon: '🤖',
     desc: 'Factory-fresh precision. Ranged +1 attack, all toys attack 10% faster — but they trundle 5% slower on foot.',
     mods: { atkPierce: 1, atkSpeed: 0.9, speedInfantry: 0.95 }, // battery-tuned: was 36% WR
@@ -2223,6 +2224,7 @@ export const FACTIONS = {
     },
   },
   knights: {
+    wishes: { 1: ["somebody","warmegg","toberaised"], 2: ["everythingcame","ninehundred","oldguard"] },
     label: 'Castle Kingdom', icon: '🏰',
     desc: 'Stone and oath. Buildings +20% HP, all toys +5% HP — but armored boots march 6% slower.',
     mods: { buildingHp: 1.2, unitHp: 1.05, speedInfantry: 0.94 },
@@ -2408,6 +2410,10 @@ export const AI_LINES = {
 
 // the bedtime narrator: one-time story beats woven into the alert feed
 export const NARRATOR = {
+  // Bedtime Wishes (text-only — NOT in NARRATOR_VO until a .wav exists)
+  wish: 'A wish is just a plan said bravely, in the dark, to no one. The room heard it anyway.',
+  bell: 'Somewhere down the hall a clock cleared its throat. Six of the small hours - old enough to wish again.',
+  onemorenight: 'And the toys held onto each other and refused, politely but completely, to fall down. One more night. Just one more.',
   firstblood: 'And so the first toy fell, and the room pretended not to notice. The war was real now.',
   age2: 'Somewhere between one heartbeat and the next, the room grew older — the Playmat Age had begun.',
   age3: 'The Fort Age, the storybooks say, is when toys stop playing at war and start meaning it.',
@@ -2432,6 +2438,9 @@ export const NARRATOR = {
 // the narrator knows the story now, and so does the room. Keys missing here
 // simply fall back to the first-night line.
 export const NARRATOR_NG = {
+  wish: 'The wish came easier the second night. Wishes are like stairs in the dark - your feet remember the way.',
+  bell: 'The clock cleared its throat again, and the room mouthed the words along with it. Time to wish. It always is, eventually.',
+  onemorenight: 'They had refused to fall once before, and the refusing had worked. Some spells are just practice, said out loud.',
   firstblood: 'The first toy fell, and this time the room did not pretend. It had read this page before. It turned it anyway.',
   age2: 'The Playmat Age came again, the way a dream comes back the second night — familiar, and somehow bigger in the dark.',
   age3: 'The Fort Age, again. The storybooks say a war fought twice is not a war anymore. It is a promise being kept.',
@@ -2496,6 +2505,140 @@ export const INTRO = [
 ];
 
 // per-match AI personality: same difficulty, different plan (adds replay variety)
+// ---------------- BEDTIME WISHES ----------------
+// The age-up used to be a price tag. A wish is a DRAFT: three cards, one per
+// lane, and you take one. Wish I is picked before the match, beside your civ;
+// Wish II is the Bell — it rings for everyone at 6:00, and EARLY for anyone who
+// is being taken apart. That is deliberate: the trigger has to be
+// comeback-shaped, or a choice system just pays whoever is already winning.
+//
+// Three lanes, always in this order — 🕯️ Hearth (home), 👣 March (the field),
+// 🛡️ Keep (what you hold).
+//
+// A wish has up to three layers:
+//   gift  — lands the instant the wish lands. res / techs / mods / buildings.
+//   power — an active ability with charges. Wish I gets 2, Wish II gets 1.
+//   unit  — a wish-only toy (Slice 2; no wish here carries one yet).
+//
+// ⚠️ THE HEARTH LAW: a Hearth wish must return more than it cost within ~180
+// sim-seconds, and at least half of that must arrive as an OBJECT — a toy, a
+// building, a body. Never purely as a rate. Matches end at 7-15 minutes; a
+// compounding trickle picked at minute 6 is a trap, not an economy.
+export const WISH_RULES = {
+  bell: 360,       // sim-seconds — Wish II is offered to EVERY living seat
+  bellEarly: 180,  // …or this early for a seat that is hurting
+  hurt: 6,         // stats.lost >= this pulls the bell forward. Hardship, not score:
+                   // a boomer with 40 workers and no army never trips it.
+  window: 45,      // seconds to answer before the sim picks offer[0] for you
+  cd: 12,          // seconds between casts, shared across a player's powers
+  // THE FUSE LAW: no enemy-facing burst lands on the cast tick. A visible
+  // arming ring arrives first, so the defender's scatter is skill — and the
+  // caster's answer is aiming at toys that CANNOT scatter (holding, garrisoned,
+  // mid-fight). Friendly powers (heals, wards, sweeps) stay instant.
+  fuse: 1.8,
+};
+
+// `free` = buildings gifted at the wish's owner's base, sited deterministically.
+// `res`  = a one-time lump. `techs` = granted outright. `mods` = permanent.
+export const WISHES = {
+  // ---- 🏰 KNIGHTS — a boxed castle set that arrived late and wants to stay ----
+  somebody: {
+    name: 'Somebody Asked For Us', icon: '🏰', lane: 'hearth', tier: 1,
+    blurb: 'Somebody wanted you by name. Unpack like it.',
+    gift: { res: { blocks: 150 }, free: { house: 2, basket: 1 } },
+    power: { k: 'instant', charges: 2, label: 'Unpacking Day',
+      desc: 'Aim at a building still under construction: it finishes on the spot.' },
+  },
+  warmegg: {
+    name: 'The Warm Egg', icon: '🥚', lane: 'march', tier: 1,
+    blurb: 'Something in the roost is not sleeping.',
+    gift: { res: { blocks: 180 }, free: { house: 2 } },
+    power: { k: 'burst', charges: 2, label: 'Hatch', r: 2.0, dmg: 34,
+      desc: 'A green burst at a point you choose.' },
+  },
+  toberaised: {
+    name: 'To Be Raised', icon: '🛡️', lane: 'keep', tier: 1,
+    blurb: 'Ask the King what a portcullis is for. "To be raised."',
+    gift: { mods: { buildingHp: 1.15 }, retroBuildingHp: 1.15,
+      free: { wall: 8, gate: 1 } },
+    power: { k: 'ward', charges: 2, label: 'Hold Fast', t: 20, cut: 0.6,
+      desc: 'One building of yours takes 60% less damage for 20 seconds.' },
+  },
+  everythingcame: {
+    name: 'Everything Came With It', icon: '📦', lane: 'hearth', tier: 2,
+    blurb: 'The box had everything in it. It said so on the box.',
+    gift: { res: { blocks: 250 }, free: { house: 4, tower: 1 } },
+    power: { k: 'mend', charges: 1, label: 'All Of It',
+      desc: 'Every building you own repairs to full.' },
+  },
+  ninehundred: {
+    name: 'Nine Hundred Bedtimes', icon: '🐉', lane: 'march', tier: 2,
+    blurb: 'It waited nine hundred bedtimes to be taken out of the box.',
+    // the one DEFERRED gift: it needs a Roost you own and the Fort Age.
+    // Until both are true it parks in p.wishHold and hatches the instant they are.
+    gift: { unitAt: { unit: 'dragon', at: 'roost', age: 3 } },
+    power: { k: 'burst', charges: 1, label: 'Strafing Run', r: 2.6, dmg: 60, bmul: 7 / 3, // 140 to buildings
+      desc: 'A long low pass. Buildings feel it most.' },
+  },
+  oldguard: {
+    name: 'The Old Guard', icon: '🎗️', lane: 'keep', tier: 2,
+    blurb: 'They fought the old guard once. Tonight they stand beside them.',
+    gift: { techs: ['tape'] },
+    // the knights' version is LEASHED to their own walls (Law 7: a Keep power,
+    // not a siege tool); the bots' Wind Each Other below is map-wide on purpose
+    power: { k: 'onemorenight', charges: 1, label: 'Hold the Line', t: 25, leash: 12,
+      desc: 'For 25 seconds your toys within 12 tiles of your own buildings refuse to fall. Each may survive once.' },
+  },
+
+  // ---- 🤖 BOTS — wind-up hearts, stamped from sheet metal, still trying ----
+  maintenance: {
+    name: 'Maintenance Report', icon: '📋', lane: 'hearth', tier: 1,
+    blurb: 'Somebody has been filling in the log. Nobody asked them to.',
+    gift: { res: { buttons: 150 }, free: { basket: 2 } },
+    power: { k: 'mendone', charges: 2, label: 'Service Call',
+      desc: 'Repair one building of yours to full, instantly.' },
+  },
+  stillticking: {
+    name: 'Still Ticking', icon: '⏱️', lane: 'march', tier: 1,
+    blurb: 'The mainspring is the whole toy. It is still going.',
+    gift: { mods: { atkSpeed: 0.95 }, res: { buttons: 90 }, free: { house: 1 } },
+    power: { k: 'chain', charges: 2, label: 'Static Cling', links: 5, dmg: 12,
+      desc: 'A crackle that jumps between five toys.' },
+  },
+  everythingspare: {
+    name: 'Nobody Came', icon: '🕯️', lane: 'march', tier: 2,
+    blurb: 'They waited at the window on a day nobody came. They wound each other.',
+    gift: { techs: ['overclock'], free: { robolab: 1 } },
+    power: { k: 'burst', charges: 1, label: 'Burst', r: 3.0, dmg: 52,
+      desc: 'A sweeping arc of static.' },
+  },
+  nobodywinds: {
+    name: 'Nobody Winds Us But Us', icon: '🔧', lane: 'keep', tier: 2,
+    blurb: 'No hand is coming. That was never the sad part.',
+    gift: { res: { buttons: 150 }, free: { tower: 2 } },
+    power: { k: 'onemorenight', charges: 1, label: 'Wind Each Other', t: 25,
+      desc: 'For 25 seconds your toys refuse to fall. Each may survive once.' },
+  },
+
+  // ---- 🚪 ROOM WISHES — the room itself, offered to more than one tribe ----
+  lighton: {
+    name: 'Left the Light On', icon: '💡', lane: 'keep', tier: 1, room: true,
+    blurb: 'Somebody left the hall light on. The dark gave a little ground.',
+    gift: { res: { blocks: 120 }, free: { tower: 1 } },
+    power: { k: 'light', charges: 2, label: 'The Hall Light', r: 10, t: 20,
+      desc: 'A patch of the room stays lit for your team.' },
+  },
+  junkdrawer: {
+    name: 'Junk Drawer', icon: '🗄️', lane: 'hearth', tier: 2, room: true,
+    blurb: 'Everything anyone ever needed is in there, under the batteries.',
+    // a LUMP on purpose: at minute 6 with 1-9 minutes left, a rate is a trap.
+    gift: { res: { snacks: 150, blocks: 150, buttons: 100, marbles: 50 },
+      free: { basket: 1 } },
+    power: { k: 'deposit', charges: 1, label: 'Turn It Out',
+      desc: 'Every worker banks what it is carrying, right now.' },
+  },
+};
+
 export const PERSONAS = {
   rusher: {
     workerTarget: -3, firstWave: -3, raidInterval: 55,

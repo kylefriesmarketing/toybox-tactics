@@ -1903,3 +1903,105 @@ determinism, MP 2h+2ai inSync, 0 console errors.
 ⚠️ BUILD NOTE: bash heredocs and `node -e` double-quoted strings EAT backticks
 and `${...}` — three comment blocks were mangled that way this session. Use the
 Write tool for any patch text containing template literals or backticks.
+
+## 🌙 BEDTIME WISHES SLICE 1 IS LIVE (2026-08-23, ultracode) — knights + bots draft
+
+The AoM-depth civ layer from `WISHES.md` is PLAYABLE: Wish I is a 3-card draft
+at match start (pre-pickable on the faction screen, silently auto-issued when
+the window opens), Wish II rings at the Bell (360s, or 180s for a seat with
+`stats.lost >= 6` — hardship, not score). Three lanes 🕯️Hearth/👣March/🛡️Keep,
+12 wishes (knights 6, bots 4, room 2), every wish = gift + a charged power.
+
+**Where everything lives:** `WISHES`/`WISH_RULES` + `FACTIONS.<f>.wishes` menus
+in data.js; the engine block ("BEDTIME WISHES") + power kernels in game.js
+before `execCommand`; the whole UI ("the draft and the bar") in main.js before
+the clickMode machinery; DOM/CSS `#wish-offer`/`#wishbar` in the HTML.
+
+**The laws that got carved in (violate = revert):**
+- **THE OPTIMISM BAN.** `applyWish`/`castWish` are the only writers of wish
+  state and the only way in is `execCommand` (`{t:'wish'}`, `{t:'cast'}`).
+  The UI renders `p.wishes`/`p.wishCharges` and mutates NOTHING — the menu
+  pre-pick is auto-ISSUED when the offer opens, so replays/MP record it free
+  (this deliberately replaced the spec's net.js Patch 9 — strictly better,
+  zero protocol change).
+- **THE FUSE LAW** (research pass, 6/6 sources converged): no enemy-facing
+  burst lands on the cast tick. burst/chain plant an `omen` zone (amber ring,
+  `WISH_RULES.fuse` 1.8s) and `detonate(z)` runs against positions at THAT
+  tick — scattering is skill, and hot numbers are safe because EV vs an alert
+  player is below paper. Friendly powers (mend/ward/omn/deposit/light) stay
+  instant.
+- **THE PUBLIC WISH.** A cast is never silent: the rival gets the label
+  (`'The rival wished: X!'`), `cb.wishSeen(owner,id)` reveals that wish as a
+  countable **foe chip** (`#wishbar-foe`, live charges from public sim state,
+  UI-local `seenFoeWishes` Set), and an EARLY Bell is announced to the
+  aggressor (a real disengage signal).
+- **THE INFORMED BELL** (research rank 6): tier-2 cards carry `wishContextLine()`
+  — the SAME board reads the AI picker uses (army delta, gather delta, toys
+  lost) — so the human drafts on data, not vibes. Pure reads, `#wo-ctx`.
+- **THE TEAM CONTRACT** (pre-declared for Slice 2+): 'friendly' = same TEAM,
+  'enemy' = enemy team; same-kind allied EFFECT zones must refresh, never
+  stack. (Vision zones like the hall light stack legitimately — two lamps =
+  two lit patches.)
+- **RESTORED WISHES ARE DATA** — restore() never calls applyWish (mods double).
+  ⚠️ auras ride BOTH unit AND building snapshots — the ward on a chest was
+  silently lost until the G3 torture test caught it. Any new aura carrier
+  needs its snapshot branch.
+- AI: `aiPickWish` draws one rng per option UNCONDITIONALLY (stream never
+  depends on the choice); jitter×2.0 vs lane-bias 1.0 ⇒ favored lane ~70%,
+  personas legible (rusher→March, boomer→Hearth) without every match drafting
+  the same card. Tier 2 reads the board (behind on army→March, fat on
+  workers→Hearth, bleeding→Keep). The wish-power MANAGER in aiUpdate casts
+  like a person: burst into a ≥4 knot, mend a burning keep, One More Night
+  only when ≥6 engaged and ≥8 lost. Pure scans, NO rng.
+- `wishScript: {pid: [wishI, wishII]}` pins a seat's draft for batteries;
+  `hashAt: [ticks]` samples `stateHash` (the GATE — fp is a smoke test);
+  soak returns `hash`/`hashes`/`wishes` + `stats[i].wishesCast`.
+- zeroEra + tutorial + CAMPAIGN MISSIONS have NO wishes (updateWishes early-
+  return; campaign = `this.missionEvents` set, which is ALWAYS true for a
+  mission incl. []): the prequel has no names for what they were feeling yet,
+  and 28 hand-tuned missions must not be silently re-balanced by a free
+  draft. Scripted wishes as mission story beats = a later slice.
+
+**Verified (all seven gates):** G1 fp+hash determinism ×2 maps; G5 replay from a Shelf bottle hash-identical at frame 700 (pre-pick + 2 casts in the log); G2 netTest
+2h+2ai AND 3h+1ai AND a drop INSIDE the 45s window, all `inSync === true`;
+G3 snapshot torture (live omen w/ payload, permanent zone t:-1, building ward,
+spent omn save, mid-window, mid-cooldown) hash-equal, mods NOT doubled; G4
+hash diverges at the LANDING tick for mods/tech/zone pins; G6 kernels on a
+board with cat+roomba+critters+lost toys, 0 throws; live UI menu→match→cast
+loop + digit picks + forced Bell, 0 console errors. AI casts 3/side in a real
+match (the powers are not decoration). 48-game lane battery: see WISHES.md
+addendum.
+
+**THE REVIEW THAT EARNED ITS KEEP (29 agents, 21 real defects, all fixed —
+WISHES.md §9.1 has the list).** The seven gates are blind to deterministic
+SPEC failures, and that is what it found: gifted age-2 buildings were
+silently dropped by canPlace (lighton's tower NEVER landed), baskets hugged
+the chest, walls scattered as bricks, deposit idled every hauler, Strafing
+Run had no bmul, burst-killed garrisoned toys left ghosts in garrisonIds, a
+pinned AI skipped its draws, instant could finish a Wonder, restore() alerted
+before ui existed (legacy-save resume CRASHED). Lessons carved: gifts use
+`canPlace(..., gift = true)` (age ladder bypassed, physical rules kept);
+`giftBuildings` sites drop-offs at piles / wall runs as a line with the gate
+first / the rest on the chest ring; `kill()` releases garrison slots;
+Old Guard = **Hold the Line**, leashed 12 tiles (bots' Wind Each Other is
+map-wide on purpose); restore() NEVER alerts (flag, say it on tick 1).
+⚠️ MODULE-CACHE TRAP: a bottle recorded right after a game.js edit can
+replay to a different hash — the browser ran a stale module while fetch()
+stamped the fresh text. Hard-reload before recording a replay you'll test.
+
+**Patch 11 shipped with it:** catapult `bonus: {building: 14, mega: 10}` — the
+universal titan answer, surfaced automatically by the size-up.
+
+⚠️ KNOWN CONSEQUENCES (correct, do not "fix"): every pre-wish replay bottle
+refuses playback (version stamp — correct); a pre-wish save resumes with no
+first wish and SAYS SO (Patch 10 alert); control groups 1-3 are suspended
+while a draft window is open (Ctrl+1/2/3 still assigns, `n` aims).
+
+**The depth roadmap** (45-idea research pass, 2 workflows, synthesis in
+`WISHES.md` §9): next up rank 3 `bonus:{wish}` class counter (Slice 2, ships
+with the 16 units), rank 4 THE DEVOUT ECHO (same-lane Wish II arrives
+enriched), rank 6 THE INFORMED BELL (context lines on the cards), rank 7
+VALUE HAS A BODY (zones anchored to razeable buildings), rank 12 THE BIG
+LIGHT (a power that turns the room's lights on — the view hook exists in
+updateNight). Principles: rates die emitters live; charges are a fixed
+allowance; verbs over numbers.

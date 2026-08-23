@@ -134,6 +134,16 @@ export const ACHIEVEMENTS = [
   { id: 'longestnight', icon: '🕯️', name: 'The Longest Night', beyond: true,
     desc: 'Lose not a single toy through the first three waves of The Long Night.',
     check: (c) => c.g.gameMode === 'survival' && (c.g.survival ? c.g.survival.bestWave : 0) >= 3 && c.me.stats.lost === 0 },
+  // Bedtime Wishes (beyond: the draft never gates NG+ or page zero)
+  { id: 'wishmaker', icon: '🌙', name: 'Said Bravely, In the Dark', beyond: true,
+    desc: 'Win a match in which you cast a wish power at least twice.',
+    check: (c) => c.win && (c.me.stats.wishesCast || 0) >= 2 },
+  { id: 'devout', icon: '🕯️', name: 'The Same Wish Twice', beyond: true,
+    desc: 'Win after wishing in the same lane at bedtime and at the Bell.',
+    check: (c) => c.win && c.me.wishes && c.me.wishes.length >= 2 && c.g.wishLane && c.g.wishLane(c.me.wishes[0]) === c.g.wishLane(c.me.wishes[1]) },
+  { id: 'onemorenight', icon: '🎗️', name: 'One More Night', beyond: true,
+    desc: 'Win a match in which a toy of yours refused to fall.',
+    check: (c) => c.win && (c.me.stats.saved || 0) >= 1 },
 ];
 
 // Called once per finished match. Updates the Chronicle, evaluates every

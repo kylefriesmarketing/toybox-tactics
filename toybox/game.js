@@ -9,6 +9,7 @@ import {
   MAP_N, POP_MAX, RES_TYPES, RES_META, UNITS, BUILDINGS, TECHS, MARKET, maskAt,
   AGES, AGE_UPS, PRODUCTION_BUILDINGS, START, AI, DIFFICULTIES, TEAM_NAMES, STICKER, WONDER, PERSONAS, MAPS, FACTIONS,
   TAUNTS, AI_LINES, NARRATOR, NARRATOR_NG, NARRATOR_VO, NARRATOR_NG_VO, TEAM_COLORS,
+  WISHES, WISH_RULES,
   CRITTERS, CRITTER_TYPES, LOST_TOYS, WILD_TRIBES, HOUSE_CAT, YARD_DOG, ROOMBA, GAME_MODES, START_RES, SURVIVAL,
 } from './data.js';
 import {
@@ -244,7 +245,7 @@ class FogOfWar {
     this.plane = plane;
     scene.add(plane);
   }
-  update(entities, viewOwners = [0]) {
+  update(entities, viewOwners = [0], zones = null) {
     // team-shared vision: any listed owner's toys light the map
     const owners = Array.isArray(viewOwners) ? viewOwners : [viewOwners];
     const v = this.vis;
@@ -258,6 +259,17 @@ class FogOfWar {
         if (di * di + dj * dj > r2) continue;
         const a = ci + di, b = cj + dj;
         if (inMap(a, b)) v[idx(a, b)] = 2;
+      }
+    }
+    // the hall light: a wish zone lights its patch of the room for the team
+    if (zones) {
+      for (const z of zones) {
+        const r = Math.ceil(z.r), ci = tileOf(z.x), cj = tileOf(z.z), r2 = z.r * z.r;
+        for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
+          if (di * di + dj * dj > r2) continue;
+          const a = ci + di, b = cj + dj;
+          if (inMap(a, b)) v[idx(a, b)] = 2;
+        }
       }
     }
     const ctx = this.cells.getContext('2d');
@@ -324,6 +336,8 @@ export class Game {
     this.entities = [];
     // area powers live OUTSIDE entities (see stateHash + updateZones)
     this.zones = [];
+    // battery pin: {pid: [wishI, wishII]} answers a seat's draft without a draw
+    this.wishScript = opts.wishScript || null;
     this.selected = [];
     this.formation = 'box'; // client-local; travels inside move commands
     this.projectiles = [];
@@ -350,13 +364,13 @@ export class Game {
               atkMelee: 0, atkPierce: 0, armorInfantry: 0, armorOther: 0, atkSpeed: 1,
               farmRate: 1, wallHp: 1,
               buildingHp: 1, buildRate: 1, unitHp: 1, healRate: 1, atkVehicle: 0 },
-      // wish state.  is an ORDERED array of chosen ids (<=2);
+      // wish state. `wishes` is an ORDERED array of chosen ids (<=2);
       // `wishCharges` is {wishId: charges left}; `wishCd` the shared recast
       // clock; `wishOffered` which bell has rung; `wishT` the answer window;
       // `wishHold` the one deferred gift; `wreck` blocks refundable.
       wishes: [], wishCharges: {}, wishCd: 0, wishOffered: 0, wishT: 0,
       wishHold: null, wreck: 0,
-      stats: { gathered: 0, trained: 0, lost: 0, kills: 0, razed: 0, wishesCast: 0,
+      stats: { gathered: 0, trained: 0, lost: 0, kills: 0, razed: 0, wishesCast: 0, saved: 0,
         shipsBuilt: 0, shipsLost: 0, wallsBuilt: 0, megaBuilt: 0, mice: 0, strays: 0, tribes: 0 },
     }));
     // factions: humans bring their pick; AIs roll their own. The roll is
@@ -2187,6 +2201,503 @@ export class Game {
     }
   }
 
+  // ---------------- BEDTIME WISHES ----------------
+  // A wish is a DRAFT, not a purchase. Everything here is pure or deterministic:
+  // the offer is a pure function of faction+tier, the AI's answer consumes rng in
+  // a fixed pattern, and the pick itself always arrives through execCommand so
+  // every client applies the same wish on the same tick.
+  wishOffer(faction, tier) {
+    const f = FACTIONS[faction];
+    const list = (f && f.wishes && f.wishes[tier]) || [];
+    return list.filter((id) => WISHES[id]);
+  }
+  hasWish(owner, id) { return this.players[owner].wishes.includes(id); }
+  wishLane(id) { const w = WISHES[id]; return w ? w.lane : null; }
+  // every power the player currently holds, with charges left
+  wishPowersOf(owner) {
+    const p = this.players[owner];
+    const out = [];
+    for (const id of p.wishes) {
+      const w = WISHES[id];
+      if (w && w.power) out.push({ id, w, left: p.wishCharges[id] || 0 });
+    }
+    return out;
+  }
+  // ⚠️ APPLIED ONCE, EVER, PER PICK. restore() must NEVER call this — the mods a
+  // wish granted are already in the snapshot, and re-applying multiplies them a
+  // second time, permanently, on the loading client only.
+  applyWish(owner, id) {
+    const w = WISHES[id];
+    const p = this.players[owner];
+    if (!w || !p || p.wishes.includes(id)) return false;
+    p.wishes.push(id);
+    if (w.power) p.wishCharges[id] = w.power.charges;
+    const g = w.gift || {};
+    for (const k in (g.res || {})) p.res[k] += g.res[k];
+    for (const t of (g.techs || [])) this.applyTech(owner, t);
+    for (const k in (g.mods || {})) {
+      if (ADDITIVE_MODS.has(k)) p.mods[k] += g.mods[k]; else p.mods[k] *= g.mods[k];
+    }
+    // retroactive building hp, exactly like the `plating` tech does
+    if (g.retroBuildingHp) {
+      for (const e of this.entities) {
+        if (e.kind === 'building' && e.owner === owner && !e.dead) {
+          const frac = e.hp / e.maxHp;
+          e.maxHp *= g.retroBuildingHp; e.hp = e.maxHp * frac;
+        }
+      }
+    }
+    // gates first: a gate claims the middle of the wall run, then the walls
+    // fill in around it — the other way round leaves the gate with no slot
+    const freeKeys = Object.keys(g.free || {}).sort((x, y) => (BUILDINGS[x] && BUILDINGS[x].gate ? 0 : 1) - (BUILDINGS[y] && BUILDINGS[y].gate ? 0 : 1));
+    for (const k of freeKeys) this.giftBuildings(owner, k, g.free[k]);
+    if (g.unitAt) { p.wishHold = id; this.tryReleaseWishHold(owner); }
+    if (owner === this.myId) {
+      this.alert(`${w.icon} ${w.name} — ${w.blurb}`, 'age');
+      this.narrate('wish');
+    }
+    return true;
+  }
+  // Free buildings site themselves deterministically on a ring around the owner's
+  // chest — a pure function of the generated map, so every client agrees. No rng.
+  giftBuildings(owner, type, n) {
+    const def = BUILDINGS[type];
+    if (!def) return;
+    const home = this.entities.find((e) => e.kind === 'building'
+      && e.type === 'chest' && e.owner === owner && !e.dead);
+    if (!home) return;
+    const ci = home.ti, cj = home.tj;
+    let placed = 0;
+    const tryAt = (i, j) => {
+      if (!this.canPlace(owner, type, i, j, true)) return false;
+      // a gifted gate takes an EMPTY tile — the gate-over-wall swallow lives only
+      // in tryPlaceBuilding, and stacking two live buildings on one tile is a bug
+      if (def.gate && this.ownWallAt(owner, i, j)) return false;
+      if (!this.addBuilding(type, owner, i, j, true)) return false;
+      placed++;
+      return true;
+    };
+    // (1) DROP-OFFS go to the nearest resource nodes — a basket hugging the chest
+    //     is a pantry nobody needs (the Hearth Law's object half would return 0).
+    if (def.dropoff) {
+      const nodes = this.entities
+        .filter((e) => e.kind === 'resource' && !e.dead && e.amount > 0 && !e.aquatic)
+        .map((e) => ({ e, d: (e.ti - ci) * (e.ti - ci) + (e.tj - cj) * (e.tj - cj) }))
+        .sort((a, b) => a.d - b.d || idx(a.e.ti, a.e.tj) - idx(b.e.ti, b.e.tj)); // total order
+      for (const { e } of nodes) {
+        if (placed >= n) break;
+        // skip a pile that already has an owned drop-off within 4 tiles
+        let served = false;
+        for (const b of this.entities) {
+          if (b.kind !== 'building' || b.dead || b.owner !== owner || !b.def.dropoff) continue;
+          if ((b.ti - e.ti) * (b.ti - e.ti) + (b.tj - e.tj) * (b.tj - e.tj) <= 16) { served = true; break; }
+        }
+        if (served) continue;
+        let done = false;
+        for (let r = 1; r <= 3 && !done; r++) {
+          for (let d = -r; d <= r && !done; d++) {
+            for (const [i, j] of [[e.ti + d, e.tj - r], [e.ti + d, e.tj + r], [e.ti - r, e.tj + d], [e.ti + r, e.tj + d]]) {
+              if (tryAt(i, j)) { done = true; break; }
+            }
+          }
+        }
+      }
+    }
+    // (2) WALLS + GATES lay down as one straight run on the ring side that faces
+    //     the map centre — a line reads as a wall; scattered bricks do not
+    if ((def.wall || def.gate) && placed < n) {
+      const r = 4;
+      const toward = Math.abs(N / 2 - ci) >= Math.abs(N / 2 - cj)
+        ? (N / 2 > ci ? 'E' : 'W') : (N / 2 > cj ? 'S' : 'Nn');
+      const line = [];
+      for (let d = -5; d <= 5; d++) { // 11 slots: one blocked tile still leaves a full run
+        line.push(toward === 'E' ? [ci + r, cj + d] : toward === 'W' ? [ci - r, cj + d]
+          : toward === 'S' ? [ci + d, cj + r] : [ci + d, cj - r]);
+      }
+      // a gate takes the middle slot of the run; walls fill outward from it
+      // the gate wants the middle slot but takes the nearest free one; walls
+      // fill outward and skip whatever the gate (or a standing toy) already holds
+      const order = [5, 4, 6, 3, 7, 2, 8, 1, 9, 0, 10];
+      for (const k of order) { if (placed >= n) break; tryAt(line[k][0], line[k][1]); }
+    }
+    // (3) everything else (and any leftover): widening square rings round the chest
+    for (let r = 3; r <= 12 && placed < n; r++) {
+      for (let d = -r; d <= r && placed < n; d++) {
+        for (const [i, j] of [[ci + d, cj - r], [ci + d, cj + r], [ci - r, cj + d], [ci + r, cj + d]]) {
+          if (placed >= n) break;
+          tryAt(i, j);
+        }
+      }
+    }
+  }
+  // the one deferred gift: it needs a host building AND an age, so it waits.
+  tryReleaseWishHold(owner) {
+    const p = this.players[owner];
+    if (!p.wishHold) return;
+    const g = (WISHES[p.wishHold] || {}).gift || {};
+    const spec = g.unitAt;
+    if (!spec) { p.wishHold = null; return; }
+    if (p.age < (spec.age || 1)) return;
+    const host = this.entities.find((e) => e.kind === 'building'
+      && e.type === spec.at && e.owner === owner && !e.dead && e.built >= 1);
+    if (!host) return;
+    this.spawnUnit(spec.unit, owner, host.x, host.z, true);
+    p.wishHold = null;
+    if (owner === this.myId) this.alert('🐉 It finally came out of the box.', 'age');
+  }
+  // The AI answers on the same tick on every client. Draws exactly offer.length
+  // rng values whatever it decides, so the stream never depends on the choice.
+  aiPickWish(owner, offer, tier) {
+    if (!offer.length) return null;
+    const p = this.players[owner];
+    const persona = (this.aiState[owner] && this.aiState[owner].persona) || 'balanced';
+    let marchBias = 0, hearthBias = 0;
+    if (tier === 2) {
+      let myArmy = 0, myWk = 0, foeArmy = 0, foeWk = 0;
+      for (const e of this.entities) {
+        if (e.kind !== 'unit' || e.dead || e.owner < 0) continue;
+        const isWk = !!e.def.gatherRate; // the worker test (NOT def.gather — the Lost Toys lesson)
+        if (e.owner === owner) { if (e.def.aggro > 0) myArmy++; else if (isWk) myWk++; }
+        else if (this.isEnemy(owner, e.owner)) { if (e.def.aggro > 0) foeArmy++; else if (isWk) foeWk++; }
+      }
+      if (myArmy + 2 < foeArmy) marchBias = 0.7;
+      if (myWk > foeWk + 2) hearthBias = 0.5;
+    }
+    let best = offer[0], bestScore = -Infinity;
+    for (const id of offer) {
+      const jitter = this.rng();                 // one draw per option, always
+      const w = WISHES[id];
+      // 2.0 vs a 1.0 lane bias = the favored lane wins ~70%, not 100% — the
+      // persona stays legible without every match drafting the same card
+      let s = jitter * 2.0;
+      if (!w) { continue; }
+      // personas want different lanes; hardship overrides taste
+      if (persona === 'boomer' && w.lane === 'hearth') s += 1.0;
+      if (persona === 'rusher' && w.lane === 'march') s += 1.0;
+      if (persona === 'balanced' && w.lane === 'keep') s += 0.6;
+      if (w.lane === 'march') s += marchBias;
+      if (w.lane === 'hearth') s += hearthBias;
+      if (p.stats.lost >= WISH_RULES.hurt && w.lane === 'keep') s += 0.8;
+      if ((w.gift && w.gift.free) && p.stats.lost > 0) s += 0.3;
+      if (s > bestScore) { bestScore = s; best = id; }
+    }
+    return best;
+  }
+
+  // ---- the bell, the window, and the answer ----
+  // Wish I is resolved the instant the match starts; Wish II when the Bell
+  // rings. Every seat answers on the SAME tick on every client: an AI answers
+  // itself (deterministically, from the shared rng), a human answers through
+  // execCommand, and an unanswered window defaults to offer[0] when it runs out.
+  openWish(owner, tier) {
+    const p = this.players[owner];
+    if (p.wishOffered >= tier || p.den || !this.playerAlive(p)) return;
+    const offer = this.wishOffer(this.factionKeys[owner], tier);
+    if (!offer.length) { p.wishOffered = tier; return; }
+    p.wishOffered = tier;
+    const scripted = this.wishScript && this.wishScript[owner] && this.wishScript[owner][tier - 1];
+    const pin = scripted && offer.includes(scripted) ? scripted : null;
+    if (p.isAI) {
+      // the AI draws its answer immediately — one rng value per option offered,
+      // so the stream advances identically whatever it decides. ⚠️ The roll is
+      // consumed EVEN WHEN PINNED (Law 3, same discipline as the faction pin) —
+      // or a pinned battery and a free battery run on different streams.
+      const rolled = this.aiPickWish(owner, offer, tier);
+      this.applyWish(owner, pin || rolled);
+      p.wishT = 0;
+      return;
+    }
+    if (pin) { this.applyWish(owner, pin); p.wishT = 0; return; }
+    p.wishT = WISH_RULES.window;
+    this.showWishOffer(owner);
+  }
+  // the draft modal, shown exactly once per (seat, tier) per Game instance —
+  // so a resume mid-window re-shows it, and replay playback never shows it
+  // (issue() is inert under replayFeed; the recorded pick lands by itself).
+  showWishOffer(owner) {
+    const p = this.players[owner];
+    if (owner !== this.myId || p.isAI || this.replayFeed || !this.cb.wishOffer) return;
+    if (!this._offerShown) this._offerShown = new Set();
+    if (this._offerShown.has(p.wishOffered)) return;
+    const offer = this.wishOffer(this.factionKeys[owner], p.wishOffered);
+    if (!offer.length) return;
+    this._offerShown.add(p.wishOffered);
+    this.cb.wishOffer(offer, p.wishOffered);
+  }
+  updateWishes(dt) {
+    if (this._legacyWishSave) {
+      this._legacyWishSave = false;
+      if (!this.zeroEra && !this.tutorial && !this.missionEvents) {
+        this.alert('This save predates Bedtime Wishes - the room will offer your wishes now.', 'warn');
+      }
+    }
+    // the prequel has no names for what they were feeling yet — and no wishes;
+    // the tutorial's scripted steps must not be interrupted by a draft modal.
+    // Campaign missions (missionEvents is ALWAYS set for them, [] included) are
+    // also wish-free in Slice 1: their difficulty was hand-tuned pre-wishes and
+    // a free draft would quietly re-balance 28 missions. A campaign-aware wish
+    // pass (scripted wishes as story beats) is a later slice.
+    if (this.zeroEra || this.tutorial || this.missionEvents) return;
+    for (const p of this.players) {
+      if (p.den || !this.playerAlive(p)) continue;
+      if (p.wishCd > 0) p.wishCd = Math.max(0, p.wishCd - dt);
+      // the Bell rings at 6:00 — or EARLY for a seat that is being taken apart.
+      // Hardship, not score: a boomer with forty workers and no army never
+      // trips it, which is the whole point of keying it to losses.
+      if (p.wishOffered < 1) this.openWish(p.id, 1);
+      else if (p.wishOffered < 2 && p.wishT <= 0
+        && (this.time >= WISH_RULES.bell
+          || (this.time >= WISH_RULES.bellEarly && p.stats.lost >= WISH_RULES.hurt))) {
+        if (p.id === this.myId) this.narrate('bell');
+        else if (this.time < WISH_RULES.bell && this.isEnemy(this.myId, p.id)) {
+          this.alert('The Bell rang early for the rival - they have lost enough toys to wish again.', 'warn', null, 30);
+        }
+        this.openWish(p.id, 2);
+      }
+      // an unanswered window closes on its own rather than stalling the match
+      if (p.wishT > 0) {
+        if (p.wishes.length < p.wishOffered) this.showWishOffer(p.id); // resume mid-window: re-show
+        p.wishT = Math.max(0, p.wishT - dt);
+        if (p.wishT <= 0) {
+          const offer = this.wishOffer(this.factionKeys[p.id], p.wishOffered);
+          if (offer.length) this.applyWish(p.id, offer[0]);
+        }
+      }
+      if (p.wishHold) this.tryReleaseWishHold(p.id);
+    }
+  }
+
+  // ---- wish powers ----
+  // Every power is instantaneous sim state: damage, a heal, a timed aura on an
+  // entity, or a zone. Nothing here reads a view, so a headless soak casts too.
+  castWish(owner, id, tx, tz, tid) {
+    const p = this.players[owner];
+    const w = WISHES[id];
+    if (!w || !w.power || !p || !this.playerAlive(p)) return false;
+    if ((p.wishCharges[id] || 0) <= 0 || p.wishCd > 0) return false;
+    const pw = w.power;
+    const target = tid != null ? this.entities.find((e) => e.id === tid && !e.dead) : null;
+    const mine = (e) => e.owner === owner && !e.dead;
+    let ok = false;
+    switch (pw.k) {
+      case 'instant': // Unpacking Day — a building under construction finishes now
+        if (target && target.kind === 'building' && mine(target) && target.built < 1
+            && target.type !== 'wonder') { // an 80s Wonder is the rival's only warning — never skipped
+          target.built = 1; target.hp = target.maxHp;
+          if (target.view) target.view.setProgress(1);
+          this.recalcPop(owner);
+          if (target.def.wall || target.def.gate) p.stats.wallsBuilt++;
+          // the builders move on exactly as they would on a normal completion
+          for (const u of this.entities) {
+            if (u.kind !== 'unit' || u.dead || u.owner !== owner || !u.order || u.order.type !== 'build' || u.order.b !== target) continue;
+            const next = this.nearestFoundation(owner, u.x, u.z, 6);
+            u.order = next ? { type: 'build', b: next } : null;
+            if (!u.order) {
+              const node = this.nearestGatherSource(owner, u.carryType || 'snacks', u.x, u.z, 14, u);
+              if (node) {
+                const resType = node.kind === 'building' ? 'snacks' : node.resType;
+                if (u.carryType !== resType) u.carry = 0;
+                u.carryType = resType;
+                u.order = { type: 'gather', node, phase: 'to', resType };
+              }
+            }
+          }
+          ok = true;
+        }
+        break;
+      case 'mendone':
+        if (target && target.kind === 'building' && mine(target) && target.hp < target.maxHp - 0.5) {
+          target.hp = target.maxHp;
+          if (target.view && target.view.hpBar) target.view.hpBar.set(1);
+          ok = true;
+        }
+        break;
+      case 'mend':
+        for (const e of this.entities) {
+          if (e.kind !== 'building' || !mine(e)) continue;
+          e.hp = e.maxHp;
+          if (e.view && e.view.hpBar) e.view.hpBar.set(1);
+        }
+        ok = true;
+        break;
+      case 'ward':
+        if (target && target.kind === 'building' && mine(target)) {
+          target.aura = { k: 'ward', t: pw.t, cut: pw.cut, used: false };
+          ok = true;
+        }
+        break;
+      case 'onemorenight': {
+        // every toy you own refuses to fall — ONCE each. `used` is hashed, so a
+        // client that spent a save and one that didn't diverge loudly, not quietly.
+        // With `leash` set (the knights' Hold the Line) only toys within that many
+        // tiles of a finished own building qualify — a Keep power, not a siege tool.
+        const own = pw.leash ? this.entities.filter((e) => e.kind === 'building' && mine(e) && e.built >= 1) : null;
+        const L2 = pw.leash ? pw.leash * pw.leash : 0;
+        let hit = 0;
+        for (const e of this.entities) {
+          if (e.kind !== 'unit' || !mine(e) || e.garrisoned) continue;
+          if (own && !own.some((b) => (b.x - e.x) * (b.x - e.x) + (b.z - e.z) * (b.z - e.z) <= L2)) continue;
+          e.aura = { k: 'omn', t: pw.t, cut: 0, used: false };
+          hit++;
+        }
+        ok = hit > 0;
+        break;
+      }
+      // THE FUSE LAW: hostile bursts arm, then land. The cast plants an omen
+      // zone; updateZones detonates it against positions at THAT tick, so a
+      // defender who scatters is rewarded and a caster aims where toys cannot
+      // scatter. Cheap to tune hotter later — EV vs alert players is below the
+      // paper number by design.
+      case 'burst':
+      case 'chain': {
+        this.zones.push({ id: this.nextId++, kind: 'omen', owner, x: tx, z: tz,
+          r: pw.r || 2.2, t: WISH_RULES.fuse, payload: { k: pw.k, dmg: pw.dmg, bmul: pw.bmul || 1, links: pw.links || 0 } });
+        ok = true;
+        break;
+      }
+      case 'light':
+        this.zones.push({ id: this.nextId++, kind: 'light', owner, x: tx, z: tz, r: pw.r, t: pw.t });
+        ok = true;
+        break;
+      case 'deposit': {
+        // every hauler banks what it is holding, right now — exactly like the
+        // chest deposit: handicap applied, carryType KEPT (updateGather's return
+        // branch and idle-hands key off it), and the toy walks back to its pile
+        const st = this.aiState[owner];
+        const mul = p.isAI && st ? st.diff.handicap : 1;
+        for (const e of this.entities) {
+          if (e.kind !== 'unit' || !mine(e) || !e.carry || !e.carryType) continue;
+          const amt = e.carry * mul;
+          p.res[e.carryType] += amt;
+          p.stats.gathered += amt;
+          e.carry = 0;
+          const o = e.order;
+          if (o && o.type === 'gather' && o.phase === 'return') {
+            if (o.node && !o.node.dead) o.phase = 'to'; else e.order = null;
+          }
+          if (e.view && e.view.setCarry) e.view.setCarry(0, false);
+        }
+        ok = true;
+        break;
+      }
+      default: break;
+    }
+    if (!ok) return false;
+    if (pw.k === 'onemorenight' && owner === this.myId) this.narrate('onemorenight');
+    p.wishCharges[id] = (p.wishCharges[id] || 0) - 1;
+    p.wishCd = WISH_RULES.cd;
+    p.stats.wishesCast++;
+    if (owner === this.myId) this.alert(`${w.icon} ${pw.label}`, 'age');
+    else if (this.isEnemy(this.myId, owner)) {
+      this.alert(`${w.icon} The rival wished: ${pw.label}!`, 'warn', null, 4);
+      if (this.cb.wishSeen) this.cb.wishSeen(owner, id); // THE PUBLIC WISH: now you can count it
+    }
+    return true;
+  }
+  // an armed omen runs out of fuse: the burst or chain finally lands
+  detonate(z) {
+    const pl = z.payload || {};
+    if (pl.k === 'chain') {
+      const hit = new Set();
+      let cx = z.x, cz = z.z;
+      for (let n = 0; n < (pl.links || 5); n++) {
+        let best = null, bd = n === 0 ? 100 : 16; // first jump reaches, hops are short
+        for (const e of this.entities) {
+          if (e.dead || e.kind !== 'unit' || hit.has(e.id)) continue;
+          if (e.owner < 0 || !this.isEnemy(z.owner, e.owner)) continue;
+          const d = (e.x - cx) * (e.x - cx) + (e.z - cz) * (e.z - cz);
+          if (d < bd) { bd = d; best = e; }
+        }
+        if (!best) break;
+        hit.add(best.id);
+        this.wishDamage(z.owner, best, pl.dmg);
+        cx = best.x; cz = best.z;
+      }
+    } else {
+      const r2 = z.r * z.r;
+      for (const e of this.entities) {
+        if (e.dead || (e.kind !== 'unit' && e.kind !== 'building')) continue;
+        if (e.owner < 0 || !this.isEnemy(z.owner, e.owner)) continue;
+        const dx = e.x - z.x, dz = e.z - z.z;
+        if (dx * dx + dz * dz > r2) continue;
+        this.wishDamage(z.owner, e, e.kind === 'building' ? Math.round(pl.dmg * (pl.bmul || 1)) : pl.dmg);
+      }
+    }
+    if (this.fx && this.fx.shockwave) this.fx.shockwave(z.x, z.z, z.r * 1.2, 0xfff0a0);
+  }
+  // A wish burst has no attacker, so it cannot go through applyDamage (which
+  // reads attacker geometry for elevation and recoil). Armor does not apply —
+  // this is the room helping, not a toy swinging.
+  wishDamage(owner, target, dmg) {
+    if (target.dead) return;
+    if (target.aura && target.aura.k === 'ward') dmg = Math.max(1, Math.round(dmg * (1 - target.aura.cut)));
+    target.hp -= dmg;
+    if (target.view) {
+      target.view.markDamaged();
+      if (target.view.hpBar) target.view.hpBar.set(Math.max(0, target.hp) / target.maxHp);
+    }
+    target.hitT = 0.14;
+    if (this.fx && (!this.fog || this.fog.state(target.x, target.z) === 2)) {
+      const hy = (target.kind === 'building' ? target.def.height * 0.5 : 0.35)
+        + this.heightAtWorld(target.x, target.z);
+      this.fx.damageNumber(target.x, hy, target.z, dmg, 0xbff0ff);
+    }
+    if (target.hp <= 0) this.kill(target, null);
+  }
+  lightZonesOf(team) {
+    const out = [];
+    for (const z of this.zones) {
+      if (z.kind === 'light' && this.players[z.owner] && this.players[z.owner].team === team) out.push(z);
+    }
+    return out;
+  }
+  // view-only: a warm pool of lamplight under the hall-light zone.
+  // polygonOffset, not a raised y — the contact-shadow lesson (surface height
+  // varies; a fixed y silently lands under the mat and renders nothing).
+  zoneView(z) {
+    if (z.view || !this.scene) return;
+    const omen = z.kind === 'omen';
+    const col = omen ? 0xff9a5a : 0xffdf9e, rim = omen ? 0xff7a4a : 0xffe9b8;
+    const g = new THREE.Group();
+    const disc = new THREE.Mesh(
+      new THREE.CircleGeometry(z.r, 40),
+      new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: omen ? 0.22 : 0.16, depthWrite: false,
+        polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }),
+    );
+    disc.rotation.x = -Math.PI / 2;
+    disc.renderOrder = 340;
+    g.add(disc);
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(z.r * 0.93, z.r, 48),
+      new THREE.MeshBasicMaterial({ color: rim, transparent: true, opacity: omen ? 0.55 : 0.4, depthWrite: false,
+        polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.renderOrder = 341;
+    g.add(ring);
+    g.position.set(z.x, this.heightAtWorld(z.x, z.z) + 0.02, z.z);
+    this.scene.add(g);
+    z.view = g;
+  }
+  // zones and auras are the only sim state that expires on a clock of its own
+  updateZones(dt) {
+    for (let i = this.zones.length - 1; i >= 0; i--) {
+      const z = this.zones[i];
+      if (!z.view) this.zoneView(z); // restore path: views rebuild here
+      if (z.t < 0) continue;         // t < 0 = a permanent zone (spec 2.6)
+      z.t -= dt;
+      if (z.t <= 0) {
+        if (z.kind === 'omen') this.detonate(z);
+        if (z.view && z.view.parent) z.view.parent.remove(z.view);
+        this.zones.splice(i, 1);
+      }
+    }
+    for (const e of this.entities) {
+      if (!e.aura) continue;
+      e.aura.t -= dt;
+      if (e.aura.t <= 0) e.aura = null;
+    }
+  }
   execCommand(pid, c) {
     const ent = (id) => this.entities.find((e) => e.id === id && !e.dead);
     const units = () => (c.ids || []).map(ent).filter(Boolean)
@@ -2277,6 +2788,20 @@ export class Game {
       case 'age': { const b = ent(c.id); if (b && b.owner === pid) this.startAgeUp(b); break; }
       case 'trade': this.trade(pid, c.res, c.dir); break;
       case 'tribute': this.tribute(pid, c.res, c.toId); break;
+      // ⚠️ THE OPTIMISM BAN. A wish pick and a power cast are BOTH sim state,
+      // so neither may be applied locally when the button is clicked — only
+      // here, on the tick the command actually lands, identically on every
+      // client. Never decrement a charge in the UI "so it feels responsive":
+      // that is exactly the divergence stateHash was hardened to catch.
+      case 'wish': {
+        const p = this.players[pid];
+        if (!p || p.wishT <= 0) break;           // no window open — a stale click
+        const offer = this.wishOffer(this.factionKeys[pid], p.wishOffered);
+        if (!offer.includes(c.id)) break;        // not on the menu you were shown
+        if (this.applyWish(pid, c.id)) p.wishT = 0;
+        break;
+      }
+      case 'cast': this.castWish(pid, c.id, c.x, c.z, c.tid); break;
     }
   }
 
@@ -2342,6 +2867,7 @@ export class Game {
       h = (h + Math.imul(keyCode(z.kind), z.id) + (z.owner + 2) * 3) | 0;
       h = (h + ((z.x * 64) | 0) * 7 + ((z.z * 64) | 0) * 13
              + ((z.r * 16) | 0) * 5 + ((z.t * 8) | 0) * 11) | 0;
+      if (z.payload) h = (h + ((z.payload.dmg | 0) * 29) + ((z.payload.links | 0) * 31)) | 0;
     }
     // commodity prices are shared sim state — fold them in
     h = (h + (this.market.snacks * 100 | 0) * 17 + (this.market.blocks * 100 | 0) * 19
@@ -2405,6 +2931,8 @@ export class Game {
       timeline: this.timeline,
       // one-shot narrator beats + scripted mission moments must not replay on load
       told: Object.keys(this).filter((k) => k.startsWith('_told_') && this[k]),
+      // wish zones live outside entities and carry their own clock
+      zones: this.zones.map((z) => ({ id: z.id, kind: z.kind, owner: z.owner, x: z.x, z: z.z, r: z.r, t: z.t, payload: z.payload ? { ...z.payload } : undefined })),
       evDone: this.missionEvents ? this.missionEvents.map((e) => !!e.done) : null,
       players: this.players.map((p) => ({
         res: { ...p.res }, age: p.age, aging: p.aging, popUsed: p.popUsed, popCap: p.popCap,
@@ -2422,6 +2950,7 @@ export class Game {
             hp: e.hp, maxHp: e.maxHp, carry: e.carry, carryType: e.carryType,
             stance: e.stance, kills: e.kills || 0, garrisoned: e.garrisoned || null,
             facing: e.facing, isKing: !!e.isKing,
+            aura: e.aura ? { ...e.aura } : undefined,
             order: this.encOrder(e.order), oq: e.oq.map((o) => this.encOrder(o)),
             fleeResume: this.encOrder(e.fleeResume), bellResume: this.encOrder(e.bellResume),
           };
@@ -2430,6 +2959,7 @@ export class Game {
           return {
             k: 'b', id: e.id, type: e.type, owner: e.owner, ti: e.ti, tj: e.tj,
             hp: e.hp, maxHp: e.maxHp, built: e.built,
+            aura: e.aura ? { ...e.aura } : undefined,
             queue: e.queue.map((q) => ({ ...q })), rally: e.rally ? { ...e.rally } : null,
             garrisonIds: [...e.garrisonIds],
           };
@@ -2520,6 +3050,7 @@ export class Game {
         if (e.kills >= 3) { e.rankBadge = makeRankBadge(e.kills >= 10 ? 3 : e.kills >= 6 ? 2 : 1); view.group.add(e.rankBadge); }
         { const _t = this.lineTierOf(e.owner, e.type); if (_t) applyUnitTier(e.view, e.def, e.owner, _t); }
         if (e.garrisoned) view.group.visible = false;
+        if (se.aura) e.aura = { ...se.aura };
         view.hpBar.set(e.hp / e.maxHp);
       } else if (se.k === 'b') {
         const def = BUILDINGS[se.type];
@@ -2537,6 +3068,7 @@ export class Game {
           cd: 0, scanT: 0, smokeT: 0, garrisonIds: [...se.garrisonIds],
           dead: false, seen: !this.isEnemy(this.myId, se.owner), gatherer: null,
         };
+        if (se.aura) e.aura = { ...se.aura };
         view.setProgress(e.built);
         view.hpBar.set(e.hp / e.maxHp);
       } else if (se.k === 'r') {
@@ -2678,6 +3210,8 @@ export class Game {
     this.tlT = 10;
     this.rng.setState(snap.rng);
     // re-arm one-shot flags so narrator beats and mission moments don't replay
+    for (const z of this.zones) if (z.view && z.view.parent) z.view.parent.remove(z.view);
+    this.zones = (snap.zones || []).map((z) => ({ ...z })); // views rebuild in updateZones
     for (const k of snap.told || []) this[k] = true;
     if (snap.evDone && this.missionEvents) {
       snap.evDone.forEach((d, i) => { if (this.missionEvents[i]) this.missionEvents[i].done = d; });
@@ -2698,8 +3232,18 @@ export class Game {
     if (snap.survival && this.survival) Object.assign(this.survival, snap.survival);
     if (snap.market) this.market = { ...snap.market };
     this.timeline = snap.timeline || [];
+    // USER-VISIBLE DATA LOSS, SAID OUT LOUD (Patch 10). A save written before
+    // Bedtime Wishes shipped comes back with no wish state at all, so that
+    // player finishes the match with no first wish. [] is truthy — this fires
+    // only for a genuinely pre-wish blob, never for a player who simply has
+    // not reached the Bell yet.
+    // ⚠️ restore() runs BEFORE ui exists in startGame (main.js builds the UI
+    // after the resume), so it must never alert directly — flag, say it on the
+    // first tick. And say the TRUE thing: wishOffered comes back 0 for a legacy
+    // blob, so updateWishes re-offers the draft rather than losing it.
+    if (!snap.players[0].wishes) this._legacyWishSave = true;
     this.taunted = true;
-    this.fog.update(this.entities, this.teamOwners(this.myTeam));
+    this.fog.update(this.entities, this.teamOwners(this.myTeam), this.lightZonesOf(this.myTeam));
   }
 
   rightClick(x, z, target, queued = false) {
@@ -2756,11 +3300,14 @@ export class Game {
       && i >= e.ti && i < e.ti + e.def.size && j >= e.tj && j < e.tj + e.def.size);
   }
 
-  canPlace(owner, type, i, j) {
+  canPlace(owner, type, i, j, gift = false) {
     const def = BUILDINGS[type];
     if (def.faction && this.factionKeys[owner] !== def.faction) return false;
     if (this.gameMode === 'sudden' && type === 'chest') return false; // no second life
-    if ((def.age || 1) > this.players[owner].age) return false;
+    // a WISH gift outranks the age ladder on purpose (the Bell helps whoever is
+    // behind; refusing them the building would invert the whole fix) — every
+    // physical rule below still applies
+    if (!gift && (def.age || 1) > this.players[owner].age) return false;
     const s = def.size;
     if (!inMap(i, j) || !inMap(i + s - 1, j + s - 1)) return false;
     for (let b = j; b < j + s; b++) for (let a = i; a < i + s; a++) {
@@ -2890,6 +3437,8 @@ export class Game {
     if (hA > hT + 0.4) dmg = Math.round(dmg * 1.25);
     else if (hA < hT - 0.4) dmg = Math.max(1, Math.round(dmg * 0.75));
     dmg = Math.max(1, dmg - this.armorOf(target, spec.atkType));
+    // a warded building shrugs most of it off (the aura expires in updateZones)
+    if (target.aura && target.aura.k === 'ward') dmg = Math.max(1, Math.round(dmg * (1 - target.aura.cut)));
     target.hp -= dmg;
     target.view.markDamaged();
     target.view.hpBar.set(target.hp / target.maxHp);
@@ -2966,6 +3515,19 @@ export class Game {
 
   kill(e, killer, quiet = false) {
     if (e.dead) return;
+    // ONE MORE NIGHT: a wished toy refuses to fall — once. The save is spent
+    // in sim state (aura.used is hashed, so clients cannot silently disagree
+    // about whether it happened) and the toy stands back up at 1 hp.
+    if (e.kind === 'unit' && e.aura && e.aura.k === 'omn' && !e.aura.used) {
+      e.aura.used = true;
+      e.hp = 1;
+      if (this.players[e.owner]) this.players[e.owner].stats.saved = (this.players[e.owner].stats.saved || 0) + 1;
+      if (e.view && e.view.hpBar) e.view.hpBar.set(1 / e.maxHp);
+      if (this.fx && (!this.fog || this.fog.state(e.x, e.z) === 2)) {
+        this.fx.hit(e.x, 0.5, e.z, 0xbff0ff, 8);
+      }
+      return;
+    }
     e.dead = true;
     if (this.selected.includes(e)) this.setSelection(this.selected.filter((s) => s !== e));
     if (killer && killer.owner >= 0 && killer.owner !== e.owner && e.kind !== 'resource') {
@@ -3008,6 +3570,17 @@ export class Game {
         this.cb.cinematic('megadown', e.x, e.z); // a titan is felled
       }
       e.order = null; e.oq.length = 0; e.swing = null;
+      // a toy killed INSIDE a building (wish bursts can reach them) must give its
+      // slot back, or the host counts a corpse forever (volley gate, damage
+      // bonus, capacity). Before wishes nothing could kill a garrisoned toy.
+      if (e.garrisoned != null) {
+        const host = this.entities.find((b) => b.id === e.garrisoned && b.kind === 'building');
+        if (host && host.garrisonIds) {
+          const gi = host.garrisonIds.indexOf(e.id);
+          if (gi >= 0) host.garrisonIds.splice(gi, 1);
+        }
+        e.garrisoned = null;
+      }
       e.removeT = e.view.startDeath();
       // fan the death burst away from whatever landed the killing blow
       const kd = (killer && killer.x !== undefined) ? Math.atan2(e.x - killer.x, e.z - killer.z) : null;
@@ -4437,6 +5010,56 @@ export class Game {
     // --- tribe manager: a wild camp is a contest, not a gift. Send a small
     // squad to stand in the circle; a rival already mid-hold is worth crossing
     // the room for, since arriving at all resets their progress to nothing.
+    // --- wish-power manager: spend charges the way a person would ---
+    // bursts into a knot of enemies, mends a burning keep, banks a dying
+    // economy, and calls One More Night only for a real last stand.
+    if (p.wishCd <= 0 && p.wishes.length) {
+      for (const { id, w, left } of this.wishPowersOf(owner)) {
+        if (left <= 0) continue;
+        const k = w.power.k;
+        let cast = false;
+        if (k === 'burst' || k === 'chain') {
+          // densest knot of enemies within 6 tiles of any of our military
+          let bx = 0, bz = 0, bn = 0;
+          for (const m of military) {
+            let n = 0, sx = 0, sz = 0;
+            for (const e of enemyUnits) {
+              const dx = e.x - m.x, dz = e.z - m.z;
+              if (dx * dx + dz * dz < 36) { n++; sx += e.x; sz += e.z; }
+            }
+            if (n > bn) { bn = n; bx = sx / n; bz = sz / n; }
+          }
+          if (bn >= 4) cast = this.castWish(owner, id, bx, bz, null);
+        } else if (k === 'mend') {
+          let burning = 0;
+          for (const e of mine) if (e.kind === 'building' && e.hp < e.maxHp * 0.45) burning++;
+          if (burning >= 2) cast = this.castWish(owner, id, 0, 0, null);
+        } else if (k === 'mendone' || k === 'ward') {
+          const b = mine.find((e) => e.kind === 'building' && e.built >= 1 && e.hp < e.maxHp * 0.4);
+          if (b) cast = this.castWish(owner, id, b.x, b.z, b.id);
+        } else if (k === 'onemorenight') {
+          let engaged = 0;
+          for (const m of military) if (m.order && m.order.type === 'attack') engaged++;
+          if (engaged >= 6 && p.stats.lost >= 8) cast = this.castWish(owner, id, 0, 0, null);
+        } else if (k === 'deposit') {
+          if (p.res.blocks < 50 && p.res.buttons < 50 && workers.length >= 8) {
+            cast = this.castWish(owner, id, 0, 0, null);
+          }
+        } else if (k === 'instant') {
+          // finish a production building the moment the queue would want it
+          const f = mine.find((e) => e.kind === 'building' && e.built < 1 && e.built > 0.15 && e.def.trains);
+          if (f && ai.attacking) cast = this.castWish(owner, id, f.x, f.z, f.id);
+        } else if (k === 'light') {
+          // drop the hall light on our own army when it marches out at night
+          if (ai.attacking && military.length >= 6 && this.time > 700) {
+            const m = military[0];
+            cast = this.castWish(owner, id, m.x, m.z, null);
+          }
+        }
+        if (cast) break;
+      }
+    }
+
     ai.tribeT = (ai.tribeT === undefined ? 18 : ai.tribeT) - AI.tick;
     if (ai.tribeT <= 0) {
       ai.tribeT = 20;
@@ -4983,6 +5606,8 @@ export class Game {
     }
     if (this.time > 600) this.narrate('clock10');
     this.processMissionEvents();
+    this.updateWishes(dt);
+    this.updateZones(dt);
 
     for (const p of this.players) {
       if (p.aging > 0) {
@@ -5100,7 +5725,7 @@ export class Game {
     this.fogT -= dt;
     if (this.fogT <= 0) {
       this.fogT = 0.25;
-      this.fog.update(this.entities, this.teamOwners(this.myTeam));
+      this.fog.update(this.entities, this.teamOwners(this.myTeam), this.lightZonesOf(this.myTeam));
       for (const e of this.entities) {
         if (e.removed || !this.isEnemy(this.myId, e.owner)) continue;
         if (e.kind === 'unit') {

@@ -1620,3 +1620,118 @@ if (!due || p.wishOffered >= 2 || p.den || !this.playerAlive(p)) continue;
 **Everything else landed exactly**, including `game.js:4951` (the timeline score formula, verbatim), `:3715` (the farm's inline `mods.gather * mods.gatherSnacks` — confirming farms bypass `gatherRateOf` at `:1826-1828`), `:1779`, `:3250`, `:2617`, `:4498`, `:2374`, `:2382`, `:1833` (`applyTech` idempotence — the trap Law 14 warns about is real), `net.js:99/154/186/224`, `main.js:1353/1750/1790/1800/1883/2724/2733/3075/4178/4216`, `toybox-tactics.html:279/386/525/536/538/621` (all five CSS classes global and unscoped; `#hud` explicitly excluded from the zoom list; no `#wishbar` collision), `post.js:129`, `data.js:596/2124/2168`, and the full FACTIONS mods table plus all eight free-tech prices — **exact, every one**.
 
 Also confirmed: `n` is free (`CARD_KEYS = ['q','e','r','y','u','i','o','p','k','j']`, `main.js:2747`); `1-9` is control-group recall with `Ctrl` assigning (`:2733`); `trainUnit` never checks `b.def.trains.includes(type)` (verified across the whole function, `:2710-2725`) — which is what makes "wish units never enter a `trains` array" work; the AI `opts` picker at `:4276-4280` and fort `find()` at `:4238` are exactly as described; `spawnUnit` only does `p.popUsed++` (`:1753`) with the popCap gate living in the queue drain (`:3912`), so `overPop` needs no new machinery; and exactly **5 of 12 maps** carry no `tribes` (canyon, kitchen, bookshelf, livingroom, bathtub), with `bathtub` the only pet-free map — the `needs:'pet'` predicate is correct across all twelve.
+---
+
+## 9 · BUILD STATE (2026-08-23) — SLICE 1 SHIPPED, ALL GATES GREEN
+
+Slices 0+1 are LIVE: the engine, the 12-wish knights/bots/room catalogue, the
+draft modal, the wish bar, aim mode, the menu pre-pick, the AI picker + the
+AI wish-power manager, Patch 10 and Patch 11. Two deliberate deviations from
+this spec, both improvements:
+
+1. **Patch 9 (net.js roster pin) was NOT built — the pre-pick rides `issue()`
+   instead.** The menu pick is auto-issued as a normal `{t:'wish'}` command
+   when the offer window opens. Replays record it free, MP relays it free,
+   zero protocol change, and the optimism ban holds by construction. The spec
+   predates the idea; do not "restore" Patch 9.
+2. **THE FUSE LAW landed in Slice 1** (research synthesis rank 2, 6/6 source
+   convergence): burst/chain plant an `omen` zone (1.8s, amber ring) and
+   detonate against positions at THAT tick. `WISH_RULES.fuse`. Friendly
+   powers stay instant. Plus THE PUBLIC WISH (rank 1, partial): casts are
+   announced to the rival; an early Bell is announced to the aggressor.
+
+**Scope:** skirmish, MP, survival. NOT campaign missions (gated on missionEvents — every mission sets it), NOT tutorial, NOT zeroEra.
+
+**Gate results:** G1 ✓ (fp+hash ×2 maps ×2 runs) · G2 ✓ (2h+2ai, 3h+1ai,
+drop INSIDE the wish window — all `inSync === true`) · G3 ✓ (torture: live
+omen with payload, permanent zone t:-1, ward on a BUILDING, spent omn save,
+mid-window, mid-cooldown — hash-equal, mods NOT doubled) · G4 ✓ (hash
+diverges at the landing tick) · G5 ✓ (a live match with the menu pre-pick + 2 casts, bottled to the Shelf, replayed on a fresh page: stateHash@700 = 876405031 on BOTH — the pre-pick rode cmdLog as a real wish command) · G6 ✓
+(kernels on a cat/roomba/critter/stray board, 0 throws) · G7 ✓ (live hook,
+0 errors, menu→match→cast→Bell all driven).
+⚠️ G3 CAUGHT A REAL BUG on its first run: auras were snapshotted on UNITS
+only, so a ward on a chest was silently lost on restore. Auras now ride both
+unit and building snapshot branches. Any new aura carrier needs its branch.
+
+**Battery C (pick personality):** at jitter×0.35 every persona picked the SAME
+card 100% of the time — legible but stale. Widened to ×2.0: favored lane ~70%.
+rusher→March, boomer→Hearth, balanced→Keep(74%). Tier-2 situational terms
+(behind-on-army→March, fat-on-workers→Hearth, bleeding→Keep) verified live.
+
+**Slice-1 lane battery (48 games, mirrored seats, personas pinned 'balanced',
+hard AI, playmat+bookshelf × seeds 11/47, wished faction vs wishless classic
+control): 0 errors, 8 draws, median wishesCast 3.**
+| lane | knights | bots |
+|---|---|---|
+| hearth | 69% (cast 2.1) | 100% (cast 0.9) |
+| march | 100% (cast 3.0) | 94% (cast 3.0) |
+| keep | 75% (cast 1.8) | 50% (cast 1.0) |
+
+Readings, NO TUNE at n=8/cell: (1) wished-vs-control runs hot everywhere —
+that is the asymmetric control design working, not inflation. (2) March casts
+every charge (3.0) because bursts always find a target; hearth/keep powers are
+situational and under-trigger for the AI — a MANAGER threshold question, not
+a wish-number question. (3) **bots/keep 50% is the hall light being a
+HUMAN-value wish**: the AI's managers scan entities directly, so vision buys
+it nothing — the same documented class as Lost Toys ("the SP fantasy"). Do
+not tune `lighton` from AI batteries, ever. (4) Watch item for the full
+Battery A: knights March +25 over its own hearth on this pool pair.
+
+**The research synthesis** (2 workflows, 7+16 agents, ~2.3M tokens): ranked
+top-12 lives in the session task output; the bible carries the shortlist.
+Next builds in order: rank 3 `bonus:{wish}` (Slice 2, with the roster),
+rank 4 DEVOUT ECHO, rank 6 INFORMED BELL, rank 7 VALUE HAS A BODY (anchored
+zones), rank 12 THE BIG LIGHT. Distilled laws already carved into the bible:
+a cast is never silent; hostile power arrives with a shadow; every strange
+toy is pre-answered by a class rule; lasting value has a body; rates die,
+emitters live; charges are a fixed allowance; match payoff to runway; verbs
+over numbers.
+
+### 9.1 The adversarial review (29 agents, 5 lenses × verify) — 21 real defects, ALL FIXED
+
+Run after all seven gates were green. The gates are blind to deterministic
+*spec* failures (both clients agree on the wrong thing), and that is exactly
+what the review found. Every item below is fixed and re-verified:
+
+**Sim:**
+- Gifted age-2 buildings were SILENTLY DROPPED — `canPlace` age-gated them, so
+  `lighton`'s tower NEVER landed (Wish I is always Age 1) and the Bell-tier
+  towers/robolab vanished for the hurt Age-1 seat the early Bell exists for.
+  `canPlace(owner,type,i,j,gift)` now skips the age gate for gifts ONLY.
+- Baskets hugged the chest (a pantry nobody needs — Hearth Law violation by
+  siting). `giftBuildings` now has three siting shapes: drop-offs at the nearest
+  resource nodes (total-order sort, no rng), wall runs as ONE LINE facing map
+  centre with the gate in the middle slot (gate gifted FIRST, 11 candidate
+  slots so one blocked tile can't break the run), everything else on the chest
+  ring. A gifted gate never stacks on a gifted wall.
+- `deposit` nulled `carryType`, which idled every returning hauler and re-tasked
+  it to snacks 5s later. Now mirrors the chest deposit exactly (handicap applied,
+  carryType kept, phase back to 'to').
+- Strafing Run promised "buildings feel it most" with no `bmul` — now 7/3 = 140.
+- A toy killed INSIDE a building (wish bursts reach them; nothing else ever
+  could) left a ghost in `garrisonIds` — `kill()` releases the slot.
+- A pinned AI seat skipped its rng draws (Law 3) — it rolls, then honours the pin.
+- `instant` could finish the Wonder (skipping the rival's only warning) — excluded;
+  and it now runs the normal completion tail so builders don't idle.
+- `mendone` spent a charge on a full-hp building — needs real damage now.
+- Old Guard's omn was identical to bots' and unleashed (a siege tool) — it is
+  now **Hold the Line**, leashed to 12 tiles of an own building (Law 7); bots'
+  Wind Each Other stays map-wide on purpose.
+- `restore()` ALERTED before the UI existed → a legacy-save resume CRASHED to a
+  dead page. Deferred to the first tick, and the copy now says the TRUE thing
+  (the draft is re-offered, not lost).
+- A save mid-window resumed with the timer ticking and no modal — `showWishOffer`
+  re-shows once per (seat,tier) per Game; replay playback never shows it.
+
+**UI:** building-targeted casts use the `'building'` kind filter and a miss keeps
+aim mode + warns + spends nothing; the modal closes on game over and digits go
+inert; phone widths wrap the cards; foe chips re-derive after a load from
+charges-below-max.
+
+⚠️ **THE MODULE-CACHE TRAP (cost an hour):** a live game recorded right after a
+`game.js` edit replayed to a DIFFERENT hash, twice, while two replays agreed with
+each other. The replay path is sound — a controlled live→bottle→replay pair on
+the final code matched at all 16 checkpoints (frames 1…300, pick + cast in the
+log). The browser's ES-module cache can execute a stale `game.js` while
+`fetch()` stamps the fresh one, so the version stamp cannot catch it. After any
+sim edit, hard-reload before recording a bottle you intend to replay.

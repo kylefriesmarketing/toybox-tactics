@@ -3,7 +3,7 @@
 // ============================================================
 
 import * as THREE from 'three';
-import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, SURVIVAL, DIFFICULTIES, CAMPAIGN, INTRO, MISSION_EVENTS, CMDR_LINES, TEAM_COLORS, generateRandomMap } from './data.js';
+import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, SURVIVAL, DIFFICULTIES, CAMPAIGN, INTRO, MISSION_EVENTS, CMDR_LINES, TEAM_COLORS, WISHES, generateRandomMap } from './data.js';
 import {
   loadUnitModels, loadBuildingModels, loadMapModels, loadFurnitureModels, setBuildingFootprints,
   createGhostMesh, createMoveMarker, createOrderPath, createLamp, renderPortraits, applyUnitTier, refreshFactionBuildingIcons,
@@ -571,6 +571,11 @@ function renderCivPanel(facKey, panelId = 'civ-panel') {
       + `<div class="civ-cmd-title">${esc(cmd.title)}</div>`
       + `<div class="civ-cmd-bio">${esc(cmd.bio)}</div></div></div>`
     : '';
+  const wrow = (f.wishes && facKey !== 'random')
+    ? '<div class="civ-wishes"><div class="cw-head">\u{1F319} First Wish \u2014 pick now, or when the room asks</div><div class="cw-row">'
+      + f.wishes[1].map((id) => { const w = WISHES[id]; return w ? '<button class="cw-card' + (chosenWish === id ? ' sel' : '') + '" data-wish="' + id + '" title="' + esc(w.blurb) + ' \u2014 ' + esc(w.power ? w.power.desc : '') + '">' + w.icon + ' ' + esc(w.name) + '</button>' : ''; }).join('')
+      + '</div></div>'
+    : '';
   panel.innerHTML =
     `<div class="civ-head">${FACTIONS[facKey] && facKey !== 'random' ? `<img class="civ-crest" src="assets/ui/crest-${facKey}.png" alt="" onerror="this.remove()">` : ''}<span class="civ-name">${esc(f.label)}</span></div>` +
     cmdBlock +
@@ -579,7 +584,7 @@ function renderCivPanel(facKey, panelId = 'civ-panel') {
     (signature ? chip('⭐ Unique Unit' + extra, signature.name, short(signature.desc)) : '') +
     (bld ? chip('🏛️ Unique Building', bld.name, short(bld.desc)) : '') +
     (tech ? chip('🔬 Unique Tech', tech.name, short(tech.desc)) : '') +
-    `</div>`;
+    `</div>` + wrow;
 }
 // the civ row is generated from FACTIONS, so every new tribe shows up here
 // automatically (the knights taught us not to hardcode this list). The SAME
@@ -598,11 +603,18 @@ document.addEventListener('click', (e) => {
   const btn = e.target.closest('.fac-btn');
   if (!btn) return;
   chosenFaction = btn.dataset.fac;
+  chosenWish = null;
   document.querySelectorAll('.fac-btn').forEach((b) => b.classList.toggle('sel', b.dataset.fac === chosenFaction));
   renderCivPanel(chosenFaction);
   renderCivPanel(chosenFaction, 'mp-civ-panel');
   renderLobby(); // your skirmish seat shows your civ
   if (typeof renderMpLobby === 'function') renderMpLobby(); // your MP host seat too
+});
+addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('.cw-card');
+  if (!b) return;
+  chosenWish = chosenWish === b.dataset.wish ? null : b.dataset.wish;
+  document.querySelectorAll('.cw-card').forEach((x) => x.classList.toggle('sel', x.dataset.wish === chosenWish));
 });
 renderCivPanel(chosenFaction); // initial fill
 renderCivPanel(chosenFaction, 'mp-civ-panel');
@@ -1752,7 +1764,7 @@ window.__ttSoak = (opts = {}, maxTicks = 9000) => {
     fx, sfx: null, difficulty: opts.difficulty || opts.diff || 'normal',
     map: opts.map || 'playmat', playerDefs: defs,
     gameMode: opts.gameMode || 'standard', startRes: opts.startRes || 'standard',
-    seed, mp: false, myId: 0,
+    seed, mp: false, myId: 0, wishScript: opts.wishScript || null,
   });
   // capture the true victor: endGame knows the winning team for every mode,
   // whereas "last team with a building" only holds for standard/sudden.
@@ -1783,12 +1795,17 @@ window.__ttSoak = (opts = {}, maxTicks = 9000) => {
   // lockstep QA: scripted commands {t, pid, c} executed exactly like net.js does —
   // lets a soak drive human seats (co-op vs AI) and prove determinism across runs
   const script = (opts.script || []).slice().sort((a, b) => a.t - b.t);
+  const hashAt = opts.hashAt || null;
+  const hashes = {};
   let si = 0;
   let err = null, t = 0;
   try {
     for (; t < maxTicks && !g.over; t++) {
       while (si < script.length && script[si].t <= t) { g.execCommand(script[si].pid, script[si].c); si++; }
       g.update(0.1);
+      // G4 instrument: sample the REAL gate (stateHash) at requested ticks —
+      // fp is a smoke test and cannot see mods/techs/wish state at all
+      if (hashAt && hashAt.includes(t)) hashes[t] = g.stateHash();
     }
   } catch (e) { err = (e && e.message) + ' | ' + ((e && e.stack) || '').split('\n')[1]; }
   if (survDawnBak !== null) SURVIVAL.dawnWave = survDawnBak; // restore the shared config
@@ -1806,7 +1823,9 @@ window.__ttSoak = (opts = {}, maxTicks = 9000) => {
   // per-player stat blocks — lets a test assert whether a seat ENGAGED with a
   // system (tribes taught, strays carried home) rather than merely coexisting with it
   const stats = g.players.map((p) => ({ ...p.stats }));
-  return { seed, winnerTeam, over: g.over, ticks: t, simSec: Math.round(t * 0.1), err, armies, ages, res, facs, fp, surv, kinds, stats, personas };
+  const wishes = g.players.map((p) => [...p.wishes]);
+  const hash = g.stateHash();
+  return { seed, winnerTeam, over: g.over, ticks: t, simSec: Math.round(t * 0.1), err, armies, ages, res, facs, fp, hash, hashes, wishes, surv, kinds, stats, personas };
 };
 // in-memory lockstep harness: wires N real Net instances in a star (fake conns
 // deliver synchronously) driving N headless Games. Exercises the ACTUAL net.js
@@ -1818,8 +1837,9 @@ window.__ttNetTest = (opts = {}) => {
   const nH = opts.humans || 2, nA = opts.ai || 0, total = nH + nA;
   const seed = opts.seed || 12345, ticks = opts.ticks || 600;
   const playerDefs = [];
-  for (let i = 0; i < nH; i++) playerDefs.push({ team: i % 2, isAI: false, faction: 'classic' });
-  for (let i = 0; i < nA; i++) playerDefs.push({ team: (nH + i) % 2, isAI: true, faction: 'classic', difficulty: 'normal' });
+  const fac = (i) => (opts.factions && opts.factions[i]) || 'classic';
+  for (let i = 0; i < nH; i++) playerDefs.push({ team: i % 2, isAI: false, faction: fac(i) });
+  for (let i = 0; i < nA; i++) playerDefs.push({ team: (nH + i) % 2, isAI: true, faction: fac(nH + i), difficulty: 'normal' });
   const humanIds = playerDefs.map((d, i) => i).filter((i) => !playerDefs[i].isAI);
   const games = [];
   for (let i = 0; i < total; i++) {
@@ -2112,7 +2132,20 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
     alert: (msg, kind, pos) => ui.alert(msg, kind, pos),
     selection: () => ui.refreshSelection(),
     gameOver: (win, stats, timeline, reason) => {
+      closeWishOffer();
       ui.gameOver(win, stats, timeline, reason);
+      try {
+        const myWishes = game.players[game.myId].wishes || [];
+        const old = $('go-wishes'); if (old) old.remove();
+        if (myWishes.length) {
+          const line = myWishes.map((id) => (WISHES[id] ? WISHES[id].icon + ' ' + WISHES[id].name : id)).join(' \u00b7 ');
+          const gc = $('go-cause');
+          if (gc) gc.insertAdjacentHTML('afterend', '<div id="go-wishes">\u{1F319} Wished: ' + line + '</div>');
+          const wl = JSON.parse(localStorage.getItem('tt-wishlog') || '[]');
+          wl.push({ when: Date.now(), faction: game.factionKeys[game.myId], wishes: myWishes, cast: game.players[game.myId].stats.wishesCast, win: !!win });
+          localStorage.setItem('tt-wishlog', JSON.stringify(wl.slice(-60)));
+        }
+      } catch (e) { /* the log is garnish */ }
       if (campaignMission) campaignGameOver(win);
       else if (game.gameMode === 'survival') survivalGameOver(win);
       else {
@@ -2166,6 +2199,8 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
       }
     },
     age: () => ui.refreshSelection(),
+    wishOffer: (offer, tier) => onWishOffer(offer, tier),
+    wishSeen: (owner, id) => seenFoeWishes.add(owner + ':' + id),
     shake: (amt) => shakeCam(amt),
     dialogue: (speaker, text) => showDialogue(speaker, text),
     focus: (x, z) => cameraMoment(x, z),
@@ -2427,11 +2462,187 @@ function recallGroup(n) {
 const dragBox = $('dragbox');
 let down = null;
 // one ground-click mode at a time: 'amove' | 'patrol' | 'aground' | null
+
+// ---------------- BEDTIME WISHES — the draft and the bar ----------------
+// The optimism ban, kept religiously: nothing here mutates sim state. A card
+// click issues {t:'wish'}; a chip cast issues {t:'cast'}; the bar renders
+// p.wishes/p.wishCharges and NOTHING else. In lockstep an optimistic decrement
+// is an instant desync — the exact class of bug stateHash was hardened to catch.
+let wishAim = null;      // { id, need } while a targeted power is aiming
+let wishOfferBox = null; // { offer, tier } while the draft modal is up (or { auto })
+let chosenWish = null;   // the menu pre-pick — answered through issue() like any command
+let wishBarSig = '';
+let foeWishSig = '';
+const seenFoeWishes = new Set(); // "owner:id" — revealed by a cast (UI-local, not sim)
+const WISH_LANES = { hearth: '\u{1F56F}\uFE0F Hearth', march: '\u{1F463} March', keep: '\u{1F6E1}\uFE0F Keep' };
+const WISH_TARGET = { instant: 'building', mendone: 'building', ward: 'building', burst: 'ground', chain: 'ground', light: 'ground' };
+const RES_ICO = { snacks: '\u{1F36A}', blocks: '\u{1F9F1}', buttons: '\u{1F518}', marbles: '\u{1F52E}' };
+
+function wishGiftLine(w) {
+  const g = w.gift || {}; const bits = [];
+  for (const k in (g.res || {})) bits.push('+' + g.res[k] + ' ' + (RES_ICO[k] || k));
+  for (const k in (g.free || {})) { const b = BUILDINGS[k]; bits.push((g.free[k] > 1 ? g.free[k] + '\u00d7 ' : '') + (b ? b.name : k)); }
+  for (const t of (g.techs || [])) { const th = TECHS[t]; bits.push(th ? th.name : t); }
+  if (g.mods) {
+    if (g.mods.buildingHp) bits.push('+' + Math.round((g.mods.buildingHp - 1) * 100) + '% building HP');
+    if (g.mods.atkSpeed) bits.push('faster attacks');
+  }
+  if (g.unitAt) { const hb = BUILDINGS[g.unitAt.at]; bits.push('a boxed titan (needs ' + (hb ? hb.name : g.unitAt.at) + ', Age ' + (g.unitAt.age || 1) + ')'); }
+  return bits.join(' \u00b7 ');
+}
+function onWishOffer(offer, tier) {
+  if (!game || game.over) return;
+  // pre-picked at the menu: answer silently, next frame, through issue()
+  if (tier === 1 && chosenWish && offer.includes(chosenWish)) { wishOfferBox = { auto: chosenWish, tier }; return; }
+  wishOfferBox = { offer, tier };
+  renderWishOffer(offer, tier);
+}
+// THE INFORMED BELL: the same board reads the AI's picker uses, shown to the
+// human so the Bell pick is made on data, not vibes. Pure reads, throttled by
+// being computed once per render.
+function wishContextLine() {
+  try {
+    const me = game.myId;
+    let myArmy = 0, myWk = 0, foeArmy = 0, foeWk = 0;
+    for (const e of game.entities) {
+      if (e.kind !== 'unit' || e.dead || e.owner < 0) continue;
+      const wk = !!e.def.gatherRate;
+      if (e.owner === me) { if (e.def.aggro > 0) myArmy++; else if (wk) myWk++; }
+      else if (game.isEnemy(me, e.owner)) { if (e.def.aggro > 0) foeArmy++; else if (wk) foeWk++; }
+    }
+    const lost = game.players[me].stats.lost;
+    const bits = [];
+    if (foeArmy > myArmy + 2) bits.push('their army outweighs yours by ' + (foeArmy - myArmy) + ' toys');
+    else if (myArmy > foeArmy + 2) bits.push('your army leads by ' + (myArmy - foeArmy) + ' toys');
+    else bits.push('armies are even (' + myArmy + ' v ' + foeArmy + ')');
+    if (myWk > foeWk + 2) bits.push('you out-gather them');
+    else if (foeWk > myWk + 2) bits.push('they out-gather you');
+    if (lost >= 6) bits.push(lost + ' toys lost tonight');
+    return bits.join(' \u00b7 ');
+  } catch (e) { return ''; }
+}
+function renderWishOffer(offer, tier) {
+  const box = $('wish-offer');
+  if (!box) return;
+  $('wo-head').textContent = tier === 1 ? '\u{1F319} The room leans close\u2026' : '\u{1F514} The Bell \u2014 wish again';
+  const ctx = $('wo-ctx');
+  if (ctx) { const line = tier === 2 ? wishContextLine() : ''; ctx.textContent = line; ctx.style.display = line ? '' : 'none'; }
+  const cards = $('wo-cards');
+  cards.innerHTML = '';
+  offer.forEach((id, i) => {
+    const w = WISHES[id];
+    if (!w) return;
+    const el = document.createElement('button');
+    el.className = 'wo-card';
+    el.innerHTML = '<div class="woc-top"><span class="woc-ico">' + w.icon + '</span>'
+      + '<span class="woc-name">' + w.name + '</span><span class="woc-key">' + (i + 1) + '</span></div>'
+      + '<div class="woc-lane">' + (WISH_LANES[w.lane] || w.lane) + '</div>'
+      + '<div class="woc-blurb">' + w.blurb + '</div>'
+      + '<div class="woc-gift">\u{1F381} ' + wishGiftLine(w) + '</div>'
+      + (w.power ? '<div class="woc-power">\u2728 ' + w.power.label + ' \u00d7' + w.power.charges + ' \u2014 ' + w.power.desc + '</div>' : '');
+    el.onclick = () => pickWish(id);
+    cards.appendChild(el);
+  });
+  box.classList.add('show');
+  sfx.play('age');
+}
+function pickWish(id) {
+  if (!game) return;
+  game.issue({ t: 'wish', id });
+  sfx.play('command');
+  closeWishOffer();
+}
+function closeWishOffer() {
+  const box = $('wish-offer');
+  if (box) box.classList.remove('show');
+  wishOfferBox = null;
+}
+function wishChipClick(id) {
+  if (!game) return;
+  const p = game.players[game.myId];
+  if (!p || (p.wishCharges[id] || 0) <= 0 || p.wishCd > 0) return;
+  const w = WISHES[id];
+  const need = w && w.power && WISH_TARGET[w.power.k];
+  if (!need) { game.issue({ t: 'cast', id }); sfx.play('command'); return; }
+  wishAim = { id, need };
+  setClickMode('wishcast');
+}
+// ticked from loop() AND the hidden-tab interval, deliberately NOT __ttStep
+// (the trailer-capture path — a wish card must never appear in a capture)
+function updateWishBar() {
+  const bar = $('wishbar');
+  if (!game || !bar || !game.players) return;
+  try {
+    if (wishOfferBox && wishOfferBox.auto) {
+      game.issue({ t: 'wish', id: wishOfferBox.auto });
+      wishOfferBox = null;
+      return;
+    }
+    const p = game.players[game.myId];
+    if (!p) return;
+    const box = $('wish-offer');
+    if (box && box.classList.contains('show')) {
+      const tier = wishOfferBox ? wishOfferBox.tier : 0;
+      // the sim answered for us (window lapsed) or our pick landed → fold the card away
+      if (!wishOfferBox || p.wishT <= 0 || p.wishes.length >= tier) closeWishOffer();
+      else { const f = $('wo-fill'); if (f) f.style.width = Math.max(0, Math.min(100, (p.wishT / 45) * 100)) + '%'; }
+    } else if (wishOfferBox && wishOfferBox.offer && p.wishT > 0) {
+      renderWishOffer(wishOfferBox.offer, wishOfferBox.tier); // e.g. reopened after Esc-close
+    }
+    const powers = game.wishPowersOf(game.myId);
+    const sig = powers.map((x) => x.id + ':' + x.left).join('|');
+    if (sig !== wishBarSig) {
+      // stable-DOM rule: rebuild only when the roster/charges actually change
+      wishBarSig = sig;
+      bar.innerHTML = '';
+      for (const { id, w, left } of powers) {
+        if (left <= 0) continue;
+        const b = document.createElement('button');
+        b.className = 'wish-chip';
+        b.dataset.wid = id;
+        b.title = w.power.desc + (WISH_TARGET[w.power.k] ? ' \u2014 click, then aim (N)' : ' \u2014 instant');
+        b.innerHTML = '<span class="wc-ico">' + w.icon + '</span><span class="wc-lbl">' + w.power.label + '</span><span class="wc-n">' + left + '</span>';
+        b.onclick = () => wishChipClick(id);
+        bar.appendChild(b);
+      }
+    }
+    const foe = $('wishbar-foe');
+    if (foe) {
+      const rows = [];
+      for (const q of game.players) {
+        if (!game.isEnemy(game.myId, q.id)) continue;
+        for (const id of q.wishes) {
+          const w = WISHES[id];
+          if (!w || !w.power) continue;
+          if ((q.wishCharges[id] || 0) < w.power.charges) seenFoeWishes.add(q.id + ':' + id);
+          if (!seenFoeWishes.has(q.id + ':' + id)) continue;
+          rows.push({ id, icon: w.icon, label: w.power.label, left: q.wishCharges[id] || 0, who: q.id });
+        }
+      }
+      const fsig = rows.map((r) => r.who + ':' + r.id + ':' + r.left).join('|');
+      if (fsig !== foeWishSig) {
+        foeWishSig = fsig;
+        foe.innerHTML = rows.map((r) => '<div class="foe-chip" title="A rival wish you have seen cast. Charges are public."><span class="wc-ico">'
+          + r.icon + '</span><span class="wc-lbl">' + r.label + '</span><span class="wc-n">' + r.left + ' left</span></div>').join('');
+      }
+    }
+    const cd = p.wishCd > 0;
+    for (const el of bar.children) {
+      const left = p.wishCharges[el.dataset.wid] || 0;
+      el.disabled = cd || left <= 0;
+      el.classList.toggle('cd', cd);
+      const n = el.querySelector('.wc-n');
+      if (n && n.textContent !== String(left)) n.textContent = left;
+    }
+  } catch (e) { /* the bar is garnish — it must never break the loop */ }
+}
+
 let clickMode = null;
 let mouseX = innerWidth / 2, mouseY = innerHeight / 2, mouseInside = true;
 
 function setClickMode(m) {
   clickMode = m;
+  if (!m) wishAim = null;
   document.body.classList.toggle('amove', !!m);
 }
 const setAttackMove = (v) => setClickMode(v ? 'amove' : null);
@@ -2483,6 +2694,28 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
         } else if (clickMode === 'aground') {
           game.issue({ t: 'aground', ids, x: p.x, z: p.z, q: e.shiftKey });
           marker.ping(p.x, p.z, 0xff5544);
+        } else if (clickMode === 'wishcast' && wishAim) {
+          if (wishAim.need === 'building') {
+            const hit = game.entityAt(p.x, p.z, 'building');
+            const w = WISHES[wishAim.id], k = w && w.power && w.power.k;
+            const okHit = hit && hit.owner === game.myId
+              && !(k === 'instant' && (hit.built >= 1 || hit.type === 'wonder'))
+              && !(k === 'mendone' && hit.hp >= hit.maxHp - 0.5);
+            if (okHit) {
+              game.issue({ t: 'cast', id: wishAim.id, tid: hit.id, x: p.x, z: p.z });
+              marker.ping(hit.x, hit.z, 0xbff0ff);
+            } else {
+              // a miss costs nothing and says so; stay in aim mode for a re-click
+              ui.alert(k === 'instant' ? 'Aim at one of your buildings still under construction.'
+                : k === 'mendone' ? 'Aim at one of your damaged buildings.' : 'Aim at one of your buildings.', 'warn');
+              sfx.play('error');
+              return;
+            }
+          } else {
+            game.issue({ t: 'cast', id: wishAim.id, x: p.x, z: p.z });
+            marker.ping(p.x, p.z, 0xbff0ff);
+          }
+          wishAim = null;
         }
         sfx.play('command');
       }
@@ -2685,6 +2918,10 @@ addEventListener('keydown', (e) => {
   // the camera pan reads `keys.a` ignoring modifiers — Ctrl+A would leave the
   // camera drifting left until keyup. v is unbound in both scopes.
   if (k === 'v' && !e.ctrlKey && !e.altKey) selectAllArmy();
+  if (k === 'n' && !e.ctrlKey && !e.altKey) {
+    const pw = game.wishPowersOf(game.myId).find((x) => x.left > 0);
+    if (pw && game.players[game.myId].wishCd <= 0) wishChipClick(pw.id);
+  }
   if (k === 'h') {
     const chest = game.entities.find((x) => x.type === 'chest' && x.owner === game.myId && !x.dead);
     if (chest) {
@@ -2729,6 +2966,10 @@ addEventListener('keydown', (e) => {
   if (!net) {
     if (e.key === '+' || e.key === '=') setSpeed(Math.min(3, gameSpeed + 0.5));
     if (e.key === '-') setSpeed(Math.max(0.5, gameSpeed - 0.5));
+  }
+  if (wishOfferBox && wishOfferBox.offer && !e.ctrlKey && !game.over && /^[1-3]$/.test(e.key)) {
+    const wid = wishOfferBox.offer[+e.key - 1];
+    if (wid) { pickWish(wid); return; }
   }
   if (/^[1-9]$/.test(e.key)) {
     if (e.ctrlKey) { assignGroup(e.key); e.preventDefault(); }
@@ -4177,6 +4418,7 @@ function loop() {
   updateObjectives(dt);         // the goal, live, where eyes already are
   updateTips(dt);               // and teach the buttons the game never mentions
   updateOrderPath(dt);          // and show the orders you queued but cannot see
+  updateWishBar();              // and keep the wish chips honest
   // the lamp breathes a little, like a real filament (only while it exists)
   if (lampProp.group.visible) {
     const flick = 1 + Math.sin(performance.now() * 0.0021) * 0.03 + Math.sin(performance.now() * 0.013) * 0.02;
@@ -4215,6 +4457,7 @@ setInterval(() => {
     updateObjectives(elapsed);
     updateTips(elapsed);
     updateOrderPath(elapsed);
+    updateWishBar();
     updateCamMoment(elapsed);
     applyCamera(elapsed);
     renderFrame();
