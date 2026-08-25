@@ -2641,7 +2641,7 @@ export const LOST_TOYS = {
 // mods merge into the player's stat-modifier table at match start
 export const FACTIONS = {
   classic: {
-    wishes: { 1: ["quartermaster","flag","digin"], 2: ["junkdrawer","secondwave","longwatch"] },
+    wishes: { 1: ["quartermaster","flag","digin"], 2: ["junkdrawer","secondwave","longwatch"], 3: ["standto","longway","footofbed"] },
     label: 'Classic Toys', icon: '🎁',
     desc: 'The first toys, and the steadiest. No bonuses, no weaknesses — just discipline.',
     mods: {},
@@ -2651,7 +2651,7 @@ export const FACTIONS = {
     },
   },
   bricks: {
-    wishes: { 1: ["sortbycolour","picture","onebrick"], 2: ["spareparts","wewatched","clickdone"] },
+    wishes: { 1: ["sortbycolour","picture","onebrick"], 2: ["spareparts","wewatched","clickdone"], 3: ["timeenough","farside","kept"] },
     label: 'Snap-Bricks', icon: '🧱',
     desc: 'Builders to the last stud. Buildings +25% HP, workers build 25% faster — but infantry march 3% slower.',
     mods: { buildingHp: 1.25, buildRate: 1.25, speedInfantry: 0.97 }, // battery-tuned: was 31% WR
@@ -2661,7 +2661,7 @@ export const FACTIONS = {
     },
   },
   plush: {
-    wishes: { 1: ["leaveiton","flag","hugline"], 2: ["warmheap","rideorrescue","lightonw2"] },
+    wishes: { 1: ["leaveiton","flag","hugline"], 2: ["warmheap","rideorrescue","lightonw2"], 3: ["hourstospare","moonfloor","keptyou"] },
     label: 'Plushie Horde', icon: '🧸',
     desc: 'Soft outside, unbeatable inside. All toys +12% HP, medics heal 50% more — but everyone waddles 6% slower.',
     mods: { unitHp: 1.12, healRate: 1.5, speedInfantry: 0.94, speedWheels: 0.94 },
@@ -2671,7 +2671,7 @@ export const FACTIONS = {
     },
   },
   racers: {
-    wishes: { 1: ["couch","allwound","marshals"], 2: ["sponsorship","folded","lightonw2"] },
+    wishes: { 1: ["couch","allwound","marshals"], 2: ["sponsorship","folded","lightonw2"], 3: ["onestop","onelap","nothinglost"] },
     label: 'RC Racers', icon: '🏎️',
     desc: 'Born at the finish line. Wheeled toys +15% speed and +1 attack — but workers gather 3% slower.',
     mods: { speedWheels: 1.15, atkVehicle: 1, gather: 0.97 }, // battery-tuned twice: 39% → 38% at 0.95
@@ -2681,7 +2681,7 @@ export const FACTIONS = {
     },
   },
   bots: {
-    wishes: { 1: ["maintenance","stillticking","lighton"], 2: ["junkdrawer","everythingspare","nobodywinds"] },
+    wishes: { 1: ["maintenance","stillticking","lighton"], 2: ["junkdrawer","everythingspare","nobodywinds"], 3: ["ahead","everynight","notthrown"] },
     label: 'Tin Bots', icon: '🤖',
     desc: 'Factory-fresh precision. Ranged +1 attack, all toys attack 10% faster — but they trundle 5% slower on foot.',
     mods: { atkPierce: 1, atkSpeed: 0.9, speedInfantry: 0.95 }, // battery-tuned: was 36% WR
@@ -2691,7 +2691,7 @@ export const FACTIONS = {
     },
   },
   knights: {
-    wishes: { 1: ["somebody","warmegg","toberaised"], 2: ["everythingcame","ninehundred","oldguard"] },
+    wishes: { 1: ["somebody","warmegg","toberaised"], 2: ["everythingcame","ninehundred","oldguard"], 3: ["myhours","crossing","knightsKept"] },
     label: 'Castle Kingdom', icon: '🏰',
     desc: 'Stone and oath. Buildings +20% HP, all toys +5% HP — but armored boots march 6% slower.',
     mods: { buildingHp: 1.2, unitHp: 1.05, speedInfantry: 0.94 },
@@ -2701,7 +2701,7 @@ export const FACTIONS = {
     },
   },
   wranglers: {
-    wishes: { 1: ["couch","wholeherd","mendfence"], 2: ["bringhome","floorboard","donttouch"] },
+    wishes: { 1: ["couch","wholeherd","mendfence"], 2: ["bringhome","floorboard","donttouch"], 3: ["sparehours","longdrive","ropegrip"] },
     label: 'The Wranglers', icon: '🤠',
     desc: 'Rope, ranch and reflex. Workers gather 4% faster — but notched-log buildings are 8% lighter.',
     mods: { gather: 1.04, buildingHp: 0.92 },
@@ -2711,7 +2711,7 @@ export const FACTIONS = {
     },
   },
   plains: {
-    wishes: { 1: ["movecamp","whatwalks","lighton"], 2: ["season","floorboard","keeping"] },
+    wishes: { 1: ["movecamp","whatwalks","lighton"], 2: ["season","floorboard","keeping"], 3: ["wintercount","knowstheway","downhere"] },
     label: 'The Painted Plains', icon: '🪶',
     desc: 'Swift and sure on open ground. All toys walk 5% faster — but hide-and-pole buildings are 10% lighter.',
     mods: { speedInfantry: 1.05, buildingHp: 0.9 },
@@ -2881,6 +2881,7 @@ export const AI_LINES = {
 export const NARRATOR = {
   // Bedtime Wishes (text-only — NOT in NARRATOR_VO until a .wav exists)
   wish: 'A wish is just a plan said bravely, in the dark, to no one. The room heard it anyway.',
+  wishage: 'The room turned a page, and something older than the toys leaned down to ask what they wanted.',
   bell: 'Somewhere down the hall a clock cleared its throat. Six of the small hours - old enough to wish again.',
   onemorenight: 'And the toys held onto each other and refused, politely but completely, to fall down. One more night. Just one more.',
   firstblood: 'And so the first toy fell, and the room pretended not to notice. The war was real now.',
@@ -2908,6 +2909,7 @@ export const NARRATOR = {
 // simply fall back to the first-night line.
 export const NARRATOR_NG = {
   wish: 'The wish came easier the second night. Wishes are like stairs in the dark - your feet remember the way.',
+  wishage: 'Another page, another asking. The room already knew the answer; it asked anyway, because being asked is the point.',
   bell: 'The clock cleared its throat again, and the room mouthed the words along with it. Time to wish. It always is, eventually.',
   onemorenight: 'They had refused to fall once before, and the refusing had worked. Some spells are just practice, said out loud.',
   firstblood: 'The first toy fell, and this time the room did not pretend. It had read this page before. It turned it anyway.',
@@ -2993,9 +2995,94 @@ export const INTRO = [
 // sim-seconds, and at least half of that must arrive as an OBJECT — a toy, a
 // building, a body. Never purely as a rate. Matches end at 7-15 minutes; a
 // compounding trickle picked at minute 6 is a trap, not an economy.
+
+// ---------------- THE NINE PATRONS ----------------
+// Age of Mythology's shape: your FACTION is the major god, chosen at the menu.
+// These nine are the minor gods — and they are not toys. They are the older,
+// awake things that were in the bedroom before any of you: the light that
+// stays on, the pipes that bang, the clock that counts the house toward
+// morning. One leans down at each age and asks what you want.
+//
+// Keyed by lane + tier, and SHARED BY ALL EIGHT TRIBES on purpose — your tribe
+// is yours, but the room is older than all of you and belongs to nobody.
+// `patronOf(lane, tier)` derives a wish's patron; a wish may override with its
+// own `patron:` id.
+export const PATRONS = {
+  nightlight: {
+    name: 'The Nightlight', icon: '\u{1F56F}\uFE0F', lane: 'hearth', tier: 1, color: 0xffd98a,
+    title: 'who keeps the smallest light',
+    line: 'I have burned all night for someone smaller than you and never once been thanked \u2014 take this, and don\'t you thank me either.',
+  },
+  radiator: {
+    name: 'The Radiator', icon: '\u2668\uFE0F', lane: 'hearth', tier: 2, color: 0xff9a5a,
+    title: 'who bangs the pipes and means well',
+    line: 'I bang and I hiss and nobody in this house has ever liked me for it, but nothing in this room has gone cold on my watch, and nothing will tonight.',
+  },
+  clock: {
+    name: 'The Grandmother Clock', icon: '\u{1F570}\uFE0F', lane: 'hearth', tier: 3, color: 0xc9a86a,
+    title: 'who counts the house toward morning',
+    line: 'I have counted out every night this house has ever had, and I will spend a few of my hours on you \u2014 but I want you to know exactly what it is I am spending.',
+  },
+  door: {
+    name: 'The Door Left Ajar', icon: '\u{1F6AA}', lane: 'march', tier: 1, color: 0xf0e2c4,
+    title: 'who stands open a hand\'s width',
+    line: 'Somebody left me open a hand\'s width, and that is all anyone has ever needed from me \u2014 go on, while the gap is still there.',
+  },
+  window: {
+    name: 'The Window', icon: '\u{1FA9F}', lane: 'march', tier: 2, color: 0xa8d4f0,
+    title: 'who has seen the whole yard',
+    line: 'I have watched a whole yard get along without this room, so believe me when I tell you the far side of a floor is nothing \u2014 go and stand on it.',
+  },
+  moon: {
+    name: 'The Moon in the Window', icon: '\u{1F319}', lane: 'march', tier: 3, color: 0xdfe8ff,
+    title: 'who was here before the house',
+    line: 'I am not from your house and I do not take sides, but I have crossed this window every night since before the bed was built, and tonight I will cross it for you.',
+  },
+  toybox: {
+    name: 'The Toy Box', icon: '\u{1F9F0}', lane: 'keep', tier: 1, color: 0xb08050,
+    title: 'who closes over the smallest of you',
+    line: 'Every one of you has slept in me, and I have never once let the lid come down on somebody\'s hand \u2014 so stand where I can close over you.',
+  },
+  bookshelf: {
+    name: 'The Bookshelf', icon: '\u{1F4DA}', lane: 'keep', tier: 2, color: 0x9a6a4a,
+    title: 'who holds every story upright',
+    line: 'I have held up every story this house owns \u2014 a whole wall of them leaning on one another, and not one has fallen yet \u2014 and I can hold up yours.',
+  },
+  underbed: {
+    name: 'Under the Bed', icon: '\u{1F6CF}\uFE0F', lane: 'keep', tier: 3, color: 0x6a5a7a,
+    title: 'who keeps what the room forgot',
+    line: 'Everything this room has ever lost came down here to me, and I kept it \u2014 all of it, for years \u2014 so do not flinch when I tell you I will keep you as well.',
+  },
+};
+// a wish is spoken by whoever owns its lane at its tier
+export function patronOf(lane, tier) {
+  for (const k in PATRONS) {
+    const p = PATRONS[k];
+    if (p.lane === lane && p.tier === tier) return { id: k, ...p };
+  }
+  return null;
+}
+
 export const WISH_RULES = {
-  bell: 360,       // sim-seconds — Wish II is offered to EVERY living seat
+  // THE AGE IS THE BELL. Each wish is tied to an age-up — the moment the room
+  // turns a page — with a wall clock kept as a FLOOR so a seat that never gets
+  // to age up is never locked out of the wish its rival got. Whichever first.
+  tiers: 3,
+  bell: 360,       // sim-seconds — the FLOOR for Wish II (the Playmat Age)
+  // MEASURED 2026-08-25: 5/5 sampled games had a seat reach the Fort Age, and
+  // matches END at 660-812s. A floor AT 660 delivers a wish as the game ends —
+  // worthless. 570 leaves 1.5-4 min of runway; the age-up path fires earlier
+  // still for whoever actually earns the Fort Age.
+  bell3: 570,
   bellEarly: 180,  // …or this early for a seat that is hurting
+  bellEarly3: 450, // the same mercy at the third tier
+  // ⚠️ AN AGE-UP MAY RING YOUR BELL, BUT NEVER THIS EARLY. A marathon start
+  // (START_RES.mult 8) buys the Playmat Age inside a minute, which without a
+  // floor opens Wish II on top of Wish I — two drafts inside one 45s window.
+  // A normal age-up lands minute 4-5, so these almost never bite.
+  // INVARIANT: bellEarly <= ageFloor < bell, and ageFloor3 < bell3.
+  ageFloor: 240,
+  ageFloor3: 420,
   hurt: 6,         // stats.lost >= this pulls the bell forward. Hardship, not score:
                    // a boomer with 40 workers and no army never trips it.
   window: 45,      // seconds to answer before the sim picks offer[0] for you
@@ -3015,7 +3102,7 @@ export const WISHES = {
     name: 'Somebody Asked For Us', icon: '🏰', lane: 'hearth', tier: 1,
     blurb: 'Somebody wanted you by name. Unpack like it.',
     gift: { res: { blocks: 150 }, free: { house: 2, basket: 1 } },
-    power: { k: 'instant', charges: 2, label: 'Unpacking Day',
+    power: { k: 'instant', charges: 1, label: 'Unpacking Day',
       desc: 'Aim at a building still under construction: it finishes on the spot.' },
   },
   warmegg: {
@@ -3023,7 +3110,7 @@ export const WISHES = {
     blurb: 'Something in the roost is not sleeping.',
     gift: { res: { blocks: 180 }, free: { house: 2 } },
     unit: { key: 'hatchling', at: ['chest', 'roost'] },
-    power: { k: 'burst', charges: 2, label: 'Hatch', r: 2.0, dmg: 34,
+    power: { k: 'burst', charges: 1, label: 'Hatch', r: 2.0, dmg: 34,
       desc: 'A green burst at a point you choose.' },
   },
   toberaised: {
@@ -3031,7 +3118,7 @@ export const WISHES = {
     blurb: 'Ask the King what a portcullis is for. "To be raised."',
     gift: { mods: { buildingHp: 1.15 }, retroBuildingHp: 1.15,
       free: { wall: 8, gate: 1 } },
-    power: { k: 'ward', charges: 2, label: 'Hold Fast', t: 20, cut: 0.6,
+    power: { k: 'ward', charges: 1, label: 'Hold Fast', t: 20, cut: 0.6,
       desc: 'One building of yours takes 60% less damage for 20 seconds.' },
   },
   everythingcame: {
@@ -3069,14 +3156,14 @@ export const WISHES = {
     blurb: 'Somebody has been filling in the log. Nobody asked them to.',
     gift: { res: { buttons: 150 }, free: { basket: 2 } },
     unit: { key: 'unit4', at: ['chest'] },
-    power: { k: 'mendone', charges: 2, label: 'Service Call',
+    power: { k: 'mendone', charges: 1, label: 'Service Call',
       desc: 'Repair one building of yours to full, instantly.' },
   },
   stillticking: {
     name: 'Still Ticking', icon: '⏱️', lane: 'march', tier: 1,
     blurb: 'The mainspring is the whole toy. It is still going.',
     gift: { mods: { atkSpeed: 0.95 }, res: { buttons: 90 }, free: { house: 1 } },
-    power: { k: 'chain', charges: 2, label: 'Static Cling', links: 5, dmg: 12,
+    power: { k: 'chain', charges: 1, label: 'Static Cling', links: 5, dmg: 12,
       desc: 'A crackle that jumps between five toys.' },
   },
   everythingspare: {
@@ -3101,7 +3188,7 @@ export const WISHES = {
     name: 'Left the Light On', icon: '💡', lane: 'keep', tier: 1, room: true,
     blurb: 'Somebody left the hall light on. The dark gave a little ground.',
     gift: { res: { blocks: 120 }, free: { tower: 1 } },
-    power: { k: 'light', charges: 2, label: 'The Hall Light', r: 10, t: 20,
+    power: { k: 'light', charges: 1, label: 'The Hall Light', r: 10, t: 20,
       desc: 'A patch of the room stays lit for your team.' },
   },
   junkdrawer: {
@@ -3126,7 +3213,7 @@ export const WISHES = {
     unit: { key: 'standardbearer', at: ['chest'] },
     power: {
       k: 'countoff',
-      charges: 2,
+      charges: 1,
       label: 'Count Off',
       desc: 'Aim at one of your buildings: whatever it is training or researching finishes on the spot.',
     },
@@ -3140,7 +3227,7 @@ export const WISHES = {
     gift: { mods: { armorInfantry: 1 }, free: { wall: 12, gate: 1 } },
     power: {
       k: 'zone',
-      charges: 2,
+      charges: 1,
       label: 'Dig In',
       r: 5,
       t: 12,
@@ -3192,7 +3279,7 @@ export const WISHES = {
     gift: { res: { snacks: 100 }, claimCamp: true },
     power: {
       k: 'flagcamp',
-      charges: 2,
+      charges: 1,
       label: 'Rally the Wild',
       t: 30,
       desc: 'For 30 seconds your toys count double when winning over a wild camp.',
@@ -3207,7 +3294,7 @@ export const WISHES = {
     gift: { res: { blocks: 100 }, free: { basket: 3 } },
     power: {
       k: 'sort',
-      charges: 2,
+      charges: 1,
       label: 'Sort',
       amount: 100,
       desc: 'Trade 100 of one resource straight across for 100 of another. No market, no spread.',
@@ -3222,7 +3309,7 @@ export const WISHES = {
     gift: { res: { blocks: 200 }, free: { wall: 8 } },
     power: {
       k: 'place',
-      charges: 2,
+      charges: 1,
       label: 'Prefab Panel',
       building: 'wall',
       n: 1,
@@ -3239,7 +3326,7 @@ export const WISHES = {
     unit: { key: 'cornerstone', at: ['chest'] },
     power: {
       k: 'instant',
-      charges: 2,
+      charges: 1,
       label: 'Top It Off',
       wallsOnly: true,
       desc: 'Aim at a wall or gate still under construction: it finishes on the spot.',
@@ -3272,8 +3359,9 @@ export const WISHES = {
     unit: { key: 'thecopy', at: ['workshop'] },
     power: {
       k: 'place',
-      charges: 8,
+      charges: 1,
       label: 'The Wall Went Up',
+      line: 8,
       building: 'wall',
       n: 1,
       desc: 'Place a finished Block Wall anywhere you have vision. Eight panels — make a line of them.',
@@ -3289,8 +3377,9 @@ export const WISHES = {
     gift: { res: { blocks: 200 }, free: { tower: 2 } },
     power: {
       k: 'placeany',
-      charges: 3,
+      charges: 1,
       label: 'Click. Done.',
+      count: 3,
       cap: 150,
       desc: 'Place one finished building of your choice — up to 150 in cost — anywhere you have vision.',
     },
@@ -3306,7 +3395,7 @@ export const WISHES = {
     unit: { key: 'nightlight', at: ['chest'] },
     power: {
       k: 'zone',
-      charges: 2,
+      charges: 1,
       label: 'Warm Glow',
       r: 6,
       t: 15,
@@ -3324,7 +3413,7 @@ export const WISHES = {
     gift: { mods: { healRate: 1.33 }, units: { medic: 2 } },
     power: {
       k: 'zone',
-      charges: 2,
+      charges: 1,
       label: 'Hug the Prisoners',
       r: 5,
       t: 20,
@@ -3378,7 +3467,7 @@ export const WISHES = {
     unit: { key: 'slotcar', at: ['chest'] },
     power: {
       k: 'zone',
-      charges: 2,
+      charges: 1,
       label: 'Green Light',
       r: 6,
       t: 10,
@@ -3395,7 +3484,7 @@ export const WISHES = {
     gift: { mods: { armorOther: 1 }, free: { house: 3 } },
     power: {
       k: 'zone',
-      charges: 2,
+      charges: 1,
       label: 'Yellow Flag',
       r: 6,
       t: 8,
@@ -3450,7 +3539,7 @@ export const WISHES = {
     unit: { key: 'longhorn', at: ['chest'] },
     power: {
       k: 'zone',
-      charges: 2,
+      charges: 1,
       label: 'Round-Up',
       r: 8,
       t: 6,
@@ -3467,7 +3556,7 @@ export const WISHES = {
     gift: { techs: ['pockets'], free: { basket: 2, wall: 8 } },
     power: {
       k: 'mendr',
-      charges: 2,
+      charges: 1,
       label: 'Mend the Fence',
       r: 8,
       desc: 'Every building of yours within 8 tiles of the spot repairs to full, instantly.',
@@ -3517,7 +3606,7 @@ export const WISHES = {
     gift: { res: { snacks: 120 }, free: { farm: 3 } },
     power: {
       k: 'movecamp',
-      charges: 2,
+      charges: 1,
       label: 'Move the Camp',
       desc: 'Pick up one finished building you own — never the Toy Chest — and set it down anywhere you can see. An event, not a rate.',
     },
@@ -3532,7 +3621,7 @@ export const WISHES = {
     unit: { key: 'paintedpony', at: ['chest'] },
     power: {
       k: 'zone',
-      charges: 2,
+      charges: 1,
       label: 'Wind at Your Back',
       r: 6,
       t: 14,
@@ -3585,7 +3674,7 @@ export const WISHES = {
     gift: { res: { snacks: 200, blocks: 80 } },
     power: {
       k: 'claimlost',
-      charges: 2,
+      charges: 1,
       label: 'Look Underneath',
       n: 2,
       desc: 'Every Lost Toy in the room is revealed, and the two nearest come home paid.',
@@ -3601,7 +3690,7 @@ export const WISHES = {
     gift: { res: { blocks: 250, snacks: 150 } },
     power: {
       k: 'floorboard',
-      charges: 2,
+      charges: 1,
       label: 'The Loose Board',
       r: 5,
       slow: 0.35,
@@ -3626,6 +3715,435 @@ export const WISHES = {
       r: 14,
       t: 30,
       desc: 'A wide patch of the room stays lit for your team.',
+    },
+    devout: { charges: 1 },
+  },
+
+  // ---- TIER 3: THE FORT AGE. The last wish, spoken by the oldest patrons
+  // (the Grandmother Clock, the Moon in the Window, Under the Bed). It lands
+  // late, so every value here is IMMEDIATE — lumps, bodies and one-shot swings.
+  standto: {
+    name: 'Stand-To',
+    icon: '🥾',
+    lane: 'hearth',
+    tier: 3,
+    patron: 'clock',
+    blurb: 'The hour before morning is the hour this house has always got up in, and the Clock says it out loud so nobody has to guess. Everybody on their feet, and everybody fed.',
+    gift: { units: { soldier: 4, spear: 2 }, res: { snacks: 200, blocks: 150 }, free: { house: 2 } },
+    power: {
+      k: 'trainboost',
+      charges: 1,
+      label: 'The Hour I Spend',
+      t: 40,
+      desc: 'Aim at one building you own: it trains at triple speed for 40 seconds.',
+    },
+    devout: { res: { snacks: 200, blocks: 200 } },
+  },
+  longway: {
+    name: 'The Long Way Across',
+    icon: '🎺',
+    lane: 'march',
+    tier: 3,
+    patron: 'moon',
+    blurb: 'The Moon does not take sides. It lays one pale road down the middle of the floor, keeps it there a while, and does not much mind who walks up it, so bring the heavy tubes and walk.',
+    gift: { units: { grenadier: 4 }, res: { snacks: 150, buttons: 150 } },
+    power: {
+      k: 'unitboost',
+      charges: 1,
+      label: 'Cross the Floor',
+      t: 25,
+      tag: 'infantry',
+      speed: 0.6,
+      desc: 'For 25 seconds every army man you own marches 60% faster. Arrive together, or do not arrive.',
+    },
+    devout: { charges: 1 },
+  },
+  footofbed: {
+    name: 'The Fort at the Foot of the Bed',
+    icon: '🏕️',
+    lane: 'keep',
+    tier: 3,
+    patron: 'underbed',
+    blurb: 'Under the bed keeps what the room has lost, and it has never once given any of it back. Tonight it would like to try keeping something that is still standing, so it sends up posts.',
+    gift: { free: { tower: 3 }, res: { blocks: 200, marbles: 150 } },
+    power: {
+      k: 'onemorenight',
+      charges: 1,
+      label: 'Nothing Leaves the Floor',
+      t: 30,
+      leash: 14,
+      desc: 'For 30 seconds your toys within 14 tiles of a building you own refuse to fall. Each may survive once.',
+    },
+    devout: { free: { tower: 1 } },
+  },
+  timeenough: {
+    name: 'Time Enough to Finish',
+    icon: '⏳',
+    lane: 'hearth',
+    tier: 3,
+    patron: 'clock',
+    blurb: 'The clock has counted this house to morning nine thousand times. It knows exactly how many hours are left, and it is spending a few of them here, on the work.',
+    gift: { res: { blocks: 180, marbles: 120 }, free: { basket: 3, house: 6 } },
+    power: {
+      k: 'countoff',
+      charges: 1,
+      label: 'An Hour of Mine',
+      desc: 'Aim at a building of yours: whatever it is training, researching or ageing into finishes on the spot.',
+    },
+    devout: { charges: 1 },
+  },
+  farside: {
+    name: 'The Far Side of the Floor',
+    icon: '🌉',
+    lane: 'march',
+    tier: 3,
+    patron: 'moon',
+    blurb: 'The moon has crossed this window since before the bed was built, and it does not take sides. Tonight it lights the far side of the floor, and the bricks go and build there.',
+    gift: { res: { blocks: 250, marbles: 150 }, nextStar: { n: 8 } },
+    power: {
+      k: 'movecamp',
+      charges: 1,
+      label: 'Carry It Across',
+      desc: 'Pick up one finished building of yours — not the chest, not a wall — and set it down anywhere you have vision.',
+    },
+    devout: { free: { tower: 2 } },
+  },
+  kept: {
+    name: 'What the Bed Kept',
+    icon: '🔦',
+    lane: 'keep',
+    tier: 3,
+    patron: 'underbed',
+    blurb: 'Everything this room ever lost came down here and was kept. Some of it was bricks, and a brick does not stop being a brick just because it fell.',
+    gift: { res: { blocks: 200 }, free: { tower: 3 } },
+    power: {
+      k: 'suits',
+      charges: 1,
+      label: 'Come Back Up',
+      n: 4,
+      life: 50,
+      leash: 12,
+      unit: 'cornerstone',
+      desc: 'Four Cornerstones climb up at a building you own, hold that ground for 50 seconds, then go back down.',
+    },
+    devout: { charges: 1 },
+  },
+  hourstospare: {
+    name: 'The Hours She Can Spare',
+    icon: '🕰️',
+    lane: 'hearth',
+    tier: 3,
+    patron: 'clock',
+    blurb: 'The waiting is the hard part of being a toy. Not tonight.',
+    gift: { res: { snacks: 260 }, free: { nest: 1, house: 4 }, units: { medic: 2 } },
+    power: {
+      k: 'countoff',
+      charges: 1,
+      label: 'Strike the Hour Early',
+      desc: 'Aim at one of your buildings: whatever it is training or researching finishes on the spot.',
+    },
+    devout: { free: { house: 2, basket: 1 } },
+  },
+  moonfloor: {
+    name: 'The Moon Crosses the Floor',
+    icon: '🌙',
+    lane: 'march',
+    tier: 3,
+    patron: 'moon',
+    blurb: 'A cold stripe of light across the carpet, and every soft thing in the room walking down it.',
+    gift: { res: { snacks: 260, buttons: 120 }, units: { sockpuppet: 6, medic: 2 } },
+    power: {
+      k: 'light',
+      charges: 1,
+      label: 'Moonrise',
+      r: 16,
+      t: 45,
+      desc: 'A long slab of cold light lies down across the room. For 45 seconds your whole team sees everything standing in it.',
+    },
+    devout: { charges: 1 },
+  },
+  keptyou: {
+    name: 'Everything It Kept',
+    icon: '🧦',
+    lane: 'keep',
+    tier: 3,
+    patron: 'underbed',
+    blurb: 'Count the heap twice. It comes up higher than it did before.',
+    gift: { revive: { n: 10, hpFrac: 1 }, res: { snacks: 200, blocks: 150 }, free: { house: 3 } },
+    power: {
+      k: 'onemorenight',
+      charges: 1,
+      t: 35,
+      leash: 12,
+      label: 'It Keeps You Too',
+      desc: 'For 35 seconds your toys within 12 tiles of a finished building you own refuse to fall. Each of them may be kept once.',
+    },
+    devout: { charges: 1 },
+  },
+  onestop: {
+    name: 'A One-Stop Race',
+    icon: '🛠️',
+    lane: 'hearth',
+    tier: 3,
+    patron: 'clock',
+    blurb: 'Something down the hall has already counted how much night is left. Spend it in one stop.',
+    gift: { res: { snacks: 150, buttons: 180 }, free: { pitstop: 1, house: 4, basket: 1 } },
+    devout: { free: { house: 2 } },
+    power: {
+      k: 'countoff',
+      charges: 1,
+      label: 'On the Hour',
+      desc: 'Aim at a building of yours: whatever it is training or researching is finished, this second.',
+    },
+  },
+  onelap: {
+    name: 'One Lap of the Room',
+    icon: '🏁',
+    lane: 'march',
+    tier: 3,
+    patron: 'moon',
+    blurb: 'The moon crossed this floor long before the bed was built. Tonight it crosses in front of you, and the pack goes with it.',
+    gift: { res: { snacks: 200, buttons: 180 }, nextStar: { n: 6 } },
+    devout: { charges: 1 },
+    power: {
+      k: 'spawn',
+      charges: 1,
+      label: 'The Crossing',
+      unit: 'dragster',
+      n: 3,
+      desc: 'Three Nitro Dragsters come across the floor to a building you own, over the pop cap.',
+    },
+  },
+  nothinglost: {
+    name: 'Nothing Down There Is Lost',
+    icon: '🛏️',
+    lane: 'keep',
+    tier: 3,
+    patron: 'underbed',
+    blurb: 'Everything that ever rolled under is still down there in the dark, kept. Tonight a little of it rolls back out.',
+    gift: { free: { tower: 2 }, wreckRefund: { frac: 0.35 }, res: { blocks: 150 } },
+    devout: { charges: 1 },
+    power: {
+      k: 'suits',
+      charges: 1,
+      label: 'What Rolled Under',
+      n: 4,
+      life: 40,
+      leash: 14,
+      unit: 'slotcar',
+      desc: 'Four Slot Cars roll out from under a keep you own and hold the ground around it for 40 seconds. Chase further than fourteen tiles from that building and they roll back under for good.',
+    },
+  },
+  ahead: {
+    name: 'Ahead of Schedule',
+    icon: '⏳',
+    lane: 'hearth',
+    tier: 3,
+    patron: 'clock',
+    blurb: 'The clock down the hall counted this night to the end a long time ago. It hands back the hours they were going to spend waiting, and names the price of every one.',
+    gift: { res: { buttons: 260, marbles: 160 }, free: { robolab: 1, house: 3 } },
+    power: {
+      k: 'countoff',
+      charges: 1,
+      label: 'Ahead of Schedule',
+      desc: 'Aim at one of your buildings: whatever it is training or researching is finished the moment you ask, however long it had left.',
+    },
+    devout: { res: { buttons: 200, marbles: 100 } },
+  },
+  everynight: {
+    name: 'Every Night Since',
+    icon: '🌙',
+    lane: 'march',
+    tier: 3,
+    patron: 'moon',
+    blurb: 'The moon has crossed that window every night since before the bed was built. Tonight it crosses ahead of the column, and the column keeps its pace.',
+    gift: { units: { zapbot: 4 }, res: { buttons: 200, marbles: 140 } },
+    power: {
+      k: 'chain',
+      charges: 1,
+      label: 'The Long Circuit',
+      links: 8,
+      dmg: 26,
+      desc: 'A cold current steps from toy to toy — eight of them, one after another, in order.',
+    },
+    devout: { charges: 1 },
+  },
+  notthrown: {
+    name: 'Nothing Here Was Thrown Away',
+    icon: '🗝️',
+    lane: 'keep',
+    tier: 3,
+    patron: 'underbed',
+    blurb: 'Under the bed keeps everything the room gave up on, and it has given up nothing. Two of them come back out standing.',
+    gift: { free: { tower: 3, wall: 10 }, res: { marbles: 120, blocks: 60 } },
+    power: {
+      k: 'suits',
+      charges: 1,
+      label: 'Out From Under',
+      n: 2,
+      life: 40,
+      leash: 10,
+      unit: 'rewound',
+      desc: 'Two Rewound stand up at a building you own, hold for 40 seconds, then go back under.',
+    },
+    devout: { free: { tower: 1 } },
+  },
+  myhours: {
+    name: 'A Few of My Hours',
+    icon: '🕰️',
+    lane: 'hearth',
+    tier: 3,
+    patron: 'clock',
+    blurb: 'The Kingdom arrived eleven days late and has been catching up ever since. Something down the hall has decided to lend it the difference, and to say the number out loud.',
+    gift: { res: { blocks: 150, marbles: 100 }, free: { tower: 2, house: 2 } },
+    power: {
+      k: 'countoff',
+      charges: 1,
+      label: 'Spend an Hour',
+      desc: 'Aim at one of your buildings: whatever it is training or researching finishes on the spot. The hour comes off somebody else\'s night.',
+    },
+    devout: { charges: 1 },
+  },
+  crossing: {
+    name: 'The Long Crossing',
+    icon: '🌙',
+    lane: 'march',
+    tier: 3,
+    patron: 'moon',
+    blurb: 'It does not take sides and it never has. It only goes the whole way across, every night, and tonight it goes ahead of you.',
+    gift: { units: { knight: 3, charger: 2 } },
+    power: {
+      k: 'light',
+      charges: 1,
+      label: 'Moonrise',
+      r: 16,
+      t: 45,
+      desc: 'A wide reach of floor is lit for your team for 45 seconds. The moon is in no hurry about it.',
+    },
+    devout: { charges: 1 },
+  },
+  knightsKept: {
+    name: 'Kept',
+    icon: '🗝️',
+    lane: 'keep',
+    tier: 3,
+    patron: 'underbed',
+    blurb: 'Under the bed is not where things go missing. It is where they are kept, and it has been keeping them a very long time.',
+    gift: { revive: { n: 5, hpFrac: 0.6 }, free: { wall: 12, gate: 1 }, res: { marbles: 120 } },
+    unit: { key: 'emptysuit', at: ['fort', 'roost'] },
+    power: {
+      k: 'onemorenight',
+      charges: 1,
+      label: 'Mine To Keep',
+      t: 25,
+      leash: 12,
+      desc: 'For 25 seconds your toys standing within 12 tiles of a building you own refuse to fall. Each may survive once.',
+    },
+    devout: { free: { tower: 1 } },
+  },
+  sparehours: {
+    name: 'The Hours We Never Had',
+    icon: '⏳',
+    lane: 'hearth',
+    tier: 3,
+    patron: 'clock',
+    blurb: 'Daylight was never the thing this outfit ran short of. It was the hours inside it.',
+    gift: { res: { snacks: 240, blocks: 160 }, free: { house: 4 }, units: { worker: 6 } },
+    power: {
+      k: 'countoff',
+      charges: 1,
+      label: 'The Hour She Can Spare',
+      desc: 'Aim at a building of yours: the thing it is making finishes on the spot. One hour, off her clock, spent on you.',
+    },
+    devout: { res: { snacks: 250, blocks: 150 } },
+  },
+  longdrive: {
+    name: 'The Long Drive',
+    icon: '🧭',
+    lane: 'march',
+    tier: 3,
+    patron: 'moon',
+    blurb: 'The far side of the floor is only far until somebody rides out and stands on it.',
+    gift: { res: { snacks: 220, blocks: 140 }, free: { house: 3 }, units: { rider: 3 } },
+    power: {
+      k: 'place',
+      charges: 1,
+      label: 'The Long Drive',
+      building: 'logfort',
+      desc: 'Raise a finished Log Fort anywhere you can see — the far side of the floor, if you like. It stays, and it trains.',
+    },
+    devout: { charges: 1 },
+  },
+  ropegrip: {
+    name: 'The Rope Does Not Let Go',
+    icon: '🪢',
+    lane: 'keep',
+    tier: 3,
+    patron: 'underbed',
+    blurb: 'A rope is only a rope until it is around something. After that it is a promise.',
+    gift: { res: { blocks: 200, snacks: 150 }, free: { tower: 2, gate: 1, wall: 10 } },
+    power: {
+      k: 'onemorenight',
+      charges: 1,
+      label: 'Nothing Goes Under',
+      t: 25,
+      leash: 12,
+      desc: 'For 25 seconds your toys standing within 12 tiles of a building you own refuse to fall. Each of them may survive once.',
+    },
+    devout: { free: { tower: 1 } },
+  },
+  wintercount: {
+    name: 'The Winter Count',
+    icon: '🌾',
+    lane: 'hearth',
+    tier: 3,
+    patron: 'clock',
+    blurb: 'Every winter this camp has lived through is painted on one hide, in order, with nothing left out. Tonight the hours it took to fill are counted back to you.',
+    gift: { res: { snacks: 200 }, free: { farm: 3, basket: 1 }, units: { brave: 3, bowhunter: 2 } },
+    power: {
+      k: 'countoff',
+      charges: 1,
+      label: 'Spend the Hours',
+      desc: 'Aim at a building you own: whatever it is training, researching or ageing into is finished, this second.',
+    },
+    devout: { free: { farm: 2, basket: 1 } },
+  },
+  knowstheway: {
+    name: 'Everyone Knows the Way',
+    icon: '🌙',
+    lane: 'march',
+    tier: 3,
+    patron: 'moon',
+    blurb: 'This floor has been crossed every night by something that never once hurried. Nothing you send out tonight is walking it for the first time.',
+    gift: { nextStar: { n: 10 }, res: { snacks: 250 }, units: { bowhunter: 3 } },
+    power: {
+      k: 'unitboost',
+      charges: 1,
+      label: 'The Moon Crosses',
+      t: 25,
+      tag: 'infantry',
+      speed: 0.5,
+      desc: 'For 25 seconds every foot toy you own - Braves, Bow Hunters, anything that marches - moves 50% faster, anywhere on the floor. Wheels and siege are not walking; they get nothing.',
+    },
+    devout: { res: { snacks: 200, buttons: 120 } },
+  },
+  downhere: {
+    name: 'Down Here We Keep Things',
+    icon: '🪨',
+    lane: 'keep',
+    tier: 3,
+    patron: 'underbed',
+    blurb: 'Everything this room ever lost came down under the bed and was kept there, in the dark, for years. Stand your camp over it and it will keep you as well.',
+    gift: { res: { blocks: 200, marbles: 140 }, free: { tower: 2, wall: 14, gate: 1 } },
+    power: {
+      k: 'suits',
+      charges: 1,
+      label: 'Give Them Back',
+      n: 2,
+      life: 40,
+      leash: 12,
+      unit: 'oldstone',
+      desc: 'Two Old Stones come up out of the floor at a keep you own, stand for 40 seconds, and go back down. They are slow and they do not follow you home.',
     },
     devout: { charges: 1 },
   },

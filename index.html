@@ -182,6 +182,17 @@
   .wc-n { font-size: 11px; color: #ffd98a; border: 1px solid #6a522e; border-radius: 8px; padding: 0 5px; }
   #wish-sub { position: absolute; left: 190px; bottom: 208px; z-index: 12; display: flex; flex-direction: column; gap: 4px; max-height: 300px; overflow-y: auto; }
   #wo-ctx { font-size: 11.5px; color: #c9b8e6; font-style: italic; margin-top: -4px; }
+  /* the patrons: who is leaning down at this age */
+  #wo-patron { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #9a8258; margin-top: -3px; }
+  .wo-pat-sep { opacity: .45; }
+  .woc-patron { display: flex; align-items: center; gap: 6px; border-left: 2px solid #c9a86a;
+    padding: 2px 0 2px 6px; margin-bottom: 5px; }
+  .woc-pat-ico { font-size: 15px; border-radius: 6px; padding: 1px 3px; }
+  .woc-pat-txt { display: flex; flex-direction: column; line-height: 1.25; }
+  .woc-pat-txt b { font-family: Georgia, serif; font-size: 11.5px; }
+  .woc-pat-txt i { font-size: 9.5px; color: #9a8258; font-style: italic; }
+  .woc-pat-line { font-size: 10.5px; font-style: italic; color: #bfae90; line-height: 1.4;
+    margin-bottom: 6px; padding-left: 8px; border-left: 1px dotted #6a522e77; }
   /* the rival's revealed wishes: countable threats, rendered from public sim state */
   #wishbar-foe { position: absolute; right: 12px; top: 52px; z-index: 11; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
   .foe-chip { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #f0c8c0;
@@ -1102,6 +1113,7 @@
   <!-- bedtime wishes: the three-card draft + the charge chips -->
   <div id="wish-offer">
     <div id="wo-head">🌙 The room leans close…</div>
+    <div id="wo-patron"></div>
     <div id="wo-ctx"></div>
     <div id="wo-cards"></div>
     <div id="wo-timer"><div id="wo-fill"></div></div>

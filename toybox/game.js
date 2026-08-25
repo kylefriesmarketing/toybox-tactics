@@ -2375,6 +2375,10 @@ export class Game {
     }
     if (owner === this.myId) {
       this.alert(`${w.icon} ${w.name} — ${w.blurb}`, 'age');
+      if (w.power) {
+        // the power is the half a player can MISS — say it plainly, and say how
+        this.alert(`⚡ ${w.power.label} — your one use. Press N to aim it.`, 'age');
+      }
       this.narrate('wish');
     }
     return true;
@@ -2515,8 +2519,13 @@ export class Game {
   openWish(owner, tier) {
     const p = this.players[owner];
     if (p.wishOffered >= tier || p.den || !this.playerAlive(p)) return;
+    // remember whether the AGE opened this (the card reads differently)
+    p.wishByAge = p.age >= tier;
     const offer = this.wishOffer(this.factionKeys[owner], tier);
-    if (!offer.length) { p.wishOffered = tier; return; }
+    // ⚠️ an UNAUTHORED tier is a no-op, never a consumed wish — marking it
+    // offered would silently eat a seat's draft (the exact bug this feature
+    // was reported for, one age later). Try again next tick, forever.
+    if (!offer.length) return;
     p.wishOffered = tier;
     const scripted = this.wishScript && this.wishScript[owner] && this.wishScript[owner][tier - 1];
     const pin = scripted && offer.includes(scripted) ? scripted : null;
@@ -2565,18 +2574,28 @@ export class Game {
       if (p.den || !this.playerAlive(p)) continue;
       if (p.wishCd > 0) p.wishCd = Math.max(0, p.wishCd - dt);
       if (p.wreckT > 0) p.wreckT = Math.max(0, p.wreckT - dt);
-      // the Bell rings at 6:00 — or EARLY for a seat that is being taken apart.
-      // Hardship, not score: a boomer with forty workers and no army never
-      // trips it, which is the whole point of keying it to losses.
+      // ONE WISH PER AGE. The age-up is the ceremony; the clock is only a floor,
+      // so a seat pinned in the Bedtime Age still gets what its rival got.
+      // ⚠️ Hardship, not score: the early floor keys off toys LOST, so a boomer
+      // with forty workers and no army never trips it.
       if (p.wishOffered < 1) this.openWish(p.id, 1);
-      else if (p.wishOffered < 2 && p.wishT <= 0
-        && (this.time >= WISH_RULES.bell
-          || (this.time >= WISH_RULES.bellEarly && p.stats.lost >= WISH_RULES.hurt))) {
-        if (p.id === this.myId) this.narrate('bell');
-        else if (this.time < WISH_RULES.bell && this.isEnemy(this.myId, p.id)) {
-          this.alert('The Bell rang early for the rival - they have lost enough toys to wish again.', 'warn', null, 30);
+      else if (p.wishT <= 0 && p.wishOffered < WISH_RULES.tiers) {
+        const tier = p.wishOffered + 1;                 // the tier now owed
+        // the age rings the Bell — but never before its floor, or a rushed
+        // age-up would stack two drafts inside one answer window
+        const ageFloor = tier === 2 ? WISH_RULES.ageFloor : WISH_RULES.ageFloor3;
+        const byAge = p.age >= tier && this.time >= ageFloor;
+        const floor = tier === 2 ? WISH_RULES.bell : WISH_RULES.bell3;
+        const early = tier === 2 ? WISH_RULES.bellEarly : WISH_RULES.bellEarly3;
+        const byClock = this.time >= floor
+          || (this.time >= early && p.stats.lost >= WISH_RULES.hurt);
+        if (byAge || byClock) {
+          if (p.id === this.myId) this.narrate(byAge ? 'wishage' : 'bell');
+          else if (!byAge && this.time < floor && this.isEnemy(this.myId, p.id)) {
+            this.alert('The Bell rang early for the rival - they have lost enough toys to wish again.', 'warn', null, 30);
+          }
+          this.openWish(p.id, tier);
         }
-        this.openWish(p.id, 2);
       }
       // an unanswered window closes on its own rather than stalling the match
       if (p.wishT > 0) {
@@ -2750,7 +2769,20 @@ export class Game {
         const bd = BUILDINGS[pw.building];
         if (bd && this.teamSees(p.team, tx, tz)) {
           const i = tileOf(tx), j = tileOf(tz);
-          if (this.canPlace(owner, pw.building, i, j, true)) { this.addBuilding(pw.building, owner, i, j, true); ok = true; }
+          // `line` lays a RUN in one cast — a wall is a line or it is not a wall.
+          // The run is axis-aligned along whichever way the map's centre lies, so
+          // it faces the field; the scan order is fixed, so every client agrees.
+          const n = pw.line || 1;
+          if (n > 1) {
+            const horiz = Math.abs(N / 2 - i) >= Math.abs(N / 2 - j);
+            for (let k = 0; k < n; k++) {
+              const d = k - (n >> 1);
+              const a2 = horiz ? i : i + d, b2 = horiz ? j + d : j;
+              if (this.canPlace(owner, pw.building, a2, b2, true)) { this.addBuilding(pw.building, owner, a2, b2, true); ok = true; }
+            }
+          } else if (this.canPlace(owner, pw.building, i, j, true)) {
+            this.addBuilding(pw.building, owner, i, j, true); ok = true;
+          }
         }
         break;
       }
@@ -2761,7 +2793,18 @@ export class Game {
         if (d3 && (d3.age || 1) <= 2 && bt !== 'wonder' && cost3 <= (pw.cap || 150)
             && !(d3.faction && this.factionKeys[owner] !== d3.faction) && this.teamSees(p.team, tx, tz)) {
           const i = tileOf(tx), j = tileOf(tz);
-          if (this.canPlace(owner, bt, i, j, true)) { this.addBuilding(bt, owner, i, j, true); ok = true; }
+          // `count` sets down N of the SAME thing in one cast: click once, three
+          // of them stand. Fixed ring scan, so it is reproducible on every client.
+          let want = pw.count || 1;
+          if (this.canPlace(owner, bt, i, j, true)) { this.addBuilding(bt, owner, i, j, true); want--; ok = true; }
+          for (let r = 2; r <= 6 && want > 0; r++) {
+            for (let d = -r; d <= r && want > 0; d++) {
+              for (const [a2, b2] of [[i + d, j - r], [i + d, j + r], [i - r, j + d], [i + r, j + d]]) {
+                if (want <= 0) break;
+                if (this.canPlace(owner, bt, a2, b2, true)) { this.addBuilding(bt, owner, a2, b2, true); want--; ok = true; }
+              }
+            }
+          }
         }
         break;
       }

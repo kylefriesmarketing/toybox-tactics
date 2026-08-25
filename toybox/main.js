@@ -3,7 +3,7 @@
 // ============================================================
 
 import * as THREE from 'three';
-import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, SURVIVAL, DIFFICULTIES, CAMPAIGN, INTRO, MISSION_EVENTS, CMDR_LINES, TEAM_COLORS, WISHES, generateRandomMap } from './data.js';
+import { MAP_N, UNITS, BUILDINGS, MAPS, FACTIONS, TECHS, GAME_MODES, SURVIVAL, DIFFICULTIES, CAMPAIGN, INTRO, MISSION_EVENTS, CMDR_LINES, TEAM_COLORS, WISHES, PATRONS, patronOf, generateRandomMap } from './data.js';
 import {
   loadUnitModels, loadBuildingModels, loadMapModels, loadFurnitureModels, setBuildingFootprints,
   createGhostMesh, createMoveMarker, createOrderPath, createLamp, renderPortraits, applyUnitTier, refreshFactionBuildingIcons,
@@ -2547,7 +2547,19 @@ function wishContextLine() {
 function renderWishOffer(offer, tier) {
   const box = $('wish-offer');
   if (!box) return;
-  $('wo-head').textContent = tier === 1 ? '\u{1F319} The room leans close\u2026' : '\u{1F514} The Bell \u2014 wish again';
+  const byAge = game && game.players[game.myId] && game.players[game.myId].wishByAge;
+  $('wo-head').textContent = tier === 1 ? '\u{1F319} The room leans close\u2026'
+    : byAge ? '\u{1F56F}\uFE0F The room turns a page \u2014 wish again'
+    : '\u{1F514} The Bell \u2014 wish again';
+  // one patron owns each card's lane at this tier — show who is speaking
+  const pat = $('wo-patron');
+  if (pat) {
+    const ps = ['hearth', 'march', 'keep'].map((l) => patronOf(l, tier)).filter(Boolean);
+    pat.innerHTML = ps.length
+      ? ps.map((q) => '<span class="wo-pat" style="color:#' + q.color.toString(16).padStart(6, '0') + '">'
+          + q.icon + ' ' + q.name + '</span>').join('<span class="wo-pat-sep">\u00b7</span>')
+      : '';
+  }
   const ctx = $('wo-ctx');
   if (ctx) { const line = tier === 2 ? wishContextLine() : ''; ctx.textContent = line; ctx.style.display = line ? '' : 'none'; }
   const cards = $('wo-cards');
@@ -2561,13 +2573,19 @@ function renderWishOffer(offer, tier) {
     const dev = tier === 2 && w.devout && game && game.players[game.myId].wishes[0]
       && WISHES[game.players[game.myId].wishes[0]]
       && WISHES[game.players[game.myId].wishes[0]].lane === w.lane;
+    const q = (w.patron && PATRONS[w.patron]) ? { id: w.patron, ...PATRONS[w.patron] } : patronOf(w.lane, w.tier);
+    const qcol = q ? '#' + q.color.toString(16).padStart(6, '0') : '#c9a86a';
     el.innerHTML = (dev ? '<div class="woc-devout">✦ Devout — the same lane twice arrives enriched</div>' : '')
+      + (q ? '<div class="woc-patron" style="border-color:' + qcol + '">'
+          + '<span class="woc-pat-ico" style="background:' + qcol + '22">' + q.icon + '</span>'
+          + '<span class="woc-pat-txt"><b style="color:' + qcol + '">' + q.name + '</b><i>' + q.title + '</i></span></div>'
+        + '<div class="woc-pat-line">\u201c' + q.line + '\u201d</div>' : '')
       + '<div class="woc-top"><span class="woc-ico">' + w.icon + '</span>'
       + '<span class="woc-name">' + w.name + '</span><span class="woc-key">' + (i + 1) + '</span></div>'
       + '<div class="woc-lane">' + (WISH_LANES[w.lane] || w.lane) + '</div>'
       + '<div class="woc-blurb">' + w.blurb + '</div>'
       + '<div class="woc-gift">\u{1F381} ' + wishGiftLine(w) + '</div>'
-      + (w.power ? '<div class="woc-power">\u2728 ' + w.power.label + ' \u00d7' + w.power.charges + ' \u2014 ' + w.power.desc + '</div>' : '');
+      + (w.power ? '<div class="woc-power"><b>\u26A1 ' + w.power.label + '</b> \u00b7 one use, you choose when and where<br>' + w.power.desc + '</div>' : '');
     el.onclick = () => pickWish(id);
     cards.appendChild(el);
   });
@@ -2656,8 +2674,9 @@ function updateWishBar() {
         const b = document.createElement('button');
         b.className = 'wish-chip';
         b.dataset.wid = id;
-        b.title = w.power.desc + (WISH_TARGET[w.power.k] ? ' \u2014 click, then aim (N)' : ' \u2014 instant');
-        b.innerHTML = '<span class="wc-ico">' + w.icon + '</span><span class="wc-lbl">' + w.power.label + '</span><span class="wc-n">' + left + '</span>';
+        b.title = w.power.desc + (WISH_TARGET[w.power.k] ? ' \u2014 click, then aim it (or press N)' : ' \u2014 casts at once');
+        b.innerHTML = '<span class="wc-ico">\u26A1</span><span class="wc-lbl">' + w.power.label + '</span>'
+          + '<span class="wc-n">' + (left > 1 ? left : 'USE') + '</span>';
         b.onclick = () => wishChipClick(id);
         bar.appendChild(b);
       }

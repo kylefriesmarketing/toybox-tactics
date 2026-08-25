@@ -2099,3 +2099,69 @@ creates the state it needs.
 ⚠️ A review workflow that returns `confirmed: []` MAY NOT HAVE RUN — two
 launches died on session/model limits and reported empty. Check `<failures>`,
 and put review agents on a different `model:` when the session model is capped.
+
+## 🕯️ THE THREE AGES + THE NINE PATRONS (2026-08-25) — the AoM shape, properly
+
+Kyle playtested: *"when i aged up to the playmat age i didnt get a choice of
+civ/god or wishes"*, then *"there should be an initial choice and choice at each
+age up so 3 and i think they should be represented by a character like age of
+mythology"*, then *"each wish should also give you a one time usable god power."*
+All three shipped. **66 wishes, 3 tiers, 9 patrons.**
+
+**THE SHAPE (Age of Mythology, mapped exactly):**
+- your **FACTION** = the major god, chosen at the menu.
+- **three wishes**, one per age: match start (Bedtime) · the **Playmat age-up** ·
+  the **Fort age-up**. The game has exactly 3 ages / 2 age-ups, so it lines up.
+- each wish grants **ONE god power, ONE use**, aimed by the player.
+- **THE NINE PATRONS** (`PATRONS` + `patronOf(lane,tier)` in data.js) are the
+  minor gods — not toys, but the older awake things that were in the bedroom
+  first: 🕯️ The Nightlight · ♨️ The Radiator · 🕰️ The Grandmother Clock (hearth
+  1/2/3) · 🚪 The Door Left Ajar · 🪟 The Window · 🌙 The Moon in the Window
+  (march) · 🧰 The Toy Box · 📚 The Bookshelf · 🛏️ Under the Bed (keep).
+  Keyed by **(lane, tier)**, so every one of the 66 wishes derives its patron
+  for free — no per-wish authoring. SHARED by all eight tribes on purpose: your
+  tribe is yours, the room is older than all of you.
+
+**THE TRIGGER — the age is the ceremony, the clock is only a floor:**
+```
+tier owed = wishOffered + 1
+byAge   = p.age >= tier && time >= ageFloor(tier)      // 240s / 420s
+byClock = time >= bell(tier) || (time >= early(tier) && stats.lost >= 6)
+```
+⚠️ **THE CLOCK IS A FLOOR, NEVER A CEILING.** WISHES.md §2.2's whole argument is
+that a pressured player who never reaches the Fort Age must not be locked out of
+a wish the winner gets. VERIFIED: a natural game ran ages **[3,2]** — one seat
+reached Fort, one did not — and **both finished with 3 wishes**, the laggard's
+arriving off the clock.
+⚠️ **THE AGE-FLOOR EXISTS BECAUSE OF MARATHON.** `START_RES.marathon` is an 8×
+multiplier one click away, and `AGE_UPS[1]` is 400+150+40s — so a marathon start
+reaches the Playmat Age inside a minute and Wish II would open **on top of**
+Wish I, both inside one 45s answer window. `ageFloor` 240 / `ageFloor3` 420.
+INVARIANT: `bellEarly <= ageFloor < bell`, `ageFloor3 < bell3`.
+⚠️ `bell3` is **570, measured**: 5/5 sampled games had a seat reach the Fort Age
+and matches END at 660-812s — a floor at 660 delivers a wish as the game ends.
+⚠️ **An unauthored tier is a NO-OP, never a consumed wish.** `openWish` used to
+set `wishOffered = tier` on an empty offer, which silently ate a draft — Kyle's
+own bug report, one age later. It now just returns and retries.
+
+**ONE WISH = ONE GOD POWER = ONE USE.** All 66 powers are `charges: 1` (was
+tier-1 2 / tier-2 1). ⚠️ The TOTAL is unchanged — old 2 wishes gave 2+1 = 3
+casts, new 3 wishes give 1+1+1 = 3 — but each is now a distinct moment instead
+of one power fired twice. **The Devout Echo (same lane twice) is the only way to
+earn a second use**, which is what makes committing to a lane mean something.
+Where a power's fiction is PLURAL it delivers that in one cast: `place` gained
+`line: 8` (a wall run is a line or it is not a wall) and `placeany` gained
+`count: 3`.
+
+⚠️ **ID COLLISIONS ACROSS FLEET BLOCKS SILENTLY MERGE.** bricks and knights both
+authored `kept`; `Object.assign` kept one and the other faction quietly got its
+rival's card. The splicer now namespaces the loser (`knightsKept`) and rewrites
+its menu. **Any multi-agent authoring splice must check for key collisions** —
+and validate by IMPORTING the module, which is how the 23-instead-of-24 count
+gave it away.
+⚠️ Agents sometimes return blocks with literal backslash-n instead of newlines;
+unescape rather than reject.
+
+Verified: determinism ×3 tier-3-pinned pairs, MP 2h+2ai / 3h+1ai / mid-window
+drop, 12-map sweep, the lockout test above, the marathon no-stack test, and the
+full live three-age arc (three different patron trios, three one-use powers).

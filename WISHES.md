@@ -1834,3 +1834,52 @@ can only read 0/50/100) and are pure noise — do not read them. What the run
 DOES establish: 0 errors in 72 games, every faction drafts and casts, and the
 control (classic, now wished) is a live opponent rather than a dummy.
 ⚠️ Both pools are single-seed. A real Battery A wants 3 seeds × 2 pools.
+
+---
+
+## 11 · THE THREE AGES + THE NINE PATRONS (2026-08-25) — supersedes §2.1-2.2's trigger
+
+Kyle's playtest report drove this: he aged up to the Playmat Age and nothing
+asked him anything. §2.2 argued at length against putting Wish II on the SECOND
+age-up (the Fort Age is unbuyable under pressure) — and it was right — but it
+never argued the FIRST age-up should be ceremonially empty, and by its own
+numbers ("Age 1->2 realistically lands minute 4-5") that moment is *earlier*
+than the Bell it chose. That silence is the gap the playtest fell into.
+
+**NOW: 66 wishes, 3 tiers, 9 patrons, one god power each.**
+
+| | Bedtime (start) | Playmat (age-up) | Fort (age-up) |
+|---|---|---|---|
+| 🕯️ Hearth | The Nightlight | The Radiator | The Grandmother Clock |
+| 👣 March | The Door Left Ajar | The Window | The Moon in the Window |
+| 🛡️ Keep | The Toy Box | The Bookshelf | Under the Bed |
+
+The patrons are keyed by `(lane, tier)`, so all 66 wishes derive theirs with no
+per-wish authoring; a wish may override with its own `patron:` id. They are
+shared by all eight tribes deliberately — the faction is the major god, the room
+is older than everyone. Each card shows the patron's medallion, epithet, and the
+single line they say. That line is the feature's whole emotional payload and was
+written once, carefully.
+
+**§2.2's safeguard is not merely preserved, it is strictly stronger.** The
+trigger is MONOTONE — it only ever moves a pick EARLIER. The 360/570 clocks and
+the hardship clause (180/450 at `stats.lost >= 6`) all still fire; the age-up
+just gets there first for whoever earns it. VERIFIED: a natural game ran ages
+[3,2] and BOTH seats finished with three wishes.
+
+**Deviations from this document's earlier sections, all deliberate:**
+- §2.2's "Why not leave Wish II on the second age-up" still stands and is why
+  the clock floors exist. Tier 3 is a Fort Age *reward* (AoM's Mythic Age works
+  the same way) with a 570s floor so nobody is locked out.
+- Appendix Law 1's "Wish I gets 2 charges" is RETIRED. Every power is one use.
+  The total is identical (2+1 = 1+1+1 = 3 casts); the Devout Echo is now the
+  only route to a second use.
+- "The Bell" is no longer a wall-clock time. It is an EVENT with three ring
+  conditions: the age (after its floor), the clock, or hardship.
+
+⚠️ **Known honest limits.** A fleet measurement (29 games) put Fort Age reach at
+68% for the winner and 5% for the loser, so **Wish III skews to whoever is
+ahead** — the clock floor is what keeps it from being winner-only, and the
+loser's third wish usually arrives at 570s rather than at an age-up. The tier-3
+cards have NOT been through a lane battery; §10.2's numbers predate them.
+Battery A at 3 tiers x 3 seeds x 2 pools is the outstanding work.
