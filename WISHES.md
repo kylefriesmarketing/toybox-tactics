@@ -1883,3 +1883,65 @@ ahead** — the clock floor is what keeps it from being winner-only, and the
 loser's third wish usually arrives at 570s rather than at an age-up. The tier-3
 cards have NOT been through a lane battery; §10.2's numbers predate them.
 Battery A at 3 tiers x 3 seeds x 2 pools is the outstanding work.
+
+---
+
+## 12 · THE TIER-3 LANE BATTERY (2026-08-25) — 192 games. NO CARD TUNE.
+
+**Method** (§7 rules, all honoured): 8 factions × 3 **lane-pure triples** (so the
+Devout Echo is included as a player really feels it) × **2 mirrored seat orders**
+× 2 pools × **2 independent seed-sets** (playmat/47 + bookshelf/11, then
+playmat/101 + bookshelf/202). Personas **pinned to `balanced`**. Control =
+classic drafting FREELY (a live opponent, not a dummy). MessageChannel pump.
+**192 games, 0 errors, 37 min.** Tier 3 landed in **181/192** (94% — the clock
+floor is doing its job); median `wishesCast` **2**.
+
+| lane | seeds A | seeds B | open (both) | terraced (both) | **combined** |
+|---|---|---|---|---|---|
+| 🕯️ Hearth | 59 | 70 | 67 | 63 | **65** |
+| 👣 March | 58 | 66 | 69 | 55 | **62** |
+| 🛡️ Keep | 39 | 47 | 44 | 42 | **43** |
+
+Keep is ~20 points below the other two and it **REPLICATES across both
+independent seed-sets and both pools** — which is exactly the condition the
+standing rule licenses a tune from. **Do not tune it anyway.** Here is why:
+
+### The deficit is DRAWS, not LOSSES
+
+| lane | win | **draw** | loss | unfinished |
+|---|---|---|---|---|
+| Hearth | 55% | 20% | 25% | 20% |
+| March | 50% | 23% | 27% | 23% |
+| **Keep** | **16%** | **55%** | **30%** | **55%** |
+
+**Keep's loss rate (30%) is within 3-5 points of the other lanes.** The cards do
+their job — a Keep drafter does not die more often. It simply never *wins*: 55%
+of its games run the full 9000 ticks and draw. **The defence works and the
+conversion does not.**
+
+⚠️ **THIS IS AN AI BEHAVIOURAL LIMIT, NOT A CARD PROBLEM.** The attack manager
+has no idea it drafted a defensive path, so a Keep-drafted AI builds an
+unbreakable position and sits in it. It is the **same pathology as the boomer**
+(CLAUDE.md, 2026-08-20): *"out-economies and never converts its bank; fixing
+that needs a behavioural change, not a number."* Buffing the Keep cards would
+make the turtle harder to crack and the draws MORE common — the exact opposite
+of the intended effect.
+
+**The confirming detail:** Keep is worst for exactly the factions that ALREADY
+have defensive mods — plush 25%, classic 31%, bricks 31% (buildingHp 1.25),
+knights 31% (buildingHp 1.2) — and best for the two with a buildingHp PENALTY,
+wranglers 69% and plains 69%, where Keep compensates instead of stacking.
+Defence on defence = unbreakable and unable to close.
+
+**VERDICT: no tune to any of the 24 tier-3 cards.** Two follow-ups, in order:
+1. **A Keep-aware attack trigger** — the real fix, and its own scoped job with
+   its own battery. Mirror the boomer lesson: change behaviour, not numbers, and
+   be ready to revert if the battery disagrees.
+2. **Re-read this in human hands.** The AI cannot convert a defensive advantage;
+   Kyle can. Keep may play completely differently for a person, the way R2's
+   Lost Toys edge does. Do not treat 43% as a player-facing number.
+
+⚠️ Seat-0 measured **62% vs 51%** across 192 games even with personas pinned —
+lower than the historical 67-77% but still real. Mirroring cancels it for the
+lane comparison (every lane has equal seat-0 and seat-1 games); it does not
+cancel for anything that is not mirrored.

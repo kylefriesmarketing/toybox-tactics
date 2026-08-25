@@ -2165,3 +2165,32 @@ unescape rather than reject.
 Verified: determinism ×3 tier-3-pinned pairs, MP 2h+2ai / 3h+1ai / mid-window
 drop, 12-map sweep, the lockout test above, the marathon no-stack test, and the
 full live three-age arc (three different patron trios, three one-use powers).
+
+### ⚠️ THE KEEP LANE DRAWS, IT DOES NOT LOSE (tier-3 battery, 2026-08-25)
+
+192 games (8 factions × 3 lane-pure triples × mirrored seats × 2 pools × **2
+seed-sets**), personas pinned, 0 errors. Keep scores **43%** vs Hearth 65 /
+March 62 — and it replicates on both seed-sets AND both pools, which normally
+licenses a tune. **It does not here, and the breakdown is why:**
+
+| lane | win | draw | loss |
+|---|---|---|---|
+| Hearth | 55% | 20% | 25% |
+| March | 50% | 23% | 27% |
+| **Keep** | **16%** | **55%** | **30%** |
+
+**The loss rates are nearly identical.** Keep's cards prevent defeat exactly as
+well as the other lanes' — it just never converts, and 55% of its games run the
+clock out to a draw. **Buffing those cards would deepen the turtle and make the
+draws WORSE.** Same shape as the boomer: a behavioural gap wearing a balance
+problem's clothes. The fix is a **Keep-aware attack trigger** in `aiUpdate`, as
+its own job with its own battery — not a number on a card.
+**Confirming detail:** Keep is worst for the factions that already own defensive
+mods (plush 25, classic/bricks/knights 31 — bricks/knights carry buildingHp
+1.25/1.2) and BEST for the two with a buildingHp penalty (wranglers 69, plains
+69). Defence stacked on defence is unbreakable and cannot close.
+⚠️ And it is an AI reading: the AI cannot convert a defensive advantage, a human
+can. Do not quote 43% as a player-facing number — same caveat class as the
+Lost Toys human-only edge.
+⚠️ Seat-0 was **62% vs 51%** across 192 pinned-persona games. Lower than the
+historical 67-77%, still real, still cancelled only by mirroring.
