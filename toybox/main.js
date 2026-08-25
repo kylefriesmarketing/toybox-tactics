@@ -247,6 +247,10 @@ async function boot() {
   });
   text.textContent = 'Painting portraits…';
   renderPortraits(registry, BUILDINGS);
+  for (const k of Object.keys(UNITS)) {
+    const d = UNITS[k];
+    if (d.wish && d.modelKey && PORTRAITS[d.modelKey] && !PORTRAITS[k]) PORTRAITS[k] = PORTRAITS[d.modelKey];
+  }
   stopLore();
   $('loading').classList.add('hide');
   setTimeout(() => $('loading').remove(), 700);
@@ -550,6 +554,7 @@ for (const btn of document.querySelectorAll('.rnd-btn')) {
   });
 }
 let chosenFaction = 'classic';
+let chosenWish = null; // the menu wish pre-pick — read by renderCivPanel at boot, so it lives up here
 // rich civ card: surfaces each civ's bonus + unique unit + unique building + unique tech
 function renderCivPanel(facKey, panelId = 'civ-panel') {
   const panel = document.getElementById(panelId);
@@ -1362,7 +1367,7 @@ const playIntro = (function initIntro() {
   const cxEntries = () => {
     let items;
     if (cxCat === 'tribes') items = Object.keys(FACTIONS).map((k) => ({ k, name: FACTIONS[k].label, img: `assets/ui/crest-${k}.png`, icon: FACTIONS[k].icon }));
-    else if (cxCat === 'toys') items = Object.keys(UNITS).map((k) => ({ k, name: UNITS[k].name, img: PORTRAITS[k] || null, icon: '🪖' }));
+    else if (cxCat === 'toys') items = Object.keys(UNITS).filter((k) => !UNITS[k].wish).map((k) => ({ k, name: UNITS[k].name, img: PORTRAITS[k] || null, icon: '🪖' }));
     else if (cxCat === 'buildings') items = Object.keys(BUILDINGS).map((k) => ({ k, name: BUILDINGS[k].name, img: PORTRAITS[k] || null, icon: '🏠' }));
     else if (cxCat === 'maps') items = Object.keys(MAPS).map((k) => ({ k, name: MAPS[k].label, img: null, icon: MAPS[k].icon }));
     else if (cxCat === 'techs') items = Object.keys(TECHS).map((k) => ({ k, name: TECHS[k].name, img: null, icon: '🔬' }));
@@ -2470,12 +2475,18 @@ let down = null;
 // is an instant desync — the exact class of bug stateHash was hardened to catch.
 let wishAim = null;      // { id, need } while a targeted power is aiming
 let wishOfferBox = null; // { offer, tier } while the draft modal is up (or { auto })
-let chosenWish = null;   // the menu pre-pick — answered through issue() like any command
+// (chosenWish is declared beside chosenFaction — renderCivPanel reads it at module top-level)
 let wishBarSig = '';
 let foeWishSig = '';
 const seenFoeWishes = new Set(); // "owner:id" — revealed by a cast (UI-local, not sim)
 const WISH_LANES = { hearth: '\u{1F56F}\uFE0F Hearth', march: '\u{1F463} March', keep: '\u{1F6E1}\uFE0F Keep' };
-const WISH_TARGET = { instant: 'building', mendone: 'building', ward: 'building', burst: 'ground', chain: 'ground', light: 'ground' };
+const WISH_TARGET = {
+  instant: 'building', mendone: 'building', ward: 'building',
+  countoff: 'building', trainboost: 'building', spawn: 'building', suits: 'building',
+  burst: 'ground', chain: 'ground', light: 'ground',
+  place: 'ground', zone: 'ground', floorboard: 'ground', mendr: 'ground', placeany: 'pick-ground',
+  movecamp: 'building-then-ground',
+};
 const RES_ICO = { snacks: '\u{1F36A}', blocks: '\u{1F9F1}', buttons: '\u{1F518}', marbles: '\u{1F52E}' };
 
 function wishGiftLine(w) {
@@ -2488,6 +2499,12 @@ function wishGiftLine(w) {
     if (g.mods.atkSpeed) bits.push('faster attacks');
   }
   if (g.unitAt) { const hb = BUILDINGS[g.unitAt.at]; bits.push('a boxed titan (needs ' + (hb ? hb.name : g.unitAt.at) + ', Age ' + (g.unitAt.age || 1) + ')'); }
+  if (g.nextStar) bits.push('your next ' + g.nextStar.n + ' toys arrive at \u2B50');
+  if (g.wreckRefund) bits.push(Math.round(g.wreckRefund.frac * 100) + '% of every fallen building, refunded now');
+  if (g.revive) bits.push('up to ' + (g.revive.n || 6) + ' fallen toys stand back up');
+  if (g.claimCamp) bits.push('the nearest wild tribe joins you now');
+  if (g.retroWallHp) bits.push('+' + Math.round((g.retroWallHp - 1) * 100) + '% wall HP, standing walls too');
+  if (w.unit && UNITS[w.unit.key]) bits.push('unlocks ' + UNITS[w.unit.key].name);
   return bits.join(' \u00b7 ');
 }
 function onWishOffer(offer, tier) {
@@ -2534,7 +2551,12 @@ function renderWishOffer(offer, tier) {
     if (!w) return;
     const el = document.createElement('button');
     el.className = 'wo-card';
-    el.innerHTML = '<div class="woc-top"><span class="woc-ico">' + w.icon + '</span>'
+    // the devout badge: the same lane twice arrives enriched (research rank 4)
+    const dev = tier === 2 && w.devout && game && game.players[game.myId].wishes[0]
+      && WISHES[game.players[game.myId].wishes[0]]
+      && WISHES[game.players[game.myId].wishes[0]].lane === w.lane;
+    el.innerHTML = (dev ? '<div class="woc-devout">✦ Devout — the same lane twice arrives enriched</div>' : '')
+      + '<div class="woc-top"><span class="woc-ico">' + w.icon + '</span>'
       + '<span class="woc-name">' + w.name + '</span><span class="woc-key">' + (i + 1) + '</span></div>'
       + '<div class="woc-lane">' + (WISH_LANES[w.lane] || w.lane) + '</div>'
       + '<div class="woc-blurb">' + w.blurb + '</div>'
@@ -2562,8 +2584,36 @@ function wishChipClick(id) {
   const p = game.players[game.myId];
   if (!p || (p.wishCharges[id] || 0) <= 0 || p.wishCd > 0) return;
   const w = WISHES[id];
-  const need = w && w.power && WISH_TARGET[w.power.k];
+  const k = w && w.power && w.power.k;
+  const need = k && WISH_TARGET[k];
   if (!need) { game.issue({ t: 'cast', id }); sfx.play('command'); return; }
+  if (need === 'pick-ground') {
+    // Click. Done. — choose WHICH building, then aim it
+    const cap = w.power.cap || 150;
+    const opts = Object.keys(BUILDINGS).filter((b) => {
+      const d = BUILDINGS[b];
+      if ((d.age || 1) > 2 || b === 'wonder' || b === 'chest') return false;
+      if (d.faction && game.factionKeys[game.myId] !== d.faction) return false;
+      return Object.values(d.cost || {}).reduce((a, v) => a + v, 0) <= cap;
+    });
+    const bar = $('wishbar');
+    let sub = document.getElementById('wish-sub');
+    if (!sub) {
+      sub = document.createElement('div');
+      sub.id = 'wish-sub';
+      bar.parentElement.appendChild(sub);
+    }
+    sub.innerHTML = '';
+    for (const b of opts) {
+      const d = BUILDINGS[b];
+      const el = document.createElement('button');
+      el.className = 'wish-chip';
+      el.innerHTML = '<span class="wc-ico">🧩</span><span class="wc-lbl">' + d.name + '</span>';
+      el.onclick = () => { sub.remove(); wishAim = { id, need, b }; setClickMode('wishcast'); };
+      sub.appendChild(el);
+    }
+    return;
+  }
   wishAim = { id, need };
   setClickMode('wishcast');
 }
@@ -2695,7 +2745,28 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
           game.issue({ t: 'aground', ids, x: p.x, z: p.z, q: e.shiftKey });
           marker.ping(p.x, p.z, 0xff5544);
         } else if (clickMode === 'wishcast' && wishAim) {
-          if (wishAim.need === 'building') {
+          if (wishAim.need === 'building-then-ground') {
+            // phase 1: pick up one of your buildings; phase 2: put it down
+            if (!wishAim.tid) {
+              const hit = game.entityAt(p.x, p.z, 'building');
+              if (hit && hit.owner === game.myId && hit.built >= 1 && hit.type !== 'chest' && !hit.def.wall && !hit.def.gate) {
+                wishAim.tid = hit.id;
+                marker.ping(hit.x, hit.z, 0xbff0ff);
+                ui.alert('Now choose where to set it down.', 'info');
+                return; // stay in aim mode for the second click
+              }
+              ui.alert('Pick up one of your completed buildings (not the chest, walls or gates).', 'warn');
+              sfx.play('error');
+              return;
+            }
+            game.issue({ t: 'cast', id: wishAim.id, tid: wishAim.tid, x: p.x, z: p.z });
+            marker.ping(p.x, p.z, 0xbff0ff);
+            wishAim = null;
+          } else if (wishAim.need === 'pick-ground') {
+            game.issue({ t: 'cast', id: wishAim.id, x: p.x, z: p.z, b: wishAim.b });
+            marker.ping(p.x, p.z, 0xbff0ff);
+            wishAim = null;
+          } else if (wishAim.need === 'building') {
             const hit = game.entityAt(p.x, p.z, 'building');
             const w = WISHES[wishAim.id], k = w && w.power && w.power.k;
             const okHit = hit && hit.owner === game.myId

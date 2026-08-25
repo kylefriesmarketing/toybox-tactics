@@ -1735,3 +1735,43 @@ the final code matched at all 16 checkpoints (frames 1…300, pick + cast in the
 log). The browser's ES-module cache can execute a stale `game.js` while
 `fetch()` stamps the fresh one, so the version stamp cannot catch it. After any
 sim edit, hard-reload before recording a bottle you intend to replay.
+
+---
+
+## 10 · SLICES 2+3 BUILD STATE (2026-08-24) — THE WHOLE CATALOGUE IS LIVE
+
+42 wishes, 16 wish units, 8 menus, the Devout Echo (rank 4), `bonus:{wish:6}`
+on the Button Archer (rank 3, simplified: ONE shared counter instead of eight
+per-faction heroes — one number, every faction pre-answered; per-faction hero
+flavor is open). Fleet-authored (8 authors + 8 law-checkers, ~2.8M tokens),
+spliced by `splice-catalogue.mjs` with import-validation, verified same-day.
+
+**Deviations from §3.8, all deliberate and lawful:**
+- Take the Stairs: DEFERRED as pre-authorized (§8.6). `picture`'s power ships
+  as Prefab Panel (place one wall) until Battery A's terraced pool clears it.
+- R4 Ask the Cat Nicely: DEFERRED via its own declared alternate (R1@W2,
+  `lightonw2`) — claiming the cat flips `owner` on an entity every sim system
+  treats as untargetable; too invasive for this pass.
+- `sort` picks deepest→scarcest automatically (no from/to picker) — "sorting
+  the pile" reads better as one click and avoids a chooser UI.
+- Green Light: +60% wheeled speed only; the ignore-separation clause is cut
+  (the felt half is the speed; the separation hack risks wall-tunnelling —
+  the exact G7 assertion the spec warned about).
+- Sponsorship trainboost: ×3 speed, NOT cost-zero (cost is paid at enqueue;
+  a refund hook is not worth the surface).
+- One More Night (knights) = the spec's TRUE spawn version (3 Empty Suits,
+  45s life, 12-tile leash, lie down past it); bots' Wind Each Other keeps the
+  map-wide omn aura. The §9.1 leashed-aura interim is superseded.
+- movecamp excludes garrisoned buildings (stranded passenger positions) and
+  walls/gates/chest; placement re-validates via canPlace(gift) with rollback.
+
+**Defects found DURING the build** (beyond the review batches): the chosenWish
+TDZ boot crash (armed by classic gaining wishes), clickdone/floorboard kernel
+shapes normalized (place→placeany, zone→floorboard), lost-toy `carrier: -1`
+sentinel broke claimlost + Old Blue's fetch, Empty Suit metalness rendered
+black, Old Stone needed `stripMap`, suit-clock overwrite guards.
+
+**Next**: the Slice-2/3 adversarial review's confirmed findings (running),
+Battery A at full 8-faction scale, Take the Stairs behind it, R4's cat claim
+as its own slice, per-faction hero counters, wish lore.js bucket + Slice 4
+presentation (CINE rows, foe-chip pips, path names).

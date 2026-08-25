@@ -2005,3 +2005,66 @@ VALUE HAS A BODY (zones anchored to razeable buildings), rank 12 THE BIG
 LIGHT (a power that turns the room's lights on — the view hook exists in
 updateNight). Principles: rates die emitters live; charges are a fixed
 allowance; verbs over numbers.
+
+## 🌙 BEDTIME WISHES SLICES 2+3 (2026-08-24, ultracode) — ALL EIGHT TRIBES WISH
+
+The full catalogue is LIVE: **42 wishes** (36 bespoke + 6 room), **16 wish
+units** (donor GLBs re-tinted via `applyUnitTint`, Patch 12), every faction a
+3×2 menu, the Devout Echo, and the `bonus:{wish:6}` class counter on the
+shared Button Archer. Authored by an 8-agent fleet against the frozen kernel
+vocabulary, law-checked by 8 more, spliced + validated by module import
+(`splice-catalogue.mjs` pattern — never trust "patch script said ok").
+
+**The kernel vocabulary** (castWish `k:` values — the COMPLETE set; a wish
+declaring anything else fails validation): instant(+wallsOnly) · mendone ·
+mend · mendr · ward · onemorenight(+leash) · suits · burst(+bmul) · chain ·
+light · deposit · countoff · sort · spawn · place · placeany(+cap picker UI) ·
+zone(fx: dr/drHold/slowEnemy/speed(+wheeled)/rangedDr/heal/bounty) ·
+floorboard(place-then-creak, one power, two casts) · movecamp(two-phase aim) ·
+trainboost · unitboost(tag/type/speed/dmgTaken) · farmseason · warmheal ·
+wreckwindow · claimlost · flagcamp.
+**Gift keys**: res/free/techs/mods/retroBuildingHp/retroWallHp/nextStar/
+wreckRefund/revive/claimCamp/unitAt(free dragon ONLY) — and `unit:{key,at:[]}`
+UNLOCKS a trainable wish toy (hasWishUnit → the ui.js card button + the LOUD
+trainUnit gate). `devout:{charges|res|free}` on tier-2 = the same-lane echo.
+
+**Unit behavior def fields** (updateUnit, deterministic slow-timer scans):
+`repair:{rate,r}` (Unit 4) · `regen:{rate}` (Rewound, only out of combat) ·
+`fetch:true` (Old Blue seeks strays; combat orders outrank fetching) ·
+`auraFlag:{r,mult}` (Standard Bearer stamps k:'flag' on workers → gatherRateOf)
+· medic-shape `heal:{rate,range}` (Night Light, Pace Car). Buildings: aura
+k:'pace' (Sponsorship ×3 queue speed) · k:'season' (mats ×2) · oldguard
+fort/tower self-repair 6 hp/s (hasWish check in updateBuilding).
+
+**New sim state, all hashed + snapshotted**: `p.starNext` (Second Wave — next
+N military arrive at ⭐, applied in spawnUnit), `p.wreckT` (Spare Parts'
+window), `p.fallen` (the Warm Heap's plush ledger, cap 12, folded by
+CONTENTS), the wreck ledger (every building death adds its R to EVERY seat's
+`p.wreck`), fx zones (+creakT), suit auras (+hx/hz leash anchor — hashed).
+
+**THE LAWS, new entries:**
+- **A suit's life clock is SACRED**: onemorenight/unitboost/flagcamp/auraFlag
+  all skip `aura.k === 'suit'` — an overwrite makes an immortal Empty Suit.
+- **`carrier` on a lost toy is -1 when uncarried, NOT null** — two kernels
+  shipped broken on `== null` until the live smoke caught it. Check sentinels.
+- **A baked diffuse map outvotes any colour lerp** — `tint.stripMap` exists
+  because Old Stone stayed rainbow at amount 0.95 (the golem's texture won).
+- **metalness ≈ 0.85 with no envMap renders BLACK** — the Empty Suit shipped
+  bone-white at metalness 0.15 + a whisper of emissive instead.
+- **The TDZ trap**: `renderCivPanel` runs at module top-level; every `let` it
+  reads must be declared above it. Armed by content (classic gained wishes →
+  the wish row evaluated → boot crash). Latent since Slice 1.
+- AI casts the new kinds via manager arms (zone→engaged centroid w/ leash
+  check, suits→attacked keep, spawn→behind on army, warmheal→5 hurt,
+  mendr/sort/countoff/trainboost/farmseason/unitboost...); movecamp/place/
+  placeany/floorboard/claimlost stay HUMAN-ONLY (siting judgment — the
+  documented Lost Toys class of SP edge).
+
+**Verified**: 6 new factions × pinned-lane soaks vs control 0 errs (AI casts
+0-3/side); fp+hash determinism ×2 pairs incl. room-wish scripts; netTest
+inSync with 4 new-faction seats; clean-page snapshot torture hash-equal (fx
+zone, permanent creaking board, wreckT, pace aura, unlocks); 18-kernel live
+smoke; training loop both gate directions; donor-vs-wish lineup photographed.
+⚠️ The dirty-page torture ONCE read hash-unequal — hand-corrupted test state
+(a stray carried by a unit whose pointer was nulled by hand); the clean-page
+run and snap1===snap2 both pass. Don't chase it again.

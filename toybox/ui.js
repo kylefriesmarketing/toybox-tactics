@@ -5,7 +5,7 @@
 
 import {
   MAP_N, RES_TYPES, RES_META, UNITS, BUILDINGS, TECHS, MARKET,
-  AGES, AGE_UPS, TEAM_NAMES, EPILOGUES,
+  AGES, AGE_UPS, TEAM_NAMES, EPILOGUES, WISHES,
 } from './data.js';
 import { PORTRAITS } from './models.js';
 import { BARKS } from './barks.js';
@@ -734,6 +734,26 @@ export class UI {
           title: `Advance to the ${AGES[g.players[me].age]} — requires ${up().reqText}. Unlocks new buildings, units and techs.`,
           enabled: () => g.players[me].aging <= 0 && g.canAfford(me, up().cost),
           onClick: () => { g.issue({ t: 'age', id: first.id }); this.refreshSelection(); },
+        });
+      }
+      // wish toys: unlocked by the draft, trained here, never in def.trains
+      for (const wid of g.players[me].wishes) {
+        const w = WISHES[wid];
+        if (!w || !w.unit || !w.unit.at || !w.unit.at.includes(first.type)) continue;
+        const t = w.unit.key;
+        const def = UNITS[t];
+        if (!def) continue;
+        const ageReq = def.age || 1;
+        cmds.push({
+          icon: w.icon, img: PORTRAITS[t] || null, label: def.name,
+          sub: this.costText(def.cost),
+          lock: ageReq > 1 ? AGES[ageReq - 1] : null,
+          tipName: `Train ${def.name}`, tipDesc: def.desc, tipCost: def.cost,
+          tipStats: this.unitStatLine(def), tipHint: 'A wish made this toy yours',
+          title: `Train ${def.name} — ${def.desc}`,
+          enabled: () => g.canAfford(me, def.cost) && ageReq <= g.players[me].age && first.queue.length < 5,
+          lockText: () => (ageReq > g.players[me].age ? AGES[ageReq - 1] : null),
+          onClick: () => { g.issue({ t: 'train', id: first.id, unit: t }); this.refreshSelection(); },
         });
       }
       if (first.def.trains) {

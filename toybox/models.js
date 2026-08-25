@@ -1513,6 +1513,7 @@ export function createUnitView(registry, key, def, owner, faction = null) {
   } else {
     view = makeBoxView(def, owner);
   }
+  if (def.tint) applyUnitTint(view, def.tint); // before the rings: never repaint team colour
   addCommonRings(view, def, owner, def.tags.includes('siege') ? 0.42 : 0.32);
   // ---- silhouette by role ----
   // At RTS zoom you read an army by OUTLINE, not detail, and right now a titan
@@ -1539,6 +1540,41 @@ export function createUnitView(registry, key, def, owner, faction = null) {
 // that lives on the ground ring, not the body. Idempotent and reversible.
 const TIER_STEEL = new THREE.Color(0x9aa4b4);
 const TIER_GOLD = new THREE.Color(0xe7b53c);
+// Re-cast an existing GLB in a new plastic — the wish units are donors re-tinted.
+// THREE RULES, each learned from a real failure mode in this file:
+//  1. CLONE EVERY MATERIAL FIRST. Object3D.clone()/cloneSkinned SHARE materials
+//     between instances — a naive traverse-and-set repaints every other toy on
+//     that GLB, including the ENEMY's tank the moment you field The Copy.
+//  2. NEVER touch view._tierInit / _tierMats / _baseScale — applyUnitTier owns
+//     them; claiming the flag here NaNs the toy's matrix at its first promotion.
+//     Let applyUnitTier init over the already-tinted clones: tier-0 then
+//     captures the tint, so a restore lands on the tint, not factory colour.
+//  3. NO scale here. Scale is targetHeight's job; the role multiply is
+//     view.model-guarded and makeProcView never sets view.model.
+export function applyUnitTint(view, t) {
+  const root = view.model || view.group;
+  const col = new THREE.Color(t.color);
+  root.traverse((n) => {
+    if (!n.isMesh || !n.material) return;
+    const arr = Array.isArray(n.material) ? n.material : [n.material];
+    const owned = arr.map((m) => {
+      const c = m.clone();                                   // rule 1
+      // a baked diffuse map outvotes any colour lerp — stone must strip it
+      if (t.stripMap && c.map) { c.map = null; }
+      if (c.color) c.color.lerp(col, t.amount ?? 0.85);
+      if (t.rough !== undefined && c.roughness !== undefined) c.roughness = t.rough;
+      if (t.metalness !== undefined && c.metalness !== undefined) c.metalness = t.metalness;
+      if (t.emissive !== undefined && c.emissive) {
+        c.emissive.setHex(t.emissive);
+        c.emissiveIntensity = t.emissiveIntensity ?? 1;
+      }
+      c.needsUpdate = true;
+      return c;
+    });
+    n.material = Array.isArray(n.material) ? owned : owned[0];
+  });
+}
+
 export function applyUnitTier(view, def, owner, tier) {
   if (!view || !view.group) return;
   tier = tier || 0;

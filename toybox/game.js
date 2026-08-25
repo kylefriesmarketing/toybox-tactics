@@ -369,7 +369,7 @@ export class Game {
       // clock; `wishOffered` which bell has rung; `wishT` the answer window;
       // `wishHold` the one deferred gift; `wreck` blocks refundable.
       wishes: [], wishCharges: {}, wishCd: 0, wishOffered: 0, wishT: 0,
-      wishHold: null, wreck: 0,
+      wishHold: null, wreck: 0, wreckT: 0, starNext: 0, fallen: [],
       stats: { gathered: 0, trained: 0, lost: 0, kills: 0, razed: 0, wishesCast: 0, saved: 0,
         shipsBuilt: 0, shipsLost: 0, wallsBuilt: 0, megaBuilt: 0, mice: 0, strays: 0, tribes: 0 },
     }));
@@ -1132,14 +1132,17 @@ export class Game {
       c.scanT = 0.5;
       const present = new Set();
       let lowPid = -1;
+      let flagTeam = -1;
       for (const e of this.entities) {
         if (e.kind !== 'unit' || e.dead || e.owner < 0 || e.garrisoned) continue;
         if (e.def.gatherRate || e.def.naval) continue; // military ground toys only
         if (dist2(c, e) < WILD_TRIBES.holdRadius ** 2) {
           present.add(this.players[e.owner].team);
           if (lowPid < 0 || e.owner < lowPid) lowPid = e.owner;
+          if (e.aura && e.aura.k === 'flagz') flagTeam = this.players[e.owner].team;
         }
       }
+      c.flagMult = flagTeam; // cached for the per-tick prog below
       if (present.size === 1) {
         if (c.holdTeam !== [...present][0]) { c.holdTeam = [...present][0]; c.prog = 0; }
         c.progPid = lowPid;
@@ -1148,9 +1151,17 @@ export class Game {
       }
     }
     if (c.holdTeam >= 0) {
-      c.prog += dt;
+      // Teach Them a Flag: a flagged holder teaches twice as fast (cached by the scan)
+      c.prog += dt * (c.flagMult === c.holdTeam ? 2 : 1);
       if (c.prog >= WILD_TRIBES.holdTime) {
-        const pid = c.progPid ?? 0;
+        this.tribeJoin(c, c.progPid ?? 0);
+      }
+    }
+  }
+  // the moment a wild tribe takes a flag — from the hold timer or from a wish
+  tribeJoin(c, pid) {
+    {
+      {
         c.captured = pid;
         for (let k = 0; k < WILD_TRIBES.comp.length; k++) {
           const a = (k / WILD_TRIBES.comp.length) * Math.PI * 2 + 0.7;
@@ -1412,7 +1423,7 @@ export class Game {
       if (l.scanT <= 0) {
         l.scanT = 0.5;
         for (const e of this.entities) {
-          if (e.kind !== 'unit' || e.dead || e.owner < 0 || e.garrisoned || !e.def.gatherRate || e.carryLost != null) continue;
+          if (e.kind !== 'unit' || e.dead || e.owner < 0 || e.garrisoned || !(e.def.gatherRate || e.def.fetch) || e.carryLost != null) continue;
           if (dist2(l, e) < LOST_TOYS.radius ** 2) {
             l.carrier = e.id; e.carryLost = l.id;
             if (e.owner === this.myId) this.alert(`Found ${l.def.name}! A worker is carrying it home.`, 'info', { x: l.x, z: l.z }, 4);
@@ -1809,6 +1820,14 @@ export class Game {
     };
     this.entities.push(e);
     p.popUsed++;
+    // Second Wave: the next N military you train arrive already promoted —
+    // pays MOST to the player who is rebuilding (the inverted curve)
+    if (fromBuilding && def.aggro > 0 && !def.wish && p.starNext > 0) {
+      p.starNext--;
+      e.kills = 3;
+      e.rankBadge = makeRankBadge(1);
+      if (e.view) e.view.group.add(e.rankBadge);
+    }
     const _tier = this.lineTierOf(owner, type);
     if (_tier && e.view) applyUnitTier(e.view, e.def, owner, _tier);
     if (fromBuilding) {
@@ -1840,7 +1859,20 @@ export class Game {
     let s = u.def.speed;
     if (u.def.tags.includes('infantry') || u.def.tags.includes('worker')) s *= m.speedInfantry;
     if (u.def.tags.includes('vehicle') || u.def.tags.includes('raider')) s *= m.speedWheels;
-    return s * m.speedAll; // Sugar Rush: a blanket boost every toy feels
+    s *= m.speedAll; // Sugar Rush: a blanket boost every toy feels
+    // wish layer, behind a cheap early-out (the common case pays one length check)
+    if (!this.zones.length && !u.aura) return s;
+    if (u.aura && u.aura.k === 'boost' && u.aura.speed) s *= 1 + u.aura.speed;
+    for (const z of this.zones) {
+      if (!z.fx) continue;
+      const rr = z.creakT > 0 ? z.r * 2 : z.r;
+      const dx = u.x - z.x, dz = u.z - z.z;
+      if (dx * dx + dz * dz > rr * rr) continue;
+      const friendly = this.players[z.owner] && this.players[z.owner].team === this.players[u.owner].team;
+      if (friendly && z.fx.speed && (!z.fx.wheeled || u.def.tags.includes('vehicle') || u.def.tags.includes('raider'))) s *= 1 + z.fx.speed;
+      if (!friendly && z.fx.slowEnemy && !u.def.fly) s *= 1 - z.fx.slowEnemy;
+    }
+    return s;
   }
   atkOf(e) {
     const m = this.players[e.owner].mods;
@@ -1884,7 +1916,9 @@ export class Game {
   carryOf(u) { return u.def.carry + this.players[u.owner].mods.carry; }
   gatherRateOf(u, resType) {
     const m = this.players[u.owner].mods;
-    return u.def.gatherRate * m.gather * (resType === 'snacks' ? m.gatherSnacks : 1);
+    let r = u.def.gatherRate * m.gather * (resType === 'snacks' ? m.gatherSnacks : 1);
+    if (u.aura && u.aura.k === 'flag') r *= u.aura.mult || 1.12; // the Standard Bearer's circle
+    return r;
   }
 
   applyTech(owner, techId) {
@@ -2213,6 +2247,32 @@ export class Game {
   }
   hasWish(owner, id) { return this.players[owner].wishes.includes(id); }
   wishLane(id) { const w = WISHES[id]; return w ? w.lane : null; }
+  // a wish UNIT is unlocked (trainable at its host) by holding its wish
+  hasWishUnit(owner, type) {
+    for (const id of this.players[owner].wishes) {
+      const w = WISHES[id];
+      if (w && w.unit && w.unit.key === type) return true;
+    }
+    return false;
+  }
+  // sim-side "you have vision there" — NEVER read FogOfWar.vis in sim (per-client)
+  teamSees(team, x, z) {
+    for (const e of this.entities) {
+      if (e.dead || this.teamOf(e.owner) !== team) continue;
+      const vis = (e.def.vision || 0) + (e.kind === 'building' ? 1 : 0.5);
+      const dx = e.x - x, dz = e.z - z;
+      if (dx * dx + dz * dz <= vis * vis) return true;
+    }
+    return false;
+  }
+  nearOwnBuilding(owner, x, z, r) {
+    for (const e of this.entities) {
+      if (e.kind !== 'building' || e.dead || e.owner !== owner || e.built < 1) continue;
+      const dx = e.x - x, dz = e.z - z;
+      if (dx * dx + dz * dz <= r * r) return true;
+    }
+    return false;
+  }
   // every power the player currently holds, with charges left
   wishPowersOf(owner) {
     const p = this.players[owner];
@@ -2252,6 +2312,58 @@ export class Game {
     const freeKeys = Object.keys(g.free || {}).sort((x, y) => (BUILDINGS[x] && BUILDINGS[x].gate ? 0 : 1) - (BUILDINGS[y] && BUILDINGS[y].gate ? 0 : 1));
     for (const k of freeKeys) this.giftBuildings(owner, k, g.free[k]);
     if (g.unitAt) { p.wishHold = id; this.tryReleaseWishHold(owner); }
+    // THE DEVOUT ECHO (research rank 4): a Bell pick in the SAME lane as your
+    // first wish arrives enriched — commitment itself becomes the strategy.
+    // The overlay is always a LUMP (a charge or an object), never a rate.
+    if (w.tier === 2 && w.devout && p.wishes.length >= 2
+        && WISHES[p.wishes[0]] && WISHES[p.wishes[0]].lane === w.lane) {
+      const dv = w.devout;
+      if (dv.charges && w.power) p.wishCharges[id] = (p.wishCharges[id] || 0) + dv.charges;
+      for (const k in (dv.res || {})) p.res[k] += dv.res[k];
+      for (const k in (dv.free || {})) this.giftBuildings(owner, k, dv.free[k]);
+      if (owner === this.myId) this.alert('🕯️ The same wish, twice - the room heard you the first time.', 'age');
+    }
+    // the next N military you train arrive at ⭐ — pays most to whoever is REBUILDING
+    if (g.nextStar) p.starNext = (p.starNext || 0) + g.nextStar.n;
+    // retroactive: every building destroyed this match, refunded now, in blocks
+    if (g.wreckRefund) p.res.blocks += Math.round((p.wreck || 0) * g.wreckRefund.frac);
+    if (g.retroWallHp) {
+      for (const e of this.entities) {
+        if (e.kind !== 'building' || e.owner !== owner || e.dead) continue;
+        if (!e.def.wall && !e.def.gate) continue;
+        const frac = e.hp / e.maxHp;
+        e.maxHp *= g.retroWallHp; e.hp = e.maxHp * frac;
+      }
+    }
+    // the Warm Heap: fallen plush toys stand back up at the chest
+    if (g.revive) {
+      const home = this.entities.find((e) => e.kind === 'building' && e.type === 'chest' && e.owner === owner && !e.dead);
+      if (home) {
+        const back = p.fallen.splice(0, g.revive.n || 6);
+        for (const type of back) {
+          const u = this.spawnUnit(type, owner, home.x, home.z, true);
+          if (u) { u.hp = Math.max(1, Math.round(u.maxHp * (g.revive.hpFrac || 0.6))); if (u.view && u.view.hpBar) u.view.hpBar.set(u.hp / u.maxHp); }
+        }
+      }
+    }
+    // Teach Them a Flag: the nearest unclaimed camp joins NOW (no camp on this
+    // map = the same three toys muster at the chest instead — a dead reach is a trap)
+    if (g.claimCamp) {
+      const home = this.entities.find((e) => e.kind === 'building' && e.type === 'chest' && e.owner === owner && !e.dead);
+      let best = null, bd = Infinity;
+      for (const e of this.entities) {
+        if (e.kind !== 'camp' || e.dead || e.captured >= 0) continue;
+        const d = home ? (e.x - home.x) ** 2 + (e.z - home.z) ** 2 : 0;
+        if (d < bd) { bd = d; best = e; }
+      }
+      if (best) this.tribeJoin(best, owner);
+      else if (home) {
+        for (let k = 0; k < WILD_TRIBES.comp.length; k++) {
+          const a2 = (k / WILD_TRIBES.comp.length) * Math.PI * 2 + 0.7;
+          this.spawnUnit(WILD_TRIBES.comp[k], owner, home.x + Math.cos(a2) * 2, home.z + Math.sin(a2) * 2, true);
+        }
+      }
+    }
     if (owner === this.myId) {
       this.alert(`${w.icon} ${w.name} — ${w.blurb}`, 'age');
       this.narrate('wish');
@@ -2377,6 +2489,8 @@ export class Game {
       if (persona === 'balanced' && w.lane === 'keep') s += 0.6;
       if (w.lane === 'march') s += marchBias;
       if (w.lane === 'hearth') s += hearthBias;
+      // the devout nudge: the echo is worth a little commitment
+      if (tier === 2 && w.devout && p.wishes[0] && WISHES[p.wishes[0]] && WISHES[p.wishes[0]].lane === w.lane) s += 0.25;
       if (p.stats.lost >= WISH_RULES.hurt && w.lane === 'keep') s += 0.8;
       if ((w.gift && w.gift.free) && p.stats.lost > 0) s += 0.3;
       if (s > bestScore) { bestScore = s; best = id; }
@@ -2441,6 +2555,7 @@ export class Game {
     for (const p of this.players) {
       if (p.den || !this.playerAlive(p)) continue;
       if (p.wishCd > 0) p.wishCd = Math.max(0, p.wishCd - dt);
+      if (p.wreckT > 0) p.wreckT = Math.max(0, p.wreckT - dt);
       // the Bell rings at 6:00 — or EARLY for a seat that is being taken apart.
       // Hardship, not score: a boomer with forty workers and no army never
       // trips it, which is the whole point of keying it to losses.
@@ -2470,7 +2585,7 @@ export class Game {
   // ---- wish powers ----
   // Every power is instantaneous sim state: damage, a heal, a timed aura on an
   // entity, or a zone. Nothing here reads a view, so a headless soak casts too.
-  castWish(owner, id, tx, tz, tid) {
+  castWish(owner, id, tx, tz, tid, ex = null) {
     const p = this.players[owner];
     const w = WISHES[id];
     if (!w || !w.power || !p || !this.playerAlive(p)) return false;
@@ -2481,8 +2596,10 @@ export class Game {
     let ok = false;
     switch (pw.k) {
       case 'instant': // Unpacking Day — a building under construction finishes now
+        // bricks' Top It Off is wallsOnly: it finishes wall runs, nothing grander
         if (target && target.kind === 'building' && mine(target) && target.built < 1
-            && target.type !== 'wonder') { // an 80s Wonder is the rival's only warning — never skipped
+            && target.type !== 'wonder' // an 80s Wonder is the rival's only warning — never skipped
+            && (!pw.wallsOnly || target.def.wall || target.def.gate)) {
           target.built = 1; target.hp = target.maxHp;
           if (target.view) target.view.setProgress(1);
           this.recalcPop(owner);
@@ -2536,6 +2653,7 @@ export class Game {
         let hit = 0;
         for (const e of this.entities) {
           if (e.kind !== 'unit' || !mine(e) || e.garrisoned) continue;
+          if (e.aura && e.aura.k === 'suit') continue; // never overwrite a suit's life clock
           if (own && !own.some((b) => (b.x - e.x) * (b.x - e.x) + (b.z - e.z) * (b.z - e.z) <= L2)) continue;
           e.aura = { k: 'omn', t: pw.t, cut: 0, used: false };
           hit++;
@@ -2578,6 +2696,185 @@ export class Game {
           if (e.view && e.view.setCarry) e.view.setCarry(0, false);
         }
         ok = true;
+        break;
+      }
+      case 'countoff': { // finish the thing this building is already making
+        if (target && target.kind === 'building' && mine(target) && target.built >= 1) {
+          if (target.queue.length) { target.queue[0].t = 0; ok = true; }
+          else if (target.type === 'chest' && p.aging > 0) { p.aging = 0.01; ok = true; }
+        }
+        break;
+      }
+      case 'sort': { // sorting the pile: your deepest colour becomes your scarcest
+        const keys = ['snacks', 'blocks', 'buttons', 'marbles'];
+        let hi = keys[0], lo = keys[0];
+        for (const k of keys) { if (p.res[k] > p.res[hi]) hi = k; if (p.res[k] < p.res[lo]) lo = k; }
+        if (hi !== lo && p.res[hi] >= 40) {
+          const amt = Math.min(100, Math.floor(p.res[hi]));
+          p.res[hi] -= amt; p.res[lo] += amt;
+          ok = true;
+        }
+        break;
+      }
+      case 'spawn': { // toys muster at an aimed own building, over pop
+        if (target && target.kind === 'building' && mine(target) && target.built >= 1) {
+          for (let k = 0; k < (pw.n || 1); k++) this.spawnUnit(pw.unit, owner, target.x, target.z, true);
+          ok = true;
+        }
+        break;
+      }
+      case 'suits': { // ONE MORE NIGHT: three Empty Suits stand up, then lie down
+        if (target && target.kind === 'building' && mine(target) && target.built >= 1) {
+          for (let k = 0; k < (pw.n || 3); k++) {
+            const u = this.spawnUnit(pw.unit || 'emptysuit', owner, target.x, target.z, true);
+            // the leash anchors to the building they rose at; past it they lie down
+            if (u) u.aura = { k: 'suit', t: pw.life || 45, leash: pw.leash || 12, hx: target.x, hz: target.z, used: false };
+          }
+          ok = true;
+        }
+        break;
+      }
+      case 'place': { // a completed building lands where you can SEE (sim-side vision)
+        const bd = BUILDINGS[pw.building];
+        if (bd && this.teamSees(p.team, tx, tz)) {
+          const i = tileOf(tx), j = tileOf(tz);
+          if (this.canPlace(owner, pw.building, i, j, true)) { this.addBuilding(pw.building, owner, i, j, true); ok = true; }
+        }
+        break;
+      }
+      case 'placeany': { // Click. Done. — any building up to the cap
+        const bt = ex && ex.b;
+        const d3 = bt ? BUILDINGS[bt] : null;
+        const cost3 = d3 ? Object.values(d3.cost || {}).reduce((a2, v) => a2 + v, 0) : 999;
+        if (d3 && (d3.age || 1) <= 2 && bt !== 'wonder' && cost3 <= (pw.cap || 150)
+            && !(d3.faction && this.factionKeys[owner] !== d3.faction) && this.teamSees(p.team, tx, tz)) {
+          const i = tileOf(tx), j = tileOf(tz);
+          if (this.canPlace(owner, bt, i, j, true)) { this.addBuilding(bt, owner, i, j, true); ok = true; }
+        }
+        break;
+      }
+      case 'zone': { // a typed area effect; leash = your own ground only
+        if (pw.leash && !this.nearOwnBuilding(owner, tx, tz, pw.leash)) break;
+        this.zones.push({ id: this.nextId++, kind: 'fx', owner, x: tx, z: tz, r: pw.r, t: pw.t, fx: { ...pw.fx } });
+        ok = true;
+        break;
+      }
+      case 'floorboard': { // first cast places the permanent board; the second is Creak
+        const board = this.zones.find((z) => z.kind === 'fx' && z.owner === owner && z.t < 0 && z.fx && z.fx.slowEnemy);
+        if (!board) {
+          if (!this.nearOwnBuilding(owner, tx, tz, pw.leash || 12)) break;
+          this.zones.push({ id: this.nextId++, kind: 'fx', owner, x: tx, z: tz, r: pw.r || 5, t: -1, fx: { slowEnemy: pw.slow || 0.35 } });
+          ok = true;
+        } else {
+          board.creakT = pw.creak || 8; // the board stretches and groans
+          for (const e of this.entities) {
+            if (e.kind !== 'unit' || e.dead || e.owner < 0 || !this.isEnemy(owner, e.owner)) continue;
+            const dx = e.x - board.x, dz = e.z - board.z;
+            if (dx * dx + dz * dz <= (board.r * 2) ** 2) { e.order = null; e.oq.length = 0; e.path = null; }
+          }
+          ok = true;
+        }
+        break;
+      }
+      case 'movecamp': { // pick a building up and put it down somewhere you can see
+        if (target && target.kind === 'building' && mine(target) && target.built >= 1
+            && target.type !== 'chest' && !target.def.wall && !target.def.gate
+            && !(target.garrisonIds && target.garrisonIds.length) && this.teamSees(p.team, tx, tz)) {
+          const s2 = target.def.size, i = tileOf(tx), j = tileOf(tz);
+          for (let b2 = target.tj; b2 < target.tj + s2; b2++) for (let a2 = target.ti; a2 < target.ti + s2; a2++) this.blocked[idx(a2, b2)] = 0;
+          if (this.canPlace(owner, target.type, i, j, true)) {
+            for (let b2 = j; b2 < j + s2; b2++) for (let a2 = i; a2 < i + s2; a2++) this.blocked[idx(a2, b2)] = 1;
+            target.ti = i; target.tj = j;
+            target.x = worldOf(i) + (s2 - 1) / 2; target.z = worldOf(j) + (s2 - 1) / 2;
+            if (target.view) target.view.group.position.set(target.x, this.tileHeight(i, j), target.z);
+            ok = true;
+          } else {
+            for (let b2 = target.tj; b2 < target.tj + s2; b2++) for (let a2 = target.ti; a2 < target.ti + s2; a2++) this.blocked[idx(a2, b2)] = 1;
+          }
+        }
+        break;
+      }
+      case 'trainboost': { // one production line runs triple-time
+        if (target && target.kind === 'building' && mine(target) && target.built >= 1 && target.def.trains) {
+          target.aura = { k: 'pace', t: pw.t || 25, used: false };
+          ok = true;
+        }
+        break;
+      }
+      case 'unitboost': { // a timed aura on matching own toys
+        let hitN = 0;
+        for (const e of this.entities) {
+          if (e.kind !== 'unit' || !mine(e) || e.garrisoned) continue;
+          if (e.aura && e.aura.k === 'suit') continue; // never overwrite a suit's life clock
+          if (pw.tag && !e.def.tags.includes(pw.tag)) continue;
+          if (pw.type && e.type !== pw.type) continue;
+          e.aura = { k: 'boost', t: pw.t, speed: pw.speed || 0, dmgTaken: pw.dmgTaken || 0, used: false };
+          hitN++;
+        }
+        ok = hitN > 0;
+        break;
+      }
+      case 'farmseason': { // the mats yield double for a while
+        let n2 = 0;
+        for (const e of this.entities) {
+          if (e.kind === 'building' && mine(e) && e.def.farm && e.built >= 1) { e.aura = { k: 'season', t: pw.t || 30, used: false }; n2++; }
+        }
+        ok = n2 > 0;
+        break;
+      }
+      case 'warmheal': { // every toy heals a flat amount — pays most to the hurt
+        for (const e of this.entities) {
+          if (e.kind !== 'unit' || !mine(e)) continue;
+          e.hp = Math.min(e.maxHp, e.hp + (pw.amount || 40));
+          if (e.view && e.view.hpBar) e.view.hpBar.set(e.hp / e.maxHp);
+        }
+        ok = true;
+        break;
+      }
+      case 'wreckwindow': p.wreckT = pw.t || 60; ok = true; break;
+      case 'claimlost': { // the couch gives back what it swallowed
+        const home = this.entities.find((e) => e.kind === 'building' && e.type === 'chest' && e.owner === owner && !e.dead);
+        const losts = this.entities
+          .filter((e) => e.kind === 'lost' && !e.dead && (e.carrier == null || e.carrier < 0)) // -1 = uncarried
+          .sort((a2, b2) => {
+            const da = home ? (a2.x - home.x) ** 2 + (a2.z - home.z) ** 2 : 0;
+            const db = home ? (b2.x - home.x) ** 2 + (b2.z - home.z) ** 2 : 0;
+            return da - db || a2.id - b2.id; // total order, no rng
+          });
+        let got = 0;
+        for (const l of losts) {
+          if (got >= (pw.n || 2)) break;
+          l.dead = true;
+          if (l.view && this.scene) this.scene.remove(l.view.group);
+          p.res.buttons += LOST_TOYS.bounty;
+          p.stats.strays = (p.stats.strays || 0) + 1;
+          got++;
+        }
+        ok = got > 0;
+        break;
+      }
+      case 'flagcamp': { // your military teaches camps twice as fast for a while
+        let n3 = 0;
+        for (const e of this.entities) {
+          if (e.kind !== 'unit' || !mine(e) || e.garrisoned || e.def.naval) continue;
+          if (e.aura && e.aura.k === 'suit') continue; // never overwrite a suit's life clock
+          if (e.def.aggro > 0 && !e.def.gatherRate) { e.aura = { k: 'flagz', t: pw.t || 30, used: false }; n3++; }
+        }
+        ok = n3 > 0;
+        break;
+      }
+      case 'mendr': { // repair everything within reach of the aimed point
+        const r2m = (pw.r || 8) ** 2;
+        let n4 = 0;
+        for (const e of this.entities) {
+          if (e.kind !== 'building' || !mine(e) || e.hp >= e.maxHp) continue;
+          const dx = e.x - tx, dz = e.z - tz;
+          if (dx * dx + dz * dz > r2m) continue;
+          e.hp = e.maxHp;
+          if (e.view && e.view.hpBar) e.view.hpBar.set(1);
+          n4++;
+        }
+        ok = n4 > 0;
         break;
       }
       default: break;
@@ -2694,8 +2991,16 @@ export class Game {
     }
     for (const e of this.entities) {
       if (!e.aura) continue;
+      // an Empty Suit past its leash lies down at once
+      if (e.aura.k === 'suit' && !e.dead) {
+        const dx = e.x - e.aura.hx, dz = e.z - e.aura.hz;
+        if (dx * dx + dz * dz > e.aura.leash * e.aura.leash) e.aura.t = 0;
+      }
       e.aura.t -= dt;
-      if (e.aura.t <= 0) e.aura = null;
+      if (e.aura.t <= 0) {
+        if (e.aura.k === 'suit' && !e.dead) { e.aura = null; this.kill(e, null, true); continue; }
+        e.aura = null;
+      }
     }
   }
   execCommand(pid, c) {
@@ -2801,7 +3106,7 @@ export class Game {
         if (this.applyWish(pid, c.id)) p.wishT = 0;
         break;
       }
-      case 'cast': this.castWish(pid, c.id, c.x, c.z, c.tid); break;
+      case 'cast': this.castWish(pid, c.id, c.x, c.z, c.tid, c); break;
     }
   }
 
@@ -2829,6 +3134,7 @@ export class Game {
       // client and not another must show HERE, not 200 ticks later in positions.
       if (e.aura) h = (h + Math.imul(keyCode(e.aura.k),
         ((e.aura.t * 8) | 0) + 1 + (e.aura.used ? 4096 : 0))) | 0;
+      if (e.aura && e.aura.hx !== undefined) h = (h + ((e.aura.hx * 64) | 0) * 3 + ((e.aura.hz * 64) | 0) * 7) | 0;
     }
     for (const p of this.players) {
       h = (h + p.age * 53) | 0;
@@ -2854,6 +3160,8 @@ export class Game {
       }
       h = (h + ((p.wishCd || 0) * 8 | 0) * 73 + ((p.wishT || 0) * 8 | 0) * 79
              + (p.wishOffered | 0) * 83 + ((p.wreck || 0) | 0) * 89) | 0;
+      h = (h + ((p.wreckT || 0) * 8 | 0) * 103 + ((p.starNext || 0) | 0) * 107) | 0;
+      if (p.fallen && p.fallen.length) h = (h + Math.imul(foldKeys(p.fallen), 109) + p.fallen.length * 113) | 0;
       if (p.wishHold) h = (h + Math.imul(keyCode(p.wishHold), 97)) | 0;
       // stats.lost becomes sim-load-bearing once the Bell lands; hash it now.
       h = (h + (p.stats.lost | 0) * 101) | 0;
@@ -2868,6 +3176,8 @@ export class Game {
       h = (h + ((z.x * 64) | 0) * 7 + ((z.z * 64) | 0) * 13
              + ((z.r * 16) | 0) * 5 + ((z.t * 8) | 0) * 11) | 0;
       if (z.payload) h = (h + ((z.payload.dmg | 0) * 29) + ((z.payload.links | 0) * 31)) | 0;
+      if (z.creakT) h = (h + ((z.creakT * 8) | 0) * 37) | 0;
+      if (z.fx) for (const k in z.fx) h = (h + Math.imul(keyCode(k), ((z.fx[k] * 256) | 0) + 3)) | 0;
     }
     // commodity prices are shared sim state — fold them in
     h = (h + (this.market.snacks * 100 | 0) * 17 + (this.market.blocks * 100 | 0) * 19
@@ -2932,7 +3242,8 @@ export class Game {
       // one-shot narrator beats + scripted mission moments must not replay on load
       told: Object.keys(this).filter((k) => k.startsWith('_told_') && this[k]),
       // wish zones live outside entities and carry their own clock
-      zones: this.zones.map((z) => ({ id: z.id, kind: z.kind, owner: z.owner, x: z.x, z: z.z, r: z.r, t: z.t, payload: z.payload ? { ...z.payload } : undefined })),
+      zones: this.zones.map((z) => ({ id: z.id, kind: z.kind, owner: z.owner, x: z.x, z: z.z, r: z.r, t: z.t,
+        payload: z.payload ? { ...z.payload } : undefined, fx: z.fx ? { ...z.fx } : undefined, creakT: z.creakT || undefined })),
       evDone: this.missionEvents ? this.missionEvents.map((e) => !!e.done) : null,
       players: this.players.map((p) => ({
         res: { ...p.res }, age: p.age, aging: p.aging, popUsed: p.popUsed, popCap: p.popCap,
@@ -2942,6 +3253,7 @@ export class Game {
         wishes: [...p.wishes], wishCharges: { ...p.wishCharges },
         wishCd: p.wishCd, wishOffered: p.wishOffered, wishT: p.wishT,
         wishHold: p.wishHold, wreck: p.wreck,
+        wreckT: p.wreckT, starNext: p.starNext, fallen: [...p.fallen],
       })),
       entities: this.entities.filter((e) => !e.dead).map((e) => {
         if (e.kind === 'unit') {
@@ -3027,6 +3339,9 @@ export class Game {
       p.wishT = sp.wishT || 0;
       p.wishHold = sp.wishHold || null;
       p.wreck = sp.wreck || 0;
+      p.wreckT = sp.wreckT || 0;
+      p.starNext = sp.starNext || 0;
+      p.fallen = sp.fallen ? [...sp.fallen] : [];
     });
     const byId = new Map();
     for (const se of snap.entities) {
@@ -3361,6 +3676,11 @@ export class Game {
     if (b.built < 1 || b.dead) return false;
     // faction uniques only muster for their own tribe
     if (def.faction && this.factionKeys[b.owner] !== def.faction) return false;
+    // wish toys muster only for the wisher — LOUD, like every other refusal here
+    if (def.wish && !this.hasWishUnit(b.owner, type)) {
+      if (b.owner === this.myId) this.alert(`${def.name} is not one of your wishes.`, 'warn');
+      return false;
+    }
     if ((def.age || 1) > p.age) { if (b.owner === this.myId) this.alert(`${def.name} needs the ${AGES[def.age - 1]}.`, 'warn'); return false; }
     if (b.type === 'chest' && p.aging > 0) { if (b.owner === this.myId) this.alert('Toy Chest is busy researching the next age.', 'warn'); return false; }
     if (b.queue.length >= 5) return false;
@@ -3439,6 +3759,21 @@ export class Game {
     dmg = Math.max(1, dmg - this.armorOf(target, spec.atkType));
     // a warded building shrugs most of it off (the aura expires in updateZones)
     if (target.aura && target.aura.k === 'ward') dmg = Math.max(1, Math.round(dmg * (1 - target.aura.cut)));
+    // wish zones and boosts, behind the same cheap early-out as speedOf
+    if (this.zones.length || target.aura) {
+      if (target.aura && target.aura.k === 'boost' && target.aura.dmgTaken) dmg = Math.round(dmg * (1 + target.aura.dmgTaken));
+      for (const z of this.zones) {
+        if (!z.fx || target.kind !== 'unit') continue;
+        const rr = z.creakT > 0 ? z.r * 2 : z.r;
+        const dx = target.x - z.x, dz = target.z - z.z;
+        if (dx * dx + dz * dz > rr * rr) continue;
+        if (!this.players[z.owner] || this.players[z.owner].team !== this.players[target.owner].team) continue;
+        if (z.fx.dr) dmg = Math.round(dmg * (1 - z.fx.dr));
+        if (z.fx.drHold && !target.wasMoving) dmg = Math.round(dmg * (1 - z.fx.drHold));
+        if (z.fx.rangedDr && spec.projectile) dmg = Math.round(dmg * (1 - z.fx.rangedDr));
+      }
+      dmg = Math.max(1, dmg);
+    }
     target.hp -= dmg;
     target.view.markDamaged();
     target.view.hpBar.set(target.hp / target.maxHp);
@@ -3570,6 +3905,20 @@ export class Game {
         this.cb.cinematic('megadown', e.x, e.z); // a titan is felled
       }
       e.order = null; e.oq.length = 0; e.swing = null;
+      // the Warm Heap's ledger: a fallen plush toy can stand back up later
+      if (e.owner >= 0 && e.def.tags.includes('plush')) {
+        const q = this.players[e.owner];
+        if (q && q.fallen.length < 12) q.fallen.push(e.type);
+      }
+      // Hug the Prisoners: an enemy falling inside the zone pays its keeper
+      if (e.owner >= 0 && this.zones.length) {
+        for (const z of this.zones) {
+          if (!z.fx || !z.fx.bounty || z.t <= 0) continue;
+          if (!this.players[z.owner] || !this.isEnemy(z.owner, e.owner)) continue;
+          const dx = e.x - z.x, dz = e.z - z.z;
+          if (dx * dx + dz * dz <= z.r * z.r) this.players[z.owner].res.snacks += z.fx.bounty;
+        }
+      }
       // a toy killed INSIDE a building (wish bursts can reach them) must give its
       // slot back, or the host counts a corpse forever (volley gate, damage
       // bonus, capacity). Before wishes nothing could kill a garrisoned toy.
@@ -3594,6 +3943,13 @@ export class Game {
       }
     } else if (e.kind === 'building' || e.kind === 'resource') {
       if (e.kind === 'building') {
+        // the wreck ledger: every building destroyed this match, in R, for
+        // Everything Is Spare Parts' retroactive refund (same value all seats)
+        const wv = Object.values(e.def.cost || {}).reduce((a2, v) => a2 + v, 0);
+        for (const q of this.players) q.wreck += wv;
+        // ...and its 60s window: your OWN losses refund while it runs
+        const qo = this.players[e.owner];
+        if (qo && qo.wreckT > 0) qo.res.blocks += Math.round(wv * 0.6);
         // no way out: everyone hiding inside goes down with it
         if (e.garrisonIds && e.garrisonIds.length) {
           for (const id of e.garrisonIds.slice()) {
@@ -4253,6 +4609,55 @@ export class Game {
       u.path = null; u.aim = null; u.losT = 0;
     }
     // medics patch up the nearest damaged friendly toy in range
+    // ---- wish-toy behaviors: deterministic scans on slow timers, no rng ----
+    if (u.def.repair) { // Unit 4 keeps the machines running
+      u.repT = (u.repT || 0) - dt;
+      if (u.repT <= 0) {
+        u.repT = 0.5;
+        let best = null, bd = (u.def.repair.r || 3) ** 2;
+        for (const e of this.entities) {
+          if (e.kind !== 'building' || e.dead || e.owner !== u.owner || e.hp >= e.maxHp || e.built < 1) continue;
+          const d = dist2(u, e);
+          if (d < bd) { bd = d; best = e; }
+        }
+        if (best) best.hp = Math.min(best.maxHp, best.hp + u.def.repair.rate * 0.5);
+      }
+    }
+    if (u.def.regen && u.hp < u.maxHp) { // Rewound winds itself back up between fights
+      u.regT = (u.regT || 0) - dt;
+      if (u.regT <= 0) {
+        u.regT = 0.5;
+        const fighting = u.swing || (u.order && u.order.type === 'attack');
+        if (!fighting) {
+          u.hp = Math.min(u.maxHp, u.hp + u.def.regen.rate * 0.5);
+          if (u.view && u.view.hpBar) u.view.hpBar.set(u.hp / u.maxHp);
+        }
+      }
+    }
+    if (u.def.fetch && !u.order && u.carryLost == null) { // Old Blue goes looking
+      u.fetchT = (u.fetchT || 0) - dt;
+      if (u.fetchT <= 0) {
+        u.fetchT = 1;
+        let best = null, bd = 34 * 34;
+        for (const e of this.entities) {
+          if (e.kind !== 'lost' || e.dead || (e.carrier != null && e.carrier >= 0)) continue; // -1 = uncarried
+          const d = dist2(u, e);
+          if (d < bd) { bd = d; best = e; }
+        }
+        if (best) this.setOrder(u, { type: 'move', x: best.x, z: best.z });
+      }
+    }
+    if (u.def.auraFlag) { // the Standard Bearer's circle: nearby workers dig in
+      u.flagT = (u.flagT || 0) - dt;
+      if (u.flagT <= 0) {
+        u.flagT = 0.5;
+        const fr = (u.def.auraFlag.r || 5) ** 2;
+        for (const e of this.entities) {
+          if (e.kind !== 'unit' || e.dead || e.owner !== u.owner || !e.def.gatherRate || e.aura) continue;
+          if (dist2(u, e) < fr) e.aura = { k: 'flag', t: 0.7, mult: u.def.auraFlag.mult || 1.12, used: false };
+        }
+      }
+    }
     if (u.def.heal) {
       u.healT = (u.healT || 0) - dt;
       if (u.healT <= 0) {
@@ -4386,7 +4791,8 @@ export class Game {
           }
           o.phase = 'at';
           u.carryType = 'snacks';
-          u.carry = Math.min(cap, u.carry + node.def.farmRate * this.players[u.owner].mods.gather * this.players[u.owner].mods.gatherSnacks * dt);
+          u.carry = Math.min(cap, u.carry + node.def.farmRate * this.players[u.owner].mods.gather * this.players[u.owner].mods.gatherSnacks
+            * this.players[u.owner].mods.farmRate * (node.aura && node.aura.k === 'season' ? 2 : 1) * dt);
         } else {
           o.phase = 'at';
           u.carryType = node.resType;
@@ -4553,6 +4959,11 @@ export class Game {
 
   updateBuilding(b, dt) {
     if (b.dead) return;
+    // The Old Guard: the knights' forts and towers mend themselves (6 hp/s)
+    if (b.hp < b.maxHp && b.built >= 1 && (b.type === 'fort' || b.type === 'tower')
+        && this.players[b.owner] && this.hasWish(b.owner, 'oldguard')) {
+      b.hp = Math.min(b.maxHp, b.hp + 6 * dt);
+    }
     b.view.hpBar.set(b.hp / b.maxHp);
     b.view.update && b.view.update(dt);
     // gates lift their bar when friendly toys approach
@@ -4580,7 +4991,7 @@ export class Game {
     const p = this.players[b.owner];
     if (b.queue.length && !(b.type === 'chest' && p.aging > 0)) {
       const head = b.queue[0];
-      head.t -= dt;
+      head.t -= dt * (b.aura && b.aura.k === 'pace' ? 3 : 1); // Sponsorship: triple-time
       if (head.t <= 0) {
         if (head.kind === 'tech') {
           b.queue.shift();
@@ -5055,7 +5466,48 @@ export class Game {
             const m = military[0];
             cast = this.castWish(owner, id, m.x, m.z, null);
           }
+        } else if (k === 'zone') {
+          // a zone lands on the engaged army's centroid (dr/heal/speed all want that)
+          let n5 = 0, sx5 = 0, sz5 = 0;
+          for (const m of military) if (m.order && m.order.type === 'attack') { n5++; sx5 += m.x; sz5 += m.z; }
+          if (n5 >= 4) {
+            const zx = sx5 / n5, zz = sz5 / n5;
+            if (!w.power.leash || this.nearOwnBuilding(owner, zx, zz, w.power.leash)) {
+              cast = this.castWish(owner, id, zx, zz, null);
+            }
+          }
+        } else if (k === 'suits') {
+          // the last stand rises at a keep that is actually being attacked
+          const b = mine.find((e) => e.kind === 'building' && e.built >= 1 && e.hp < e.maxHp * 0.8
+            && enemyUnits.some((f) => (f.x - e.x) ** 2 + (f.z - e.z) ** 2 < 144));
+          if (b) cast = this.castWish(owner, id, b.x, b.z, b.id);
+        } else if (k === 'spawn') {
+          if (chest && enemyUnits.filter((e) => e.def.aggro > 0).length > military.length + 3) {
+            cast = this.castWish(owner, id, chest.x, chest.z, chest.id);
+          }
+        } else if (k === 'warmheal') {
+          let hurt = 0;
+          for (const m of military) if (m.hp < m.maxHp * 0.6) hurt++;
+          if (hurt >= 5) cast = this.castWish(owner, id, 0, 0, null);
+        } else if (k === 'mendr') {
+          const b = mine.find((e) => e.kind === 'building' && e.hp < e.maxHp * 0.5);
+          if (b) cast = this.castWish(owner, id, b.x, b.z, null);
+        } else if (k === 'sort') {
+          const rv = [p.res.snacks, p.res.blocks, p.res.buttons, p.res.marbles];
+          if (Math.min(...rv) < 40 && Math.max(...rv) > 220) cast = this.castWish(owner, id, 0, 0, null);
+        } else if (k === 'countoff' || k === 'trainboost') {
+          const b = mine.find((e) => e.kind === 'building' && e.built >= 1 && e.queue && e.queue.length);
+          if (b && ai.attacking) cast = this.castWish(owner, id, b.x, b.z, b.id);
+        } else if (k === 'farmseason') {
+          if (mine.filter((e) => e.kind === 'building' && e.def.farm && e.built >= 1).length >= 2) {
+            cast = this.castWish(owner, id, 0, 0, null);
+          }
+        } else if (k === 'unitboost' || k === 'flagcamp' || k === 'wreckwindow') {
+          if (ai.attacking && military.length >= 6) cast = this.castWish(owner, id, 0, 0, null);
         }
+        // movecamp / place / placeany / floorboard / claimlost stay human-only:
+        // they need siting judgment the manager does not have (documented edge,
+        // same class as Lost Toys — the SP fantasy)
         if (cast) break;
       }
     }
