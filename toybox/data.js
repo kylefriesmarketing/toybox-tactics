@@ -895,6 +895,8 @@ export const UNITS = {
     age: 2,
     proc: 'titanbot',
     gait: 'stomp',
+    // the bots' service bot: patches toys (heal, below) AND mends machines
+    repair: { rate: 4, r: 3 },
     wish: true,
     modelKey: 'forgotten',
     targetHeight: 0.46,
@@ -3564,6 +3566,7 @@ export const WISHES = {
     unit: { key: 'oldstone', at: ['chest'] },
     power: {
       k: 'burst',
+      zoneAfter: { r: 3, slowEnemy: 0.25, t: -1 }, // the ground remembers (spec §3.8)
       charges: 1,
       label: 'The Standing Stone',
       r: 3,

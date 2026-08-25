@@ -2494,8 +2494,14 @@ function wishGiftLine(w) {
   for (const k in (g.res || {})) bits.push('+' + g.res[k] + ' ' + (RES_ICO[k] || k));
   for (const k in (g.free || {})) { const b = BUILDINGS[k]; bits.push((g.free[k] > 1 ? g.free[k] + '\u00d7 ' : '') + (b ? b.name : k)); }
   for (const t of (g.techs || [])) { const th = TECHS[t]; bits.push(th ? th.name : t); }
+  for (const t in (g.units || {})) { const u = UNITS[t]; bits.push((g.units[t] > 1 ? g.units[t] + '\u00d7 ' : '') + (u ? u.name : t)); }
   if (g.mods) {
     if (g.mods.buildingHp) bits.push('+' + Math.round((g.mods.buildingHp - 1) * 100) + '% building HP');
+    if (g.mods.wallHp) bits.push('+' + Math.round((g.mods.wallHp - 1) * 100) + '% wall HP');
+    if (g.mods.healRate) bits.push('+' + Math.round((g.mods.healRate - 1) * 100) + '% healing');
+    if (g.mods.farmRate) bits.push('mats gather like piles');
+    if (g.mods.armorInfantry) bits.push('+' + g.mods.armorInfantry + ' infantry armour');
+    if (g.mods.armorOther) bits.push('+' + g.mods.armorOther + ' armour on wheels and beasts');
     if (g.mods.atkSpeed) bits.push('faster attacks');
   }
   if (g.unitAt) { const hb = BUILDINGS[g.unitAt.at]; bits.push('a boxed titan (needs ' + (hb ? hb.name : g.unitAt.at) + ', Age ' + (g.unitAt.age || 1) + ')'); }
@@ -2783,6 +2789,12 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
               return;
             }
           } else {
+            const w2 = WISHES[wishAim.id], lp = w2 && w2.power && w2.power.leash;
+            if (lp && !game.nearOwnBuilding(game.myId, p.x, p.z, lp)) {
+              ui.alert('Cast this within ' + lp + ' tiles of one of your own buildings.', 'warn');
+              sfx.play('error');
+              return; // stay in aim mode; the charge is untouched
+            }
             game.issue({ t: 'cast', id: wishAim.id, x: p.x, z: p.z });
             marker.ping(p.x, p.z, 0xbff0ff);
           }

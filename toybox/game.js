@@ -1763,6 +1763,7 @@ export class Game {
     view.group.position.set(x, this.tileHeight(i, j), z);
     this.scene.add(view.group);
     const hpMult = (this.players[owner].techs.has('plating') ? 1.2 : 1) * this.players[owner].mods.buildingHp
+      * ((def.wall || def.gate) ? this.players[owner].mods.wallHp : 1) // One Brick Taller
       * (upTech ? upTech.hpMul : 1);
     const e = {
       id: this.nextId++, kind: 'building', type, owner, def, view,
@@ -2307,6 +2308,17 @@ export class Game {
         }
       }
     }
+    // ⚠️ BEFORE the gifts: mods.wallHp is read at BUILD time now, so a gifted
+    // wall already comes out of addBuilding boosted. Retro-ing afterwards would
+    // multiply those ten walls a second time (1.8 -> 3.24).
+    if (g.retroWallHp) {
+      for (const e of this.entities) {
+        if (e.kind !== 'building' || e.owner !== owner || e.dead) continue;
+        if (!e.def.wall && !e.def.gate) continue;
+        const frac = e.hp / e.maxHp;
+        e.maxHp *= g.retroWallHp; e.hp = e.maxHp * frac;
+      }
+    }
     // gates first: a gate claims the middle of the wall run, then the walls
     // fill in around it — the other way round leaves the gate with no slot
     const freeKeys = Object.keys(g.free || {}).sort((x, y) => (BUILDINGS[x] && BUILDINGS[x].gate ? 0 : 1) - (BUILDINGS[y] && BUILDINGS[y].gate ? 0 : 1));
@@ -2323,18 +2335,15 @@ export class Game {
       for (const k in (dv.free || {})) this.giftBuildings(owner, k, dv.free[k]);
       if (owner === this.myId) this.alert('🕯️ The same wish, twice - the room heard you the first time.', 'age');
     }
+    // free TOYS muster at the chest (hugline's medics) — the object half of a gift
+    if (g.units) {
+      const home0 = this.entities.find((e) => e.kind === 'building' && e.type === 'chest' && e.owner === owner && !e.dead);
+      if (home0) for (const t in g.units) for (let k = 0; k < g.units[t]; k++) this.spawnUnit(t, owner, home0.x, home0.z, true);
+    }
     // the next N military you train arrive at ⭐ — pays most to whoever is REBUILDING
     if (g.nextStar) p.starNext = (p.starNext || 0) + g.nextStar.n;
     // retroactive: every building destroyed this match, refunded now, in blocks
     if (g.wreckRefund) p.res.blocks += Math.round((p.wreck || 0) * g.wreckRefund.frac);
-    if (g.retroWallHp) {
-      for (const e of this.entities) {
-        if (e.kind !== 'building' || e.owner !== owner || e.dead) continue;
-        if (!e.def.wall && !e.def.gate) continue;
-        const frac = e.hp / e.maxHp;
-        e.maxHp *= g.retroWallHp; e.hp = e.maxHp * frac;
-      }
-    }
     // the Warm Heap: fallen plush toys stand back up at the chest
     if (g.revive) {
       const home = this.entities.find((e) => e.kind === 'building' && e.type === 'chest' && e.owner === owner && !e.dead);
@@ -2601,7 +2610,7 @@ export class Game {
             && target.type !== 'wonder' // an 80s Wonder is the rival's only warning — never skipped
             && (!pw.wallsOnly || target.def.wall || target.def.gate)) {
           target.built = 1; target.hp = target.maxHp;
-          if (target.view) target.view.setProgress(1);
+          if (target.view) { target.view.setProgress(1); if (target.view.hpBar) target.view.hpBar.set(1); }
           this.recalcPop(owner);
           if (target.def.wall || target.def.gate) p.stats.wallsBuilt++;
           // the builders move on exactly as they would on a normal completion
@@ -2623,7 +2632,7 @@ export class Game {
         }
         break;
       case 'mendone':
-        if (target && target.kind === 'building' && mine(target) && target.hp < target.maxHp - 0.5) {
+        if (target && target.kind === 'building' && mine(target) && target.built >= 1 && target.hp < target.maxHp - 0.5) {
           target.hp = target.maxHp;
           if (target.view && target.view.hpBar) target.view.hpBar.set(1);
           ok = true;
@@ -2631,7 +2640,7 @@ export class Game {
         break;
       case 'mend':
         for (const e of this.entities) {
-          if (e.kind !== 'building' || !mine(e)) continue;
+          if (e.kind !== 'building' || !mine(e) || e.built < 1) continue;
           e.hp = e.maxHp;
           if (e.view && e.view.hpBar) e.view.hpBar.set(1);
         }
@@ -2669,7 +2678,9 @@ export class Game {
       case 'burst':
       case 'chain': {
         this.zones.push({ id: this.nextId++, kind: 'omen', owner, x: tx, z: tz,
-          r: pw.r || 2.2, t: WISH_RULES.fuse, payload: { k: pw.k, dmg: pw.dmg, bmul: pw.bmul || 1, links: pw.links || 0 } });
+          r: pw.r || 2.2, t: WISH_RULES.fuse,
+          payload: { k: pw.k, dmg: pw.dmg, bmul: pw.bmul || 1, links: pw.links || 0,
+            zoneAfter: pw.zoneAfter ? { ...pw.zoneAfter } : undefined } });
         ok = true;
         break;
       }
@@ -2700,8 +2711,9 @@ export class Game {
       }
       case 'countoff': { // finish the thing this building is already making
         if (target && target.kind === 'building' && mine(target) && target.built >= 1) {
-          if (target.queue.length) { target.queue[0].t = 0; ok = true; }
-          else if (target.type === 'chest' && p.aging > 0) { p.aging = 0.01; ok = true; }
+          // an aging chest's queue is FROZEN — finish the age-up, not the queue
+          if (target.type === 'chest' && p.aging > 0) { p.aging = 0.01; ok = true; }
+          else if (target.queue.length) { target.queue[0].t = 0; ok = true; }
         }
         break;
       }
@@ -2844,7 +2856,7 @@ export class Game {
         let got = 0;
         for (const l of losts) {
           if (got >= (pw.n || 2)) break;
-          l.dead = true;
+          l.dead = true; l.removed = true; // or the corpse rides in the hash but not the save
           if (l.view && this.scene) this.scene.remove(l.view.group);
           p.res.buttons += LOST_TOYS.bounty;
           p.stats.strays = (p.stats.strays || 0) + 1;
@@ -2867,7 +2879,7 @@ export class Game {
         const r2m = (pw.r || 8) ** 2;
         let n4 = 0;
         for (const e of this.entities) {
-          if (e.kind !== 'building' || !mine(e) || e.hp >= e.maxHp) continue;
+          if (e.kind !== 'building' || !mine(e) || e.built < 1 || e.hp >= e.maxHp) continue;
           const dx = e.x - tx, dz = e.z - tz;
           if (dx * dx + dz * dz > r2m) continue;
           e.hp = e.maxHp;
@@ -2919,6 +2931,11 @@ export class Game {
         if (dx * dx + dz * dz > r2) continue;
         this.wishDamage(z.owner, e, e.kind === 'building' ? Math.round(pl.dmg * (pl.bmul || 1)) : pl.dmg);
       }
+    }
+    // "and the ground remembers" — a burst may leave a permanent mark behind
+    if (pl.zoneAfter) {
+      this.zones.push({ id: this.nextId++, kind: 'fx', owner: z.owner, x: z.x, z: z.z,
+        r: pl.zoneAfter.r || z.r, t: pl.zoneAfter.t ?? -1, fx: { slowEnemy: pl.zoneAfter.slowEnemy || 0.25 } });
     }
     if (this.fx && this.fx.shockwave) this.fx.shockwave(z.x, z.z, z.r * 1.2, 0xfff0a0);
   }
@@ -2981,12 +2998,30 @@ export class Game {
     for (let i = this.zones.length - 1; i >= 0; i--) {
       const z = this.zones[i];
       if (!z.view) this.zoneView(z); // restore path: views rebuild here
+      // the BOARD is permanent; the groan is not — tick it BEFORE the t<0 early-out
+      if (z.creakT > 0) z.creakT = Math.max(0, z.creakT - dt);
       if (z.t < 0) continue;         // t < 0 = a permanent zone (spec 2.6)
       z.t -= dt;
       if (z.t <= 0) {
         if (z.kind === 'omen') this.detonate(z);
         if (z.view && z.view.parent) z.view.parent.remove(z.view);
         this.zones.splice(i, 1);
+      }
+    }
+    // zone healing runs on the medic cadence (0.5s), never per tick
+    for (const z of this.zones) {
+      if (!z.fx || !z.fx.heal) continue;
+      z.healT = (z.healT || 0) - dt;
+      if (z.healT > 0) continue;
+      z.healT = 0.5;
+      const zt = this.players[z.owner] && this.players[z.owner].team;
+      for (const e of this.entities) {
+        if (e.kind !== 'unit' || e.dead || e.owner < 0 || e.hp >= e.maxHp) continue;
+        if (this.players[e.owner].team !== zt) continue;
+        const dx = e.x - z.x, dz = e.z - z.z;
+        if (dx * dx + dz * dz > z.r * z.r) continue;
+        e.hp = Math.min(e.maxHp, e.hp + z.fx.heal * 0.5);
+        if (e.view && e.view.hpBar) e.view.hpBar.set(e.hp / e.maxHp);
       }
     }
     for (const e of this.entities) {
@@ -3176,6 +3211,7 @@ export class Game {
       h = (h + ((z.x * 64) | 0) * 7 + ((z.z * 64) | 0) * 13
              + ((z.r * 16) | 0) * 5 + ((z.t * 8) | 0) * 11) | 0;
       if (z.payload) h = (h + ((z.payload.dmg | 0) * 29) + ((z.payload.links | 0) * 31)) | 0;
+      if (z.payload && z.payload.zoneAfter) h = (h + ((z.payload.zoneAfter.slowEnemy * 256) | 0) * 41) | 0;
       if (z.creakT) h = (h + ((z.creakT * 8) | 0) * 37) | 0;
       if (z.fx) for (const k in z.fx) h = (h + Math.imul(keyCode(k), ((z.fx[k] * 256) | 0) + 3)) | 0;
     }
@@ -3286,7 +3322,7 @@ export class Game {
           return { k: 'l', id: e.id, type: e.type, x: e.x, z: e.z, carrier: e.carrier };
         }
         if (e.kind === 'camp') {
-          return { k: 'w', id: e.id, x: e.x, z: e.z, prog: e.prog, holdTeam: e.holdTeam, captured: e.captured, progPid: e.progPid ?? -1 };
+          return { k: 'w', id: e.id, x: e.x, z: e.z, prog: e.prog, holdTeam: e.holdTeam, captured: e.captured, progPid: e.progPid ?? -1, flagMult: e.flagMult ?? -1 };
         }
         if (e.kind === 'cat') {
           return { k: 'ct', id: e.id, x: e.x, z: e.z, state: e.state, stateT: e.stateT, swatT: e.swatT, facing: e.facing };
@@ -3949,7 +3985,10 @@ export class Game {
         for (const q of this.players) q.wreck += wv;
         // ...and its 60s window: your OWN losses refund while it runs
         const qo = this.players[e.owner];
-        if (qo && qo.wreckT > 0) qo.res.blocks += Math.round(wv * 0.6);
+        if (qo && qo.wreckT > 0) {
+          const sw = (qo.wishes || []).map((id) => WISHES[id]).find((w) => w && w.power && w.power.k === 'wreckwindow');
+          qo.res.blocks += Math.round(wv * ((sw && sw.power.frac) || 0.6));
+        }
         // no way out: everyone hiding inside goes down with it
         if (e.garrisonIds && e.garrisonIds.length) {
           for (const id of e.garrisonIds.slice()) {
@@ -4623,28 +4662,40 @@ export class Game {
         if (best) best.hp = Math.min(best.maxHp, best.hp + u.def.repair.rate * 0.5);
       }
     }
-    if (u.def.regen && u.hp < u.maxHp) { // Rewound winds itself back up between fights
-      u.regT = (u.regT || 0) - dt;
-      if (u.regT <= 0) {
-        u.regT = 0.5;
-        const fighting = u.swing || (u.order && u.order.type === 'attack');
-        if (!fighting) {
-          u.hp = Math.min(u.maxHp, u.hp + u.def.regen.rate * 0.5);
-          if (u.view && u.view.hpBar) u.view.hpBar.set(u.hp / u.maxHp);
+    if (u.def.regen) { // Rewound winds itself back up between fights
+      // the quiet clock runs whether or not it is hurt — otherwise a toy that
+      // fought, healed and was then shot would carry a stale idle and heal at once
+      const fighting = u.swing || (u.order && u.order.type === 'attack');
+      u.regIdle = fighting ? 0 : (u.regIdle || 0) + dt;
+      if (u.hp < u.maxHp) {
+        u.regT = (u.regT || 0) - dt;
+        if (u.regT <= 0) {
+          u.regT = 0.5;
+          if (u.regIdle >= (u.def.regen.idle || 0)) {
+            u.hp = Math.min(u.maxHp, u.hp + u.def.regen.rate * 0.5);
+            if (u.view && u.view.hpBar) u.view.hpBar.set(u.hp / u.maxHp);
+          }
         }
       }
     }
-    if (u.def.fetch && !u.order && u.carryLost == null) { // Old Blue goes looking
+    if (u.def.fetch && !u.order) { // Old Blue goes looking — and walks it home
       u.fetchT = (u.fetchT || 0) - dt;
       if (u.fetchT <= 0) {
         u.fetchT = 1;
-        let best = null, bd = 34 * 34;
-        for (const e of this.entities) {
-          if (e.kind !== 'lost' || e.dead || (e.carrier != null && e.carrier >= 0)) continue; // -1 = uncarried
-          const d = dist2(u, e);
-          if (d < bd) { bd = d; best = e; }
+        if (u.carryLost != null && u.carryLost >= 0) {
+          // the bounty pays when the carrier passes its OWN chest — so go there
+          const home1 = this.entities.find((e) => e.kind === 'building' && e.type === 'chest'
+            && e.owner === u.owner && !e.dead);
+          if (home1) this.setOrder(u, { type: 'move', x: home1.x, z: home1.z });
+        } else {
+          let best = null, bd = 34 * 34;
+          for (const e of this.entities) {
+            if (e.kind !== 'lost' || e.dead || (e.carrier != null && e.carrier >= 0)) continue; // -1 = uncarried
+            const d = dist2(u, e);
+            if (d < bd) { bd = d; best = e; }
+          }
+          if (best) this.setOrder(u, { type: 'move', x: best.x, z: best.z });
         }
-        if (best) this.setOrder(u, { type: 'move', x: best.x, z: best.z });
       }
     }
     if (u.def.auraFlag) { // the Standard Bearer's circle: nearby workers dig in
@@ -4653,7 +4704,9 @@ export class Game {
         u.flagT = 0.5;
         const fr = (u.def.auraFlag.r || 5) ** 2;
         for (const e of this.entities) {
-          if (e.kind !== 'unit' || e.dead || e.owner !== u.owner || !e.def.gatherRate || e.aura) continue;
+          // may refresh its own flag; never overwrites any OTHER aura
+          if (e.kind !== 'unit' || e.dead || e.owner !== u.owner || !e.def.gatherRate) continue;
+          if (e.aura && e.aura.k !== 'flag') continue;
           if (dist2(u, e) < fr) e.aura = { k: 'flag', t: 0.7, mult: u.def.auraFlag.mult || 1.12, used: false };
         }
       }
@@ -5490,7 +5543,7 @@ export class Game {
           for (const m of military) if (m.hp < m.maxHp * 0.6) hurt++;
           if (hurt >= 5) cast = this.castWish(owner, id, 0, 0, null);
         } else if (k === 'mendr') {
-          const b = mine.find((e) => e.kind === 'building' && e.hp < e.maxHp * 0.5);
+          const b = mine.find((e) => e.kind === 'building' && e.built >= 1 && e.hp < e.maxHp * 0.5);
           if (b) cast = this.castWish(owner, id, b.x, b.z, null);
         } else if (k === 'sort') {
           const rv = [p.res.snacks, p.res.blocks, p.res.buttons, p.res.marbles];
@@ -5502,8 +5555,20 @@ export class Game {
           if (mine.filter((e) => e.kind === 'building' && e.def.farm && e.built >= 1).length >= 2) {
             cast = this.castWish(owner, id, 0, 0, null);
           }
-        } else if (k === 'unitboost' || k === 'flagcamp' || k === 'wreckwindow') {
+        } else if (k === 'unitboost') {
           if (ai.attacking && military.length >= 6) cast = this.castWish(owner, id, 0, 0, null);
+        } else if (k === 'wreckwindow') {
+          // the refund pays only when OUR OWN buildings fall — open the window
+          // when the base is under the hammer, never on the way out
+          const under = mine.some((e) => e.kind === 'building' && e.built >= 1 && e.hp < e.maxHp * 0.6)
+            && enemyUnits.some((f) => mine.some((e) => e.kind === 'building' && (f.x - e.x) ** 2 + (f.z - e.z) ** 2 < 100));
+          if (under) cast = this.castWish(owner, id, 0, 0, null);
+        } else if (k === 'flagcamp') {
+          // the aura is read ONLY by updateCamp, and the tribe manager only walks
+          // toys to camps while NOT attacking — gating on attacking made it dead
+          const holding = this.entities.some((e) => e.kind === 'camp' && !e.dead && e.captured < 0
+            && e.holdTeam === p.team);
+          if (holding) cast = this.castWish(owner, id, 0, 0, null);
         }
         // movecamp / place / placeany / floorboard / claimlost stay human-only:
         // they need siting judgment the manager does not have (documented edge,

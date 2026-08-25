@@ -2068,3 +2068,34 @@ smoke; training loop both gate directions; donor-vs-wish lineup photographed.
 ⚠️ The dirty-page torture ONCE read hash-unequal — hand-corrupted test state
 (a stray carried by a unit whose pointer was nulled by hand); the clean-page
 run and snap1===snap2 both pass. Don't chase it again.
+
+### The Slice 2+3 review — two dead features found AFTER the gates were green
+
+46 agents, 14 unique defects, all fixed (WISHES.md §10.1 has the list). The
+seven gates passed the whole time: **a power that does nothing still
+round-trips, still hashes, still stays in sync.** Two Wish cards were shipping
+as pure decoration —
+- **`fx.heal` had no read site** (plush's Leave It On healed nothing, wranglers'
+  Circle the Wagons lost half), and
+- **`z.creakT` was never decremented**, and the Loose Board's `t: -1` made
+  `updateZones` hit the permanent-zone early-out before any timer work, so the
+  Creak was permanent across saves.
+**THE LESSON: after adding a data key, grep for its READ SITE.** `mods.wallHp`,
+`gift.units`, `regen.idle` and `power.frac` were all granted-and-never-read the
+same way; `def.repair` was the mirror image (a behavior block with no def to
+drive it — Unit 4 now carries `repair` and mends machines as its fiction says).
+⚠️ **Wiring `mods.wallHp` FORCED an ordering fix**: `retroWallHp` ran after
+`giftBuildings`, so once walls were boosted at build time the ten gifted walls
+took 1.8 twice (3.24×). Retro passes belong BEFORE the gift placement —
+`retroBuildingHp` was already ordered that way, for exactly this reason.
+⚠️ `claimlost` set `dead` without `removed`: the corpse stayed in `entities`
+(hashed) but was dropped by `snapshot` — **save/load silently stopped being
+hash-equal.** Any code that retires an entity outside `kill()` must set both.
+⚠️ Three AI arms could never fire; the instructive one is `flagcamp`, gated on
+`ai.attacking` while the tribe manager only walks toys to camps when
+`!ai.attacking` — **mutually exclusive conditions in code that both look
+reasonable alone.** Cross-check a new AI trigger against the manager that
+creates the state it needs.
+⚠️ A review workflow that returns `confirmed: []` MAY NOT HAVE RUN — two
+launches died on session/model limits and reported empty. Check `<failures>`,
+and put review agents on a different `model:` when the session model is capped.

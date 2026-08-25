@@ -1775,3 +1775,62 @@ black, Old Stone needed `stripMap`, suit-clock overwrite guards.
 Battery A at full 8-faction scale, Take the Stairs behind it, R4's cat claim
 as its own slice, per-faction hero counters, wish lore.js bucket + Slice 4
 presentation (CINE rows, foe-chip pips, path names).
+
+### 10.1 The Slice 2+3 review (46 agents, 36 confirmed = 14 unique defects, ALL FIXED)
+
+⚠️ It took THREE launches: two died on session/model limits returning
+`confirmed: []`. **A workflow that returns zero findings may not have run —
+check `<failures>` before believing it.** The third run put the agents on
+`model: 'opus'` and completed 46/46.
+
+**Two were CRITICAL and both were dead features shipping as live cards:**
+- **`fx.heal` had no read site.** Plush's *Leave It On* — a Wish-I power —
+  spent a charge and a 12s cooldown to render a disc that healed nothing, and
+  wranglers' *Circle the Wagons* silently lost half its effect. Now healed on
+  the medic cadence (0.5s) in `updateZones`, team-scoped per the TEAM CONTRACT.
+- **`z.creakT` was written and never decremented** — and because the Loose
+  Board is planted `t: -1`, `updateZones` hit the permanent-zone early-out
+  before any timer work. The Creak's doubled radius was permanent, across
+  saves. The tick now runs BEFORE the `t < 0` continue.
+
+**The rest:** `mods.wallHp` had no read site (One Brick Taller only boosted
+walls that already existed) — wired into `addBuilding`, ⚠️ **and `retroWallHp`
+had to move BEFORE `giftBuildings` or the ten gifted walls take 1.8 twice
+(3.24×)**; `gift.units` had no handler (hugline's two free medics never
+spawned, and the card rendered an empty gift line — both fixed); `claimlost`
+set `dead` without `removed`, so the corpse stayed in `entities`+`stateHash`
+but not the snapshot — **save/load stopped being hash-equal**; Old Blue picked
+a stray up and stopped, because the fetch gate was `carryLost == null` and
+nothing walked him home; three AI arms could never fire (`mendr` on
+foundations, `wreckwindow` on an OFFENSIVE trigger, `flagcamp` gated on
+`ai.attacking` while the tribe manager only approaches camps when
+`!ai.attacking` — mutually exclusive); the Standard Bearer couldn't refresh
+its OWN circle (70% uptime); `regen.idle` unread; `spareparts` `frac` ignored;
+`countoff` burned a charge on an aging chest (the queue is frozen then);
+mend kernels healed foundations to full without advancing `built`; `instant`
+left the hp bar at 5%; ground casts pinged before the sim decided.
+**The Standing Stone's promised permanent slow was implemented, not
+weakened** — a `zoneAfter` rider on the omen payload (the fuse still governs
+the damage half), because §3.8 asked for it.
+
+**Re-verified after:** determinism ×3 (fx.heal, wallHp+zoneAfter, and a
+classic/racers pair), MP ×3 shapes, the 12-map sweep, snapshot hash-equal with
+everything live, and each fix numerically (medics +2, heal 9→35, wall 405 =
+250×1.8×0.9 exactly, creak 8→6).
+
+### 10.2 Lane battery, BOTH pools (72 games, mirrored, personas pinned)
+
+| lane | pool A (playmat/47) | pool B (bookshelf/11) | castAvg |
+|---|---|---|---|
+| 🕯️ Hearth | 54% | 71% | 1.8 |
+| 👣 March | **75%** | 63% | 2.2 |
+| 🛡️ Keep | 50% | 54% | 1.8–2.3 |
+
+Median `wishesCast` **2** — the powers clear the spec's "not decoration" bar.
+**NO TUNE**: March's 75% on the open pool drops to 63% on the terraced one and
+Hearth inverts (54→71) — *the pools disagree*, which is exactly the case the
+standing rule refuses to tune from. Per-faction cells are n=2 (a 2-game cell
+can only read 0/50/100) and are pure noise — do not read them. What the run
+DOES establish: 0 errors in 72 games, every faction drafts and casts, and the
+control (classic, now wished) is a live opponent rather than a dummy.
+⚠️ Both pools are single-seed. A real Battery A wants 3 seeds × 2 pools.
