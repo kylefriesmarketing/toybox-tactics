@@ -2194,3 +2194,23 @@ can. Do not quote 43% as a player-facing number — same caveat class as the
 Lost Toys human-only edge.
 ⚠️ Seat-0 was **62% vs 51%** across 192 pinned-persona games. Lower than the
 historical 67-77%, still real, still cancelled only by mirroring.
+
+### ⚠️ THE HALF-APPLIED WIDENING (tier-3 review, 2026-08-27)
+
+33 agents, 9 unique defects, all fixed (WISHES.md §12.1). **The theme: opening
+the Devout Echo to tier 3 left FOUR sibling gates at `=== 2`** — the card badge,
+`aiPickWish`'s board census, its devout nudge, and the Informed Bell line. When
+you widen a tier gate, grep the whole codebase for the old literal.
+⚠️ `narrate()` is one-shot PER KEY — a tier loop reusing one key silences every
+tier after the first. Key beats by tier.
+⚠️ **A wish's bodies must MUSTER SOMEWHERE.** `gift.units`/`revive`/`claimCamp`
+were anchored to a live Toy Chest and silently dropped without one — and a seat
+is ALIVE without a chest, at exactly the 570s+ moment tier 3 lands.
+`musterPoint()` falls back chest→production→dropoff→any building→any living toy.
+Those gifts also passed `fromBuilding = true` and ATE `p.starNext` charges that
+were sold as *train* rewards.
+⚠️⚠️ **DO NOT APPLY A FINDER'S FIX BEFORE ITS VERIFIER REPORTS.** I applied a
+"foe chips never shed" fix; the verifier proved the guard DELETES the feature (a
+rival wish is revealed only once charges < max, which with one-use powers means
+exactly 0 — so filter and reveal are mutually exclusive). Reverted to a cosmetic
+label. The foe bar is a RECORD, not a live countdown.

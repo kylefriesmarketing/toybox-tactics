@@ -369,7 +369,7 @@ export class Game {
       // clock; `wishOffered` which bell has rung; `wishT` the answer window;
       // `wishHold` the one deferred gift; `wreck` blocks refundable.
       wishes: [], wishCharges: {}, wishCd: 0, wishOffered: 0, wishT: 0,
-      wishHold: null, wreck: 0, wreckT: 0, starNext: 0, fallen: [],
+      wishHold: null, wreck: 0, wreckT: 0, starNext: 0, fallen: [], wishByAge: false,
       stats: { gathered: 0, trained: 0, lost: 0, kills: 0, razed: 0, wishesCast: 0, saved: 0,
         shipsBuilt: 0, shipsLost: 0, wallsBuilt: 0, megaBuilt: 0, mice: 0, strays: 0, tribes: 0 },
     }));
@@ -2327,7 +2327,7 @@ export class Game {
     // THE DEVOUT ECHO (research rank 4): a Bell pick in the SAME lane as your
     // first wish arrives enriched — commitment itself becomes the strategy.
     // The overlay is always a LUMP (a charge or an object), never a rate.
-    if (w.tier === 2 && w.devout && p.wishes.length >= 2
+    if (w.tier >= 2 && w.devout && p.wishes.length >= 2
         && WISHES[p.wishes[0]] && WISHES[p.wishes[0]].lane === w.lane) {
       const dv = w.devout;
       if (dv.charges && w.power) p.wishCharges[id] = (p.wishCharges[id] || 0) + dv.charges;
@@ -2337,8 +2337,10 @@ export class Game {
     }
     // free TOYS muster at the chest (hugline's medics) — the object half of a gift
     if (g.units) {
-      const home0 = this.entities.find((e) => e.kind === 'building' && e.type === 'chest' && e.owner === owner && !e.dead);
-      if (home0) for (const t in g.units) for (let k = 0; k < g.units[t]; k++) this.spawnUnit(t, owner, home0.x, home0.z, true);
+      const home0 = this.musterPoint(owner);
+      // ⚠️ fromBuilding = FALSE: a gifted lump must NOT eat p.starNext charges,
+      // which were sold as "the next N military you TRAIN".
+      if (home0) for (const t in g.units) for (let k = 0; k < g.units[t]; k++) this.spawnUnit(t, owner, home0.x, home0.z, false);
     }
     // the next N military you train arrive at ⭐ — pays most to whoever is REBUILDING
     if (g.nextStar) p.starNext = (p.starNext || 0) + g.nextStar.n;
@@ -2346,11 +2348,11 @@ export class Game {
     if (g.wreckRefund) p.res.blocks += Math.round((p.wreck || 0) * g.wreckRefund.frac);
     // the Warm Heap: fallen plush toys stand back up at the chest
     if (g.revive) {
-      const home = this.entities.find((e) => e.kind === 'building' && e.type === 'chest' && e.owner === owner && !e.dead);
+      const home = this.musterPoint(owner);
       if (home) {
         const back = p.fallen.splice(0, g.revive.n || 6);
         for (const type of back) {
-          const u = this.spawnUnit(type, owner, home.x, home.z, true);
+          const u = this.spawnUnit(type, owner, home.x, home.z, false);
           if (u) { u.hp = Math.max(1, Math.round(u.maxHp * (g.revive.hpFrac || 0.6))); if (u.view && u.view.hpBar) u.view.hpBar.set(u.hp / u.maxHp); }
         }
       }
@@ -2358,7 +2360,7 @@ export class Game {
     // Teach Them a Flag: the nearest unclaimed camp joins NOW (no camp on this
     // map = the same three toys muster at the chest instead — a dead reach is a trap)
     if (g.claimCamp) {
-      const home = this.entities.find((e) => e.kind === 'building' && e.type === 'chest' && e.owner === owner && !e.dead);
+      const home = this.musterPoint(owner);
       let best = null, bd = Infinity;
       for (const e of this.entities) {
         if (e.kind !== 'camp' || e.dead || e.captured >= 0) continue;
@@ -2369,7 +2371,7 @@ export class Game {
       else if (home) {
         for (let k = 0; k < WILD_TRIBES.comp.length; k++) {
           const a2 = (k / WILD_TRIBES.comp.length) * Math.PI * 2 + 0.7;
-          this.spawnUnit(WILD_TRIBES.comp[k], owner, home.x + Math.cos(a2) * 2, home.z + Math.sin(a2) * 2, true);
+          this.spawnUnit(WILD_TRIBES.comp[k], owner, home.x + Math.cos(a2) * 2, home.z + Math.sin(a2) * 2, false);
         }
       }
     }
@@ -2455,6 +2457,27 @@ export class Game {
       }
     }
   }
+  // Where a wish's bodies appear. The chest is preferred, but a seat SURVIVES
+  // without one (playerAlive: any production building, or worker + any building),
+  // and tier 3 lands late — so falling back is the difference between a wish
+  // paying out and silently evaporating. Deterministic: fixed preference order,
+  // ties broken by entity id, no rng.
+  musterPoint(owner) {
+    let best = null, rank = 9;
+    for (const e of this.entities) {
+      if (e.kind !== 'building' || e.dead || e.owner !== owner || e.built < 1) continue;
+      const r = e.type === 'chest' ? 0 : e.def.trains ? 1 : e.def.dropoff ? 2 : 3;
+      if (r < rank || (r === rank && best && e.id < best.id)) { rank = r; best = e; }
+    }
+    if (best) return best;
+    // no buildings at all: muster on a living toy instead of dropping the gift
+    let u = null;
+    for (const e of this.entities) {
+      if (e.kind !== 'unit' || e.dead || e.owner !== owner || e.garrisoned) continue;
+      if (!u || e.id < u.id) u = e;
+    }
+    return u;
+  }
   // the one deferred gift: it needs a host building AND an age, so it waits.
   tryReleaseWishHold(owner) {
     const p = this.players[owner];
@@ -2477,7 +2500,7 @@ export class Game {
     const p = this.players[owner];
     const persona = (this.aiState[owner] && this.aiState[owner].persona) || 'balanced';
     let marchBias = 0, hearthBias = 0;
-    if (tier === 2) {
+    if (tier >= 2) {   // every post-bedtime tier reads the board, not just the Bell
       let myArmy = 0, myWk = 0, foeArmy = 0, foeWk = 0;
       for (const e of this.entities) {
         if (e.kind !== 'unit' || e.dead || e.owner < 0) continue;
@@ -2503,7 +2526,7 @@ export class Game {
       if (w.lane === 'march') s += marchBias;
       if (w.lane === 'hearth') s += hearthBias;
       // the devout nudge: the echo is worth a little commitment
-      if (tier === 2 && w.devout && p.wishes[0] && WISHES[p.wishes[0]] && WISHES[p.wishes[0]].lane === w.lane) s += 0.25;
+      if (tier >= 2 && w.devout && p.wishes[0] && WISHES[p.wishes[0]] && WISHES[p.wishes[0]].lane === w.lane) s += 0.25;
       if (p.stats.lost >= WISH_RULES.hurt && w.lane === 'keep') s += 0.8;
       if ((w.gift && w.gift.free) && p.stats.lost > 0) s += 0.3;
       if (s > bestScore) { bestScore = s; best = id; }
@@ -2520,7 +2543,8 @@ export class Game {
     const p = this.players[owner];
     if (p.wishOffered >= tier || p.den || !this.playerAlive(p)) return;
     // remember whether the AGE opened this (the card reads differently)
-    p.wishByAge = p.age >= tier;
+    p.wishByAge = p.age >= tier
+      && this.time >= (tier === 2 ? WISH_RULES.ageFloor : WISH_RULES.ageFloor3);
     const offer = this.wishOffer(this.factionKeys[owner], tier);
     // ⚠️ an UNAUTHORED tier is a no-op, never a consumed wish — marking it
     // offered would silently eat a seat's draft (the exact bug this feature
@@ -2590,7 +2614,7 @@ export class Game {
         const byClock = this.time >= floor
           || (this.time >= early && p.stats.lost >= WISH_RULES.hurt);
         if (byAge || byClock) {
-          if (p.id === this.myId) this.narrate(byAge ? 'wishage' : 'bell');
+          if (p.id === this.myId) this.narrate((byAge ? 'wishage' : 'bell') + (tier >= 3 ? '3' : ''));
           else if (!byAge && this.time < floor && this.isEnemy(this.myId, p.id)) {
             this.alert('The Bell rang early for the rival - they have lost enough toys to wish again.', 'warn', null, 30);
           }
@@ -3333,6 +3357,7 @@ export class Game {
         wishCd: p.wishCd, wishOffered: p.wishOffered, wishT: p.wishT,
         wishHold: p.wishHold, wreck: p.wreck,
         wreckT: p.wreckT, starNext: p.starNext, fallen: [...p.fallen],
+        wishByAge: !!p.wishByAge,   // UI label only — deliberately NOT hashed
       })),
       entities: this.entities.filter((e) => !e.dead).map((e) => {
         if (e.kind === 'unit') {
@@ -3421,6 +3446,7 @@ export class Game {
       p.wreckT = sp.wreckT || 0;
       p.starNext = sp.starNext || 0;
       p.fallen = sp.fallen ? [...sp.fallen] : [];
+      p.wishByAge = !!sp.wishByAge;
     });
     const byId = new Map();
     for (const se of snap.entities) {

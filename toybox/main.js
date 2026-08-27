@@ -2561,7 +2561,7 @@ function renderWishOffer(offer, tier) {
       : '';
   }
   const ctx = $('wo-ctx');
-  if (ctx) { const line = tier === 2 ? wishContextLine() : ''; ctx.textContent = line; ctx.style.display = line ? '' : 'none'; }
+  if (ctx) { const line = tier >= 2 ? wishContextLine() : ''; ctx.textContent = line; ctx.style.display = line ? '' : 'none'; }
   const cards = $('wo-cards');
   cards.innerHTML = '';
   offer.forEach((id, i) => {
@@ -2570,7 +2570,7 @@ function renderWishOffer(offer, tier) {
     const el = document.createElement('button');
     el.className = 'wo-card';
     // the devout badge: the same lane twice arrives enriched (research rank 4)
-    const dev = tier === 2 && w.devout && game && game.players[game.myId].wishes[0]
+    const dev = tier >= 2 && w.devout && game && game.players[game.myId].wishes[0]
       && WISHES[game.players[game.myId].wishes[0]]
       && WISHES[game.players[game.myId].wishes[0]].lane === w.lane;
     const q = (w.patron && PATRONS[w.patron]) ? { id: w.patron, ...PATRONS[w.patron] } : patronOf(w.lane, w.tier);
@@ -2691,6 +2691,11 @@ function updateWishBar() {
           if (!w || !w.power) continue;
           if ((q.wishCharges[id] || 0) < w.power.charges) seenFoeWishes.add(q.id + ':' + id);
           if (!seenFoeWishes.has(q.id + ':' + id)) continue;
+          // ⚠️ NEVER filter on left <= 0 here. A rival wish is REVEALED only once
+          // charges drop below max, and with one-use powers that means left === 0 —
+          // so a filter and the reveal are mutually exclusive and the bar goes dead.
+          // A spent one-use power is exactly the intel worth keeping: it is not
+          // coming again. This bar is a RECORD, not a live countdown.
           rows.push({ id, icon: w.icon, label: w.power.label, left: q.wishCharges[id] || 0, who: q.id });
         }
       }
@@ -2698,7 +2703,7 @@ function updateWishBar() {
       if (fsig !== foeWishSig) {
         foeWishSig = fsig;
         foe.innerHTML = rows.map((r) => '<div class="foe-chip" title="A rival wish you have seen cast. Charges are public."><span class="wc-ico">'
-          + r.icon + '</span><span class="wc-lbl">' + r.label + '</span><span class="wc-n">' + r.left + ' left</span></div>').join('');
+          + r.icon + '</span><span class="wc-lbl">' + r.label + '</span><span class="wc-n">' + (r.left > 0 ? r.left + ' left' : 'spent') + '</span></div>').join('');
       }
     }
     const cd = p.wishCd > 0;
@@ -2707,7 +2712,10 @@ function updateWishBar() {
       el.disabled = cd || left <= 0;
       el.classList.toggle('cd', cd);
       const n = el.querySelector('.wc-n');
-      if (n && n.textContent !== String(left)) n.textContent = left;
+      // one use reads as USE, not as the number 1 — and the sync must agree with
+      // the initial render or it silently overwrites the affordance every tick
+      const want = left > 1 ? String(left) : 'USE';
+      if (n && n.textContent !== want) n.textContent = want;
     }
   } catch (e) { /* the bar is garnish — it must never break the loop */ }
 }
@@ -3021,7 +3029,11 @@ addEventListener('keydown', (e) => {
   // camera drifting left until keyup. v is unbound in both scopes.
   if (k === 'v' && !e.ctrlKey && !e.altKey) selectAllArmy();
   if (k === 'n' && !e.ctrlKey && !e.altKey) {
-    const pw = game.wishPowersOf(game.myId).find((x) => x.left > 0);
+    // ⚠️ LAST, not first: the grant alert says "Press N to aim it" about the wish
+    // that just landed, and wishPowersOf is tier-ordered — so N must arm the
+    // NEWEST unspent power or it contradicts the very message that taught it.
+    const ready = game.wishPowersOf(game.myId).filter((x) => x.left > 0);
+    const pw = ready[ready.length - 1];
     if (pw && game.players[game.myId].wishCd <= 0) wishChipClick(pw.id);
   }
   if (k === 'h') {

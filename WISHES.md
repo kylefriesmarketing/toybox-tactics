@@ -1945,3 +1945,58 @@ Defence on defence = unbreakable and unable to close.
 lower than the historical 67-77% but still real. Mirroring cancels it for the
 lane comparison (every lane has equal seat-0 and seat-1 games); it does not
 cancel for anything that is not mirrored.
+
+### 12.1 The tier-3 review (33 agents, 18 confirmed = 9 unique defects, ALL FIXED)
+
+Run against the newest layer only (tier 3, the patrons, one-use powers, the
+age-up trigger) — Slices 2+3 already had theirs in §10.1. Five lenses found the
+same defects repeatedly; deduped:
+
+**The theme was a HALF-APPLIED WIDENING.** Opening the Devout Echo to tier 3
+(`w.tier >= 2`) left four sibling gates at `=== 2`, each silently disabling a
+piece of the third wish:
+- **the card's ✦ Devout badge** — the Fort Age card arrived enriched with
+  nothing on screen to say so, and for 12 of 24 cards that badge marks the ONLY
+  route to a second use of a one-use power.
+- **`aiPickWish`'s board census AND its devout nudge** — every AI seat drafted
+  its third wish blind: no army/economy read, no lane-commitment weight, on the
+  highest-stakes draft in the feature.
+- **the Informed Bell context line** — no board read on the last wish.
+- **`narrate()`** — one-shot PER KEY, and the tier loop reused `wishage`/`bell`
+  for tiers 2 and 3, so the third age opened in silence. Now keyed by tier with
+  two new beats (text-only; NOT in `NARRATOR_VO` — a beat joins that Set only
+  once a `.wav` exists).
+
+**The one that would have hurt in a real game:** `gift.units`, `gift.revive` and
+`claimCamp`'s muster were all anchored to a live **Toy Chest** and silently
+dropped when it was gone — but a seat is ALIVE without one (any production
+building, or a worker plus any building), and **tier 3 lands at 570s+, exactly
+when the chest is commonly dead.** The wish that exists to save you evaporated
+precisely when you needed it. New `musterPoint(owner)` falls back
+chest → production → drop-off → any building → any living toy, deterministic
+(fixed preference order, ties by entity id, no rng). VERIFIED: chest destroyed,
+seat still alive, wish mustered 6 bodies at the Training Mat.
+⚠️ Those gifts also spawned with `fromBuilding = true`, so a free lump ATE
+`p.starNext` charges that were sold as *"the next N military you TRAIN"*.
+
+**Also fixed:** `p.wishByAge` was written by sim code and read by the card but
+never initialised, snapshotted or restored — a mid-window resume rendered the
+wrong header (round-tripped as data; deliberately NOT hashed, it is a UI label);
+`N` armed the OLDEST unspent power while the grant alert says *"Press N to aim
+it"* about the one that just landed (now arms the newest); the `USE` chip label
+was overwritten by the per-tick count sync in the same call; `clickdone` still
+promised ONE building after its kernel gained `count: 3`.
+
+⚠️ **A REJECTED FINDING THAT I HAD ALREADY "FIXED" — the most useful result of
+the run.** A finder reported that the rival wish bar never sheds spent chips and
+proposed `if (left <= 0) continue`. I applied it before the verdict landed. The
+verifier proved it **deletes the feature**: a rival wish is REVEALED only once
+`charges < max`, and with one-use powers that means `left === 0` — so filtering
+and revealing are mutually exclusive and the bar would render nothing, ever.
+Reverted; the correct change was cosmetic (`0` now reads *"spent"*). **Do not
+apply a finder's fix before its verifier reports.** The foe bar is a RECORD, not
+a live countdown: a spent one-use power is exactly the intel worth keeping.
+
+**Re-verified after:** determinism ×3 tier-3-pinned pairs, netTest 2h+2ai /
+3h+1ai / mid-window drop, 12-map sweep, a free-draft game reaching ages [2,3]
+with 3 wishes each, 0 console errors.

@@ -2882,6 +2882,8 @@ export const NARRATOR = {
   // Bedtime Wishes (text-only — NOT in NARRATOR_VO until a .wav exists)
   wish: 'A wish is just a plan said bravely, in the dark, to no one. The room heard it anyway.',
   wishage: 'The room turned a page, and something older than the toys leaned down to ask what they wanted.',
+  wishage3: 'The last page before morning. The oldest thing in the room bent all the way down this time, and asked quietly, because it already knew.',
+  bell3: 'The clock had one more hour in it than anyone expected, and it spent that hour asking.',
   bell: 'Somewhere down the hall a clock cleared its throat. Six of the small hours - old enough to wish again.',
   onemorenight: 'And the toys held onto each other and refused, politely but completely, to fall down. One more night. Just one more.',
   firstblood: 'And so the first toy fell, and the room pretended not to notice. The war was real now.',
@@ -2910,6 +2912,8 @@ export const NARRATOR = {
 export const NARRATOR_NG = {
   wish: 'The wish came easier the second night. Wishes are like stairs in the dark - your feet remember the way.',
   wishage: 'Another page, another asking. The room already knew the answer; it asked anyway, because being asked is the point.',
+  wishage3: 'The last page again. It is a strange comfort, knowing which question is coming and still having to answer it out loud.',
+  bell3: 'One more hour, found in the same place it was found last night. The clock pretended to be surprised.',
   bell: 'The clock cleared its throat again, and the room mouthed the words along with it. Time to wish. It always is, eventually.',
   onemorenight: 'They had refused to fall once before, and the refusing had worked. Some spells are just practice, said out loud.',
   firstblood: 'The first toy fell, and this time the room did not pretend. It had read this page before. It turned it anyway.',
@@ -3381,7 +3385,7 @@ export const WISHES = {
       label: 'Click. Done.',
       count: 3,
       cap: 150,
-      desc: 'Place one finished building of your choice — up to 150 in cost — anywhere you have vision.',
+      desc: 'Place three finished buildings of one kind you choose — up to 150 in cost each — wherever you have vision.',
     },
     devout: { charges: 1 },
   },
