@@ -2316,6 +2316,52 @@ That is Kyle’s call, not a change to slip in. If it is taken, mirror `milk` an
 consistent, but they are one tile apart from each other. Harmless today; pick one before
 a feature ever needs to line up with another.
 
+## ⚡ THE GOD POWERS MOVED TOP-CENTRE (2026-08-27, Kyle)
+
+Kyle: *"the god powers should be clickable in the top center of the screen like age
+of mythology and when you hover have a description"*. Both shipped.
+
+Before: a vertical column of TEXT chips in the bottom-left corner, every power wearing
+the **same generic bolt icon**, with the description hidden behind a native `title`
+(≈1s to appear, unstyleable, invisible on touch). AoM puts god powers top-centre as
+icon tiles because that is where the eye goes when deciding whether to spend one.
+
+- `#wishbar` is now `left:50%; top:44px; translateX(-50%)`, a horizontal row of 56px
+  tiles, each showing **the wish’s OWN icon** (`w.icon`) with a charge badge.
+- `#wish-tip` is a real hover card: power label, the wish it came from, **its patron**,
+  the description, and the aiming hint ("Click a building to aim it. · one use only").
+- An armed power pulses (`.wish-tile.armed`), so it is obvious the room is waiting
+  for you to aim. The armed id is folded into the rebuild signature — without it the
+  stable-DOM rule means the pulse would never appear or clear.
+
+⚠️ **SCOPING TRAP (nearly shipped a regression).** `.wish-chip` and `.wc-ico`/`.wc-lbl`/
+`.wc-n` are SHARED: `#wish-sub` (the placeany building picker) reuses `.wish-chip`, and
+`#wishbar-foe` reuses all three `.wc-*` classes. Restyling those in place would have
+silently broken the rival bar and the picker. The tiles got their own `.wish-tile` +
+`.wt-*` classes instead; nothing shared was touched (re-verified: foe bar still right/column).
+
+⚠️ **CSS ORDER BUG I MADE AND CAUGHT:** the new `#wishbar` rule was prepended while the
+OLD bottom-left rule was left in place below it. **Later rules win** — the bar measured
+`flex-direction: column` at x=12 and the patch looked like it had done nothing. The dead
+rule had to be DELETED, not out-ordered. Same-specificity duplicates are silent.
+
+⚠️ **`patronOf(lane, tier)` IS THE AUTHORITY, not `w.patron`.** Only **24 of the 66**
+wishes carry an explicit `patron` field; every one derives a patron from its (lane,tier).
+Reading the field alone left two thirds of the powers with no patron line.
+
+⚠️ Two centred elements were pushed down to make room: `#wonder-timer` 44 → 108 and
+`#wish-offer` 72 → 112. `#wish-sub` followed the bar to the top and now wraps as a row.
+
+**Verified:** bar centre x === viewport centre x (720/720 at 1440w), top 44, flex row,
+own icon + badge, tooltip shows/hides on enter/leave and dismisses on click, armed pulse
+applies, full cast path end-to-end (cd 0→9.7, queue 2→1, charges 1→0, wishesCast 0→1),
+a spent one-use tile leaves the bar, foe bar + sub-picker untouched, 0 console errors,
+fp determinism + MP 2h+2ai inSync (UI-only, but `updateWishBar` ticks from `loop()` AND
+the hidden-tab interval, so a throw there would take the game loop with it).
+⚠️ **No screenshot**: DOM overlays are not in the WebGL canvas, so the self-photography
+recipe cannot capture UI, and `computer{screenshot}` still cannot composite this page.
+UI changes here are verified by geometry + computed style, not pixels.
+
 ## 🌏 THE FAR PLACES — maps that are not in the bedroom (2026-08-27)
 
 Kyle: *"maybe lets take some maps outside of a bedroom or house or even the
