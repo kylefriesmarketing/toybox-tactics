@@ -2100,6 +2100,162 @@ creates the state it needs.
 launches died on session/model limits and reported empty. Check `<failures>`,
 and put review agents on a different `model:` when the session model is capped.
 
+## 🕳️ THE ROOM GOES DOWN — basins (2026-08-27)
+
+Every height writer in `setup()` was `Math.max` on a zero grid, so the world had
+been monotonically NON-NEGATIVE since it was written: a floor with lumps on it.
+That is half of why the maps read as a table rather than a place. `basins:` in
+MAPS is the other half — authored at ONE point, AUTO-MIRRORED to its
+point-symmetric twin (fairness by construction), three walkable bands stepping
+by E/3 exactly like the dune collars but downward. On playmat / livingroom /
+underbed / garden / kitchen.
+⚠️ **Basins go LAST**, immediately before the water flatten — any `Math.max`
+writer running after one clobbers it back toward 0.
+⚠️ `addResourceNode` hard-rejected any tile not exactly 0/E/2E, so a basin would
+have been silently **resource-dead** — negative multiples of E/3 are whitelisted,
+or a whole region of the map stops being worth walking to.
+⚠️ Basins skip `water` tiles (never dig the bathtub) and `clearHomes(13)`.
+
+⚠️⚠️ **A BASIN DIGS THROUGH THE ROOM FLOOR.** The bedroom surround puts an opaque
+floorboard plane at y=-0.02 and a rug at -0.014, both ABOVE a dipped mat — so the
+first basin rendered as a flat blob of floor colour punched through the grass.
+`sinkRoomFloor()` (called after `computeCorners` + `applyTerrainToGround`) sinks
+them below the deepest point the VIEW grid actually reaches, computed rather than
+a magic number. It is **geometric, not tag-based** — a tag version missed a plane.
+
+### 🐛 `computeCorners` was SIGN-ASYMMETRIC — fixed same day
+
+Found by the AoE3/4 research pass, in code I had written hours earlier. The
+majority-bias test seeded `let hi = 0` while `lo = Infinity`. For a corner whose
+four tiles are ALL NEGATIVE — i.e. every corner inside a basin — nothing ever
+updates `hi`, so the cliff test `(hi - lo) > CLIMB` measured against a floor that
+was not there and reported **cliff: true on a walkable basin collar**, applying
+the exact saw-blade snap the test exists to exclude. `hi = -Infinity` + an
+isFinite guard. Measured after: 0 comb spikes along a radial out of the basin,
+max sim step 0.283 <= CLIMB.
+**The lesson: a sentinel seeded at 0 silently assumes its quantity is positive.**
+The whole engine had been non-negative, so the assumption was invisible until the
+day it was not true.
+⚠️ Rises and drops now cap SEPARATELY and ON PURPOSE (`ELEV_BOOST_CAP` 0.7 /
+`DEPTH_BOOST_CAP` 1.1): from a top-down camera a hollow reads far weaker than a
+hill of the same size, so it is allowed more exaggeration. Named, not accidental.
+
+### `__ttPathAudit` — THE MOVEMENT CHECK (build terrain against this)
+
+`window.__ttPathAudit({map, seed})` floods the walkable board from each seat using
+the PathFinder’s OWN `isBlockedFor()` and `climbable()`, so it can never disagree
+with how a real toy moves. Reports reach %, **mutual** (can the seats reach each
+other at all), reachable resource nodes, isolated pockets of 12+ tiles, and seat
+fairness. **Run it after ANY terrain edit** — a ridge that closes a corridor or a
+plateau that swallows a resource pocket does not throw, the match just plays wrong.
+Basins verified 36/36 (12 maps × 3 seeds), minReach 99.1%, seat spread 0.
+
+## 🌏 THE FAR PLACES — maps that are not in the bedroom (2026-08-27)
+
+Kyle: *"maybe lets take some maps outside of a bedroom or house or even the
+realm or imagination and take them into the real world like the mountains of
+china or jungles of india i dont know"*.
+
+**The framing that makes this work without breaking the fiction: these are the
+places the toys are FROM.** Every toy in the box was manufactured somewhere real
+— the army men were moulded in a factory under green mountains, the carved
+elephant came off a market stall in a wet country. So a mountain needs no
+teleportation and no dream sequence, and After Bedtime stays the game it was.
+⚠️ Do NOT re-frame these as "imagination levels": the entire point is that they
+are the one thing in the game that is real.
+
+| map | idea | shape | the lesson it teaches |
+|---|---|---|---|
+| **terraces** 🌾 The Terraced Hills | a hillside cut into steps by somebody patient | 3 real levels, 15.4% of the board elevated (bookshelf 5.4%, oldoak 8.8%) | **height** tells you what you can SEE |
+| **jungle** 🐯 The Deep Green | wet dark under a closed canopy | thickest stands in the game + a river basin + a 2-level temple platform | **light** tells you what you can BE SEEN from |
+
+Deliberately opposite: the terraces are a staircase, the jungle is a ceiling.
+Both are `outdoor: true` and get **no surround at all** — the OUTDOOR floor paints
+their own horizon to every edge, and `addBedroom` would put walls around a mountain.
+
+### `terraces:` — the generator this heightfield was always waiting for
+
+`terraces: [{ i, j, r, levels, riser, flat }]` builds a stepped mountain as
+concentric discs of INCREASING height and DECREASING radius; `Math.max` leaves
+each ring standing as a flat shelf. Every tile-to-tile step across a ring
+boundary is exactly **E/3 = 0.283 <= CLIMB**, so a whole mountain is walkable
+from every direction **without one authored ramp**.
+
+This matters beyond one map: the engine’s whole terrain vocabulary is whole
+levels joined by E/3 collars, and a hillside rice terrace is literally that
+shape. **`centerHill` was hard-capped at 2E; `terraces` climbs as far as `levels`
+asks** — the first map in the game to reach level 3 (2.55).
+⚠️ Shelf width is `riser + flat`, NOT `flat`. The summit is whatever radius `rad`
+has left after the last level — check it, a summit under ~1.5 is a pinhead.
+⚠️ **`addResourceNode` was generalised for this.** It hard-rejected any tile that
+was not exactly {0, E, 2E}, so every shelf above level 2 would have been silently
+**resource-dead** — a whole region nobody has a reason to walk to. It now takes any
+WHOLE multiple of E; collar bands (E/3, 2E/3) still fail, which is the point.
+
+### ⚠️ THE DRAW SCARE THAT WAS A MEASUREMENT ARTIFACT — and the control that caught it
+
+The first build’s soaks came back **3 draws in 4 games**, which looks exactly like
+the documented elevation-stalemate failure (two armies each parked on a shelf,
+±25% elevation damage, neither able to profitably attack). A tune was written:
+shrink the mountain, "high ground is contested ground, not a home".
+
+**It was never applied, because the battery included a playmat control.**
+48 games — terraces / jungle / **playmat control**, 8 mirrored pairings × 2 seeds,
+hard AI, 14000-tick cap, 0 errors:
+
+| map | games | decided | draws | draw % | avg length |
+|---|---|---|---|---|---|
+| terraces | 16 | 13 | 3 | **19%** | 6.7 min |
+| jungle | 16 | 13 | 3 | **19%** | 5.5 min |
+| **playmat (control)** | 16 | 13 | 3 | **19%** | 6.8 min |
+
+**Identical on all three**, and 19% is inside the historical 13.5–22% band. The
+alarm was the **9000-tick cap**, not the terrain: given room to finish, the new
+maps conclude exactly as often as the flagship open map, and jungle resolves
+FASTER. ⚠️ **A map battery that reports a draw rate without a control is reporting
+nothing** — a tick-cap artifact and a real stalemate are indistinguishable.
+The rejected tune is kept at `REJECTED-farplaces-tune.cjs.txt` in the scratchpad.
+
+### ⚠️ IT STILL PHOTOGRAPHED FLAT — profile, not amplitude (again)
+
+Balance was fine and the map still looked like a painted target on a flat mat.
+**Two separate causes, and neither was amplitude:**
+1. **Aspect ratio.** `r: 23` spread three levels over a 46-tile-wide dome — a 3.26
+   unit rise over 23 tiles is an **8° grade**, a swell. Same diagnosis as the
+   view-relief pass: PROFILE, NOT AMPLITUDE. `r: 16` runs the same three levels
+   over a shorter run for a 12° grade, and the steps read as steps.
+2. ⚠️⚠️ **THE PAINT DID NOT AGREE WITH THE TERRAIN.** The painter drew ~18
+   decorative bunds at fixed texture radii over 60% of the board, while the
+   heightfield stepped 9 times over 48% of it — lining up nowhere. **This is the
+   law the ridge work already established** (`paintRidges` reads the SAME
+   `mapCfg.ridges` the sim reads, so a wall is always painted where the wall is)
+   and the terrace painter had violated it. It now REPLAYS THE GENERATOR’S OWN
+   RING WALK from `mapCfg.terraces`, so every bund sits on a real riser and only
+   whole levels get standing water. **Any new terrain feature must derive its
+   paint from the same config the sim reads — never invent radii.**
+
+⚠️ `ELEV_BOOST_CAP` (0.7) binds hard on a level-3 summit: 2.55 × 1.7 = 4.34 is
+clamped to 3.25, so tall terrain gets proportionally LESS view exaggeration than
+short terrain. Correct (it is what stops ridges spiking) but worth knowing before
+wondering why a taller mountain did not look taller.
+
+**Verified after the reshape** (the gates were re-run because the terrain changed):
+movement 8/8 both maps × 4 seeds, 100% reach both seats, 0 pockets, seat spread 0,
+every resource node reachable, determinism ok both maps, MP 2h+2ai inSync, 0 errors.
+⚠️ Do NOT add `terraces:` to `generateRandomMap` until a random-map battery says so;
+that generator already warns about fragmenting boards into pathing stalls.
+
+### ⚠️ Two harness traps this run
+
+- **A long battery must publish partial results.** The 48-game run only assigned
+  its rows at the very end, so the first map’s finished 16 games were unreadable
+  for 30 minutes. Write each slice to the window var as it completes.
+- **`__ttStart` silently no-ops if a soak already made a Game** (invariant 2:
+  `if (game) return`). A battery leaves one behind, so a later `__ttStart(d, map)`
+  returns the SOAK’S map and you measure the wrong board — this cost a round and
+  produced a fake "the generator only reaches 2 levels" bug report. **Start a map
+  by URL (`?start=normal&map=<key>`) on a fresh load**, never after a battery.
+
 ## 🕯️ THE THREE AGES + THE NINE PATRONS (2026-08-25) — the AoM shape, properly
 
 Kyle playtested: *"when i aged up to the playmat age i didnt get a choice of
