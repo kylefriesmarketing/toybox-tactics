@@ -2254,6 +2254,48 @@ authored 4-5 since ridges shipped, which is a far tighter squeeze than any of th
 cost nothing, because a wall on the main diagonal with gaps cannot obstruct a monotone
 staircase between anti-diagonal seats.
 
+## 🧱 THE 8-MAP TERRAIN UPGRADE: DESIGNED, VERIFIED, AND REJECTED (2026-08-27)
+
+Kyle asked to upgrade every remaining map. Eight configs were designed against the audit
+findings and each was handed to an adversarial verifier told to REFUTE it. **Every one was
+rejected**, each on a defect the verifier reproduced in code — including one the verifier
+called "the most rigorous proposal of its kind I have checked". The maps are far more
+tightly constrained than they look: each has interlocking systems (the naval layer, ridge
+skirts, the centre economy, sticker placement) that ordinary terrain quietly breaks.
+
+| map | why it was rejected (reproduced, not asserted) |
+|---|---|
+| **underbed** | The new basin reached a RIDGE SKIRT. Skirts sit at +E/3 and are NOT blocked, so the basin dug the tiles it touched to −E/3 and left `(22,27) −0.2833 <-> (22,28) +0.2833` = **a 0.5667 step against CLIMB 0.3**. An unwalkable seam that would not throw. |
+| **bathtub** | The authored pair was one tile off the engine mirror, costing Dock frontage on one side only. |
+| **attic** | Placed **0 of the 22** hardcoded centre-cluster nodes (current attic places 13) — on the map with the HIGHEST resourceMul in the game. Also deleted its only authored chokepoint. |
+| **oldoak** | The new ridge cores landed dead centre on both flank Lost Stickers at (22,22)/(49,49); snapToLand then shoved them off ASYMMETRICALLY. Reproduced on all 9 seeds. |
+
+### ⚠️⚠️ THE ENGINE HAS TWO MIRROR CENTRES, AND THEY ARE HALF A TILE APART
+
+This is the finding worth more than the proposals. Authored pairs must match the
+convention of the system they sit beside:
+
+| system | code | reflects about |
+|---|---|---|
+| obstacles | `(N - i - w, N - j - d)` over a width-w span | **35.5** |
+| Lost Stickers | mirrored pair at e.g. (22,22)/(49,49) — sums to N−1 | **35.5** |
+| basins (auto-mirror) | `[N - b.i, N - b.j]` | **36** |
+| water ellipse | `di = i - N/2` | **36** |
+
+So the engine twin of (18,18) is **(54,54)**, not (53,53). A pair authored on the wrong
+convention is half a tile out — invisible on most maps, and a measurable fairness loss on
+bathtub, where it costs Dock sites on one shore only.
+⚠️ **The safe placement is the main diagonal.** Both seats sit at (16,56)/(56,16), mirror
+images across i === j, so ANY point on i === j is exactly equidistant from both homes under
+BOTH conventions. That is why the four shipped terraces are fair.
+
+### What actually upgraded the terrain
+
+Not the per-map configs — the ENGINE fixes, which improved six maps at once:
+canyon walls (relief 3.0 -> 7.1-7.8%), authored ridge gaps restored from 2 tiles to their
+declared width across all six ridged maps, and the basin-depth pit closed.
+**Lesson: on a map set this interlocked, the leverage is in the generators, not the configs.**
+
 ## 💰 `centreNodes` — the contested-middle economy metric (2026-08-27)
 
 `__ttPathAudit` now returns **`centreNodes`**: resource nodes within 10 tiles of map
