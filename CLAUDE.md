@@ -2254,6 +2254,25 @@ authored 4-5 since ridges shipped, which is a far tighter squeeze than any of th
 cost nothing, because a wall on the main diagonal with gaps cannot obstruct a monotone
 staircase between anti-diagonal seats.
 
+## 📐 THE MAP CENTRE IS (36,36), NOT (33,33) (2026-08-27)
+
+⚠️ **`MAP_N` is 72, so the centre tile is 36.** Every terrace shipped earlier today was
+authored at `i: 33, j: 33` — four tiles off centre along the main diagonal. All four
+(terraces / jungle / bookshelf / garden) are now recentred at 36.
+
+⚠️ It was never UNFAIR, which is why the gates missed it: both seats sit at (16,56) and
+(56,16), which are mirror images across the main diagonal, so **any point on i === j is
+exactly equidistant from both homes**. Measured spread 0 and centreDelta 0 throughout. It
+was simply off-centre — more open ground on one diagonal side than the other.
+**That diagonal property is the useful trick**: authored terrain placed on i === j is fair
+by construction, and it survives the 1-tile slack between the basin mirror (about N) and
+the obstacle mirror (about N-1).
+
+Verified after recentring: relief effectively unchanged (terraces 15.4, jungle 13.4,
+bookshelf 20.6, garden 17.1), 12/12 movement checks pass, reach 99.9-100%, 0 pockets,
+spread 0, cDelta 0, determinism on terraces + bookshelf, 4/4 soaks conclude 5.4-6.5 min,
+MP 2h+2ai inSync, 0 errors.
+
 ## 🕳️ `basins: depth` WAS A SILENT PIT (2026-08-27) — fixed
 
 Found by the terrain-design review, in code I wrote the same day, and confirmed by
