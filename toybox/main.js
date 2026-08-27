@@ -1927,6 +1927,30 @@ window.__ttPathAudit = (opts = {}) => {
       return { blockedTiles: blocked, mirrorErr: blocked ? +((unpaired / blocked) * 100).toFixed(1) : 0 };
     })(),
     seats: rows, mutual, nodesTotal: nodes.length,
+    // ⚠️ BASIN SEAMS — the check that was MISSING when a real one shipped.
+    // `reach` and `pockets` are structurally blind to a seam: an unwalkable step
+    // between two open tiles isolates nothing (units walk around), so both read
+    // clean while the board carries an invisible cliff. Counted here as an
+    // open-open orthogonal pair where at least one tile is DUG and the step
+    // exceeds CLIMB.
+    // ⚠️ The DUG qualifier is load-bearing: a plateau EDGE is also a >CLIMB step
+    // between two open tiles, and that is intentional (ramps are the only ways up).
+    // Untouched playmat carries ~148 of those. Only a dug tile makes it a defect,
+    // because a basin is supposed to be a dip you can walk into.
+    ...(() => {
+      let seams = 0, worst = 0;
+      for (let j = 1; j < MAP_N - 1; j++) for (let i = 1; i < MAP_N - 1; i++) {
+        const m0 = j * MAP_N + i;
+        if (g.blocked[m0] || g.height[m0] >= -0.001) continue;
+        for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const m1 = (j + dj) * MAP_N + (i + di);
+          if (g.blocked[m1]) continue;
+          const d = Math.abs(g.height[m0] - g.height[m1]);
+          if (d > 0.3 + 1e-6) { seams++; if (d > worst) worst = d; }
+        }
+      }
+      return { basinSeams: seams, worstSeam: +worst.toFixed(3) };
+    })(),
     // ⚠️ CENTRE ECONOMY. game.js hardcodes six resource clusters at N/2 +- small
     // offsets (all within ~8 tiles of centre). addResourceNode accepts only WHOLE
     // multiples of E, and a terrace RISER is E/3 or 2E/3 — so centred terrain can

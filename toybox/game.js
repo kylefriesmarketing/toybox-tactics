@@ -894,6 +894,31 @@ export class Game {
         }
       }
     }
+    // ---- BASIN SEAM RELAXATION ----
+    // A bowl can be sliced mid-band by clearHomes / blocked / water, leaving a deep
+    // tile flush against ground at 0 — an unwalkable step between two OPEN tiles.
+    // ⚠️ reach/pockets CANNOT SEE THIS (a seam isolates nothing, you walk around),
+    // which is exactly how one shipped. Lift any dug tile that sits more than CLIMB
+    // below its highest open neighbour, in E/3 steps so it stays on the band grid.
+    if ((this.map.basins || []).length) {
+      for (let pass = 0; pass < 12; pass++) {
+        let moved = 0;
+        for (let j = 1; j < N - 1; j++) for (let i = 1; i < N - 1; i++) {
+          const m0 = idx(i, j);
+          if (this.blocked[m0] || this.height[m0] >= -0.001) continue;
+          let hi = -Infinity;
+          for (const [ai, aj] of [[i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]]) {
+            const m1 = idx(ai, aj);
+            if (this.blocked[m1]) continue;
+            if (this.height[m1] > hi) hi = this.height[m1];
+          }
+          if (!isFinite(hi)) continue;
+          while (hi - this.height[m0] > CLIMB + 1e-6) { this.height[m0] += E / 3; moved++; }
+          if (this.height[m0] > 0) this.height[m0] = 0;
+        }
+        if (!moved) break;
+      }
+    }
     // keep the basin dead flat even if a plateau clipped its edge
     if (this.map.water) for (let k = 0; k < this.water.length; k++) if (this.water[k]) this.height[k] = 0;
     this.computeCorners();
