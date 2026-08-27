@@ -1442,7 +1442,18 @@ export const MAPS = {
   },
   bathtub: {
     label: 'Bathtub Armada', icon: '🛁', ground: 'bathtub', light: 'normal',
-    obstacles: 3, canyon: false, resourceMul: 1.3, stickers: 2, plateaus: 1,
+    // ⚠️ plateaus 1 -> 0 IS THE LOAD-BEARING HALF, and it fixes a PRE-EXISTING
+    // fairness leak. The single rng plateau is the only height writer on this map
+    // that can reach the tub's shore, and it is UNMIRRORED: 513 of the 1303 legal
+    // plateau centres (39.4%) drop its disc over a shore tile, and a shore-clipping
+    // plateau costs 4-8 of the 116 3x3 Dock sites AND leaves 4-8 sites with no
+    // point-symmetric twin (baseline 0). That is asymmetric Dock frontage, on some
+    // seeds only, and it has been shipping. With plateaus 0 the dead-flat shore
+    // stops being luck and becomes a theorem — no ridges, dunes, centerHill,
+    // terraces, canyon or landmark here, so the only remaining height writers are
+    // the water flatten (sets 0) and the basin below, 18.38 tiles from any shore.
+    // Same reasoning as MAPS.terraces ("plateaus 0 ON PURPOSE").
+    obstacles: 3, canyon: false, resourceMul: 1.3, stickers: 2, plateaus: 0,
     critters: [{ type: 'duck', count: 3 }, { type: 'goldfish', count: 4 }], // duckies + goldfish in the basin
     weather: 'bubbles', // soap bubbles drift up from the suds
     cat: false, // the tub is beneath her dignity
@@ -1450,7 +1461,21 @@ export const MAPS = {
     // a central basin of sailable water: build a Dock, launch boats, and rule
     // the bath while land toys ring the tub. water: ellipse half-axes in tiles.
     // (kept moderate so land armies can still ring the tub and close games out)
-    water: { rx: 14, rz: 11 },
+    water: { rx: 14, rz: 11 },   // ⚠️ UNCHANGED. The naval clause works; do not touch it.
+    // THE TWO SHALLOW ENDS — where the bathwater drained away and the porcelain dips.
+    // The LAND route between the seats runs through the (16,16) and (56,56) corners,
+    // so this gives the toys who take the long way round ground with a shape.
+    // ⚠️ AUTHOR ONE POINT, NEVER A PAIR. `basins` is the only auto-mirroring
+    // generator, so the engine emits the twin under its OWN convention — being
+    // "one tile off the engine mirror" is unreachable by construction. That is
+    // precisely why this uses basins and not an authored terrace pair.
+    // ⚠️ (14,14) sits on i===j. The homes are (18,58)/(58,18) and sum to 76, so they
+    // are NOT point-symmetric about 36 — the ONLY axis mapping home A to home B is
+    // the i===j mirror. A basin centred there is equidistant from both homes under
+    // the 35.5, the 36 AND the home convention at once.
+    // ⚠️ Corner-ward on purpose: 18.38 tiles from the nearest shore (Docks
+    // untouched), 24.76 from map centre, and 4.31/5.73 clear of the Lost Stickers.
+    basins: [{ i: 14, j: 14, r: 7, depth: 1 }],
     decor: ['duckling', 'ball', 'die'],
     decorCount: 12,
     desc: 'A warm sea in the middle of everything. Raise your Docks and rule the waves!',
