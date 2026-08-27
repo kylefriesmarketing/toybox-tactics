@@ -2150,6 +2150,172 @@ fairness. **Run it after ANY terrain edit** — a ridge that closes a corridor o
 plateau that swallows a resource pocket does not throw, the match just plays wrong.
 Basins verified 36/36 (12 maps × 3 seeds), minReach 99.1%, seat spread 0.
 
+## 📏 DETOUR — the other half of the movement check (2026-08-27)
+
+`__ttPathAudit` now also returns **`detour`** and **`walk`**: a breadth-first tile
+distance between the two seats (using the PathFinder’s own `isBlockedFor` /
+`climbable`) divided by the straight-line distance. `reach` answers "can I get
+there at all"; **`detour` answers "does the board make me walk AROUND anything"**,
+which is the property that actually distinguishes an open map from an obstructed one.
+
+⚠️ **1.414 is the FLOOR, not a bug.** The BFS is 4-neighbour and the seats sit on a
+diagonal (di 40, dj -40), so a perfectly open board scores 80 / 56.6 = 1.414. It is
+identical on every map because every map uses the same seat ring, so cross-map
+comparison is valid. Do not "fix" it by going 8-neighbour — this is a relative measure.
+
+### ⚠️⚠️ THE MEASUREMENT: EVERY MAP IN THE GAME SITS EXACTLY ON THE FLOOR
+
+All 14 maps, seed 47: **detour 1.414, walk 80 — every single one.** Not canyon (a
+barricade map), not sandbox (24.3% elevated, the most elevated map), not the five
+ridged maps, not the new jungle with the thickest stands in the game. **No map makes
+an army walk one tile out of its way between the seats.**
+
+⚠️ **The first elevated-% table published here was measured with a POSITIVE-ONLY
+metric** (`height > 0.01`) and was therefore blind to basins — the negative terrain
+shipped the same day. `__ttPathAudit` now reports **`elevatedPct` = relief** (any tile
+off level zero) plus `upPct`/`downPct`. Corrected, seed 47:
+
+| map | relief | up | down | | map | relief | up | down |
+|---|---|---|---|---|---|---|---|---|
+| sandbox | 24.3 | 24.3 | 0 | | playmat | **9.0** | 4.8 | **4.2** |
+| terraces | 15.4 | 15.4 | 0 | | oldoak | 8.8 | 8.8 | 0 |
+| jungle | 13.6 | 8.7 | 4.9 | | playground | 7.6 | 7.6 | 0 |
+| underbed | **12.7** | 8.6 | 4.1 | | bookshelf | 5.4 | 5.4 | 0 |
+| livingroom | **10.9** | 5.9 | 4.9 | | canyon | 3.0 | 3.0 | 0 |
+| kitchen | **9.8** | 5.6 | 4.3 | | bathtub | 1.5 | 1.5 | 0 |
+| garden | 9.0 | 5.9 | 3.1 | | | | | |
+
+The basin maps roughly DOUBLED once their hollows were counted. bookshelf at 5.4 is
+now the flattest land map in the game, below playmat — which sharpens the point below.
+
+**What this does and does not mean.** Elevation is FREE to walk (`climbable` is a
+binary CLIMB test with no cost term), so `detour` measures BLOCKED-tile obstruction
+only — ridge cores, obstacles, treelines, the pillow barricade. A monotone staircase
+path between the seats has enormous freedom, so a feature only costs distance if it
+blocks EVERY monotone path, i.e. spans the anti-diagonal. Nothing in the game does.
+
+⚠️ **Do NOT read this as "add blockers".** The bible’s standing rule is the opposite
+("too many blockers wall armies out and stalemate"), and the 2026-08-27 far-places
+battery measured a healthy 19% draw rate. A map can be tactically shaped without
+forcing detours — in AoE the direct route is not longer, it is DANGEROUS. Read
+`detour` as a **regression guard**: if a future terrain edit pushes a map off 1.414,
+that edit started walling armies out, and you want to know before a battery does.
+
+⚠️ **It also puts a question mark over the two-pool balance method.** CLAUDE.md pools
+maps as "open (playmat+kitchen)" vs "terraced (bookshelf+canyon)" for every battery,
+and on both measurable axes those pools are indistinguishable (elev 4.8/5.6 vs 5.4/3.0;
+detour identical). The knights’ "chokepoint faction" reading (47 open / 65 terraced)
+rests on a classification the terrain data does not support. NOT resolved here — the
+pools may still differ in ways neither metric captures. Flagged, not concluded.
+
+⚠️ **`bookshelf` contradicts its own description**: *"Shelves stacked like mountain
+country. Seize the high ground"* at **5.4% elevated, the 4th flattest map**. Its
+config is `plateaus: 3` and the code comment already claims "elevation-forward".
+The `terraces:` generator now exists to deliver what that desc promises — but note
+bookshelf uses generated ground ART (a pure texture swap), so relief there reads only
+through `shadeGroundByHeight`’s baked hillshade, not through painted contours.
+
+## 🗺️ THE MAP IDENTITY AUDIT (2026-08-27) — does each map deliver what it claims?
+
+A 4-agent pass read all 12 pre-existing maps against their own label + desc + source
+comments. Scored 0-3, where **3 = the map contradicts its own description**. Two were
+fixed the same day; the rest are a verified backlog. ⚠️ Every claim below was confirmed
+against the source, not taken on the agents’ word — check it again before acting.
+
+### FIXED — the two maps that already promised stepped ground and had none
+
+**`bookshelf` (sev 3).** desc: *"Shelves stacked like mountain country. Seize the high
+ground."* Source comment: *"elevation-forward: EXTRA plateaus"*. But `plateaus: 3` **IS
+THE ENGINE DEFAULT** (`this.map.plateaus ?? 3`, game.js ~678) — it declared nothing
+extra, and measured **5.4% relief, the flattest land map in the game, below the
+pure-open flagship**. Now `terraces: [{i:33,j:33,r:18,levels:2,riser:1.3,flat:4.0}]`
+and `plateaus: 1`. **TWO levels on purpose** — a shelf is a broad flat thing; a summit
+is the `terraces` map’s job. Measured after: **19.3-20.9% relief**.
+
+**`garden` (sev 3).** desc: *"Flower-bed TERRACES"*; the source comment has always said
+they *"climb in real steps"*. It declared **no `terraces:` key at all**. Independently
+measured by the auditor over 30 seeds: **17 of 30 seeds contained NOT ONE TILE above
+0.85** — on over half of all matches the entire world had a single elevation step.
+Now a low two-step rise, `r:14, levels:2`. Measured after: **14.3-17.0% relief**.
+
+⚠️ This also repairs a false statement in this very file: *"NOT ridged on purpose:
+canyon/bookshelf/garden/oldoak (already terraced)"*. For bookshelf and garden that was
+simply untrue. It is true now.
+
+**Battery: 36 games, mirrored pairs, hard AI, 14000-tick cap, 0 errors. **bookshelf 8% draws (1/12, avg 7.0min) · garden 17% (2/12, 5.4min) · playmat CONTROL 25% (3/12, 6.7min)** — both reshaped maps conclude MORE reliably than the control, so real stepped elevation did not build a fortress. (Control reads 25 here vs 19 in the far-places battery: n=12 vs n=16, noise. The comparison that matters is within-battery.)**
+
+⚠️ Unexpected bonus, and worth chasing: **bookshelf’s `centreDelta` went from
+[0,0,6,0,2,...] to 0 on every seed tested.** Centred terrain occupies the middle, so the
+unmirrored `milk`/`ranges` fail their `flatAt` check there and get displaced outward —
+i.e. **shaping the centre appears to REDUCE the fairness leak** documented above. Only 4
+seeds vs the original 8, so this is a lead, not a result.
+
+### THE BACKLOG — verified, not acted on
+
+| map | sev | the finding (confirmed in source) |
+|---|---|---|
+| `bathtub` | 3 | "THE TUB HAS NO TUB" — the naval clause genuinely works (centred water ellipse across the seat diagonal, impassable to land, docks + water resources all fine) but the tub itself is absent. |
+| `canyon` | 2 | ⚠️ **`addObstacle` NEVER writes `height`** — it sets `blocked[]` and parents a mesh at `tileHeight(i,j)`. So the "canyon walls" have **no vertical relief whatsoever**; measured 3.0% relief, the flattest land map after bathtub. The desc ("a pillow barricade") is honest; the LABEL, the 🏔️ icon and the campaign fiction are not. |
+| `sandbox` | 2 | ⚠️ **The authored gaps do not exist as authored.** On the seat cut, the two 5-wide gaps measure **ONE tile each** — neighbouring non-gap ridge points paint their 3x3 cores over the gap shoulders. And the central wall spans only 25 of 48 diagonal tiles, leaving **17 tiles of unwalled flank at BOTH ends**. This is why sandbox measures detour 1.414 despite being the most elevated map. |
+| `playground` | 2 | "THE SANDBOX IS PAINT ONLY" — the painted sand square at canvas centre has no mechanical existence: height, blocked and resource lattice are identical to plain grass there. Compare the real `sandbox` map, which backs its identity with mask + dunes + a landmark. |
+| `livingroom` | 2 | "Presents worth claiming" has **zero mechanical referent** — `decor` is explicitly non-blocking view-only clutter (tagged for THE KID to steal); there is no gift-shaped resource. The map’s best terrain (its basin pair) goes unmentioned. |
+| `attic` | 2 | The "wide open / long sightlines" half has drifted CLOSED across three passes (obstacles + a ridge + 2 tribe camps), and the vertical identity was never built. |
+| `oldoak` | 2 | The hill is the honest half — centred, 30/30 seeds, 10.1% of playable area, a 49-tile summit with the oak eating 16, leaving 33 standable tiles: **contested ground, not a base plot**, which is exactly right. But "roots like castle walls" is a picket fence. |
+| `playmat` | 1 | Correctly boring. Its one unenforced claim is "open center" — see the fairness section above. |
+| `underbed`, `kitchen` | 1 | Best-delivered of the set; shortfalls are dosage, not absence. |
+
+⚠️ **Do not bulk-fix these.** Nine map reshapes in one pass is far more change than a
+playtested game can absorb at once, and each one needs its own control battery. The two
+that shipped were the two whose own text already promised the thing they lacked.
+
+## ⚖️ UNMIRRORED IMPASSABLE TERRAIN — a seed-dependent fairness leak (2026-08-27)
+
+The codebase mirrors midfield terrain explicitly and says so everywhere: obstacles
+(`addObstacle` at (i,j) AND (N-i-w, N-j-d)), stands, ridges, basins and tribe camps
+are all point-symmetric "for fairness". **Three things are not:**
+
+| generator | mirrored? | impassable? |
+|---|---|---|
+| `obstacles` | ✅ explicit twin | yes |
+| per-player resources (game.js ~1018-1027) | ✅ by construction (`face`/`faceZ` off each chest) | n/a |
+| centre resources (~1029-1034) | ~ authored pairs, off by ~2 tiles | n/a |
+| **scattered resources (~1073, ~1079)** | ❌ rng-sited, no twin | n/a |
+| **`features.milk`** | ❌ rng-sited, no twin | **YES — a blocking lake** |
+| **`features.ranges`** | ❌ rng-sited, no twin | **YES — 8-12 blocking segments** |
+
+**MEASURED** via the new `__ttPathAudit` field **`centreDelta`** (extra tiles one seat
+must walk to reach the contested middle), 8 seeds per map:
+
+| map | per-seed deltas | worst | mean |
+|---|---|---|---|
+| playmat (THE CONTROL MAP) | 0,0,6,8,2,0,0,0 | 8 | 2.0 |
+| canyon | 0,0,6,0,2,0,0,0 | 6 | 1.0 |
+| bookshelf | 0,0,6,0,2,0,0,0 | 6 | 1.0 |
+| **kitchen** | 0,0,**24**,0,2,0,0,0 | **24** | 3.3 |
+| terraces | 0 on all eight | **0** | 0 |
+
+Most seeds are perfectly fair — this is NOT systemic. But kitchen at seed 101 gives one
+seat a **24-tile** shorter walk to the middle on a board where the seats are 80 tiles
+apart. **terraces scores a clean zero on all eight seeds, and it is the only map in that
+table declaring no `features` at all** — which identifies the mechanism precisely.
+
+⚠️ **This does NOT bias factions**, and that is why no battery has ever caught it:
+mirroring seat order (already non-negotiable) cancels a per-seat advantage across the
+pair. What it does is inject **seed-dependent variance that lowers every battery’s
+statistical power** — on playmat and kitchen, the two maps most used as the open pool
+and as controls.
+
+**NOT FIXED, deliberately.** Mirroring `milk`/`ranges` is a sim-generation change: it
+moves every fingerprint, invalidates every replay bottle, and re-rolls the map layouts
+all historical balance data was measured on — for a variance reduction, not a bias fix.
+That is Kyle’s call, not a change to slip in. If it is taken, mirror `milk` and
+`ranges` first (they are the impassable ones) and leave the resource scatter organic.
+
+⚠️ Also noted while measuring: `basins` reflects about **N** (`[N - b.i, N - b.j]`) while
+`obstacles` reflects about **N-1** (`N - i - w` over a span of w). Both are internally
+consistent, but they are one tile apart from each other. Harmless today; pick one before
+a feature ever needs to line up with another.
+
 ## 🌏 THE FAR PLACES — maps that are not in the bedroom (2026-08-27)
 
 Kyle: *"maybe lets take some maps outside of a bedroom or house or even the
