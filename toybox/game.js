@@ -858,6 +858,19 @@ export class Game {
           if (!clearHomes(i, j, 13)) continue;                     // never a pit on a doorstep
           const d = Math.sqrt(di * di + dj * dj);
           if (d > r) continue;
+          // ⚠️ NEVER DIG BESIDE RAISED GROUND. Only ridge CORES are blocked; a ridge
+          // SKIRT is WALKABLE ground at +E/3, and digging the tile next to it to
+          // -E/3 leaves a 0.567 step between two open tiles — an invisible cliff.
+          // Reproduced on shipped underbed: (20,31) +0.2833 <-> (20,32) -0.2833.
+          // Leaving a one-tile flat margin turns that into -E/3 -> 0 -> +E/3, two
+          // legal steps. Safe against dig order: every basin write is <= 0, so a
+          // neighbour dug earlier in this same pass can never satisfy this test.
+          let touchesRaised = false;
+          for (const [ai, aj] of [[i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]]) {
+            if (!inMap(ai, aj) || this.blocked[idx(ai, aj)]) continue;
+            if (this.height[idx(ai, aj)] > 0.001) { touchesRaised = true; break; }
+          }
+          if (touchesRaised) continue;
           // Walkable bands, EVERY step exactly E/3 = 0.283 <= CLIMB — a dip you
           // walk into, mirroring the dune collars exactly but downward.
           // ⚠️ DEEPER MEANS MORE BANDS, NEVER BIGGER ONES. The original three-band
