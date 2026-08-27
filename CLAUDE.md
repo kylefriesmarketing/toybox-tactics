@@ -2254,6 +2254,41 @@ authored 4-5 since ridges shipped, which is a far tighter squeeze than any of th
 cost nothing, because a wall on the main diagonal with gaps cannot obstruct a monotone
 staircase between anti-diagonal seats.
 
+## 🕳️ `basins: depth` WAS A SILENT PIT (2026-08-27) — fixed
+
+Found by the terrain-design review, in code I wrote the same day, and confirmed by
+arithmetic. The three bands stepped by **`depth * E/3`**:
+
+| depth | step | verdict |
+|---|---|---|
+| 1 | 0.283 | walkable (<= CLIMB 0.3) |
+| **2** | **0.567** | **an unclimbable pit** |
+
+It would not throw. The hollow would simply swallow any toy that walked in — and the
+field name invites exactly that experiment. No shipped map uses `depth != 1`, so it never
+fired; it was waiting.
+
+**Fix: deeper means MORE BANDS, never bigger ones.** The band COUNT now scales with depth
+(`steps = round(depth*3)`), so every step stays E/3 at any depth.
+⚠️ The `depth === 1` path is left BYTE-IDENTICAL behind an explicit branch. The generalised
+boundaries are thirds, while the authored ones are 0.4/0.72 — routing the default through
+the new formula would silently reshape the basins on all five shipped basin maps and move
+every fingerprint. **Do not "simplify" that branch away.**
+
+Verified: all five basin maps unchanged (playmat 9.0/4.2, livingroom 10.9/4.9, underbed
+12.7/4.1, garden 17.0/3.1, kitchen 9.8/4.3 — exactly the pre-patch numbers); `depth: 2`
+now audits `pass: true` with reach 99.3% (identical to depth 1) where it previously would
+have dug 0.567 steps; live config restored exactly after the test; fp determinism on
+playmat + garden; MP 2h+2ai inSync; 0 errors.
+⚠️ The test mutates `game.map.basins[0].depth`, which is the LIVE shared MAPS object (the
+documented survivalDawn trick). Always restore it in the same eval.
+
+⚠️ Related hazard the same review flagged, NOT yet guarded: **a basin adjacent to a ridge
+SKIRT.** Skirts sit at +E/3 and are NOT blocked, so a basin digs the tiles it reaches to
+-E/3 and leaves a **0.567 seam** against the untouched skirt beside it — unwalkable, and it
+would not throw. Only ridge CORES are skipped (they are blocked). Keep authored basins
+clear of ridge skirts by hand until this is guarded.
+
 ## 🗺️ THE MAP IDENTITY AUDIT (2026-08-27) — does each map deliver what it claims?
 
 A 4-agent pass read all 12 pre-existing maps against their own label + desc + source
