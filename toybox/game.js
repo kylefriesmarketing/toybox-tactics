@@ -654,14 +654,25 @@ export class Game {
       for (const rd of this.map.ridges) {
         const di = rd.i2 - rd.i1, dj = rd.j2 - rd.j1;
         const len = Math.hypot(di, dj), w = rd.w || 1;
+        // ⚠️ THE GAP TEST IS PER TILE, NOT PER t-STEP. Each t-step paints a
+        // (2w+3)² block, so testing the gap at the step's own f let a step just
+        // OUTSIDE a gap paint its block straight across the gap — eroding the
+        // pass by (w+1) from each side. sandbox authored w:5 gaps and got ONE
+        // TILE. Projecting each tile onto the ridge axis makes a gap a clean
+        // perpendicular cut regardless of which step is painting.
+        const ux = di / len, uy = dj / len;
+        const gapAtTile = (i, j) => (rd.gaps || []).some((gp) => {
+          const ft = ((i - rd.i1) * ux + (j - rd.j1) * uy) / len; // this TILE's spot along the run
+          return Math.abs(ft - gp.t) * len < (gp.w || 4) / 2;
+        });
         for (let t = 0; t <= len; t += 0.5) {
           const f = t / len;
-          const inGap = (rd.gaps || []).some((gp) => Math.abs(f - gp.t) * len < (gp.w || 4) / 2);
           const ci = Math.round(rd.i1 + di * f), cj = Math.round(rd.j1 + dj * f);
           for (let b = -w - 1; b <= w + 1; b++) for (let a = -w - 1; a <= w + 1; a++) {
             const i = ci + a, j = cj + b;
             if (!inMap(i, j) || this.blocked[idx(i, j)]) continue;
             if (!clearHomes(i, j, 14)) continue; // never wall in a doorstep
+            const inGap = gapAtTile(i, j);
             const skirt = Math.max(Math.abs(a), Math.abs(b)) > w;
             if (inGap || skirt) {
               this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], E / 3);
@@ -976,7 +987,27 @@ export class Game {
       for (let t = 6; t < N - 8; t += 3) {
         if (gaps.some((gp) => Math.abs(t - gp) < 4)) continue;
         const jit = ((rng() * 3) | 0) - 1;
-        if (this.flatAt(t + jit, t - jit, 3, 3, 0)) this.addObstacle(rng() < 0.65 ? 'pillow' : 'book', t + jit, t - jit, 3, 3, 200 + t);
+        const ci = t + jit, cj = t - jit;
+        if (!this.flatAt(ci, cj, 3, 3, 0)) continue;
+        this.addObstacle(rng() < 0.65 ? 'pillow' : 'book', ci, cj, 3, 3, 200 + t);
+        // ⚠️ A CANYON NEEDS WALLS. addObstacle only writes `blocked` — it parents
+        // its mesh at tileHeight and never touches the heightfield, so before this
+        // the barricade was a FLAT impassable strip and the map measured 3.0%
+        // relief, the flattest land map in the game. Raise the barricade itself to
+        // ridge-core height and give it a walkable E/3 skirt, so the pass reads as
+        // a gorge you squeeze through instead of a painted line you walk around.
+        for (let b2 = -1; b2 <= 3; b2++) for (let a2 = -1; a2 <= 3; a2++) {
+          const i = ci + a2, j = cj + b2;
+          if (!inMap(i, j)) continue;
+          const core = a2 >= 0 && a2 < 3 && b2 >= 0 && b2 < 3;
+          if (core) {
+            // already blocked by addObstacle; nobody can path here, so a tall step
+            // is safe — isBlockedFor rejects the tile before climbable is consulted
+            this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], E * 2.2);
+          } else if (!this.blocked[idx(i, j)] && clearHomes(i, j, 14)) {
+            this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], E / 3);
+          }
+        }
       }
     }
     // non-blocking clutter — the theme picks the props (playground swings etc.)
