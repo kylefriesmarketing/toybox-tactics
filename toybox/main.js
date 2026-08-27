@@ -2826,6 +2826,30 @@ function wishChipClick(id) {
   wishAim = { id, need };
   setClickMode('wishcast');
 }
+// Hover description for a god power. Kyle asked for this explicitly, and a native
+// `title` was the wrong tool: it takes ~1s to appear, cannot be styled to match the
+// storybook UI, and never shows on touch. This is a real card.
+function showWishTip(w, left) {
+  const tip = $('wish-tip');
+  if (!tip || !w || !w.power) return;
+  const need = WISH_TARGET[w.power.k];
+  const aim = need === 'building' ? 'Click a building to aim it.'
+    : need === 'ground' ? 'Click the ground to aim it.'
+    : need === 'pick-ground' ? 'Choose what to place, then where.'
+    : need === 'building-then-ground' ? 'Click a camp, then where it should go.'
+    : 'Casts the moment you click it.';
+  // ⚠️ patronOf(lane,tier) is the AUTHORITY — only 24 of the 66 wishes carry an
+  // explicit `patron` field, but every one derives a patron from its (lane,tier).
+  // Reading the field alone left two thirds of the powers with no patron line.
+  const pat = (w.patron && PATRONS[w.patron]) || patronOf(w.lane, w.tier);
+  const esc = (t) => String(t == null ? '' : t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  tip.innerHTML = '<div class="wt-name">' + esc(w.power.label) + '</div>'
+    + '<div class="wt-from">' + esc(w.name) + (pat ? ' \u2014 granted by ' + esc(pat.name) : '') + '</div>'
+    + '<div class="wt-desc">' + esc(w.power.desc || '') + '</div>'
+    + '<div class="wt-aim">' + esc(aim) + (left > 1 ? '  \u00b7  ' + left + ' uses left' : '  \u00b7  one use only') + '</div>';
+  tip.classList.add('show');
+}
+function hideWishTip() { const t = $('wish-tip'); if (t) t.classList.remove('show'); }
 // ticked from loop() AND the hidden-tab interval, deliberately NOT __ttStep
 // (the trailer-capture path — a wish card must never appear in a capture)
 function updateWishBar() {
@@ -2849,7 +2873,9 @@ function updateWishBar() {
       renderWishOffer(wishOfferBox.offer, wishOfferBox.tier); // e.g. reopened after Esc-close
     }
     const powers = game.wishPowersOf(game.myId);
-    const sig = powers.map((x) => x.id + ':' + x.left).join('|');
+    // the armed id is part of the signature: without it the DOM never rebuilds
+    // when you arm a power and the pulse would never appear or clear.
+    const sig = powers.map((x) => x.id + ':' + x.left).join('|') + '#' + (wishAim ? wishAim.id : '');
     if (sig !== wishBarSig) {
       // stable-DOM rule: rebuild only when the roster/charges actually change
       wishBarSig = sig;
@@ -2857,12 +2883,15 @@ function updateWishBar() {
       for (const { id, w, left } of powers) {
         if (left <= 0) continue;
         const b = document.createElement('button');
-        b.className = 'wish-chip';
+        b.className = 'wish-tile' + (wishAim && wishAim.id === id ? ' armed' : '');
         b.dataset.wid = id;
-        b.title = w.power.desc + (WISH_TARGET[w.power.k] ? ' \u2014 click, then aim it (or press N)' : ' \u2014 casts at once');
-        b.innerHTML = '<span class="wc-ico">\u26A1</span><span class="wc-lbl">' + w.power.label + '</span>'
-          + '<span class="wc-n">' + (left > 1 ? left : 'USE') + '</span>';
-        b.onclick = () => wishChipClick(id);
+        // ⚠️ the wish's OWN icon, not a shared bolt — these are tiles now, and a
+        // row of identical icons is unreadable at a glance.
+        b.innerHTML = '<span class="wt-ico">' + (w.icon || '\u26A1') + '</span>'
+          + '<span class="wt-n">' + (left > 1 ? left : 'USE') + '</span>';
+        b.onmouseenter = () => showWishTip(w, left);
+        b.onmouseleave = hideWishTip;
+        b.onclick = () => { hideWishTip(); wishChipClick(id); };
         bar.appendChild(b);
       }
     }
