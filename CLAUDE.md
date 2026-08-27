@@ -2254,6 +2254,42 @@ authored 4-5 since ridges shipped, which is a far tighter squeeze than any of th
 cost nothing, because a wall on the main diagonal with gaps cannot obstruct a monotone
 staircase between anti-diagonal seats.
 
+## 🕳️⚠️ BASINS DUG INVISIBLE CLIFFS AGAINST RIDGE SKIRTS (2026-08-27) — was SHIPPED, now fixed
+
+Found by the terrain redesign review and **reproduced on the live map before fixing**.
+The underbed basin I added earlier the same day was illegal in production:
+
+```
+(20,31) h = +0.2833   <->   (20,32) h = -0.2833     step 0.5666 > CLIMB 0.3
+both tiles OPEN and unblocked.  12 such seams on underbed alone.
+```
+
+**Cause: only ridge CORES are blocked.** A ridge SKIRT is walkable ground sitting at +E/3.
+The basin loop skipped `blocked` tiles — and then happily dug the tile right beside a skirt
+down to −E/3. The two are 2E/3 = 0.567 apart: an invisible cliff between two walkable tiles.
+
+⚠️⚠️ **EVERY GATE PASSED.** It does not throw. It does not isolate a region (units simply
+walk around), so `reach` was 99.8% and `pockets` was 0. **A seam is not a pocket** — the
+movement check as built cannot see one. That is why this shipped.
+
+**Fix (general, protects every future basin): never dig a tile that touches PRE-EXISTING
+RAISED ground.** The one-tile flat margin turns the worst chain into −E/3 → 0 → +E/3, two
+legal 0.283 steps.
+⚠️ Order-independent by construction: the test is `neighbour height > 0`, and every basin
+write is <= 0, so a neighbour dug earlier in the same pass can never trigger it. Basins run
+last (just before the water flatten), so all other terrain is final when it runs.
+
+**Measured:** underbed seams **12 → 0**, 115 tiles still dug. All six basin/relief maps:
+reach 99.7-100%, **0 pockets everywhere** (playmat’s long-standing lone pocket is gone too),
+spread 0; determinism on playmat/underbed/garden; 3/3 soaks conclude; MP inSync; 0 errors.
+Relief costs a few tiles for the margin (playmat 9.0->8.7, underbed 12.7->12.3,
+garden 17.0->16.8, kitchen 9.8->9.3, livingroom 10.9->10.1, jungle 13.6->13.0) — and
+jungle’s centreNodes rose 8 -> 14, because the freed tiles are flat enough for resources.
+
+⚠️ **THE TRANSFERABLE RULE: any generator that LOWERS terrain must check what is already
+raised beside it.** Blocked-tile checks are not enough — walkable skirts, plateau collars
+and ramp tiles are all raised AND open.
+
 ## ⚠️ THE CANYON WALLS WERE REAL TO THE SIM AND INVISIBLE ON SCREEN (2026-08-27)
 
 My own canyon fix shipped half-broken. Caught by the terrain review, confirmed by grep.
