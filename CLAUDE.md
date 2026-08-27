@@ -2279,7 +2279,29 @@ legal 0.283 steps.
 write is <= 0, so a neighbour dug earlier in the same pass can never trigger it. Basins run
 last (just before the water flatten), so all other terrain is final when it runs.
 
-**Measured:** underbed seams **12 → 0**, 115 tiles still dug. All six basin/relief maps:
+⚠️⚠️ **THAT FIRST FIX WAS INCOMPLETE — and only a new metric caught it.** Guarding against
+RAISED neighbours closed one case. The bigger one stayed open: `clearHomes(13)` (and
+`blocked`, and `water`) SKIP tiles in the MIDDLE of a bowl, leaving a deep band flush
+against untouched ground at 0. Re-measured after fix #1, 3 seeds per map:
+**playmat 77, livingroom 89, underbed 92, kitchen 51, jungle 106, garden 17 seams —
+worst 0.850, a FULL LEVEL between two open tiles.**
+
+**The complete fix is a RELAXATION PASS**, because a per-tile pre-check cannot work: whether
+a tile is legal depends on neighbours dug later in the same pass. Bowls are dug as before,
+then any dug tile more than CLIMB below its highest open neighbour is lifted by E/3 until
+legal, repeated until stable (bounded at 12 passes).
+⚠️ Lifting in E/3 STEPS keeps every tile on the engine band grid, so whole levels stay whole
+and `addResourceNode` (which demands an exact multiple of E) still accepts the bowl floor.
+
+**`__ttPathAudit` now reports `basinSeams` / `worstSeam`** — the check that was missing when
+a real seam shipped. ⚠️ The DUG qualifier is load-bearing: a plateau EDGE is also a >CLIMB
+step between two open tiles and that is INTENTIONAL (ramps are the only ways up); untouched
+playmat carries ~148 of those. Only a dug tile makes it a defect.
+
+**Final: 0 seams on all six basin maps across 18 checks**, bowls intact (2.4-3.3% of board
+dug), reach 99.8-100%, 0 pockets, determinism 4/4, 4/4 soaks conclude, MP inSync, 0 errors.
+
+**Measured (fix #1 only):** underbed seams **12 → 0**, 115 tiles still dug. All six basin/relief maps:
 reach 99.7-100%, **0 pockets everywhere** (playmat’s long-standing lone pocket is gone too),
 spread 0; determinism on playmat/underbed/garden; 3/3 soaks conclude; MP inSync; 0 errors.
 Relief costs a few tiles for the margin (playmat 9.0->8.7, underbed 12.7->12.3,
