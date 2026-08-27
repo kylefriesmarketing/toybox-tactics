@@ -3572,6 +3572,7 @@ const WEAR_COLORS = {
   livingroom: 'rgba(60,22,26,0.05)', kitchen: 'rgba(70,45,22,0.04)',
   playmat: 'rgba(70,90,50,0.045)', underbed: 'rgba(20,16,30,0.06)',
   attic: 'rgba(60,42,22,0.045)', bookshelf: 'rgba(40,26,14,0.045)',
+  terraces: 'rgba(70,52,28,0.06)', jungle: 'rgba(28,34,20,0.05)',
 };
 function setupTracks() {
   tracks = null;

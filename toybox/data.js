@@ -1521,6 +1521,59 @@ export const MAPS = {
     decorCount: 18,
     desc: 'One giant oak on a hill at dusk, roots like castle walls. Whoever holds the tree holds the yard.',
   },
+
+  // ---------------- THE FAR PLACES ----------------
+  // Every toy in this box was made somewhere real. The army men were moulded in
+  // a factory under green mountains; the carved elephant came off a market
+  // stall in a wet country. These two maps are those places — not a dream and
+  // not a bedroom, but where the toys are FROM. No teleportation required to
+  // justify a mountain, and the bedtime fiction stays exactly where it was.
+  terraces: {
+    label: 'The Terraced Hills', icon: '🌾', ground: 'terraces', light: 'gold', outdoor: true,
+    // The map this engine was always shaped for. Its whole terrain vocabulary is
+    // whole levels joined by E/3 collars — which is precisely a hillside rice
+    // terrace. Three real levels (0.85 / 1.70 / 2.55): the first map in the game
+    // that climbs past the old 2E ceiling, and the shelves are wide enough to
+    // hold a base, so 'take the high ground' finally means a campaign up a hill.
+    // r was 23: three levels spread over a 46-tile-wide dome is an 8 degree
+    // grade — a SWELL, not a mountain, and it photographed as flat. Same failure
+    // the view-relief pass diagnosed: PROFILE, not amplitude. Same three levels
+    // over a 16-tile run is twice the grade, and the steps read as steps.
+    // Shelf width is riser+flat = 2.8 tiles; summit disc r 3.2.
+    terraces: [{ i: 33, j: 33, r: 16, levels: 3, riser: 1.2, flat: 1.6 }],
+    obstacles: 3, canyon: false, resourceMul: 1.15, stickers: 3, plateaus: 0,
+    // plateaus 0 ON PURPOSE — random lumps fight an authored staircase, and the
+    // staircase is the whole map.
+    groves: { kind: 'tree', count: 3 },
+    stands: { kind: 'tree', pairs: 2, n: 9, r: 3.2 },
+    critters: [{ type: 'snail', count: 4 }, { type: 'bee', count: 3 }],
+    cat: false, dog: true,
+    tribes: 2,
+    weather: 'seeds', // chaff drifting off the terraces in the morning wind
+    obstacleKinds: ['rock', 'tree'],
+    decor: ['grass', 'pebble', 'daisy', 'mushroom'],
+    decorCount: 18,
+    desc: 'Green stairs cut into a mountain by somebody patient. Three floors of hillside — the top one sees everything.',
+  },
+  jungle: {
+    label: 'The Deep Green', icon: '🐯', ground: 'jungle', light: 'dusk', outdoor: true,
+    // The opposite lesson from the terraces: not a staircase but a CEILING. Light
+    // is low, sightlines are short, and the map's shape is made of what you
+    // cannot see through. The old temple platform is the one place you can.
+    terraces: [{ i: 33, j: 33, r: 12, levels: 2, riser: 1.5, flat: 2 }],
+    basins: [{ i: 23, j: 41, r: 7, depth: 1 }], // the river ran here once
+    obstacles: 6, canyon: false, resourceMul: 1.25, stickers: 3, plateaus: 1,
+    groves: { kind: 'tree', count: 6 },
+    stands: { kind: 'tree', pairs: 3, n: 12, r: 3.8 }, // canopy: the densest in the game
+    critters: [{ type: 'spider', count: 3 }, { type: 'beetle', count: 4 }, { type: 'moth', count: 4 }],
+    cat: false, dog: true,
+    tribes: 2,
+    weather: 'fireflies',
+    obstacleKinds: ['tree', 'rock'],
+    decor: ['mushroom', 'grass', 'daisy', 'pebble'],
+    decorCount: 22,
+    desc: 'Wet green dark, loud with things you cannot see. An old stone platform in the middle is the only place with a view.',
+  },
 };
 
 // irregular playable shapes: pure + deterministic, shared by the sim (blocking)

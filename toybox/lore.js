@@ -111,6 +111,8 @@ export const LORE = {
     bathtub: 'The Bathtub Armada was the room\'s first sea and remains its whole navy tradition: one warm basin, two determined docks, and a rubber duck the size of the moon.',
     sandbox: 'The Sandbox Dunes were the first ground any toy fought on that no grown-up ever leveled. The sand remembers nothing — every rake wipes the whole war — which is why toys love it and historians despair.',
     garden: 'The Garden is the room\'s idea of a jungle: sunflowers taller than trebuchets, soil rich enough to bribe a foreman, and a gnome who has watched every battle and told no one. Yet.',
+    terraces: 'Somebody cut these steps into a hillside a very long way from this bedroom, and somebody else pressed the little green farmers out of plastic in a building at the bottom of it. The toys have never been told which of those two places they are supposed to remember, so they remember both, badly, and climb. The top step sees the whole valley. Everyone who has ever taken it says the same word on arriving, and it is not a word, it is just oh.',
+    jungle: 'The carved elephant came off a market stall in a wet green country, which makes it the only toy in this box that has actually BEEN somewhere. It does not bring this up. What it remembers is not tigers — it is the noise, which never once stops, and the particular fact that under a roof made of leaves the high ground is the only ground that can see anything at all. The old stone in the middle was a floor once. It is still the best place to stand.',
     oldoak: 'The Old Oak was here before the house. The toys know this the way they know bedtime — nobody told them, everybody knows. Hold the hill and you hold the yard; the tree, pointedly, holds itself.',
   },
 };

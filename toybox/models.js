@@ -2681,7 +2681,8 @@ export function createWaterDecor() {
 
 export function createGround(N, style = 'playmat', mapCfg = null) {
   const g = new THREE.Group();
-  const OUTDOOR = style === 'sandbox' || style === 'garden' || style === 'oldoak';
+  const OUTDOOR = style === 'sandbox' || style === 'garden' || style === 'oldoak'
+    || style === 'terraces' || style === 'jungle';   // the far places have no room around them
 
   // the floor beyond the mat — painted to match the room the map lives in
   // (bathtub = tile, kitchen = checker, playground = grass, livingroom = carpet,
@@ -2727,7 +2728,10 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
     }
   } else if (OUTDOOR) {
     // the world past the door: lawn to every horizon (the deck/rim lives on the mat)
-    fc.fillStyle = style === 'oldoak' ? '#4a7a3a' : '#5f9a48';
+    fc.fillStyle = style === 'oldoak' ? '#4a7a3a'
+      : style === 'terraces' ? '#6e8f5a'      // hazy far hillsides
+      : style === 'jungle' ? '#2f4a2c'        // the canopy closes in
+      : '#5f9a48';
     fc.fillRect(0, 0, 512, 512);
     for (let i = 0; i < 1200; i++) {
       fc.fillStyle = `rgba(${30 + frnd() * 60}, ${110 + frnd() * 60}, ${35 + frnd() * 40}, 0.35)`;
@@ -2892,6 +2896,98 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
     for (let t = 0; t < 15; t++) {
       const px = S * 0.12 + t * (S * 0.055), py = S * 0.82 - t * (S * 0.048) + Math.sin(t * 1.7) * 90;
       x.beginPath(); x.ellipse(px, py, 52, 40, Math.sin(t) * 0.6, 0, Math.PI * 2); x.fill();
+    }
+  } else if (style === 'terraces') {
+    // Flooded paddies stacked up a hillside: contour bands that curve with the
+    // slope, standing water catching the morning, and the mud bunds between.
+    // Painted as CONTOURS, not rows — a terrace reads by its curve, and these
+    // curves are concentric because the heightfield's shelves are too.
+    let seedT = 24680;
+    const rndT = () => (seedT = (seedT * 16807) % 2147483647) / 2147483647;
+    x.fillStyle = '#6f8a4e'; x.fillRect(0, 0, S, S);
+    // ⚠️ THE BUNDS ARE DERIVED FROM THE MAP CONFIG, NOT INVENTED. Replaying the
+    // generator's own ring walk is what keeps every painted bund sitting on a
+    // real riser — the same law paintRidges follows. Invent the radii here and
+    // the map photographs as a painted target on a flat mat (it did).
+    const tcfg = (mapCfg && mapCfg.terraces && mapCfg.terraces[0]) || null;
+    const t2px = (tiles) => (tiles / N) * S;            // tile radius -> texture px
+    const cx0 = tcfg ? t2px(tcfg.i ?? N / 2) : S / 2;
+    const cy0 = tcfg ? t2px(tcfg.j ?? N / 2) : S / 2;
+    const bunds = [];
+    if (tcfg) {
+      let rad = tcfg.r || 20;
+      const lv = tcfg.levels || 3, ri = tcfg.riser ?? 1.5, fl = tcfg.flat ?? 2.5;
+      for (let L = 1; L <= lv; L++) {
+        for (let sN = 1; sN <= 3; sN++) { bunds.push([t2px(rad), sN === 3]); rad -= ri; }
+        rad -= fl;                                       // sN===3 is a WHOLE level: the flooded shelf
+        if (rad <= 1) break;
+      }
+    } else {
+      for (let r = S * 0.60; r > S * 0.05; r -= S * 0.031) bunds.push([r, false]);
+    }
+    const rMax = bunds.length ? bunds[0][0] : S * 0.6;
+    for (const [r, isShelf] of bunds) {
+      const t = 1 - r / rMax;                 // wetter and greener as it climbs
+      x.fillStyle = 'rgba(' + Math.round(88 - t * 26) + ',' + Math.round(132 + t * 26) + ',' + Math.round(66 - t * 10) + ',0.85)';
+      x.beginPath();
+      for (let a = 0; a <= 64; a++) {
+        const th = a / 64 * Math.PI * 2;
+        const wob = 1 + Math.sin(th * 3 + r * 0.02) * 0.05 + Math.sin(th * 7) * 0.02;
+        const px = cx0 + Math.cos(th) * r * wob, py = cy0 + Math.sin(th) * r * wob * 0.92;
+        a ? x.lineTo(px, py) : x.moveTo(px, py);
+      }
+      x.closePath(); x.fill();
+      if (isShelf) {                          // only a WHOLE level holds water
+        x.strokeStyle = 'rgba(180,210,190,' + (0.14 + t * 0.16).toFixed(3) + ')';
+        x.lineWidth = S * 0.020; x.stroke();
+      }
+      x.strokeStyle = 'rgba(74,54,32,0.55)';                                      // the mud bund
+      x.lineWidth = S * 0.005; x.stroke();
+    }
+    for (let i = 0; i < 3000; i++) {          // young rice, following the contour
+      const th = rndT() * Math.PI * 2, rr = rMax * (0.08 + rndT() * 0.9);
+      const px = cx0 + Math.cos(th) * rr, py = cy0 + Math.sin(th) * rr * 0.92;
+      x.strokeStyle = 'rgba(' + Math.round(70 + rndT() * 50) + ',' + Math.round(140 + rndT() * 60) + ',' + Math.round(60 + rndT() * 30) + ',0.5)';
+      x.lineWidth = 2;
+      x.beginPath(); x.moveTo(px, py);
+      x.lineTo(px - Math.sin(th) * 7, py + Math.cos(th) * 7 - 4); x.stroke();
+    }
+  } else if (style === 'jungle') {
+    // Wet leaf litter under a closed canopy: dark, layered, and lit only where
+    // the roof is broken. The bright patches are the map telling you where you
+    // can be seen — the inverse of the terraces, where height tells you.
+    let seedJ = 13579;
+    const rndJ = () => (seedJ = (seedJ * 16807) % 2147483647) / 2147483647;
+    x.fillStyle = '#33482c'; x.fillRect(0, 0, S, S);
+    for (let i = 0; i < 1500; i++) {          // fallen leaves, many layers deep
+      const px = rndJ() * S, py = rndJ() * S, w = 12 + rndJ() * 26;
+      x.fillStyle = 'rgba(' + Math.round(40 + rndJ() * 60) + ',' + Math.round(70 + rndJ() * 60) + ',' + Math.round(34 + rndJ() * 30) + ',0.5)';
+      x.save(); x.translate(px, py); x.rotate(rndJ() * Math.PI);
+      x.beginPath(); x.ellipse(0, 0, w, w * 0.42, 0, 0, Math.PI * 2); x.fill(); x.restore();
+    }
+    for (let i = 0; i < 34; i++) {            // moss and standing damp
+      x.fillStyle = 'rgba(' + Math.round(44 + rndJ() * 30) + ',' + Math.round(104 + rndJ() * 50) + ',' + Math.round(52 + rndJ() * 26) + ',0.4)';
+      x.beginPath(); x.ellipse(rndJ() * S, rndJ() * S, 40 + rndJ() * 100, 30 + rndJ() * 70, rndJ() * 3, 0, Math.PI * 2); x.fill();
+    }
+    for (let i = 0; i < 40; i++) {            // roots crossing the floor
+      const px = rndJ() * S, py = rndJ() * S, an = rndJ() * Math.PI * 2, len = 70 + rndJ() * 190;
+      x.strokeStyle = 'rgba(56,40,24,0.5)'; x.lineWidth = 5 + rndJ() * 8;
+      x.beginPath(); x.moveTo(px, py);
+      x.quadraticCurveTo(px + Math.cos(an) * len * 0.6, py + Math.sin(an) * len * 0.6 + 40,
+        px + Math.cos(an) * len, py + Math.sin(an) * len); x.stroke();
+    }
+    for (let i = 0; i < 16; i++) {            // sun through a hole in the roof
+      const px = rndJ() * S, py = rndJ() * S, r = 40 + rndJ() * 90;
+      const gr = x.createRadialGradient(px, py, 0, px, py, r);
+      gr.addColorStop(0, 'rgba(226,236,170,0.30)'); gr.addColorStop(1, 'rgba(226,236,170,0)');
+      x.fillStyle = gr; x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fill();
+    }
+    x.fillStyle = 'rgba(126,124,112,0.55)';   // the old stone platform, squared to the world
+    x.fillRect(S * 0.40, S * 0.40, S * 0.20, S * 0.20);
+    x.strokeStyle = 'rgba(70,68,60,0.6)'; x.lineWidth = 4;
+    for (let k = 0; k <= 4; k++) {
+      x.beginPath(); x.moveTo(S * 0.40, S * 0.40 + k * S * 0.05); x.lineTo(S * 0.60, S * 0.40 + k * S * 0.05); x.stroke();
+      x.beginPath(); x.moveTo(S * 0.40 + k * S * 0.05, S * 0.40); x.lineTo(S * 0.40 + k * S * 0.05, S * 0.60); x.stroke();
     }
   } else if (style === 'oldoak') {
     // dusk lawn: deep greens, clover ticks, and a worn dirt ring around the hill
@@ -3369,6 +3465,9 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
   else if (style === 'sandbox') addSandboxSurround(g, N);
   else if (style === 'garden') addGardenSurround(g, N);
   else if (style === 'oldoak') addOakSurround(g, N);
+  // THE FAR PLACES get no surround at all — they are not in a room, and the
+  // OUTDOOR floor already paints their own horizon out to every edge.
+  else if (style === 'terraces' || style === 'jungle') { /* the world is the world */ }
   else addBedroom(g, N, style);
   return g;
 }
@@ -5239,6 +5338,16 @@ export function createOrderPath(maxPips = 14, maxDots = 120) {
 // Per-ground-style ground cover recipes: [kind, count, palette].
 // AoE maps read "full" because almost no region is bare — this is our version.
 const COVER_RECIPES = {
+  terraces: [
+    ['tuft', 420, [0x4a8a3a, 0x62a04a, 0x7ab058]],   // rice, thick on the shelves
+    ['clover', 120, [0x54924a, 0x69a45a]],
+    ['pebble', 90, [0x8a8478, 0x9a9488]],
+  ],
+  jungle: [
+    ['tuft', 340, [0x2f6a30, 0x3d7a38, 0x4a8a42]],
+    ['flower', 70, [0xff9ec4, 0xffd166, 0xfff2a8]],  // orchids in the dark
+    ['pebble', 110, [0x6a6858, 0x7a7868]],
+  ],
   playmat: [
     ['tuft', 360, [0x4a8a3a, 0x5a9a44, 0x69a84e]],
     ['flower', 60, [0xffffff, 0xffd9e8, 0xfff2a8]],

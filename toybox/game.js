@@ -796,6 +796,41 @@ export class Game {
       }
     }
 
+    // ---- TERRACES: a stepped mountain. This engine's entire terrain vocabulary
+    // is whole levels joined by E/3 collars, and a hillside rice terrace is
+    // literally that shape — so this is the generator the heightfield was always
+    // waiting for. Concentric discs of INCREASING height and DECREASING radius:
+    // Math.max leaves each ring standing as a flat shelf, and every tile-to-tile
+    // step across a ring boundary is exactly E/3 = 0.283 <= CLIMB, so a whole
+    // mountain is walkable from any direction without a single authored ramp.
+    //
+    // Unlike centerHill (hard-capped at 2E) this climbs as far as `levels` asks,
+    // which is what finally lets a map have real vertical scale.
+    for (const t of (this.map.terraces || [])) {
+      const ci = t.i ?? N / 2, cj = t.j ?? N / 2;
+      const levels = t.levels || 3, riser = t.riser ?? 1.5, flat = t.flat ?? 2.5;
+      let rad = t.r || 20;
+      const rings = [];
+      for (let L = 1; L <= levels; L++) {
+        for (let sN = 1; sN <= 3; sN++) {
+          rings.push([rad, (L - 1) * E + sN * (E / 3)]);
+          rad -= riser;                 // narrow riser between sub-steps
+        }
+        rad -= flat;                    // then a wide shelf at the whole level
+        if (rad <= 1) break;
+      }
+      for (const [band, h] of rings) {
+        if (band <= 0) continue;
+        const b2 = band * band, ib = Math.ceil(band);
+        for (let b = -ib; b <= ib; b++) for (let a = -ib; a <= ib; a++) {
+          const i = ci + a, j = cj + b;
+          if (!inMap(i, j) || this.blocked[idx(i, j)]) continue;
+          if (!clearHomes(i, j, 12)) continue;   // never wall a doorstep
+          if (a * a + b * b <= b2) this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], h);
+        }
+      }
+    }
+
     // ---- BASINS: the room goes DOWN. Authored, auto-mirrored, and LAST so no
     // Math.max writer above can clobber them back toward the floor. ----
     for (const b of (this.map.basins || [])) {
@@ -1792,10 +1827,12 @@ export class Game {
     // flat levels only, never a ramp — and a basin's floors ARE flat levels, so
     // the negative multiples of E/3 count too (otherwise every dip is silently
     // resource-dead and a whole region of the map stops being worth walking to)
-    const lvlN = h / (this.ELEV / 3);
-    const flatLevel = Math.abs(lvlN - Math.round(lvlN)) < 0.02
-      && (h > -0.01 ? (h < 0.01 || Math.abs(h - this.ELEV) < 0.01 || Math.abs(h - this.ELEV * 2) < 0.01) : true);
-    if (!flatLevel) return null;
+    // Flat levels only, never a riser. Generalised from the old hardcoded
+    // {0, E, 2E} to ANY whole multiple of E — terraced maps climb past level 2,
+    // and a shelf you cannot mine is a shelf nobody walks to. Collar bands
+    // (E/3, 2E/3) still fail the test, which is the point.
+    const lvlE = h / this.ELEV;
+    if (Math.abs(lvlE - Math.round(lvlE)) > 0.012) return null;
     // only on the flat interior of a level: a tile whose four mesh corners all
     // sit at h. skirting a plateau edge makes a pile float over — or sink into —
     // the sloped surface the corner-interpolated mesh actually renders there.

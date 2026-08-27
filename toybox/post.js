@@ -144,6 +144,8 @@ export const POST_PRESET = {
 // exposure so darker rooms don't just get muddier.
 export const MAP_GRADES = {
   playmat:    { tint: [1.00, 1.00, 1.00], lift: 1.00 }, // the neutral flagship
+  terraces:   { tint: [1.02, 1.04, 0.96], lift: 1.05 }, // high thin morning air
+  jungle:     { tint: [0.93, 1.02, 0.93], lift: 0.90 }, // under a closed roof
   canyon:     { tint: [0.99, 0.99, 1.04], lift: 0.98 }, // pillow shade, slightly cool
   sandbox:    { tint: [1.07, 1.01, 0.90], lift: 1.03 }, // sun-warmed sand
   garden:     { tint: [0.97, 1.05, 0.95], lift: 1.01 }, // green and growing
