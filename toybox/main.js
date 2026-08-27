@@ -1823,6 +1823,40 @@ window.__ttPathAudit = (opts = {}) => {
         return i2 >= 0 && j2 >= 0 && i2 < MAP_N && j2 < MAP_N && s.seen[j2 * MAP_N + i2];
       })).length,
   }));
+  // DETOUR: how far out of its way must an army walk to reach the other seat?
+  // Breadth-first (the flood above is a stack and gives no distances), using the
+  // same isBlockedFor/climbable the PathFinder uses.
+  const bfsDist = (si, sj, ti, tj) => {
+    const start = sj * MAP_N + si, goal = tj * MAP_N + ti;
+    if (!open(start)) return -1;
+    const dist = new Int32Array(N2).fill(-1);
+    dist[start] = 0;
+    const q = [start];
+    for (let head = 0; head < q.length; head++) {
+      const m = q[head];
+      const i = m % MAP_N, j = (m / MAP_N) | 0;
+      for (const [di, dj] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const x2 = i + di, y2 = j + dj;
+        if (x2 < 0 || y2 < 0 || x2 >= MAP_N || y2 >= MAP_N) continue;
+        const k = y2 * MAP_N + x2;
+        if (dist[k] >= 0 || !pf.climbable(m, k)) continue;
+        // the goal tile is a chest footprint (blocked); accept arriving AT it
+        if (!open(k) && k !== goal) continue;
+        dist[k] = dist[m] + 1;
+        if (k === goal) return dist[k];
+        q.push(k);
+      }
+    }
+    return -1;
+  };
+  let detour = null, walk = null;
+  if (seats.length >= 2) {
+    const s0 = seats[0], s1 = seats[1];
+    walk = bfsDist(s0.ti, s0.tj, s1.ti, s1.tj);
+    const straight = Math.hypot(s1.ti - s0.ti, s1.tj - s0.tj);
+    if (walk > 0 && straight > 0) detour = +(walk / straight).toFixed(3);
+  }
+
   // can seat 0 walk to seat 1?
   const mutual = seats.length < 2 ? true
     : !!seats[0].seen[seats[1].tj * MAP_N + seats[1].ti]
@@ -1853,6 +1887,9 @@ window.__ttPathAudit = (opts = {}) => {
     map: opts.map || 'playmat', seed: opts.seed ?? 47,
     openTiles, elevatedPct: +(((() => { let e = 0; for (let m = 0; m < N2; m++) if (g.height[m] > 0.01) e++; return e; })() / N2) * 100).toFixed(1),
     seats: rows, mutual, nodesTotal: nodes.length,
+    // detour 1.414 = a perfectly open board (4-neighbour BFS on a diagonal seat
+    // pair). Higher means the terrain makes armies walk around things.
+    detour, walk,
     pockets: pockets.length, pocketTiles: pockets.reduce((a, p) => a + p.n, 0),
     fair: spread <= 2, spread: +spread.toFixed(1),
     pass: mutual && rows.every((r) => r.reach > 55 && r.nodes >= Math.floor(nodes.length * 0.5)) && spread <= 2,
