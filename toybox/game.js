@@ -848,7 +848,8 @@ export class Game {
       // one authored dip emits its point-symmetric twin: fairness by construction
       const twins = [[b.i, b.j], [N - b.i, N - b.j]];
       for (const [bi, bj] of twins) {
-        const depth = (b.depth || 1) * E;
+        const dMul = b.depth || 1;          // in LEVELS; 1 = one full E deep
+        const depth = dMul * E;
         const r = b.r || 5;
         for (let dj = -r - 1; dj <= r + 1; dj++) for (let di = -r - 1; di <= r + 1; di++) {
           const i = bi + di, j = bj + dj;
@@ -857,11 +858,25 @@ export class Game {
           if (!clearHomes(i, j, 13)) continue;                     // never a pit on a doorstep
           const d = Math.sqrt(di * di + dj * dj);
           if (d > r) continue;
-          // three walkable bands, each step E/3 = 0.283 <= CLIMB — a dip you
-          // walk into, mirroring the dune collars exactly but downward
+          // Walkable bands, EVERY step exactly E/3 = 0.283 <= CLIMB — a dip you
+          // walk into, mirroring the dune collars exactly but downward.
+          // ⚠️ DEEPER MEANS MORE BANDS, NEVER BIGGER ONES. The original three-band
+          // form stepped by depth*E/3, so depth 2 gave 0.567 > CLIMB and dug an
+          // unclimbable pit that silently swallowed toys. Scaling the band COUNT
+          // keeps the step at E/3 for any depth.
           const t = d / r;
-          const lvl = t > 0.72 ? 1 : t > 0.4 ? 2 : 3;
-          const h = -depth * (lvl / 3);
+          let h;
+          if (dMul === 1) {
+            // ⚠️ byte-identical default path: the generalised boundaries below are
+            // thirds, not 0.4/0.72, so routing depth 1 through it would reshape the
+            // basins on all five shipped basin maps. Do not 'simplify' this away.
+            const lvl = t > 0.72 ? 1 : t > 0.4 ? 2 : 3;
+            h = -depth * (lvl / 3);
+          } else {
+            const steps = Math.max(1, Math.round(dMul * 3));
+            const lvl = Math.max(0, Math.min(steps, Math.ceil((1 - t) * steps)));
+            h = -(E / 3) * lvl;
+          }
           this.height[idx(i, j)] = Math.min(this.height[idx(i, j)], h);
         }
       }
