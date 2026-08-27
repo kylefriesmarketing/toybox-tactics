@@ -107,6 +107,7 @@ const VIEW_ELEV = 1.7;
 // subdivided and the face painted (research ranks 2-3), not corners snapped.
 const CORNER_BIAS = 0.3;
 const ELEV_BOOST_CAP = 0.7; // most a corner may GAIN — keeps tall ridges from spiking
+const DEPTH_BOOST_CAP = 1.1; // most it may DROP — a hollow needs more than a hill to read
 
 // researched building-tier upgrades: which tech levels up which building type
 const BUILDING_UP = {
@@ -487,7 +488,12 @@ export class Game {
     const W = N + 1;
     if (!this.viewCornerH) this.viewCornerH = new Float32Array(W * W);
     for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {
-      let sum = 0, n = 0, hi = 0, hiN = 0, lo = Infinity, loN = 0;
+      // ⚠️ hi MUST be -Infinity, not 0. Seeded at 0, a corner whose four tiles
+      // are all NEGATIVE (inside a basin) never updates hi, so the cliff test
+      // measures against a floor that is not there — and reports cliff:true on a
+      // walkable basin collar, applying the exact saw-blade bias this test exists
+      // to exclude. The negative case must behave like the positive one.
+      let sum = 0, n = 0, hi = -Infinity, hiN = 0, lo = Infinity, loN = 0;
       for (const [a, b] of [[i - 1, j - 1], [i, j - 1], [i - 1, j], [i, j]]) {
         if (!inMap(a, b)) continue;
         const h = this.height[idx(a, b)];
@@ -505,7 +511,7 @@ export class Game {
       // (0.283, walkable) and must stay SMOOTH — biasing those turns an organic
       // dune into a saw blade. A true level change (E = 0.85) is a cliff and
       // gets its lip. Ties keep the average so diagonals do not alternate.
-      const cliff = (hi - lo) > CLIMB + 1e-6;
+      const cliff = isFinite(hi) && isFinite(lo) && (hi - lo) > CLIMB + 1e-6;
       const tie = hiN === loN;
       const domin = (n && cliff && !tie) ? (hiN > loN ? hi : lo) : avg;
       const shaped = avg + (domin - avg) * CORNER_BIAS;
@@ -514,7 +520,12 @@ export class Game {
       // 1.7x turns a 3-tile-wide ridge into a 3.2-unit spike wall with a combed
       // edge. The terrain that needs help is the LOW stuff: plateaus at 0.85 and
       // collars at 0.28. So boost small heights fully and cap what gets added.
-      this.viewCornerH[j * W + i] = Math.min(shaped * VIEW_ELEV, shaped + ELEV_BOOST_CAP);
+      // rises and drops are capped SEPARATELY and on purpose: from a top-down
+      // camera a hollow reads far weaker than a hill of the same size, so it is
+      // allowed more exaggeration. Named, not accidental.
+      this.viewCornerH[j * W + i] = shaped >= 0
+        ? Math.min(shaped * VIEW_ELEV, shaped + ELEV_BOOST_CAP)
+        : Math.max(shaped * VIEW_ELEV, shaped - DEPTH_BOOST_CAP);
     }
   }
 
@@ -532,6 +543,35 @@ export class Game {
     const h00 = C[j0 * W + i0], h10 = C[j0 * W + i0 + 1];
     const h01 = C[(j0 + 1) * W + i0], h11 = C[(j0 + 1) * W + i0 + 1];
     return (h00 * (1 - tx) + h10 * tx) * (1 - tz) + (h01 * (1 - tx) + h11 * tx) * tz;
+  }
+
+  // The bedroom's floorboards and rug are opaque planes just under y=0. A basin
+  // dips the mat BELOW them, and they then render over the hole — the mat is
+  // still there, you are just looking at the room instead. Sink them under the
+  // deepest point the view grid actually reaches.
+  sinkRoomFloor() {
+    if (!this.scene || !this.viewCornerH) return;
+    let lo = 0;
+    for (let k = 0; k < this.viewCornerH.length; k++) if (this.viewCornerH[k] < lo) lo = this.viewCornerH[k];
+    if (lo >= -0.001) return;                 // no basin on this map: leave the room alone
+    const y = lo - 0.35;                      // clear of the deepest floor, plus a margin
+    // ⚠️ GEOMETRIC, not tag-based. The room is assembled from several big
+    // horizontal planes (floorboards, the rug, mat underlays) and tagging them
+    // by hand missed one — a single basin still punched a coloured blob through
+    // the grass. Anything large, flat and above the hole gets sunk; the ground,
+    // the fog sheet and the water surface are the only exceptions.
+    const fogPlane = this.fog && this.fog.plane;
+    const water = this.waterSurface && this.waterSurface.group;
+    this.scene.traverse((o) => {
+      if (!o.isMesh || o.name === 'playmat-ground' || o === fogPlane) return;
+      if (water && (o === water || o.parent === water)) return;
+      if (Math.abs(o.rotation.x + Math.PI / 2) > 0.01) return;   // horizontal only
+      const g2 = o.geometry;
+      if (!g2) return;
+      if (!g2.boundingSphere && g2.computeBoundingSphere) g2.computeBoundingSphere();
+      const r = g2.boundingSphere ? g2.boundingSphere.radius : 0;
+      if (r > 25 && o.position.y > y) o.position.y = y;
+    });
   }
 
   // push the heightfield into the playmat mesh; the breeze ripples on top
@@ -756,10 +796,35 @@ export class Game {
       }
     }
 
+    // ---- BASINS: the room goes DOWN. Authored, auto-mirrored, and LAST so no
+    // Math.max writer above can clobber them back toward the floor. ----
+    for (const b of (this.map.basins || [])) {
+      // one authored dip emits its point-symmetric twin: fairness by construction
+      const twins = [[b.i, b.j], [N - b.i, N - b.j]];
+      for (const [bi, bj] of twins) {
+        const depth = (b.depth || 1) * E;
+        const r = b.r || 5;
+        for (let dj = -r - 1; dj <= r + 1; dj++) for (let di = -r - 1; di <= r + 1; di++) {
+          const i = bi + di, j = bj + dj;
+          if (!inMap(i, j) || this.blocked[idx(i, j)]) continue;   // ridges/mask/scenery win
+          if (this.water[idx(i, j)]) continue;                     // never dig the bathtub
+          if (!clearHomes(i, j, 13)) continue;                     // never a pit on a doorstep
+          const d = Math.sqrt(di * di + dj * dj);
+          if (d > r) continue;
+          // three walkable bands, each step E/3 = 0.283 <= CLIMB — a dip you
+          // walk into, mirroring the dune collars exactly but downward
+          const t = d / r;
+          const lvl = t > 0.72 ? 1 : t > 0.4 ? 2 : 3;
+          const h = -depth * (lvl / 3);
+          this.height[idx(i, j)] = Math.min(this.height[idx(i, j)], h);
+        }
+      }
+    }
     // keep the basin dead flat even if a plateau clipped its edge
     if (this.map.water) for (let k = 0; k < this.water.length; k++) if (this.water[k]) this.height[k] = 0;
     this.computeCorners();
     this.applyTerrainToGround();
+    this.sinkRoomFloor();   // basins dig through the room floor unless it moves
     // bake painted hillshade from the finished height grid (view-only, no rng)
     shadeGroundByHeight(this.scene, N, (i, j) => this.height[idx(i, j)]);
     this.fog.drape((x, z) => this.heightAtWorld(x, z)); // fog sheet hugs the hills
@@ -1724,7 +1789,13 @@ export class Game {
     if (!inMap(i, j) || !inPlay(i, j) || this.blocked[idx(i, j)] || this.water[idx(i, j)]) return null;
     // resources sit on flat levels, never on ramps (they'd block the only way up)
     const h = this.height[idx(i, j)];
-    if (h > 0.01 && Math.abs(h - this.ELEV) > 0.01 && Math.abs(h - this.ELEV * 2) > 0.01) return null;
+    // flat levels only, never a ramp — and a basin's floors ARE flat levels, so
+    // the negative multiples of E/3 count too (otherwise every dip is silently
+    // resource-dead and a whole region of the map stops being worth walking to)
+    const lvlN = h / (this.ELEV / 3);
+    const flatLevel = Math.abs(lvlN - Math.round(lvlN)) < 0.02
+      && (h > -0.01 ? (h < 0.01 || Math.abs(h - this.ELEV) < 0.01 || Math.abs(h - this.ELEV * 2) < 0.01) : true);
+    if (!flatLevel) return null;
     // only on the flat interior of a level: a tile whose four mesh corners all
     // sit at h. skirting a plateau edge makes a pile float over — or sink into —
     // the sloped surface the corner-interpolated mesh actually renders there.

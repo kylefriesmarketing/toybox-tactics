@@ -2774,6 +2774,7 @@ export function createGround(N, style = 'playmat', mapCfg = null) {
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(N * 7, N * 7), floorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -0.02;
+  floor.userData.roomFloor = true;   // sinks below any basin (see sinkRoomFloor)
   floor.receiveShadow = true;
   g.add(floor);
   // generated floorboard art replaces the canvas planks when present
@@ -3441,7 +3442,9 @@ function surroundKit(g, N) {
     x2.lineWidth = 7; x2.strokeStyle = cols[2]; x2.beginPath(); x2.arc(128, 128, 74, 0, 7); x2.stroke();
     const m = new THREE.Mesh(new THREE.CircleGeometry(half + 20, 56),
       new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(cv), roughness: rough }));
-    m.rotation.x = -Math.PI / 2; m.position.y = -0.014; m.receiveShadow = true; g.add(m);
+    m.rotation.x = -Math.PI / 2; m.position.y = -0.014; m.receiveShadow = true;
+    m.userData.roomFloor = true;   // the rug, likewise
+    g.add(m);
   };
   // a glowing wall panel (window / sun / mirror) on the north wall
   const glow = (w, h, y, color, intensity) => {

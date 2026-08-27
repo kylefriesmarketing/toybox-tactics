@@ -1319,6 +1319,8 @@ export const MAPS = {
   // features: milk = impassable spill lakes, ranges = fallen-book ridges,
   // forests = dense chop-through Blocks thickets (the AoE treeline)
   playmat: {
+    // the dent where something heavy sat on the mat all summer
+    basins: [{ i: 24, j: 40, r: 6, depth: 1 }],
     label: 'Bedroom Playmat', icon: '🧸', ground: 'playmat', light: 'normal',
     obstacles: 5, canyon: false, resourceMul: 1, stickers: 2, plateaus: 3,
     features: { milk: 1, ranges: 2, forests: 2 },
@@ -1335,6 +1337,8 @@ export const MAPS = {
     desc: 'A pillow barricade splits the room, and the whole war squeezes through the gaps.',
   },
   underbed: {
+    // a hollow in the floorboards where the dark pools
+    basins: [{ i: 20, j: 38, r: 6, depth: 1 }],
     label: 'Under the Bed', icon: '🌑', ground: 'underbed', light: 'dark',
     obstacles: 11, canyon: false, resourceMul: 0.95, stickers: 3, plateaus: 2,
     features: { ranges: 2, forests: 2 },
@@ -1384,6 +1388,8 @@ export const MAPS = {
     desc: 'A sunny backyard: the sandbox in the middle, swings and slides all around it.',
   },
   kitchen: {
+    // the low spot the mop never reaches
+    basins: [{ i: 25, j: 22, r: 6, depth: 1 }],
     label: 'Kitchen Table', icon: '🍽️', ground: 'kitchen', light: 'warm',
     obstacles: 4, canyon: false, resourceMul: 1.35, stickers: 2, plateaus: 2,
     // dinner-table spills read as impassable milk lakes — lots of them
@@ -1411,6 +1417,8 @@ export const MAPS = {
     desc: 'Shelves stacked like mountain country. Seize the high ground; do the reading later.',
   },
   livingroom: {
+    // the carpet remembers the couch
+    basins: [{ i: 22, j: 26, r: 7, depth: 1 }],
     label: 'Living Room', icon: '🎄', ground: 'livingroom', light: 'warm',
     obstacles: 3, canyon: false, resourceMul: 1.3, stickers: 3, plateaus: 2,
     features: { forests: 1 },
@@ -1478,6 +1486,8 @@ export const MAPS = {
     desc: 'The kidney-shaped sandbox, mid-morning. Piled dunes wall the middle — hold the passes, own the day.',
   },
   garden: {
+    // somebody started digging and did not finish
+    basins: [{ i: 21, j: 25, r: 5, depth: 1 }],
     label: 'The Garden', icon: '🌻', ground: 'garden', light: 'gold', outdoor: true,
     obstacles: 5, canyon: false, resourceMul: 1.3, stickers: 3, plateaus: 4,
     // flower-bed terraces climb in real steps; sunflower groves are the forests
