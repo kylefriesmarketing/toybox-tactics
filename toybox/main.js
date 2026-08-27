@@ -1849,12 +1849,31 @@ window.__ttPathAudit = (opts = {}) => {
     }
     return -1;
   };
+  // FAIRNESS THAT MATTERS: how far must each seat walk to the contested middle?
+  // Resource scatter, features.milk and features.ranges are all rng-sited with NO
+  // mirror twin (obstacles/stands/ridges/basins/camps all mirror explicitly), and
+  // milk + ranges are IMPASSABLE. If that asymmetry has teeth, it shows up here as
+  // one seat reaching the centre sooner. centreDelta is the tile difference.
+  let centreWalk = null, centreDelta = null;
   let detour = null, walk = null;
   if (seats.length >= 2) {
     const s0 = seats[0], s1 = seats[1];
     walk = bfsDist(s0.ti, s0.tj, s1.ti, s1.tj);
     const straight = Math.hypot(s1.ti - s0.ti, s1.tj - s0.tj);
     if (walk > 0 && straight > 0) detour = +(walk / straight).toFixed(3);
+  }
+
+  if (seats.length >= 2) {
+    const mid = Math.floor(MAP_N / 2);
+    let cm = [mid, mid];
+    if (!open(mid * MAP_N + mid)) {            // centre may be a pile or a summit
+      outer: for (let r = 1; r < 12; r++) for (let b2 = -r; b2 <= r; b2++) for (let a2 = -r; a2 <= r; a2++) {
+        const i2 = mid + a2, j2 = mid + b2;
+        if (i2 >= 0 && j2 >= 0 && i2 < MAP_N && j2 < MAP_N && open(j2 * MAP_N + i2)) { cm = [i2, j2]; break outer; }
+      }
+    }
+    centreWalk = seats.map((s2) => bfsDist(s2.ti, s2.tj, cm[0], cm[1]));
+    if (centreWalk.every((d) => d > 0)) centreDelta = Math.abs(centreWalk[0] - centreWalk[1]);
   }
 
   // can seat 0 walk to seat 1?
@@ -1885,11 +1904,32 @@ window.__ttPathAudit = (opts = {}) => {
   const spread = rows.length >= 2 ? Math.abs(rows[0].reach - rows[1].reach) : 0;
   return {
     map: opts.map || 'playmat', seed: opts.seed ?? 47,
-    openTiles, elevatedPct: +(((() => { let e = 0; for (let m = 0; m < N2; m++) if (g.height[m] > 0.01) e++; return e; })() / N2) * 100).toFixed(1),
+    openTiles,
+    // ⚠️ RELIEF, not "elevated": counts any tile off level zero. The original
+    // metric tested `> 0.01` and was therefore blind to basins — negative
+    // terrain shipped the same day it was written.
+    ...(() => {
+      let up = 0, down = 0;
+      for (let m = 0; m < N2; m++) { if (g.height[m] > 0.01) up++; else if (g.height[m] < -0.01) down++; }
+      const pc = (n) => +((n / N2) * 100).toFixed(1);
+      return { elevatedPct: pc(up + down), upPct: pc(up), downPct: pc(down) };
+    })(),
+    // Blocked-tile fairness under the point reflection the whole codebase uses.
+    // features.milk and features.ranges are impassable and NOT mirrored.
+    ...(() => {
+      let blocked = 0, unpaired = 0;
+      for (let j = 0; j < MAP_N; j++) for (let i = 0; i < MAP_N; i++) {
+        if (!g.blocked[j * MAP_N + i]) continue;
+        blocked++;
+        const ti = MAP_N - 1 - i, tj = MAP_N - 1 - j;
+        if (!g.blocked[tj * MAP_N + ti]) unpaired++;
+      }
+      return { blockedTiles: blocked, mirrorErr: blocked ? +((unpaired / blocked) * 100).toFixed(1) : 0 };
+    })(),
     seats: rows, mutual, nodesTotal: nodes.length,
     // detour 1.414 = a perfectly open board (4-neighbour BFS on a diagonal seat
     // pair). Higher means the terrain makes armies walk around things.
-    detour, walk,
+    detour, walk, centreWalk, centreDelta,
     pockets: pockets.length, pocketTiles: pockets.reduce((a, p) => a + p.n, 0),
     fair: spread <= 2, spread: +spread.toFixed(1),
     pass: mutual && rows.every((r) => r.reach > 55 && r.nodes >= Math.floor(nodes.length * 0.5)) && spread <= 2,

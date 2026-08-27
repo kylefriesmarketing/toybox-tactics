@@ -1409,9 +1409,15 @@ export const MAPS = {
   },
   bookshelf: {
     label: 'Bookshelf Heights', icon: '📚', ground: 'bookshelf', light: 'warm',
-    // elevation-forward: extra plateaus + ramps make a tiered high-ground fight,
-    // but kept navigable (too many blockers wall armies out and stalemate).
-    obstacles: 4, canyon: false, resourceMul: 1, stickers: 3, plateaus: 3,
+    // ⚠️ The old comment here claimed "extra plateaus" while declaring
+    // `plateaus: 3` — which IS the engine default (`this.map.plateaus ?? 3`).
+    // The map promised mountain country and measured 5.4% relief, the flattest
+    // land map in the game. It now has real stacked shelves.
+    // TWO levels, not three, on purpose: a shelf is a BROAD FLAT thing. A summit
+    // is the terraces map's job; this is stacked shelving you fight along.
+    terraces: [{ i: 33, j: 33, r: 18, levels: 2, riser: 1.3, flat: 4.0 }],
+    // plateaus dropped 3 -> 1: rng lumps fight an authored staircase.
+    obstacles: 4, canyon: false, resourceMul: 1, stickers: 3, plateaus: 1,
     features: { ranges: 1, forests: 1 },
     weather: 'motes', // study light, study dust
     desc: 'Shelves stacked like mountain country. Seize the high ground; do the reading later.',
@@ -1489,7 +1495,12 @@ export const MAPS = {
     // somebody started digging and did not finish
     basins: [{ i: 21, j: 25, r: 5, depth: 1 }],
     label: 'The Garden', icon: '🌻', ground: 'garden', light: 'gold', outdoor: true,
-    obstacles: 5, canyon: false, resourceMul: 1.3, stickers: 3, plateaus: 4,
+    // ⚠️ The desc has always said "Flower-bed TERRACES" and the comment below has
+    // always said they "climb in real steps" — and the map declared no terraces
+    // at all, only rng plateaus. Low and gentle: garden already carries groves,
+    // stands and a basin pair, so the beds are a two-step rise, not a landmark.
+    terraces: [{ i: 33, j: 33, r: 14, levels: 2, riser: 1.2, flat: 2.2 }],
+    obstacles: 5, canyon: false, resourceMul: 1.3, stickers: 3, plateaus: 2,
     // flower-bed terraces climb in real steps; sunflower groves are the forests
     groves: { kind: 'sunflower', count: 5 },
     stands: { kind: 'sunflower', pairs: 2, n: 10, r: 3.4 }, // real sunflower FORESTS now
