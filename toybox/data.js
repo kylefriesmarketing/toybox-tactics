@@ -1415,7 +1415,7 @@ export const MAPS = {
     // land map in the game. It now has real stacked shelves.
     // TWO levels, not three, on purpose: a shelf is a BROAD FLAT thing. A summit
     // is the terraces map's job; this is stacked shelving you fight along.
-    terraces: [{ i: 33, j: 33, r: 18, levels: 2, riser: 1.3, flat: 4.0 }],
+    terraces: [{ i: 36, j: 36, r: 18, levels: 2, riser: 1.3, flat: 4.0 }],
     // plateaus dropped 3 -> 1: rng lumps fight an authored staircase.
     obstacles: 4, canyon: false, resourceMul: 1, stickers: 3, plateaus: 1,
     features: { ranges: 1, forests: 1 },
@@ -1499,7 +1499,7 @@ export const MAPS = {
     // always said they "climb in real steps" — and the map declared no terraces
     // at all, only rng plateaus. Low and gentle: garden already carries groves,
     // stands and a basin pair, so the beds are a two-step rise, not a landmark.
-    terraces: [{ i: 33, j: 33, r: 14, levels: 2, riser: 1.2, flat: 2.2 }],
+    terraces: [{ i: 36, j: 36, r: 14, levels: 2, riser: 1.2, flat: 2.2 }],
     obstacles: 5, canyon: false, resourceMul: 1.3, stickers: 3, plateaus: 2,
     // flower-bed terraces climb in real steps; sunflower groves are the forests
     groves: { kind: 'sunflower', count: 5 },
@@ -1551,7 +1551,7 @@ export const MAPS = {
     // the view-relief pass diagnosed: PROFILE, not amplitude. Same three levels
     // over a 16-tile run is twice the grade, and the steps read as steps.
     // Shelf width is riser+flat = 2.8 tiles; summit disc r 3.2.
-    terraces: [{ i: 33, j: 33, r: 16, levels: 3, riser: 1.2, flat: 1.6 }],
+    terraces: [{ i: 36, j: 36, r: 16, levels: 3, riser: 1.2, flat: 1.6 }],
     obstacles: 3, canyon: false, resourceMul: 1.15, stickers: 3, plateaus: 0,
     // plateaus 0 ON PURPOSE — random lumps fight an authored staircase, and the
     // staircase is the whole map.
@@ -1571,7 +1571,7 @@ export const MAPS = {
     // The opposite lesson from the terraces: not a staircase but a CEILING. Light
     // is low, sightlines are short, and the map's shape is made of what you
     // cannot see through. The old temple platform is the one place you can.
-    terraces: [{ i: 33, j: 33, r: 12, levels: 2, riser: 1.5, flat: 2 }],
+    terraces: [{ i: 36, j: 36, r: 12, levels: 2, riser: 1.5, flat: 2 }],
     basins: [{ i: 23, j: 41, r: 7, depth: 1 }], // the river ran here once
     obstacles: 6, canyon: false, resourceMul: 1.25, stickers: 3, plateaus: 1,
     groves: { kind: 'tree', count: 6 },
