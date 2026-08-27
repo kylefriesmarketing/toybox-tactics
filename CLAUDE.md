@@ -2350,6 +2350,40 @@ flat); photographed as a real ridge with the pillows standing ON it; relief 7.1%
 99.9%, 0 pockets, spread 0, **centreNodes 26 -> 33**; fp determinism; 3/3 soaks conclude
 7.2-8.9 min; MP 2h+2ai inSync; 0 errors.
 
+## 🛁 BATHTUB — the ONE map config that survived (2026-08-27)
+
+Twelve per-map terrain configs were designed and adversarially verified today. **One was
+accepted**, and it fixes a PRE-EXISTING fairness defect nobody had found.
+
+**`plateaus: 1 -> 0` is the load-bearing half.** The single rng plateau was the only height
+writer on this map that could reach the tub’s shore, and it is UNMIRRORED. Measured by the
+designer against the real generator: **513 of 1303 legal plateau centres (39.4%) drop its
+disc on a shore tile**, costing 4-8 of the 116 3x3 Dock sites and leaving 4-8 sites with no
+point-symmetric twin (baseline 0). Asymmetric Dock frontage, on some seeds only — shipping
+since the map was written. With `plateaus: 0` the dead-flat shore stops being luck: the only
+remaining height writers are the water flatten (sets 0) and the basin, 18.38 tiles away.
+
+**`basins: [{ i: 14, j: 14, r: 7, depth: 1 }]`** — the two shallow ends of the tub, on the
+LAND route between the seats.
+⚠️ **AUTHOR ONE POINT, NEVER A PAIR.** `basins` is the only auto-mirroring generator, so the
+engine emits the twin under its OWN convention — being "one tile off the engine mirror" is
+unreachable by construction. That is exactly why this uses basins rather than a terrace pair,
+and it is how the first bathtub proposal died.
+⚠️ **(14,14) is on i === j, and on this map that is the ONLY fair axis**: the homes are
+(18,58)/(58,18), which sum to 76 — they are NOT point-symmetric about 36, so the i===j mirror
+is the only map from home A to home B. A basin centred there is equidistant under the 35.5,
+the 36 AND the home convention at once.
+
+Verified: relief **1.5% -> 5.7%** (all of it below zero), 4 seeds reach 99.8-100%, mutual
+true, 0 pockets, spread 0, **0 seams**, detour unchanged at the 1.414 floor; determinism
+holds despite `plateaus 1->0` shifting the rng stream; 2/2 soaks conclude 5.9/6.8 min;
+MP 2h+2ai inSync; 0 errors.
+⚠️ NOT INERT: dropping the plateau draw moves every downstream placement on bathtub, so
+fingerprints change and old bathtub replay bottles will not reproduce (the version stamp
+already refuses cross-version playback, so this is contained).
+⚠️ Flagged by the designer, NOT fixed: the water ellipse is point-symmetric about 36 while
+the homes sum to 76 — the tub is not symmetric under the seat mirror. Pre-existing.
+
 ## 🧱 THE 8-MAP TERRAIN UPGRADE: DESIGNED, VERIFIED, AND REJECTED (2026-08-27)
 
 Kyle asked to upgrade every remaining map. Eight configs were designed against the audit
