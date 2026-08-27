@@ -1754,6 +1754,110 @@ window.__ttShot = (w = 960) => {
 window.__ttMP = { Net, TICK, INPUT_DELAY, Game, VFX }; // e2e test handle
 // headless AI-vs-AI soak: runs a full match on a throwaway scene, no UI/render.
 // returns { winnerTeam, ticks, simSec, err, armies, ages, res } for balance checks.
+// ---------------- THE MOVEMENT CHECK ----------------
+// Terrain is the easiest thing in this game to break silently: a ridge that
+// closes a corridor, a plateau that swallows a resource pocket, a mask that
+// strands a seat. None of it throws — the match just plays wrong.
+//
+// This floods the walkable board from each seat's start using the PathFinder's
+// OWN isBlockedFor() and climbable(), so the audit can never disagree with how
+// a real toy moves. Reports, per map+seed:
+//   reach   — % of open land each seat can actually walk to
+//   mutual  — can the seats reach EACH OTHER (a map that fails this is unplayable)
+//   nodes   — resource nodes reachable / total (an orphaned pile is dead economy)
+//   pockets — isolated walkable regions of 12+ tiles nobody can enter
+//   fair    — the two seats' reach within 2% of each other (point-mirrored maps)
+window.__ttPathAudit = (opts = {}) => {
+  const scene = new THREE.Scene();
+  const g = new Game(scene, registryCache, { alert() {}, selection() {}, age() {}, gameOver() {} }, {
+    fx: new VFX(scene), sfx: null, difficulty: 'normal',
+    map: opts.map || 'playmat',
+    playerDefs: opts.playerDefs || [
+      { team: 0, isAI: true, faction: opts.factions ? opts.factions[0] : 'classic' },
+      { team: 1, isAI: true, faction: opts.factions ? opts.factions[1] : 'classic' },
+    ],
+    gameMode: 'standard', startRes: 'standard',
+    seed: opts.seed ?? 47, mp: false, myId: 0,
+  });
+  g.setup();
+  const N2 = MAP_N * MAP_N;
+  const pf = g.pf;
+  const open = (m) => !pf.isBlockedFor(m, -2, false);
+  // flood from a tile, honouring the climb rule between neighbours
+  const flood = (si, sj) => {
+    const seen = new Uint8Array(N2);
+    const start = sj * MAP_N + si;
+    if (!open(start)) return { seen, n: 0 };
+    const q = [start]; seen[start] = 1; let n = 1;
+    while (q.length) {
+      const m = q.pop();
+      const i = m % MAP_N, j = (m / MAP_N) | 0;
+      for (const [di, dj] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const a = i + di, b = j + dj;
+        if (a < 0 || b < 0 || a >= MAP_N || b >= MAP_N) continue;
+        const k = b * MAP_N + a;
+        if (seen[k] || !open(k) || !pf.climbable(m, k)) continue;
+        seen[k] = 1; n++; q.push(k);
+      }
+    }
+    return { seen, n };
+  };
+  let openTiles = 0;
+  for (let m = 0; m < N2; m++) if (open(m)) openTiles++;
+  // every seat's home chest is its start
+  const homes = g.entities.filter((e) => e.kind === 'building' && e.type === 'chest' && !e.dead);
+  // ⚠️ flood from a FREE tile beside the chest — the chest blocks its own
+  // footprint, so flooding from (ti,tj) finds nothing and every map "fails".
+  const seats = homes.map((h) => {
+    const f = pf.nearestFree(h.ti, h.tj, 6, false) || [h.ti, h.tj];
+    return { owner: h.owner, ti: f[0], tj: f[1], ...flood(f[0], f[1]) };
+  });
+  const nodes = g.entities.filter((e) => e.kind === 'resource' && !e.dead);
+  const rows = seats.map((s) => ({
+    owner: s.owner,
+    reach: openTiles ? +(s.n / openTiles * 100).toFixed(1) : 0,
+    nodes: nodes.filter((r) => s.seen[r.tj * MAP_N + r.ti]
+      // a pile sits on a blocked tile; count it reachable if any neighbour is
+      || [[1,0],[-1,0],[0,1],[0,-1]].some(([a,b]) => {
+        const i2 = r.ti + a, j2 = r.tj + b;
+        return i2 >= 0 && j2 >= 0 && i2 < MAP_N && j2 < MAP_N && s.seen[j2 * MAP_N + i2];
+      })).length,
+  }));
+  // can seat 0 walk to seat 1?
+  const mutual = seats.length < 2 ? true
+    : !!seats[0].seen[seats[1].tj * MAP_N + seats[1].ti]
+      || [[1,0],[-1,0],[0,1],[0,-1]].some(([a,b]) => seats[0].seen[(seats[1].tj+b) * MAP_N + (seats[1].ti+a)]);
+  // walkable land nobody can enter — the silent killer
+  const union = new Uint8Array(N2);
+  for (const s of seats) for (let m = 0; m < N2; m++) if (s.seen[m]) union[m] = 1;
+  const pockets = [];
+  const done = new Uint8Array(N2);
+  for (let m = 0; m < N2; m++) {
+    if (union[m] || done[m] || !open(m)) continue;
+    const q = [m]; done[m] = 1; let n = 0; const tiles = [];
+    while (q.length) {
+      const c = q.pop(); n++; tiles.push(c);
+      const i = c % MAP_N, j = (c / MAP_N) | 0;
+      for (const [di, dj] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const a = i + di, b = j + dj;
+        if (a < 0 || b < 0 || a >= MAP_N || b >= MAP_N) continue;
+        const k = b * MAP_N + a;
+        if (done[k] || union[k] || !open(k) || !pf.climbable(c, k)) continue;
+        done[k] = 1; q.push(k);
+      }
+    }
+    if (n >= 12) pockets.push({ n, at: [tiles[0] % MAP_N, (tiles[0] / MAP_N) | 0] });
+  }
+  const spread = rows.length >= 2 ? Math.abs(rows[0].reach - rows[1].reach) : 0;
+  return {
+    map: opts.map || 'playmat', seed: opts.seed ?? 47,
+    openTiles, elevatedPct: +(((() => { let e = 0; for (let m = 0; m < N2; m++) if (g.height[m] > 0.01) e++; return e; })() / N2) * 100).toFixed(1),
+    seats: rows, mutual, nodesTotal: nodes.length,
+    pockets: pockets.length, pocketTiles: pockets.reduce((a, p) => a + p.n, 0),
+    fair: spread <= 2, spread: +spread.toFixed(1),
+    pass: mutual && rows.every((r) => r.reach > 55 && r.nodes >= Math.floor(nodes.length * 0.5)) && spread <= 2,
+  };
+};
 window.__ttSoak = (opts = {}, maxTicks = 9000) => {
   const s = new THREE.Scene();
   const fx = new VFX(s);

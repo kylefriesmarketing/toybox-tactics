@@ -2214,3 +2214,67 @@ were sold as *train* rewards.
 rival wish is revealed only once charges < max, which with one-use powers means
 exactly 0 — so filter and reveal are mutually exclusive). Reverted to a cosmetic
 label. The foe bar is a RECORD, not a live countdown.
+
+## 🏔️ THE ROOM GETS A SHAPE (2026-08-27) — view-side relief, zero sim tiles moved
+
+Kyle: *"i feel like we still need better maps that feel more like a world than
+flat."* A 6-agent AoE research pass measured the cause, and it is NOT what it
+looks like.
+
+**⚠️ ELEV CANNOT BE RAISED — this is the load-bearing fact.** Every collar in the
+game (dunes, centerHill, ridge skirts, the 4-step ramps) steps by `E/3`, and the
+pathfinder gate is `|dh| <= CLIMB (0.3)`. That pins `E_max = 0.90`. ELEV is 0.85
+— **94% of its legal maximum**. One nudge to 1.0 makes E/3 = 0.333 and every dune
+in the game becomes an impassable cliff overnight. Never reach for ELEV.
+
+**THE REAL CAUSE IS PROFILE, NOT AMPLITUDE.** `computeCorners()` averages the 4
+touching tiles, so a plateau's 0.85 step is spread across three corner rows =
+0.85 over 2 world units = **atan → 23°**. What the code calls a cliff renders as
+a grassy swell. 0.85 is not small — a toy is ~0.55, so a level is already 1.5
+toy-heights, the same ratio SC2 uses.
+
+**THE FIX, entirely view-side:** `viewCornerH` (a second corner grid) carries a
+`VIEW_ELEV 1.7` exaggeration plus a light `CORNER_BIAS 0.3`, and `heightAtWorld`
+reads it. The ground mesh and every toy's Y both come from that one function, so
+toys stand on the taller hills correctly.
+
+**⚠️ WHY THIS IS NOT A 56-CALL-SITE SWAP.** Every CLIMB comparison in the game
+reads **`tileHeight`** (the raw grid), not `heightAtWorld` — verified at pathing,
+critters, cat/dog, formations and reachability. `addResourceNode`'s flat-check
+reads `this.height` and the RAW `cornerH`. Nothing stores Y in `stateHash`. So
+`heightAtWorld` has exactly ONE sim consumer: `applyDamage`'s ±0.4 elevation
+rule — and scaling that threshold by the same multiplier (`HI = 0.4 * VIEW_ELEV`)
+makes the comparison bit-identical. **fp verified byte-identical.**
+
+**⚠️ TAPERED, NOT LINEAR** (`ELEV_BOOST_CAP 0.7`, a cap on what a corner may
+GAIN). Ridge cores sit at `E*2.2 = 1.87` and already read; a flat 1.7× turned a
+3-tile-wide ridge into a 3.2-unit spike wall. The terrain that needed help is the
+LOW stuff — plateaus at 0.85, collars at 0.28.
+
+**⚠️ CORNER-SNAPPING IS THE WRONG TOOL FOR A CLIFF FACE.** Plateau and ridge
+boundaries are RASTERISED to tiles, so a strong bias makes that staircase crisp
+and the edge **combs like a saw blade** — captured at 0.75 and 0.55, both
+rejected from matched pairs. A whisper (0.3) gives lips definition without
+revealing the rasterisation. Real cliff faces want the mesh subdivided and the
+face painted in the map's own material (research ranks 2-3) — that is the next
+pass, and it is the one that makes hard edges read.
+
+### 🧭 `__ttPathAudit` — THE MOVEMENT CHECK (build it BEFORE touching terrain)
+
+Kyle asked for movement checks across the board, and terrain is the easiest thing
+here to break silently: a ridge that closes a corridor, a plateau that swallows a
+resource pocket, a mask that strands a seat. None of it throws.
+`window.__ttPathAudit({map, seed})` floods the board using the PathFinder's OWN
+`isBlockedFor` and `climbable`, so it can never disagree with how a toy actually
+moves. Reports per map+seed: `reach` (% of open land each seat can walk to),
+`mutual` (can the seats reach EACH OTHER), `nodes` reachable, isolated `pockets`
+of 12+ tiles, `spread` (the two seats within 2% — point-mirrored fairness), and a
+single `pass`.
+⚠️ Flood from a tile BESIDE the chest — the chest blocks its own footprint, so
+flooding from (ti,tj) finds nothing and every map "fails". That was the harness's
+first bug.
+**BASELINE, all 12 maps: reach 99.6-100%, mutual true, ~0 pockets.** That number
+IS the flatness — from your chest you can walk to essentially the whole board.
+A map with real shape should read 70-85%, the lost coverage being cliffs and
+treelines you go AROUND. Verified after the relief pass: **36/36 pass, min reach
+99.1%, mutual everywhere** (walkability deliberately unchanged this pass).

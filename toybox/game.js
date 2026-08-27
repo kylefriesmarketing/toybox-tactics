@@ -93,6 +93,20 @@ function makeRng(seed) {
 // elevation: the biggest step a toy can climb — ramps are gentle (≤ELEV/3),
 // cliff edges are a full level and therefore impassable
 const CLIMB = 0.3;
+// ---- VIEW-ONLY terrain relief (see the header of this pass) ----
+// VIEW_ELEV exaggerates height on SCREEN only; the sim's height grid, every
+// CLIMB test and every fingerprint are untouched. CORNER_BIAS pulls a corner
+// toward the majority height of its four tiles, which is what actually turns a
+// 23° swell into a cliff — amplitude alone would just make a taller swell.
+const VIEW_ELEV = 1.7;
+// ⚠️ KEPT LOW ON PURPOSE. Corner-snapping is the wrong tool for a hard cliff
+// face: the plateau/ridge boundaries are RASTERISED to tiles, so a strong bias
+// makes that staircase crisp and the edge combs like a saw blade (captured at
+// 0.55 and 0.75 — see the matched pairs). A whisper gives plateau lips a little
+// definition without revealing the rasterisation. Real cliff FACES want the mesh
+// subdivided and the face painted (research ranks 2-3), not corners snapped.
+const CORNER_BIAS = 0.3;
+const ELEV_BOOST_CAP = 0.7; // most a corner may GAIN — keeps tall ridges from spiking
 
 // researched building-tier upgrades: which tech levels up which building type
 const BUILDING_UP = {
@@ -469,23 +483,50 @@ export class Game {
   // corner grid = average of the 4 touching tiles; drives mesh + unit heights
   computeCorners() {
     const W = N + 1;
+    if (!this.viewCornerH) this.viewCornerH = new Float32Array(W * W);
     for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {
-      let sum = 0, n = 0;
+      let sum = 0, n = 0, hi = 0, hiN = 0, lo = Infinity, loN = 0;
       for (const [a, b] of [[i - 1, j - 1], [i, j - 1], [i - 1, j], [i, j]]) {
-        if (inMap(a, b)) { sum += this.height[idx(a, b)]; n++; }
+        if (!inMap(a, b)) continue;
+        const h = this.height[idx(a, b)];
+        sum += h; n++;
+        if (h > hi + 1e-6) { hi = h; hiN = 1; } else if (Math.abs(h - hi) <= 1e-6) hiN++;
+        if (h < lo - 1e-6) { lo = h; loN = 1; } else if (Math.abs(h - lo) <= 1e-6) loN++;
       }
-      this.cornerH[j * W + i] = n ? sum / n : 0;
+      const avg = n ? sum / n : 0;
+      this.cornerH[j * W + i] = avg;   // ⚠️ RAW — addResourceNode's flat-check reads this
+      // VIEW: pull the corner toward whichever height owns the most of it, so the
+      // rise happens over ~1 world unit instead of ~2. A corner fully inside a
+      // level is unchanged; only true edge corners move, and they move to a lip.
+      // ⚠️ SHARPEN ONLY A REAL CLIFF. The game already defines the line between
+      // a slope and a wall: CLIMB. Dune/hill collars deliberately step by E/3
+      // (0.283, walkable) and must stay SMOOTH — biasing those turns an organic
+      // dune into a saw blade. A true level change (E = 0.85) is a cliff and
+      // gets its lip. Ties keep the average so diagonals do not alternate.
+      const cliff = (hi - lo) > CLIMB + 1e-6;
+      const tie = hiN === loN;
+      const domin = (n && cliff && !tie) ? (hiN > loN ? hi : lo) : avg;
+      const shaped = avg + (domin - avg) * CORNER_BIAS;
+      // ⚠️ TAPERED, not linear. Ridge cores sit at E*2.2 = 1.87 and ALREADY read
+      // (the bible: ridges are the only terrain in this game that reads) — a flat
+      // 1.7x turns a 3-tile-wide ridge into a 3.2-unit spike wall with a combed
+      // edge. The terrain that needs help is the LOW stuff: plateaus at 0.85 and
+      // collars at 0.28. So boost small heights fully and cap what gets added.
+      this.viewCornerH[j * W + i] = Math.min(shaped * VIEW_ELEV, shaped + ELEV_BOOST_CAP);
     }
   }
 
-  // smooth world-space terrain height (matches the displaced ground mesh)
+  // Smooth world-space terrain height — this is the VIEW height, and it matches
+  // the displaced ground mesh by construction, so toys stand on the exaggerated
+  // hills correctly. ⚠️ Sim decisions must NOT use this: walkability reads
+  // tileHeight, and applyDamage's elevation rule scales its own threshold.
   heightAtWorld(x, z) {
     const W = N + 1;
     const fx = Math.max(0, Math.min(N - 1e-4, x + N / 2));
     const fz = Math.max(0, Math.min(N - 1e-4, z + N / 2));
     const i0 = Math.floor(fx), j0 = Math.floor(fz);
     const tx = fx - i0, tz = fz - j0;
-    const C = this.cornerH;
+    const C = this.viewCornerH || this.cornerH;
     const h00 = C[j0 * W + i0], h10 = C[j0 * W + i0 + 1];
     const h01 = C[(j0 + 1) * W + i0], h11 = C[(j0 + 1) * W + i0 + 1];
     return (h00 * (1 - tx) + h10 * tx) * (1 - tz) + (h01 * (1 - tx) + h11 * tx) * tz;
@@ -3857,10 +3898,14 @@ export class Game {
     }
     // high ground matters: raining blows from above hits harder,
     // swinging uphill is exhausting (AoE elevation rule)
+    // ⚠️ heightAtWorld is the VIEW height (exaggerated by VIEW_ELEV), so this
+    // rule's threshold scales with it — that keeps the comparison bit-identical
+    // to the pre-exaggeration sim. This is the ONLY sim read of heightAtWorld.
     const hA = this.heightAtWorld(attacker.x, attacker.z);
     const hT = this.heightAtWorld(target.x, target.z);
-    if (hA > hT + 0.4) dmg = Math.round(dmg * 1.25);
-    else if (hA < hT - 0.4) dmg = Math.max(1, Math.round(dmg * 0.75));
+    const HI = 0.4 * VIEW_ELEV;
+    if (hA > hT + HI) dmg = Math.round(dmg * 1.25);
+    else if (hA < hT - HI) dmg = Math.max(1, Math.round(dmg * 0.75));
     dmg = Math.max(1, dmg - this.armorOf(target, spec.atkType));
     // a warded building shrugs most of it off (the aura expires in updateZones)
     if (target.aura && target.aura.k === 'ward') dmg = Math.max(1, Math.round(dmg * (1 - target.aura.cut)));
