@@ -350,8 +350,10 @@ export class Game {
     this.entities = [];
     // area powers live OUTSIDE entities (see stateHash + updateZones)
     this.zones = [];
-    // battery pin: {pid: [wishI, wishII]} answers a seat's draft without a draw
+    // battery pin: {pid: [wishI, wishII, wishIII]} answers a seat's draft without
+    // a draw. Campaign missions use the SAME field to script wishes as story beats.
     this.wishScript = opts.wishScript || null;
+    this.noWishes = !!opts.noWishes;   // a mission may opt out of the draft entirely
     this.selected = [];
     this.formation = 'box'; // client-local; travels inside move commands
     this.projectiles = [];
@@ -2628,13 +2630,13 @@ export class Game {
         this.alert('This save predates Bedtime Wishes - the room will offer your wishes now.', 'warn');
       }
     }
-    // the prequel has no names for what they were feeling yet — and no wishes;
-    // the tutorial's scripted steps must not be interrupted by a draft modal.
-    // Campaign missions (missionEvents is ALWAYS set for them, [] included) are
-    // also wish-free in Slice 1: their difficulty was hand-tuned pre-wishes and
-    // a free draft would quietly re-balance 28 missions. A campaign-aware wish
-    // pass (scripted wishes as story beats) is a later slice.
-    if (this.zeroEra || this.tutorial || this.missionEvents) return;
+    // The prequel has no names for what they were feeling yet, and the tutorial's
+    // scripted steps must not be interrupted by a draft modal. THE CAMPAIGN NOW
+    // WISHES: every mission drafts, both sides, so a mission's balance shifts
+    // symmetrically rather than becoming a one-sided gift. A mission may pin its
+    // own picks through `wishScript` (story beats), and may opt out entirely with
+    // `noWishes` if its scripted difficulty genuinely depends on the old shape.
+    if (this.zeroEra || this.tutorial || this.noWishes) return;
     for (const p of this.players) {
       if (p.den || !this.playerAlive(p)) continue;
       if (p.wishCd > 0) p.wishCd = Math.max(0, p.wishCd - dt);

@@ -2278,3 +2278,28 @@ IS the flatness — from your chest you can walk to essentially the whole board.
 A map with real shape should read 70-85%, the lost coverage being cliffs and
 treelines you go AROUND. Verified after the relief pass: **36/36 pass, min reach
 99.1%, mutual everywhere** (walkability deliberately unchanged this pass).
+
+## 🕯️ THE CAMPAIGN WISHES NOW (2026-08-27)
+
+28 hand-tuned missions had the flagship system switched off. The original reason
+was real — a free draft would quietly re-balance them — but the answer was never
+to keep the best content in the game out of single-player. Two changes:
+
+- **Both sides draft**, so a mission's balance shifts symmetrically instead of
+  becoming a one-sided gift to the player.
+- A mission may **script its picks as story beats** via `mission.wishes`
+  (reusing the existing `wishScript` pin — the campaign can do the thing skirmish
+  cannot), or opt out entirely with `mission.noWishes` if its scripted difficulty
+  genuinely depends on the old shape.
+
+⚠️ The gate is now `zeroEra || tutorial || noWishes` — it no longer keys off
+`missionEvents`. **Toy Box Zero stays wish-free by `zeroEra`**, which is the
+fiction ("no names for what they were feeling yet") and is verified: `zero`
+returns `wishes=[0,0]` while all 27 other missions draft.
+
+**Verified:** full 28-mission headless QA sweep, 0 errors, every non-prequel
+mission drafting, median `wishesCast` 1.
+⚠️ NOT yet measured: whether any specific mission got materially easier or
+harder. The campaign has no battery; that needs a human playthrough or a
+per-mission win-rate sweep against the pre-wish baseline. `mission.noWishes` is
+the escape hatch if a mission turns out to need it.

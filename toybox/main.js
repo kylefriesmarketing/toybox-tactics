@@ -2320,6 +2320,10 @@ function startGame(difficulty, mapKey, mpOpts = null, resume = null, tutorial = 
     startRes: ebc ? ebc.startRes : mpOpts ? mpOpts.startRes : (resume ? resume.opts.startRes : (rep ? rep.startRes : chosenStartRes)),
     // resumed games must rebuild the identical map shell before restoring
     seed: seedVal,
+    // the campaign wishes too: a mission may script its picks as story beats
+    // (`wishes`) or opt out of the draft entirely (`noWishes`)
+    wishScript: campaignMission ? (campaignMission.wishes || null) : null,
+    noWishes: !!(campaignMission && campaignMission.noWishes),
     mp: !!mpOpts, myId: mpOpts ? mpOpts.myId : 0, net,
     faction: rep ? rep.faction : chosenFaction,
     factions: mpOpts ? mpOpts.factions : (resume ? resume.opts.factions : (rep ? rep.factions : campFactions)),

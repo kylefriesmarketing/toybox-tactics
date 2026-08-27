@@ -2000,3 +2000,17 @@ a live countdown: a spent one-use power is exactly the intel worth keeping.
 **Re-verified after:** determinism ×3 tier-3-pinned pairs, netTest 2h+2ai /
 3h+1ai / mid-window drop, 12-map sweep, a free-draft game reaching ages [2,3]
 with 3 wishes each, 0 console errors.
+
+---
+
+## 13 - THE CAMPAIGN IS SWITCHED ON (2026-08-27)
+
+Section 10 listed campaign missions as deliberately wish-free. That is now
+REVERSED: all 27 non-prequel missions draft, both sides, and a mission may
+script its picks as story beats through the existing pin (mission.wishes) or
+opt out with mission.noWishes. Toy Box Zero stays wish-free via zeroEra - the
+prequel has no names for what they were feeling yet.
+
+Verified: 28-mission headless sweep, 0 errors, zero returns wishes=[0,0].
+Outstanding: no per-mission difficulty measurement exists. The campaign has
+never had a battery; noWishes is the escape hatch per mission.
