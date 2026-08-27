@@ -2215,6 +2215,45 @@ The `terraces:` generator now exists to deliver what that desc promises — but 
 bookshelf uses generated ground ART (a pure texture swap), so relief there reads only
 through `shadeGroundByHeight`’s baked hillshade, not through painted contours.
 
+## 🐛 RIDGE GAPS ARE ERODED TO 2 TILES (2026-08-27) — and a retracted claim
+
+⚠️⚠️ **RETRACTION FIRST. An earlier version of this section claimed "the ridges do not
+build their walls". THAT WAS FALSE, and it was a measurement error of mine, not a bug.**
+Every ad-hoc probe I wrote hardcoded a row stride of **67**. **`MAP_N` IS 72.**
+(`data.js:6` — "map is N x N tiles". `viewCornerH` uses W = N+1 = 73.) Reading
+`height[j*67+i]` on a 72-wide grid samples a diagonal smear of unrelated tiles, which
+produced a convincing-looking phantom: "5 of 34 centreline tiles blocked", "only 67 of 286
+cores near a ridge", and a garbage ASCII map. The same bug also produced the earlier
+"terraces profile is inverted" confusion.
+
+**RE-MEASURED WITH STRIDE 72 (sandbox, seed 47, ridge 0):**
+- **30 of 34** centreline tiles blocked at exactly `E*2.2 = 1.87`. The wall is built.
+- **286 of 286** core tiles lie within 3 tiles of an authored ridge. All of it is ridge.
+- Centreline open runs: **[2, 2]** — the two authored gaps, and nothing else.
+
+⚠️ **THE LESSON: never hardcode a grid stride in a probe.** Read `MAP_N`, or index through
+the engine. A wrong stride does not throw — it returns plausible numbers and invents a bug.
+Two separate false findings this session came from this one constant.
+
+### The real defect: authored gaps are eroded from both sides
+
+`inGap` is evaluated PER t-STEP, but every t-step paints a `(2w+3)²` block. A step just
+OUTSIDE a gap paints its whole block across tiles INSIDE the gap, eroding the pass by
+`w+1` from each side. sandbox authors `w: 5` gaps on a `w: 1` ridge and **measures a
+2-tile pass** (arithmetic predicts 5 − 2 − 2 = 1; the half-step sampling recovers one tile).
+
+**FIXED** by testing the gap PER TILE: project the tile onto the ridge axis and test that
+position, so a gap is a clean perpendicular cut regardless of which step paints the block.
+
+⚠️ This affects the six ridged maps (sandbox / underbed / playground / kitchen /
+livingroom / attic): their chokepoint passes have been 2 tiles wide instead of the
+authored 4-5 since ridges shipped, which is a far tighter squeeze than any of them intends.
+
+⚠️ Note it does NOT explain `detour: 1.414` everywhere — that measurement came from
+`__ttPathAudit`, which indexes through `MAP_N` correctly and stands. Walls exist AND
+cost nothing, because a wall on the main diagonal with gaps cannot obstruct a monotone
+staircase between anti-diagonal seats.
+
 ## 🗺️ THE MAP IDENTITY AUDIT (2026-08-27) — does each map deliver what it claims?
 
 A 4-agent pass read all 12 pre-existing maps against their own label + desc + source
