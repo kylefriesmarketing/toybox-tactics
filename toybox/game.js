@@ -1003,8 +1003,15 @@ export class Game {
         if (gaps.some((gp) => Math.abs(t - gp) < 4)) continue;
         const jit = ((rng() * 3) | 0) - 1;
         const ci = t + jit, cj = t - jit;
-        if (!this.flatAt(ci, cj, 3, 3, 0)) continue;
-        this.addObstacle(rng() < 0.65 ? 'pillow' : 'book', ci, cj, 3, 3, 200 + t);
+        if (!this.flatAt(ci, cj, 3, 3, 0)) continue;   // ⚠️ MUST precede the raise: flatAt demands height exactly 0
+        // ⚠️ addObstacle's OWN guards, replicated: it returns silently on any of
+        // them, and a raise that lands without its prop leaves an UNBLOCKED tile at
+        // E*2.2 beside its own E/3 skirt — a 1.59 step between two walkable tiles.
+        // The raise and the prop must be all-or-nothing.
+        if (!inMap(ci, cj) || !inMap(ci + 2, cj + 2)) continue;
+        if (!inPlay(ci, cj) || !inPlay(ci + 2, cj + 2)) continue;
+        if (this.startTiles && this.startTiles.some(([si, sj]) =>
+          ci + 3 > si - 4 && ci < si + 7 && cj + 3 > sj - 4 && cj < sj + 7)) continue;
         // ⚠️ A CANYON NEEDS WALLS. addObstacle only writes `blocked` — it parents
         // its mesh at tileHeight and never touches the heightfield, so before this
         // the barricade was a FLAT impassable strip and the map measured 3.0%
@@ -1016,14 +1023,29 @@ export class Game {
           if (!inMap(i, j)) continue;
           const core = a2 >= 0 && a2 < 3 && b2 >= 0 && b2 < 3;
           if (core) {
-            // already blocked by addObstacle; nobody can path here, so a tall step
-            // is safe — isBlockedFor rejects the tile before climbable is consulted
+            // addObstacle blocks these three lines below, and its guards are already
+            // satisfied above, so nothing can ever path here — isBlockedFor rejects a
+            // blocked tile before climbable is consulted, which is why a tall step is safe
             this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], E * 2.2);
           } else if (!this.blocked[idx(i, j)] && clearHomes(i, j, 14)) {
             this.height[idx(i, j)] = Math.max(this.height[idx(i, j)], E / 3);
           }
         }
+        // ⚠️ ONLY NOW place the prop: addObstacle parents its mesh at tileHeight()
+        // at call time, so a pillow placed before the raise sits buried in its own wall.
+        this.addObstacle(rng() < 0.65 ? 'pillow' : 'book', ci, cj, 3, 3, 200 + t);
       }
+      // ⚠️ RE-BAKE THE VIEW. The whole view pipeline (corners -> ground mesh ->
+      // hillshade -> fog) ran at the end of the terrain section, ~120 lines above,
+      // and the barricade writes its heights here. Without this the canyon walls
+      // are real to the sim, counted by every metric, and DRAWN FLAT — and
+      // applyDamage's elevation rule (which reads heightAtWorld -> viewCornerH)
+      // never sees them either.
+      this.computeCorners();
+      this.applyTerrainToGround();
+      this.sinkRoomFloor();
+      shadeGroundByHeight(this.scene, N, (i, j) => this.height[idx(i, j)]);
+      this.fog.drape((x, z) => this.heightAtWorld(x, z));
     }
     // non-blocking clutter — the theme picks the props (playground swings etc.)
     const kinds = this.map.decor || ['crayon', 'die', 'ball'];
