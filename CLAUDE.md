@@ -2254,6 +2254,35 @@ authored 4-5 since ridges shipped, which is a far tighter squeeze than any of th
 cost nothing, because a wall on the main diagonal with gaps cannot obstruct a monotone
 staircase between anti-diagonal seats.
 
+## 💰 `centreNodes` — the contested-middle economy metric (2026-08-27)
+
+`__ttPathAudit` now returns **`centreNodes`**: resource nodes within 10 tiles of map
+centre. It exists because centred terrain can silently delete the middle economy —
+game.js hardcodes six resource clusters at `N/2 ± small offsets` (all within ~8 tiles),
+and `addResourceNode` accepts only WHOLE multiples of E, while a terrace RISER is E/3 or
+2E/3. Put a badly-shaped mountain on the centre and the clusters are silently rejected.
+
+**Baseline, seed 47** (this is the reference table — a new centred feature must be checked
+against it, not against zero):
+
+| map | centre | map | centre |
+|---|---|---|---|
+| livingroom | 33 | playmat | 18 |
+| canyon | 26 | terraces | 10 |
+| kitchen | 25 | sandbox | 8 |
+| attic | 23 | jungle | 8 |
+| bookshelf | 19 | oldoak | 7 |
+| garden | 19 | underbed | 4 |
+
+⚠️ **The terrace maps shipped today are CLEAN**: bookshelf and garden (19) sit ABOVE the
+pure-open flagship (18), and terraces/jungle (10/8) match sandbox (8) and oldoak (7),
+which have carried centred dunes and a centre hill for months. A low centre count is a
+normal property of centred terrain, not automatically a defect — compare, do not panic.
+
+⚠️ It IS the right check before adding centred terrain. A rejected attic proposal was
+measured to lose 13 of the 22 centre-cluster nodes to its narrow-shelf geometry — mostly
+riser, almost no whole level, at exactly the radius the clusters occupy.
+
 ## 📐 THE MAP CENTRE IS (36,36), NOT (33,33) (2026-08-27)
 
 ⚠️ **`MAP_N` is 72, so the centre tile is 36.** Every terrace shipped earlier today was

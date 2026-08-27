@@ -1927,6 +1927,11 @@ window.__ttPathAudit = (opts = {}) => {
       return { blockedTiles: blocked, mirrorErr: blocked ? +((unpaired / blocked) * 100).toFixed(1) : 0 };
     })(),
     seats: rows, mutual, nodesTotal: nodes.length,
+    // ⚠️ CENTRE ECONOMY. game.js hardcodes six resource clusters at N/2 +- small
+    // offsets (all within ~8 tiles of centre). addResourceNode accepts only WHOLE
+    // multiples of E, and a terrace RISER is E/3 or 2E/3 — so centred terrain can
+    // silently delete the contested middle economy. Count what actually landed.
+    centreNodes: nodes.filter((r) => Math.hypot(r.ti - MAP_N / 2, r.tj - MAP_N / 2) <= 10).length,
     // detour 1.414 = a perfectly open board (4-neighbour BFS on a diagonal seat
     // pair). Higher means the terrain makes armies walk around things.
     detour, walk, centreWalk, centreDelta,
