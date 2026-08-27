@@ -2254,6 +2254,44 @@ authored 4-5 since ridges shipped, which is a far tighter squeeze than any of th
 cost nothing, because a wall on the main diagonal with gaps cannot obstruct a monotone
 staircase between anti-diagonal seats.
 
+## ⚠️ THE CANYON WALLS WERE REAL TO THE SIM AND INVISIBLE ON SCREEN (2026-08-27)
+
+My own canyon fix shipped half-broken. Caught by the terrain review, confirmed by grep.
+**Every metric said it worked, because every metric read the SIM grid.**
+
+1. ⚠️⚠️ **THE VIEW PIPELINE HAD ALREADY RUN.** `computeCorners` / `applyTerrainToGround` /
+   `sinkRoomFloor` / `shadeGroundByHeight` / `fog.drape` all execute at the END of the
+   terrain section (~line 886). The canyon barricade writes its heights ~120 lines LATER,
+   in the obstacle pass. `heightAtWorld` reads `viewCornerH`, so the walls existed in the
+   heightfield, were counted by `__ttPathAudit` (relief 3.0 -> 7.1%), and **rendered on the
+   flat plane.** They were equally invisible to `applyDamage`’s elevation rule, which also
+   reads `heightAtWorld` — so the high-ground combat benefit was never delivered either.
+   Fixed by re-baking the whole view pipeline after the barricade, gated on `map.canyon`.
+2. **THE PILLOWS WOULD HAVE SUNK.** `addObstacle` parents its mesh at `tileHeight()` AT
+   CALL TIME. Raising the tiles afterwards lifts the ground out from under the prop.
+   Order is now: test `flatAt(...,0)` -> raise -> place. (flatAt MUST come first: it
+   demands height exactly 0 across the 3x3.)
+3. **THE RAISE IS NOW ALL-OR-NOTHING WITH ITS PROP.** `addObstacle` has three guards of
+   its own (bounds, `inPlay`, a doorstep box) and returns silently. A raise that lands
+   without its prop leaves an UNBLOCKED tile at `E*2.2` beside its own `E/3` skirt — a
+   1.59 step between two walkable tiles. Those guards are replicated before any write.
+
+⚠️⚠️ **THE GENERAL RULE: ANY HEIGHT WRITTEN AFTER ~line 886 IS SIM-ONLY UNTIL THE VIEW IS
+RE-BAKED.** The heightfield and the rendered world are two different things separated by
+one function call, and nothing warns you. If you add terrain in the obstacle/resource
+section, re-run computeCorners + applyTerrainToGround (+ sinkRoomFloor/hillshade/fog).
+
+⚠️ **A "step > CLIMB between two OPEN tiles" is NOT a defect** — it is what a plateau edge
+IS, with ramps as the only ways up. Measured baseline: **playmat (untouched) has 148 such
+steps, worst 1.133**; canyon after this work has 111. Do not treat that raw count as a
+walkability gate. The real gate is `__ttPathAudit`’s reach / pockets / mutual, which uses
+the PathFinder’s own `isBlockedFor` + `climbable`.
+
+Verified after the fix: viewCornerH max 2.57 and the ground mesh displaced to 2.59 (was
+flat); photographed as a real ridge with the pillows standing ON it; relief 7.1%, reach
+99.9%, 0 pockets, spread 0, **centreNodes 26 -> 33**; fp determinism; 3/3 soaks conclude
+7.2-8.9 min; MP 2h+2ai inSync; 0 errors.
+
 ## 🧱 THE 8-MAP TERRAIN UPGRADE: DESIGNED, VERIFIED, AND REJECTED (2026-08-27)
 
 Kyle asked to upgrade every remaining map. Eight configs were designed against the audit
